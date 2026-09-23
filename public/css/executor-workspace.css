@@ -1158,15 +1158,21 @@ body.executor-page-reports .mobile-tx-card {
 
 .pool-workspace {
     display: grid;
-    grid-template-columns: minmax(0, 1.35fr) minmax(260px, 0.85fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 16px;
-    align-items: start;
+    align-items: stretch;
+}
+.pool-workspace-col {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    min-width: 0;
 }
 .pool-workspace-col h6 {
     display: flex;
     align-items: center;
     gap: 8px;
-    margin: 0 0 12px;
+    margin: 0;
     font-size: 0.86rem;
     font-weight: 900;
 }
@@ -1270,9 +1276,80 @@ body.executor-page-reports .mobile-tx-card {
 .solo-card-actions {
     display: flex;
     flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-start;
     gap: 8px;
+    margin-top: auto;
 }
-.pool-workspace .empty-state { padding: 24px 12px; }
+.pool-card-actions .btn-action,
+.solo-card-actions .btn-action {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    flex: 0 0 auto;
+    white-space: nowrap;
+}
+.pool-workspace .empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    flex: 1 1 auto;
+    text-align: center;
+    min-height: 180px;
+    margin: 0;
+    padding: 28px 18px;
+    border: 1px dashed var(--executor-line) !important;
+    border-radius: 16px !important;
+    background: color-mix(in srgb, var(--executor-ink) 3%, var(--executor-surface)) !important;
+    color: var(--executor-muted);
+}
+body.executor-page-employees #externalPoolWorkspace > .d-flex .btn-create {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin-inline-start: auto;
+    white-space: nowrap;
+}
+body.executor-page-employees .team-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-inline-start: auto;
+    flex: 1 1 280px;
+    max-width: 520px;
+}
+body.executor-page-employees .team-toolbar .form-control {
+    flex: 1 1 180px;
+    min-width: 0;
+}
+body.executor-page-employees .team-toolbar .form-select {
+    flex: 0 1 180px;
+    width: auto;
+}
+body.executor-page-employees .emp-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    gap: 6px;
+}
+body.executor-page-employees #emptyState.empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    margin-top: 8px;
+    padding: 36px 16px;
+    border: 1px dashed var(--executor-line) !important;
+    border-radius: 16px !important;
+    background: color-mix(in srgb, var(--executor-ink) 3%, var(--executor-surface)) !important;
+    color: var(--executor-muted);
+}
 .pool-fund-note {
     text-align: start;
     margin: 0;
