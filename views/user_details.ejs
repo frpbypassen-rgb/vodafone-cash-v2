@@ -191,7 +191,9 @@
         <% if (query && query.settlementVoided) { %>
             <div class="alert alert-info fw-bold rounded-4 shadow-sm"><i class="fa-solid fa-rotate-left me-1"></i> تم حذف أثر التسوية من الرصيد مع الاحتفاظ بالقيد الأصلي وحركة الإلغاء في السجل المالي.</div>
         <% } %>
-        <% if (query && query.balanceError) { %>
+        <% if (query && query.balanceError === 'actor') { %>
+            <div class="alert alert-danger fw-bold rounded-4 shadow-sm"><i class="fa-solid fa-triangle-exclamation me-1"></i> تعذر تحديد المدير المنفّذ. سجّل الدخول من جديد ثم أعد تسجيل الإيداع أو الخصم.</div>
+        <% } else if (query && query.balanceError) { %>
             <div class="alert alert-danger fw-bold rounded-4 shadow-sm"><i class="fa-solid fa-triangle-exclamation me-1"></i> تعذر تحديث الرصيد. تحقق من المبلغ والحساب ثم أعد المحاولة.</div>
         <% } %>
         <% if (query && query.ownerOtpSaved) { %>

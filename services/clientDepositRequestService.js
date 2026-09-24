@@ -164,6 +164,9 @@ async function resolveClientDepositTicket({ ticketId, admin, approved, reason = 
     if (!ticket || !mongoose.isValidObjectId(transactionId)) throw failure('طلب الإيداع غير موجود.', 404);
 
     const reviewedAt = new Date();
+    const reviewerId = String(admin?.id || '').trim();
+    const reviewerName = String(admin?.name || '').trim();
+    if (!reviewerId || !reviewerName) throw failure('تعذر تحديد المدير الذي راجع طلب الإيداع.', 401);
     const cleanReason = String(reason || '').trim().slice(0, 1000);
     if (!approved && cleanReason.length < 3) throw failure('اكتب سبب الرفض بوضوح.');
 
@@ -200,9 +203,12 @@ async function resolveClientDepositTicket({ ticketId, admin, approved, reason = 
             delta: tx.amount,
             reversible: true
         };
-        tx.depositRequest.reviewedById = admin.id;
-        tx.depositRequest.reviewedByName = admin.name;
+        tx.depositRequest.reviewedById = reviewerId;
+        tx.depositRequest.reviewedByName = reviewerName;
         tx.depositRequest.reviewedAt = reviewedAt;
+        tx.performedByAdminId = reviewerId;
+        tx.performedByAdminName = reviewerName;
+        tx.performedByAdminAt = reviewedAt;
         await tx.save();
 
         await notifyBalanceAdjustment({
@@ -215,8 +221,8 @@ async function resolveClientDepositTicket({ ticketId, admin, approved, reason = 
         }).catch(() => null);
     } else {
         tx.status = 'rejected';
-        tx.depositRequest.reviewedById = admin.id;
-        tx.depositRequest.reviewedByName = admin.name;
+        tx.depositRequest.reviewedById = reviewerId;
+        tx.depositRequest.reviewedByName = reviewerName;
         tx.depositRequest.reviewedAt = reviewedAt;
         tx.depositRequest.rejectionReason = cleanReason;
         await tx.save();
@@ -236,13 +242,13 @@ async function resolveClientDepositTicket({ ticketId, admin, approved, reason = 
     ticket.closedAt = approved ? ticket.closedAt : reviewedAt;
     ticket.unreadUser = Number(ticket.unreadUser || 0) + 1;
     ticket.metadata.depositRequest.status = approved ? 'approved' : 'rejected';
-    ticket.metadata.depositRequest.reviewedById = admin.id;
-    ticket.metadata.depositRequest.reviewedByName = admin.name;
+    ticket.metadata.depositRequest.reviewedById = reviewerId;
+    ticket.metadata.depositRequest.reviewedByName = reviewerName;
     ticket.metadata.depositRequest.reviewedAt = reviewedAt;
     if (!approved) ticket.metadata.depositRequest.rejectionReason = cleanReason;
     ticket.messages.push({
         sender: 'admin',
-        senderName: admin.name,
+        senderName: reviewerName,
         text: approved
             ? `تم قبول طلب الإيداع وإضافة ${tx.amount} LYD إلى رصيدك.`
             : `تم رفض طلب الإيداع. السبب: ${cleanReason}`,

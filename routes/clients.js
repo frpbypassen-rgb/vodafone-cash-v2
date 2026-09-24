@@ -20,6 +20,7 @@ const { createClientNotifications, notifyBalanceAdjustment } = require('../servi
 const { createDepositReceiptProof } = require('../services/depositReceiptService');
 const { voidBalanceAdjustment } = require('../services/balanceAdjustmentService');
 const { logAction } = require('../services/auditService');
+const { requireAdminActor, isAdminActorError, performedFields } = require('../utils/adminActor');
 const { loadAdminAccountDirectory } = require('../services/adminAccountDirectoryService');
 const { findCompanyLoginOwner } = require('../services/adminAccountManagementService');
 const {
@@ -267,6 +268,7 @@ const runDbTransaction = async (callback) => {
 };
 
 const balanceErrorQuery = (error) => {
+    if (isAdminActorError(error) || error.message === 'ADJUSTMENT_ACTOR_REQUIRED') return 'actor';
     if (error.message === 'INSUFFICIENT_BALANCE') return 'insufficient';
     if (error.message === 'ACCOUNT_NOT_FOUND') return 'notfound';
     return 'failed';
@@ -490,6 +492,7 @@ router.get('/user/:id/sandbox-api-guide.pdf', requireAuth, requireMaster, async 
 
 router.post('/user/:id/add-balance', requireAuth, async (req, res) => {
     try {
+        const actor = requireAdminActor(req);
         const amount = parseFloat(req.body.amount);
         const notes = req.body.notes ? req.body.notes.trim() : '';
         if (!Number.isFinite(amount) || amount === 0) return res.redirect(`/user/${req.params.id}?balanceError=invalid`);
@@ -519,6 +522,7 @@ router.post('/user/:id/add-balance', requireAuth, async (req, res) => {
                 companyName: 'عميل فردي',
                 employeeName: amount > 0 ? 'الإدارة (إيداع)' : 'الإدارة (خصم)',
                 notes,
+                ...performedFields(actor),
                 balanceAdjustment: {
                     entityModel: 'User',
                     entityId: account._id,
@@ -538,9 +542,9 @@ router.post('/user/:id/add-balance', requireAuth, async (req, res) => {
 
             await logAction({
                 action: 'BALANCE_ADJUSTMENT_CREATED', req,
-                performedById: req.session.adminId,
+                performedById: actor.id,
                 performedByModel: 'Admin',
-                performedByName: req.session.adminName || 'الإدارة',
+                performedByName: actor.name,
                 targetId: account._id, targetModel: 'User',
                 oldData: { balance: balanceResult.balanceBefore },
                 newData: { balance: balanceResult.balanceAfter, delta: amount },
@@ -634,6 +638,7 @@ router.post('/user/:id/update-account-code', requireAuth, requireMaster, async (
 
 router.post('/company/:id/add-balance', requireAuth, async (req, res) => {
     try {
+        const actor = requireAdminActor(req);
         const amount = parseFloat(req.body.amount);
         const notes = req.body.notes ? req.body.notes.trim() : '';
         if (!Number.isFinite(amount) || amount === 0) return res.redirect(`/company/${req.params.id}?balanceError=invalid`);
@@ -664,6 +669,7 @@ router.post('/company/:id/add-balance', requireAuth, async (req, res) => {
                 companyName: account.name,
                 employeeName: amount > 0 ? 'الإدارة (إيداع)' : 'الإدارة (خصم)',
                 notes,
+                ...performedFields(actor),
                 balanceAdjustment: {
                     entityModel: 'ClientCompany',
                     entityId: account._id,
@@ -683,9 +689,9 @@ router.post('/company/:id/add-balance', requireAuth, async (req, res) => {
 
             await logAction({
                 action: 'BALANCE_ADJUSTMENT_CREATED', req,
-                performedById: req.session.adminId,
+                performedById: actor.id,
                 performedByModel: 'Admin',
-                performedByName: req.session.adminName || 'الإدارة',
+                performedByName: actor.name,
                 targetId: account._id, targetModel: 'ClientCompany',
                 oldData: { balance: balanceResult.balanceBefore },
                 newData: { balance: balanceResult.balanceAfter, delta: amount },
@@ -717,10 +723,11 @@ router.post('/company/:id/add-balance', requireAuth, async (req, res) => {
 router.post('/transaction/:id/void-balance-adjustment', requireAuth, async (req, res) => {
     try {
         if (!await Transaction.exists({ _id: req.params.id, ...adminAccountScope(req) })) return res.status(404).send('الحركة غير موجودة');
-        const performedBy = req.session.adminName || req.session.adminUsername || 'الإدارة';
+        const actor = requireAdminActor(req);
         const result = await voidBalanceAdjustment({
             transactionId: req.params.id,
-            performedBy,
+            performedBy: actor.name,
+            performedById: actor.id,
             reason: req.body.reason || 'حذف التسوية من الإدارة'
         });
         const originalStatus = result.transaction.balanceAdjustment?.originalStatus;
@@ -745,9 +752,9 @@ router.post('/transaction/:id/void-balance-adjustment', requireAuth, async (req,
         await logAction({
             action: 'BALANCE_ADJUSTMENT_VOIDED',
             req,
-            performedById: req.session.adminId,
+            performedById: actor.id,
             performedByModel: 'Admin',
-            performedByName: performedBy,
+            performedByName: actor.name,
             targetId: result.entityId,
             targetModel: result.entityModel,
             oldData: { status: originalStatus, balance: result.balanceBefore },
@@ -778,7 +785,9 @@ router.post('/transaction/:id/void-balance-adjustment', requireAuth, async (req,
             ADJUSTMENT_ALREADY_VOIDED: 'already',
             ADJUSTMENT_NOT_REVERSIBLE: 'unsupported',
             ADJUSTMENT_LEDGER_NOT_FOUND: 'unsupported',
-            ADJUSTMENT_VOID_CONFLICT: 'conflict'
+            ADJUSTMENT_VOID_CONFLICT: 'conflict',
+            ADMIN_ACTOR_REQUIRED: 'actor',
+            ADJUSTMENT_ACTOR_REQUIRED: 'actor'
         };
         return res.redirect(`/transactions?filterType=deposit_deduction&voidError=${knownErrors[error.message] || 'failed'}`);
     }

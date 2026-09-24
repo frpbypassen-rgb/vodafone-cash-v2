@@ -223,7 +223,9 @@
             return `عملية ${type} بقيمة ${amount} قيد العمل لدى ${executor}.`;
         }
         if (status === 'processing') {
-            return `عملية ${type} بقيمة ${amount} من ${company} تم توجيهها للتنفيذ${executor !== EMPTY_UNASSIGNED ? ` لدى ${executor}` : ''}.`;
+            const routedTo = executor !== EMPTY_UNASSIGNED ? ` لدى ${executor}` : '';
+            const router = !isBlank(tx.routedByAdminName) ? ` وجّهها ${String(tx.routedByAdminName).trim()}.` : '';
+            return `عملية ${type} بقيمة ${amount} من ${company} تم توجيهها للتنفيذ${routedTo}.${router}`;
         }
         if (status === 'pending') {
             return `عملية ${type} بقيمة ${amount} من ${company} بانتظار التنفيذ.`;
@@ -232,10 +234,12 @@
             return `طلب إيداع بقيمة ${amount} من ${company} بانتظار اعتماد الإدارة.`;
         }
         if (status === 'deposit') {
-            return `تم اعتماد إيداع بقيمة ${amount} لصالح ${company}.`;
+            const actor = !isBlank(tx.performedByAdminName) ? ` أودعها ${String(tx.performedByAdminName).trim()}.` : '';
+            return `تم اعتماد إيداع بقيمة ${amount} لصالح ${company}.${actor}`;
         }
         if (status === 'deduction') {
-            return `تم تسجيل خصم بقيمة ${amount} على ${company}.`;
+            const actor = !isBlank(tx.performedByAdminName) ? ` خصمها ${String(tx.performedByAdminName).trim()}.` : '';
+            return `تم تسجيل خصم بقيمة ${amount} على ${company}.${actor}`;
         }
         if (status === 'rejected' || status === 'cancelled_by_admin') {
             return `أُلغيت عملية ${type} بقيمة ${amount} الخاصة بـ ${company}.`;
@@ -270,6 +274,9 @@
         const creator = tx.employeeName || tx.companyName || 'العميل';
         const executor = tx.executorName || tx.assignedExecutorName;
         pushEvent('created', 'إنشاء الطلب', tx.createdAt, creator, 'neutral');
+        if (!isBlank(tx.routedByAdminName)) {
+            pushEvent('routed', 'توجيه العملية', tx.routedAt || tx.executorReceivedAt || tx.updatedAt, tx.routedByAdminName, 'progress');
+        }
         pushEvent('assigned', 'تعيين المنفّذ', tx.assignedExecutorAt, tx.assignedExecutorName || executor, 'progress');
         pushEvent('received', 'وصول العملية للمنفّذ', tx.executorReceivedAt, executor, 'progress');
 
@@ -287,6 +294,9 @@
             pushEvent('cancelled', 'إلغاء / رفض العملية', tx.cancelledAt, tx.cancelledBy || 'الإدارة', 'fail');
         } else if (FAIL_STATUSES.includes(tx.status)) {
             pushEvent('cancelled', 'إلغاء / رفض العملية', tx.updatedAt, tx.cancelledBy || 'الإدارة', 'fail');
+        }
+        if ((tx.status === 'deposit' || tx.status === 'deduction') && !isBlank(tx.performedByAdminName)) {
+            pushEvent('performed', tx.status === 'deduction' ? 'تسجيل الخصم' : 'تسجيل الإيداع', tx.performedByAdminAt || tx.createdAt, tx.performedByAdminName, 'success');
         }
 
         events.sort((a, b) => a.ts - b.ts);
@@ -584,6 +594,7 @@
                     <div class="badge-st ${model.status.badgeClass} mt-2">${escapeHtml(typeLabelText)}</div>
                     ${kvRow('الجهة / العميل المستهدف', escapeHtml(model.company))}
                     ${kvRow('الموظف المنفذ', escapeHtml(displayValue(tx.employeeName, 'unassigned')))}
+                    ${!isBlank(tx.performedByAdminName) ? kvRow(tx.status === 'deduction' ? 'خصمها' : 'أودعها', escapeHtml(tx.performedByAdminName)) : ''}
                     ${kvRow('رقم العملية المالي', `<span class="mono-num">${escapeHtml(model.opNumber)}</span>`)}
                     ${kvRow('تاريخ التسجيل', escapeHtml(model.formatDate(tx.createdAt)))}
                 </div>
@@ -603,6 +614,7 @@
                     ${metricCard('سعر الصرف', escapeHtml(model.rate), 'rate')}
                     ${metricCard('الرقم / الحساب', accountNumberMarkup(tx))}
                     ${metricCard('المنفّذ', escapeHtml(model.executor), 'od-executor-chip')}
+                    ${!isBlank(tx.routedByAdminName) ? metricCard('وجّهها', escapeHtml(tx.routedByAdminName)) : ''}
                 </div>
                 ${recipient}
             `;
@@ -618,6 +630,7 @@
                 ${kvRow('الجهة / الشركة', escapeHtml(model.company))}
                 ${kvRow('الموظف الطالب', escapeHtml(displayValue(tx.employeeName, 'unassigned')))}
                 ${kvRow('المنفّذ', escapeHtml(model.executor), 'od-executor-chip')}
+                ${!isBlank(tx.routedByAdminName) ? kvRow('وجّهها', escapeHtml(tx.routedByAdminName)) : ''}
                 ${kvRow('مجموعة التنفيذ', escapeHtml(displayValue(tx.executorGroupName, 'unassigned')))}
                 ${kvRow('بوت التنفيذ', renderBotEditor(model) || escapeHtml(EMPTY_UNASSIGNED))}
                 ${kvRow('نوع التحويل', escapeHtml(model.type))}

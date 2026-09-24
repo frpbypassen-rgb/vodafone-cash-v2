@@ -151,6 +151,8 @@
         <% } %>
         <% if (typeof query !== 'undefined' && query.settlementError === 'RECEIPT_REQUIRED') { %>
             <div class="alert alert-danger fw-bold shadow-sm"><i class="fa-solid fa-image me-2"></i>أرفق إيصال إيداع واحدًا على الأقل قبل إرسال الطلب.</div>
+        <% } else if (typeof query !== 'undefined' && query.settlementError === 'ACTOR_REQUIRED') { %>
+            <div class="alert alert-danger fw-bold shadow-sm"><i class="fa-solid fa-user-shield me-2"></i>تعذر تحديد المدير المنفّذ. سجّل الدخول من جديد ثم أعد تسجيل الإيداع أو الخصم.</div>
         <% } %>
 
         <div class="row g-4 mb-4">

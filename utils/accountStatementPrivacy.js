@@ -40,6 +40,13 @@ const EXECUTOR_PRIVATE_FIELDS = Object.freeze([
     'zaynpayIdempotencyResponse',
     'adminNotes',
     'cancelledBy',
+    'cancelledByAdminId',
+    'routedByAdminId',
+    'routedByAdminName',
+    'routedAt',
+    'performedByAdminId',
+    'performedByAdminName',
+    'performedByAdminAt',
     'executorProofImages'
 ]);
 

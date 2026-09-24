@@ -18,6 +18,8 @@
     <style>
         .operation-age { display: block; margin-top: 7px; color: var(--text-muted); font-size: .7rem; font-weight: 800; white-space: nowrap; }
         .operation-age.is-late { color: #d97706; }
+        .admin-actor-line { display: block; margin-top: 4px; font-size: .75rem; font-weight: 800; color: #1d4ed8; line-height: 1.35; }
+        [data-theme="dark"] .admin-actor-line { color: #93c5fd; }
 
         .btn-action-sm { width: 35px; height: 35px; display: inline-flex; align-items: center; justify-content: center; border-radius: 10px; font-size: 0.9rem; transition: 0.2s; border: 1px solid transparent; background: rgba(0,0,0,0.05); color: var(--text-main); text-decoration: none;}
         [data-theme="dark"] .btn-action-sm { background: rgba(255,255,255,0.05); }
@@ -729,7 +731,9 @@
         <% if (query && query.settlementVoided) { %>
             <div class="alert alert-info fw-bold rounded-3"><i class="fa-solid fa-rotate-left me-1"></i> تم حذف أثر التسوية من الرصيد، مع الاحتفاظ بالقيد الأصلي وحركة العكس في السجل المالي.</div>
         <% } %>
-        <% if (query && query.voidError) { %>
+        <% if (query && query.voidError === 'actor') { %>
+            <div class="alert alert-danger fw-bold rounded-3"><i class="fa-solid fa-triangle-exclamation me-1"></i> تعذر تحديد المدير المنفّذ. سجّل الدخول من جديد ثم أعد المحاولة.</div>
+        <% } else if (query && query.voidError) { %>
             <div class="alert alert-danger fw-bold rounded-3"><i class="fa-solid fa-triangle-exclamation me-1"></i> تعذر حذف التسوية أو سبق إلغاؤها. راجع القيد المالي ثم أعد المحاولة.</div>
         <% } %>
         <% if (query && query.routeError) { %>
@@ -737,6 +741,7 @@
                 service_mismatch: 'لا يمكن توجيه العملية إلى هذا المنفذ لأن خدمته لا تطابق نوع العملية.',
                 financial_unavailable: 'تعذر تأكيد التعديل المالي حالياً. لم يتم حفظ أي تغيير؛ حاول لاحقاً.',
                 transaction_unavailable: 'العملية لم تعد متاحة لهذا التعديل أو أن بياناتها غير صالحة.',
+                actor_missing: 'تعذر تحديد المدير المنفّذ للعملية. سجّل الدخول من جديد ثم أعد المحاولة.',
                 update_failed: 'تعذر تنفيذ التعديل. راجع البيانات ثم أعد المحاولة أو تواصل مع الدعم.'
             }; %>
             <div class="alert alert-danger fw-bold rounded-3"><i class="fa-solid fa-triangle-exclamation me-1"></i> <%= transactionErrorMessages[query.routeError] || transactionErrorMessages.update_failed %></div>
@@ -992,11 +997,12 @@
 
                             <td>
                                 <% if(tx.status === 'deposit' || tx.status === 'deduction') { %> 
-                                    <span class="text-muted">---</span>
+                                    <% if (!tx.performedByAdminName) { %><span class="text-muted">---</span><% } %>
                                 <% } else { %>
                                     <div class="fw-bold text-primary small"><i class="fa-solid fa-building-shield me-1 opacity-50"></i> <%= executorDisplay.companyName || 'تنفيذ مستقل' %></div>
                                     <div class="text-muted small mt-1"><i class="fa-solid fa-user-gear me-1 opacity-50"></i> <%= executorDisplay.executorName || 'غير محدد' %></div>
                                 <% } %>
+                                <%- include('partials/admin_actor_lines', { tx }) %>
                             </td>
 
                             <td class="small text-wrap" style="max-width: 150px; line-height: 1.4;">
@@ -1188,7 +1194,10 @@
                             <div class="small mt-2 pt-2" style="border-top: 1px dashed var(--border-glass); color: var(--text-muted);">
                                 <div class="fw-bold" style="color: var(--text-main);"><i class="fa-solid fa-building-shield text-primary me-1"></i><%= mobileExecutorDisplay.companyName || 'تنفيذ مستقل' %></div>
                                 <div class="mt-1"><i class="fa-solid fa-user-gear opacity-50 me-1"></i><%= mobileExecutorDisplay.executorName || 'غير محدد' %></div>
+                                <%- include('partials/admin_actor_lines', { tx }) %>
                             </div>
+                        <% } else { %>
+                            <%- include('partials/admin_actor_lines', { tx }) %>
                         <% } %>
 
                         <% 
@@ -1411,7 +1420,7 @@
 </script>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-<script src="/js/admin-operation-details.js?v=20260919-od2"></script>
+<script src="/js/admin-operation-details.js?v=20260924-actor"></script>
 <script>
     function toggleSidebar() { document.querySelector('.sidebar').classList.toggle('active'); document.querySelector('.sidebar-overlay').classList.toggle('active'); }
 

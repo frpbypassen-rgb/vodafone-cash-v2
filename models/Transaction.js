@@ -130,6 +130,15 @@ const transactionSchema = new mongoose.Schema({
     assignedExecutorId: { type: String, default: undefined },
     assignedExecutorName: { type: String, default: undefined },
     assignedExecutorAt: { type: Date, default: undefined },
+    // المدير الذي وجّه العملية إلى المنفذ. تُقرأ مباشرة في قائمة العمليات.
+    routedByAdminId: { type: String, trim: true },
+    routedByAdminName: { type: String, trim: true },
+    routedAt: { type: Date },
+    // المدير الذي سجّل إيداعاً أو خصماً أو اعتمد حركة الرصيد.
+    performedByAdminId: { type: String, trim: true },
+    performedByAdminName: { type: String, trim: true },
+    performedByAdminAt: { type: Date },
+    cancelledByAdminId: { type: String, trim: true },
     // وقت وصول العملية إلى قائمة مهام المنفذ، مستقل عن وقت إنشائها لدى العميل.
     executorReceivedAt: { type: Date },
     // وقت تأكيد المنفذ لإتمام العملية، ويستخدم لحساب مدة التنفيذ في تقاريره.
