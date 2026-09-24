@@ -182,6 +182,22 @@ describe('security control middleware', () => {
         findById.mockRestore();
     });
 
+    test('lets admin OTP verify complete without an authenticated admin session', async () => {
+        const req = {
+            path: '/admin/verify',
+            method: 'POST',
+            headers: {},
+            session: { tempAdminId: 'admin-1', tempAccountType: 'admin' }
+        };
+        const res = { redirect: jest.fn(), status: jest.fn().mockReturnThis(), json: jest.fn() };
+        const next = jest.fn();
+
+        await enforceSecuritySession(req, res, next);
+
+        expect(next).toHaveBeenCalledTimes(1);
+        expect(res.redirect).not.toHaveBeenCalled();
+    });
+
     test('lets OTP verify complete even when a leftover client session is present', async () => {
         securityControl.sessionPrincipal.mockReturnValue({
             principalType: 'client_company',

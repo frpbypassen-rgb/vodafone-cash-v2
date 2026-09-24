@@ -3,7 +3,7 @@ const router = express.Router();
 const bcrypt = require('bcryptjs');
 const { randomUUID } = require('crypto');
 const rateLimit = require('express-rate-limit');
-const { escapeRegex, verifyAndUpgradePassword } = require('../utils/helpers');
+const { escapeRegex, verifyAndUpgradePassword, getTodayString } = require('../utils/helpers');
 const { generateOtp, hashOtp, verifyOtp } = require('../utils/otp');
 const {
     getEmergencyClientOtpBypassState,
@@ -85,6 +85,14 @@ const passwordResetLimiter = rateLimit({
     message: { success: false, error: 'عدد محاولات الاستعادة مرتفع. حاول بعد قليل.' },
     standardHeaders: true,
     legacyHeaders: false,
+});
+
+const adminOtpVerifyLimiter = rateLimit({
+    windowMs: 5 * 60 * 1000,
+    max: 8,
+    message: 'تم تجاوز عدد محاولات رمز التحقق. سجل الدخول من جديد بعد خمس دقائق.',
+    standardHeaders: true,
+    legacyHeaders: false
 });
 
 const SECURITY_LOGIN_ERRORS = {
@@ -948,6 +956,109 @@ const continueVerifiedPortalLogin = async (req, res, account, accountType) => {
     return finishLoginAfterOtpBypass(req, res, account, accountType);
 };
 
+const renderAdminVerify = (req, res, error = null) => res.render('admin/verify', {
+    error,
+    channel: req.session?.otpDeliveryChannel === 'email' ? 'email' : 'whatsapp'
+});
+
+const startAdminOtp = async (req, res, adminData, options = {}) => {
+    const deviceId = securityControl.ensureDeviceId(req, res);
+    req.session.pendingSecurityLocation = securityControl.parseLocation(req);
+    req.session.pendingSecurityUsername = String(req.body.username || '');
+    const issued = await issueLoginOtp({ account: adminData, accountType: 'admin', session: req.session });
+    const portal = issued.portal;
+
+    if (issued.status === 'reuse') {
+        return saveAndRedirect(req, res, portal?.verifyPath || '/admin/verify');
+    }
+
+    if (issued.status === 'emergency_bypass') {
+        await logAction({
+            action: 'LOGIN_FAILED',
+            req,
+            performedById: adminData._id,
+            performedByModel: 'Admin',
+            performedByName: adminData.name,
+            success: false,
+            errorCode: issued.code || 'WHATSAPP_OTP_FAILED',
+            metadata: {
+                accountType: 'admin',
+                reason: 'OTP_DELIVERY_FAILED',
+                provider: issued.delivery?.provider || 'whatchimp'
+            }
+        });
+        await logAction({
+            action: 'LOGIN_OTP_EMERGENCY_BYPASS',
+            req,
+            performedById: adminData._id,
+            performedByModel: 'Admin',
+            performedByName: adminData.name,
+            success: true,
+            metadata: {
+                accountType: 'admin',
+                provider: issued.delivery?.provider || 'whatchimp',
+                deliveryFailureCode: issued.code || 'WHATSAPP_OTP_FAILED',
+                emergencyExpiresAt: issued.emergencyExpiresAt
+            }
+        });
+        return loginAsAdmin(req, res, adminData, options);
+    }
+
+    if (issued.status !== 'sent') {
+        await logAction({
+            action: 'LOGIN_FAILED',
+            req,
+            performedById: adminData._id,
+            performedByModel: 'Admin',
+            performedByName: adminData.name,
+            success: false,
+            errorCode: issued.code || 'WHATSAPP_OTP_FAILED',
+            metadata: {
+                accountType: 'admin',
+                reason: 'OTP_DELIVERY_FAILED',
+                provider: issued.delivery?.provider || 'whatchimp'
+            }
+        });
+        return renderLogin(res, issued.message || 'تعذر إرسال رمز التحقق حالياً.');
+    }
+
+    const channel = issued.delivery?.channel === 'email' ? 'email' : 'whatsapp';
+    const sessionPayload = {
+        tempAccountType: 'admin',
+        tempAdminId: adminData._id,
+        otpChallengeId: issued.otpChallengeId,
+        pendingSecurityLocation: securityControl.parseLocation(req),
+        pendingSecurityUsername: String(req.body.username || ''),
+        securityDeviceId: deviceId,
+        securityDeviceHash: securityControl.hashDeviceId(deviceId),
+        pendingAdminLogin: {
+            authenticatorVerified: Boolean(options.authenticatorVerified)
+        },
+        otpDeliveryChannel: channel
+    };
+    await establishAuthenticatedSession(req, sessionPayload);
+    await logAction({
+        action: 'LOGIN_FAILED',
+        req,
+        performedById: adminData._id,
+        performedByModel: 'Admin',
+        performedByName: adminData.name,
+        result: 'معلق',
+        metadata: {
+            accountType: 'admin',
+            reason: 'OTP_REQUIRED',
+            channel,
+            provider: issued.delivery?.provider || null
+        }
+    });
+    return saveAndRedirect(req, res, portal?.verifyPath || '/admin/verify');
+};
+
+const continueAdminLogin = async (req, res, adminData, options = {}) => {
+    if (adminData && isLoginOtpRequired()) return startAdminOtp(req, res, adminData, options);
+    return loginAsAdmin(req, res, adminData, options);
+};
+
 const logLoginFailure = async (req, username, errorCode, reason) => {
     await logAction({
         action: 'LOGIN_FAILED',
@@ -1291,8 +1402,8 @@ router.post('/login', loginLimiter, async (req, res) => {
                         });
                     }
                 }
-                if (await guardWebMfa(req, res, adminData, 'admin', () => loginAsAdmin(req, res, adminData, { authenticatorVerified: true }))) return;
-                return loginAsAdmin(req, res, adminData);
+                if (await guardWebMfa(req, res, adminData, 'admin', () => continueAdminLogin(req, res, adminData, { authenticatorVerified: true }))) return;
+                return continueAdminLogin(req, res, adminData);
             }
         }
 
@@ -1363,6 +1474,91 @@ router.post('/login', loginLimiter, async (req, res) => {
     } catch (error) {
         console.error('[Unified Login] login failed:', error.message);
         return renderLogin(res, 'حدث خطأ داخلي في الخادم.');
+    }
+});
+
+router.get('/admin/verify', (req, res) => {
+    if (!req.session.tempAdminId || req.session.tempAccountType !== 'admin') return res.redirect('/login');
+    return renderAdminVerify(req, res);
+});
+
+router.post('/admin/verify', adminOtpVerifyLimiter, async (req, res) => {
+    try {
+        const otp = String(req.body.otp || '').trim();
+        const accountId = req.session.tempAdminId;
+        const otpChallengeId = String(req.session.otpChallengeId || '');
+        if (!accountId || req.session.tempAccountType !== 'admin' || !otpChallengeId || !otp) {
+            return res.redirect('/login');
+        }
+
+        const account = await Admin.findById(accountId).lean();
+        const otpAccepted = Boolean(
+            account
+            && account.status !== 'suspended'
+            && account.otpChallengeId === otpChallengeId
+            && account.otpExpires
+            && new Date(account.otpExpires) >= new Date()
+            && verifyOtp(otp, account.otpCode)
+        );
+        if (!otpAccepted) {
+            if (account) {
+                await logAction({
+                    action: 'LOGIN_FAILED',
+                    req,
+                    performedById: account._id,
+                    performedByModel: 'Admin',
+                    performedByName: account.name,
+                    success: false,
+                    errorCode: 'INVALID_OTP',
+                    metadata: { accountType: 'admin', reason: 'رمز التحقق غير صحيح أو منتهي' }
+                });
+                const updated = await Admin.findOneAndUpdate(
+                    { _id: account._id, otpChallengeId },
+                    { $inc: { otpAttempts: 1 } },
+                    { new: true }
+                ).lean();
+                if (Number(updated?.otpAttempts || 0) >= 5) {
+                    await Admin.updateOne(
+                        { _id: account._id, otpChallengeId },
+                        { $unset: { otpCode: 1, otpExpires: 1, otpChallengeId: 1, otpIssuedAt: 1, otpAttempts: 1 } }
+                    );
+                    return renderAdminVerify(req, res, 'تم تجاوز عدد المحاولات. سجل الدخول من جديد للحصول على رمز آخر.');
+                }
+            }
+            return renderAdminVerify(req, res, 'الرمز غير صحيح أو منتهي الصلاحية.');
+        }
+
+        const pending = req.session.pendingAdminLogin || {};
+        const consumedAccount = await Admin.findOneAndUpdate(
+            {
+                _id: account._id,
+                otpCode: account.otpCode,
+                otpChallengeId,
+                otpExpires: { $gte: new Date() },
+                status: { $ne: 'suspended' }
+            },
+            {
+                $set: { lastOtpDate: getTodayString() },
+                $unset: { otpCode: 1, otpExpires: 1, otpChallengeId: 1, otpIssuedAt: 1, otpAttempts: 1 }
+            },
+            { new: true }
+        ).lean();
+        if (!consumedAccount) {
+            return renderAdminVerify(req, res, 'تم استخدام الرمز أو انتهت صلاحيته. سجل الدخول من جديد.');
+        }
+
+        req.body.username = req.session.pendingSecurityUsername || req.body.username || consumedAccount.webUsername || '';
+        delete req.session.tempAdminId;
+        delete req.session.tempAccountType;
+        delete req.session.otpChallengeId;
+        delete req.session.pendingAdminLogin;
+        delete req.session.otpDeliveryChannel;
+        return loginAsAdmin(req, res, consumedAccount, {
+            authenticatorVerified: Boolean(pending.authenticatorVerified)
+        });
+    } catch (error) {
+        console.error('[Admin OTP] verify failed:', error.message);
+        return renderAdminVerify(req, res, 'تعذر إكمال التحقق. أعد المحاولة.');
     }
 });
 

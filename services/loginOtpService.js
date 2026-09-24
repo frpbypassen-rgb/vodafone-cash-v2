@@ -11,6 +11,7 @@ const ClientEmployee = require('../models/ClientEmployee');
 const AgentEmployee = require('../models/AgentEmployee');
 const SubAccount = require('../models/SubAccount');
 const Employee = require('../models/Employee');
+const Admin = require('../models/Admin');
 const { selectLoginOtpChannel } = require('../utils/otpDeliveryChannel');
 
 const LOGIN_OTP_PORTALS = Object.freeze({
@@ -53,6 +54,14 @@ const LOGIN_OTP_PORTALS = Object.freeze({
         performedByModel: 'Employee',
         verifyPath: '/executor-portal/verify',
         sessionTempIdKey: 'tempExecutorId'
+    },
+    admin: {
+        Model: Admin,
+        accountType: 'admin',
+        label: 'الإدارة',
+        performedByModel: 'Admin',
+        verifyPath: '/admin/verify',
+        sessionTempIdKey: 'tempAdminId'
     }
 });
 

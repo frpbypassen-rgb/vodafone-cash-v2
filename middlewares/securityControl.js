@@ -19,6 +19,7 @@ const PUBLIC_SECURITY_PATHS = [
     '/client/verify',
     '/executor-portal/login',
     '/executor-portal/verify',
+    '/admin/verify',
     '/security/emergency-access'
 ];
 

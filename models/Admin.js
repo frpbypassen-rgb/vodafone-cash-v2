@@ -6,6 +6,9 @@ const adminSchema = new mongoose.Schema({
     role: { type: String, enum: ['master', 'admin', 'accountant'], default: 'admin', index: true }, 
     webUsername: { type: String, unique: true, required: true },
     webPassword: { type: String, required: true },
+    // بريد رمز الدخول. عند وجود بريد صالح يُرسل الرمز عبر البريد.
+    email: { type: String, trim: true, lowercase: true, default: '' },
+    otpDeliveryChannel: { type: String, enum: ['whatsapp', 'email'], default: 'whatsapp' },
     status: { type: String, enum: ['active', 'suspended'], default: 'active', index: true },
     permissions: { type: [String], default: [] },
     mustEnrollSecurity: { type: Boolean, default: true },
@@ -15,7 +18,13 @@ const adminSchema = new mongoose.Schema({
     totpSecretEncrypted: { type: String, select: false },
     mfaRecoveryCodeHashes: { type: [String], select: false, default: [] },
     mfaConfiguredAt: { type: Date, default: null },
-    mfaLastUsedStep: { type: Number, default: null }
+    mfaLastUsedStep: { type: Number, default: null },
+    otpCode: { type: String },
+    otpExpires: { type: Date },
+    otpChallengeId: { type: String },
+    otpIssuedAt: { type: Date },
+    otpAttempts: { type: Number, default: 0 },
+    lastOtpDate: { type: String }
 }, { timestamps: true });
 
 // 🛡️ دالة التشفير الآلي قبل الحفظ
