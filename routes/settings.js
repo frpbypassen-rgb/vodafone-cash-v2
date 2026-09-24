@@ -15,6 +15,7 @@ const { pickAllowed } = require('../middlewares/sanitize');
 const { hashPassword } = require('../services/passwordService');
 const { logAction } = require('../services/auditService');
 const { normalizeAdminRole, permissionsForRole } = require('../config/adminRoles');
+const { parseAdminLoginEmail } = require('../utils/adminLoginEmail');
 const {
     SERVICE_RATE_ADMIN_FIELDS,
     getAdminRateServices,
@@ -411,20 +412,24 @@ router.post('/executors-web/delete', requireMaster, async (req, res) => {
 // =========================================================
 router.get('/users', requireMaster, async (req, res) => {
     const webAdmins = await Admin.find({ webUsername: { $exists: true, $ne: null } }).sort({ createdAt: -1 });
-    res.render('settings_users', { webAdmins });
+    res.render('settings_users', { webAdmins, query: req.query || {} });
 });
 
 // ✅ إصلاح: bcrypt عند إنشاء مستخدم جديد (pre('save') hook موجود في Admin model)
 router.post('/users/add', requireMaster, async (req, res) => {
     try {
         const { name, webUsername, webPassword } = req.body;
-        if (!name || !webUsername || !webPassword) return res.redirect('/settings/users');
+        if (!name || !webUsername || !webPassword) return res.redirect('/settings/users?error=missing');
+        const loginEmail = parseAdminLoginEmail(req.body.email);
+        if (!loginEmail.ok) return res.redirect('/settings/users?error=email');
         const role = normalizeAdminRole(req.body.role === 'master' ? 'admin' : req.body.role);
 
         const admin = await Admin.create({
             name: name.trim(),
             webUsername: webUsername.trim().toLowerCase(),
             webPassword: webPassword.trim(),
+            email: loginEmail.email,
+            otpDeliveryChannel: loginEmail.otpDeliveryChannel,
             role,
             permissions: permissionsForRole(role, req.body.permissions || [])
         });
@@ -437,12 +442,55 @@ router.post('/users/add', requireMaster, async (req, res) => {
             targetId: admin._id,
             targetModel: 'Admin',
             severity: 'critical',
-            newData: { username: admin.webUsername, role: admin.role, permissions: admin.permissions, source: 'settings_users' }
+            newData: {
+                username: admin.webUsername,
+                role: admin.role,
+                permissions: admin.permissions,
+                email: admin.email,
+                otpDeliveryChannel: admin.otpDeliveryChannel,
+                source: 'settings_users'
+            }
         });
-        res.redirect('/settings/users');
+        res.redirect('/settings/users?success=created');
     } catch (e) {
         console.error('[settings/users/add] خطأ:', e.message);
-        res.redirect('/settings/users');
+        res.redirect('/settings/users?error=save');
+    }
+});
+
+router.post('/users/email/:id', requireMaster, async (req, res) => {
+    try {
+        const loginEmail = parseAdminLoginEmail(req.body.email);
+        if (!loginEmail.ok) return res.redirect('/settings/users?error=email');
+        const admin = await Admin.findById(req.params.id);
+        if (!admin) return res.redirect('/settings/users?error=missing');
+        const previous = {
+            email: admin.email || '',
+            otpDeliveryChannel: admin.otpDeliveryChannel === 'email' ? 'email' : 'whatsapp'
+        };
+        admin.email = loginEmail.email;
+        admin.otpDeliveryChannel = loginEmail.otpDeliveryChannel;
+        await admin.save();
+        await logAction({
+            action: 'SECURITY_ADMIN_UPDATED',
+            req,
+            performedById: req.session.adminId,
+            performedByModel: 'Admin',
+            performedByName: req.session.adminName,
+            targetId: admin._id,
+            targetModel: 'Admin',
+            severity: 'critical',
+            oldData: previous,
+            newData: {
+                email: admin.email,
+                otpDeliveryChannel: admin.otpDeliveryChannel,
+                source: 'settings_users'
+            }
+        });
+        res.redirect('/settings/users?success=email');
+    } catch (e) {
+        console.error('[settings/users/email] خطأ:', e.message);
+        res.redirect('/settings/users?error=save');
     }
 });
 

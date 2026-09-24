@@ -5,6 +5,7 @@ jest.mock('../models/ClientEmployee', () => ({ updateOne: jest.fn().mockResolved
 jest.mock('../models/AgentEmployee', () => ({ updateOne: jest.fn().mockResolvedValue({}) }));
 jest.mock('../models/SubAccount', () => ({ updateOne: jest.fn().mockResolvedValue({}) }));
 jest.mock('../models/Employee', () => ({ updateOne: jest.fn().mockResolvedValue({}) }));
+jest.mock('../models/Admin', () => ({ updateOne: jest.fn().mockResolvedValue({}) }));
 jest.mock('../services/whatsappService', () => ({
     sendOtp: jest.fn()
 }));
@@ -14,6 +15,7 @@ jest.mock('../services/emailOtpMailer', () => ({
 
 const User = require('../models/User');
 const Employee = require('../models/Employee');
+const Admin = require('../models/Admin');
 const { sendOtp } = require('../services/whatsappService');
 const { sendLoginOtpEmail } = require('../services/emailOtpMailer');
 const {
@@ -39,17 +41,21 @@ describe('login OTP service', () => {
         sendLoginOtpEmail.mockResolvedValue({ success: true, provider: 'smtp', channel: 'email', messageId: 'mail-1' });
     });
 
-    test('covers company, agency, client, and executor portals', () => {
+    test('covers company, agency, client, executor, and admin portals', () => {
         expect(Object.keys({
             user: getLoginOtpPortal('user'),
             company: getLoginOtpPortal('company'),
             agent_staff: getLoginOtpPortal('agent_staff'),
             sub_client: getLoginOtpPortal('sub_client'),
-            executor: getLoginOtpPortal('executor')
+            executor: getLoginOtpPortal('executor'),
+            admin: getLoginOtpPortal('admin')
         }).every((key) => getLoginOtpPortal(key))).toBe(true);
         expect(getLoginOtpPortal('executor').verifyPath).toBe('/executor-portal/verify');
         expect(getLoginOtpPortal('company').verifyPath).toBe('/client/verify');
         expect(getLoginOtpPortal('agent_staff').sessionTempIdKey).toBe('tempClientId');
+        expect(getLoginOtpPortal('admin').verifyPath).toBe('/admin/verify');
+        expect(getLoginOtpPortal('admin').sessionTempIdKey).toBe('tempAdminId');
+        expect(getLoginOtpPortal('admin').label).toBe('الإدارة');
     });
 
     test('requires WhatsApp OTP in production unless the emergency window is active', () => {
@@ -162,6 +168,46 @@ describe('login OTP service', () => {
         expect(publicDeliveryMessage('SMTP_CONFIG_MISSING')).toContain('إعداد البريد');
         expect(publicDeliveryMessage('EMAIL_OTP_ADDRESS_INVALID')).toContain('البريد الإلكتروني');
         expect(publicDeliveryMessage('SMTP_CONFIG_MISSING')).not.toMatch(/\d{6}/);
+    });
+
+    test('sends admin login OTP by email when the account has a valid address', async () => {
+        const account = {
+            _id: 'admin-mail',
+            name: 'مدير النظام',
+            webUsername: 'master.admin',
+            email: 'Admin@Example.com',
+            otpDeliveryChannel: 'email'
+        };
+        const result = await issueLoginOtp({ account, accountType: 'admin', session: {} });
+        expect(result.status).toBe('sent');
+        expect(result.portal.verifyPath).toBe('/admin/verify');
+        expect(result.delivery.channel).toBe('email');
+        expect(sendLoginOtpEmail).toHaveBeenCalledWith(expect.objectContaining({
+            to: 'admin@example.com',
+            accountName: 'مدير النظام'
+        }));
+        expect(sendOtp).not.toHaveBeenCalled();
+        expect(Admin.updateOne).toHaveBeenCalled();
+    });
+
+    test('keeps WhatsApp for an admin account that has no email yet', async () => {
+        const result = await issueLoginOtp({
+            account: {
+                _id: 'admin-legacy',
+                name: 'مدير قديم',
+                webUsername: 'legacy.admin',
+                phone: '0910000000'
+            },
+            accountType: 'admin',
+            session: {}
+        });
+        expect(result.status).toBe('sent');
+        expect(result.delivery.channel).toBe('whatsapp');
+        expect(sendOtp).toHaveBeenCalledWith(expect.objectContaining({
+            phone: '0910000000',
+            accountType: 'الإدارة'
+        }));
+        expect(sendLoginOtpEmail).not.toHaveBeenCalled();
     });
 
     test('sends email OTP when a valid address is stored even if the saved flag is WhatsApp', async () => {
