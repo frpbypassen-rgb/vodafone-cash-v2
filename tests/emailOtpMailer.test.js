@@ -99,20 +99,28 @@ describe('email OTP mailer', () => {
         expect(message.to).toBe('owner@example.com');
         expect(message.subject).toBe(LOGIN_OTP_SUBJECT);
         expect(message.text).toContain('مرحباً شركة الأهرام،');
-        expect(message.text).toContain('رمز التفعيل');
+        expect(message.text).toContain('رمز الدخول الآمن');
+        expect(message.text).toContain('رمز التحقق');
         expect(message.text).toContain('654321');
         expect(message.text).toContain('تنتهي صلاحية هذا الرمز في 22-09-2026 14:22');
-        expect(message.text).toContain('إذا لم تحاول تسجيل الدخول، تجاهل هذه الرسالة ولا تشارك الرمز مع أي شخص.');
+        expect(message.text).toContain('لا تشارك الرمز مع أحد');
+        expect(message.text).toContain('ليبيا / مصراتة، سوق الاستثمار / أمام المسجد العالي');
+        expect(message.text).toContain('هاتف +218 940719000');
         expect(message.text).toContain('support@ahrampay.com');
-        expect(message.text).toContain('مع أطيب التحيات ، فريق شركة الاهرام');
+        expect(message.text).toContain('مع أطيب التحيات ، فريق أهرام باي');
         expect(message.html).toContain('dir="rtl"');
         expect(message.html).toContain('width="600"');
-        expect(message.html).toContain('الأهرام للاتصالات والتقنية');
-        expect(message.html).toContain('رمز تفعيل حسابك في أهرام باي');
-        expect(message.html).toContain('654321');
-        expect(message.html).toContain('border:2px dashed #e0b44a');
+        expect(message.html).toContain('أهرام باي');
+        expect(message.html).toContain('Ahram Pay');
+        expect(message.html).toContain('رمز الدخول الآمن');
+        expect(message.html).toContain('#F7F1E8');
+        expect(message.html).toContain('#C9A227');
+        expect(message.html).toContain('لا تشارك الرمز مع أحد');
+        expect(message.html).toContain('ليبيا / مصراتة، سوق الاستثمار / أمام المسجد العالي');
         expect(message.html).toContain('https://ahrampay.com');
         expect(message.html).toContain('© 2027 شركة الاهرام للاتصالات والتقنية. جميع الحقوق محفوظة.');
+        const tiles = [...message.html.matchAll(/text-align:center;">(\d)<\/td>/g)].map((match) => match[1]);
+        expect(tiles.join('')).toBe('654321');
         expect(JSON.stringify(result)).not.toContain('654321');
         expect(JSON.stringify(logger.security.mock.calls)).not.toContain('654321');
         expect(JSON.stringify(logger.error.mock.calls)).not.toContain('654321');
@@ -139,6 +147,15 @@ describe('email OTP mailer', () => {
         expect(message.html).toContain('مرحباً &lt;script&gt;alert(1)&lt;/script&gt;،');
         expect(message.html).not.toContain('<script>');
         expect(message.text).toContain('مرحباً <script>alert(1)</script>،');
+
+        const hostileHtml = buildLoginOtpHtml({
+            otp: '<script>',
+            accountName: 'عميل',
+            expiresAt: new Date('2026-09-22T12:22:00.000Z')
+        });
+        expect(hostileHtml).not.toContain('<script>');
+        expect(hostileHtml).toContain('&lt;');
+        expect(hostileHtml).toContain('&gt;');
     });
 
     test('hides the raw OTP when SMTP rejects the message', async () => {
@@ -171,14 +188,20 @@ describe('email OTP mailer', () => {
         expect(text).toContain('مرحباً عميل،');
         expect(text).toContain('111222');
         expect(text).toContain('تنتهي صلاحية هذا الرمز في 22-09-2026 14:22');
-        expect(text).toContain('لا تشارك الرمز مع أي شخص');
+        expect(text).toContain('لا تشارك الرمز مع أحد');
         expect(text).toContain('+218 940719000');
         expect(html).toContain('dir="rtl"');
-        expect(html).toContain('111222');
-        expect(html).toContain('⚠️');
+        expect(html).toContain('رمز الدخول الآمن');
+        expect(html).toContain('#F7F1E8');
+        expect(html).toContain('background:#F8E8C4');
+        const tiles = [...html.matchAll(/text-align:center;">(\d)<\/td>/g)].map((match) => match[1]);
+        expect(tiles.join('')).toBe('111222');
         expect(html).not.toContain('font-family:Georgia');
+        expect(html).not.toContain('display:flex');
+        expect(html).not.toContain('display:grid');
         expect(html).not.toMatch(/>\)<\/td>/);
         expect(html).not.toContain('صلاحية الرمز: 5 دقائق');
+        expect(html).not.toContain('<script>');
     });
 
     test('checked-in preview matches the html builder', () => {
@@ -190,12 +213,14 @@ describe('email OTP mailer', () => {
         const preview = fs.readFileSync(path.join(__dirname, '../design-previews/login-otp-email.html'), 'utf8');
         expect(preview).toBe(html);
         expect(preview).toContain('dir="rtl"');
-        expect(preview).toContain('745874');
+        expect(preview).toContain('رمز الدخول الآمن');
+        const tiles = [...preview.matchAll(/text-align:center;">(\d)<\/td>/g)].map((match) => match[1]);
+        expect(tiles.join('')).toBe('745874');
     });
 
     test('falls back to a greeting without a name', () => {
         const text = buildLoginOtpText({ otp: '111222', expiresAt: new Date('2026-09-22T12:22:00.000Z') });
-        expect(text.startsWith('الأهرام للاتصالات والتقنية')).toBe(true);
+        expect(text.startsWith('أهرام باي')).toBe(true);
         expect(text).toContain('مرحباً،');
         expect(text).not.toContain('مرحباً ،');
     });
