@@ -128,6 +128,35 @@ describe('admin account management service', () => {
         expect(account.webPassword).toBe('$2b$12$existing-hash');
         expect(result.passwordChanged).toBe(false);
         expect(result.changedFields).toEqual(expect.arrayContaining(['name', 'tier', 'creditLimit', 'businessProfile']));
+        expect(account.otpDeliveryChannel).toBe('whatsapp');
+    });
+
+    test('enables email OTP for a client only when a valid commercial email is stored', async () => {
+        const account = makeAccount();
+        User.findById.mockResolvedValue(account);
+
+        const result = await updateEditableAccount({
+            type: 'user',
+            id: IDS.account,
+            payload: userPayload({ emailOtpEnabled: 'true' })
+        });
+
+        expect(account.otpDeliveryChannel).toBe('email');
+        expect(account.businessProfile.email).toBe('owner@example.com');
+        expect(result.newData.otpDeliveryChannel).toBe('email');
+    });
+
+    test('refuses email OTP when the client email is missing or invalid', async () => {
+        const account = makeAccount();
+        User.findById.mockResolvedValue(account);
+
+        await expect(updateEditableAccount({
+            type: 'user',
+            id: IDS.account,
+            payload: userPayload({ email: 'not-an-email', emailOtpEnabled: 'on' })
+        })).rejects.toMatchObject({ code: 'EMAIL_OTP_ADDRESS_INVALID', field: 'email' });
+
+        expect(account.save).not.toHaveBeenCalled();
     });
 
     test('accepts a new password but never includes it in audit snapshots', async () => {
@@ -195,7 +224,74 @@ describe('admin account management service', () => {
         expect(account.canManageCompany).toBe(true);
         expect(account.canCreateCompanyStaff).toBe(false);
         expect(String(account.companyId)).toBe(IDS.owner);
+        expect(account.otpDeliveryChannel).toBe('whatsapp');
         expect(result.changedFields).toEqual(expect.arrayContaining(['role', 'canViewAllReports', 'canManageCompany']));
+    });
+
+    test('stores a company staff email without switching OTP away from WhatsApp', async () => {
+        const account = makeAccount({
+            companyId: IDS.owner,
+            role: 'employee',
+            canViewAllReports: false,
+            canManageCompany: false,
+            canCreateCompanyStaff: false,
+            accountCode: undefined,
+            businessProfile: undefined
+        });
+        ClientEmployee.findById.mockResolvedValue(account);
+        ClientCompany.findOne.mockReturnValue(queryResult({ _id: IDS.owner }));
+
+        await updateEditableAccount({
+            type: 'client-employee',
+            id: IDS.account,
+            payload: {
+                name: 'موظف الحسابات',
+                phone: '0911111111',
+                webUsername: 'account_user',
+                newPassword: '',
+                status: 'active',
+                role: 'employee',
+                companyId: IDS.owner,
+                email: 'Staff@Example.com'
+            }
+        });
+
+        expect(account.email).toBe('staff@example.com');
+        expect(account.otpDeliveryChannel).toBe('whatsapp');
+    });
+
+    test('enables email OTP for company staff when the checkbox and address are set', async () => {
+        const account = makeAccount({
+            companyId: IDS.owner,
+            role: 'employee',
+            canViewAllReports: false,
+            canManageCompany: false,
+            canCreateCompanyStaff: false,
+            accountCode: undefined,
+            businessProfile: undefined
+        });
+        ClientEmployee.findById.mockResolvedValue(account);
+        ClientCompany.findOne.mockReturnValue(queryResult({ _id: IDS.owner }));
+
+        const result = await updateEditableAccount({
+            type: 'client-employee',
+            id: IDS.account,
+            payload: {
+                name: 'موظف الحسابات',
+                phone: '0911111111',
+                webUsername: 'account_user',
+                newPassword: '',
+                status: 'active',
+                role: 'employee',
+                companyId: IDS.owner,
+                email: 'staff@example.com',
+                emailOtpEnabled: 'true'
+            }
+        });
+
+        expect(account.email).toBe('staff@example.com');
+        expect(account.otpDeliveryChannel).toBe('email');
+        expect(result.changedFields).toEqual(expect.arrayContaining(['email', 'otpDeliveryChannel']));
     });
 
     test('blocks changing an executor service while operations are in flight', async () => {

@@ -27,6 +27,7 @@ const {
     getExecutorSupportedTransferTypes
 } = require('../utils/executorServiceCatalog');
 const { buildMarginStorage } = require('../utils/agencyPricing');
+const { isValidOtpEmail, normalizeOtpEmail } = require('../utils/otpDeliveryChannel');
 const {
     normalizeCreditLimit,
     assertCreditLimitCanCoverBalance
@@ -107,6 +108,7 @@ const ERROR_MESSAGES = Object.freeze({
     ACCOUNT_CODE_DUPLICATE: 'رقم الحساب مستخدم في حساب آخر.',
     ACCOUNT_CODE_INVALID: 'رقم الحساب لا يطابق عدد الأرقام المطلوب.',
     IDENTITY_TAKEN: 'اسم المستخدم أو رقم الهاتف مستخدم في حساب آخر.',
+    EMAIL_OTP_ADDRESS_INVALID: 'لتفعيل إرسال رمز التحقق عبر البريد، أدخل بريداً إلكترونياً صالحاً.',
     UPDATE_FAILED: 'تعذر حفظ التعديلات. راجع البيانات وحاول مرة أخرى.'
 });
 
@@ -210,10 +212,34 @@ const setStatus = (type, account, payload) => {
     account.status = status;
 };
 
+const LOGIN_OTP_EDITOR_TYPES = new Set([
+    'user',
+    'agent',
+    'subaccount',
+    'client-employee',
+    'agent-employee',
+    'executor-employee'
+]);
+
 const setBusinessProfile = (account, payload) => {
     const fields = ['contactName', 'email', 'city', 'address', 'registrationNumber'];
     for (const field of fields) {
-        account.set(`businessProfile.${field}`, cleanText(payload[field], field === 'address' ? 240 : 120));
+        const maxLength = field === 'address' ? 240 : field === 'email' ? 254 : 120;
+        account.set(`businessProfile.${field}`, cleanText(payload[field], maxLength));
+    }
+};
+
+const setLoginOtpDelivery = (type, account, payload) => {
+    if (!LOGIN_OTP_EDITOR_TYPES.has(type)) return;
+    const enabled = isChecked(payload.emailOtpEnabled)
+        || cleanText(payload.otpDeliveryChannel, 20).toLowerCase() === 'email';
+    const email = normalizeOtpEmail(payload.email);
+    if (enabled && !isValidOtpEmail(email)) {
+        throw new AdminAccountManagementError('EMAIL_OTP_ADDRESS_INVALID', 'email');
+    }
+    account.otpDeliveryChannel = enabled ? 'email' : 'whatsapp';
+    if (type !== 'user' && type !== 'agent') {
+        account.email = email.length > 254 ? email.slice(0, 254) : email;
     }
 };
 
@@ -363,6 +389,7 @@ const updateUser = async ({ type, definition, account, payload }) => {
     account.tier = parseNumber(payload.tier, 'tier', { min: 1, max: 3, integer: true });
     account.creditLimit = parseNumber(payload.creditLimit || 0, 'creditLimit', { min: 0, max: 1e12 });
     setBusinessProfile(account, payload);
+    setLoginOtpDelivery(type, account, payload);
     return { passwordChanged };
 };
 
@@ -402,6 +429,7 @@ const updateSubAccount = async ({ definition, account, payload }) => {
     account.marginPiasters = marginStorage.marginPiasters;
     account.pricingVersion = marginStorage.pricingVersion;
     account.cardMargin = parseNumber(payload.cardMargin || 0, 'cardMargin', { min: -100, max: 100 });
+    setLoginOtpDelivery('subaccount', account, payload);
     return { passwordChanged };
 };
 
@@ -450,6 +478,7 @@ const updateEmployee = async ({ type, definition, account, payload }) => {
     setEmployeeRoleAndPermissions(type, account, payload);
     await setEmployeeOwner(type, account, payload);
     if (type === 'executor-employee') account.telegramId = cleanText(payload.telegramId, 80) || undefined;
+    setLoginOtpDelivery(type, account, payload);
     return { passwordChanged };
 };
 
@@ -549,6 +578,9 @@ const safeSnapshot = (type, account) => {
             ? account.businessProfile.toObject()
             : { ...(account.businessProfile || {}) };
     }
+    if (type === 'user' || type === 'agent') {
+        snapshot.otpDeliveryChannel = account.otpDeliveryChannel === 'email' ? 'email' : 'whatsapp';
+    }
     if (type === 'subaccount') {
         snapshot.accountCode = account.accountCode || '';
         snapshot.creditLimit = Number(account.creditLimit || 0);
@@ -556,6 +588,8 @@ const safeSnapshot = (type, account) => {
         snapshot.cardMargin = Number(account.cardMargin || 0);
         snapshot.masterType = account.masterType;
         snapshot.masterId = String(account.masterId || '');
+        snapshot.email = account.email || '';
+        snapshot.otpDeliveryChannel = account.otpDeliveryChannel === 'email' ? 'email' : 'whatsapp';
     }
     if (ROLE_OPTIONS[type]) {
         snapshot.role = account.role;
@@ -565,15 +599,21 @@ const safeSnapshot = (type, account) => {
         snapshot.companyId = String(account.companyId || '');
         snapshot.canManageCompany = Boolean(account.canManageCompany);
         snapshot.canCreateCompanyStaff = Boolean(account.canCreateCompanyStaff);
+        snapshot.email = account.email || '';
+        snapshot.otpDeliveryChannel = account.otpDeliveryChannel === 'email' ? 'email' : 'whatsapp';
     }
     if (type === 'agent-employee') {
         snapshot.agentId = String(account.agentId || '');
         snapshot.canManageAgent = Boolean(account.canManageAgent);
         snapshot.canCreateAgentStaff = Boolean(account.canCreateAgentStaff);
+        snapshot.email = account.email || '';
+        snapshot.otpDeliveryChannel = account.otpDeliveryChannel === 'email' ? 'email' : 'whatsapp';
     }
     if (type === 'executor-employee') {
         snapshot.groupId = String(account.groupId || '');
         snapshot.telegramId = account.telegramId || '';
+        snapshot.email = account.email || '';
+        snapshot.otpDeliveryChannel = account.otpDeliveryChannel === 'email' ? 'email' : 'whatsapp';
         snapshot.executionPolicyOverride = account.executionPolicyOverride || {};
         snapshot.inheritCompanyPolicy = !account.executionPolicyOverride
             || Object.keys(account.executionPolicyOverride.toObject ? account.executionPolicyOverride.toObject() : account.executionPolicyOverride).length === 0;

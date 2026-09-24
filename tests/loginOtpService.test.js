@@ -8,15 +8,20 @@ jest.mock('../models/Employee', () => ({ updateOne: jest.fn().mockResolvedValue(
 jest.mock('../services/whatsappService', () => ({
     sendOtp: jest.fn()
 }));
+jest.mock('../services/emailOtpMailer', () => ({
+    sendLoginOtpEmail: jest.fn()
+}));
 
 const User = require('../models/User');
 const Employee = require('../models/Employee');
 const { sendOtp } = require('../services/whatsappService');
+const { sendLoginOtpEmail } = require('../services/emailOtpMailer');
 const {
     getLoginOtpPortal,
     isLoginOtpRequired,
     issueLoginOtp,
-    publicDeliveryMessage
+    publicDeliveryMessage,
+    selectLoginOtpChannel
 } = require('../services/loginOtpService');
 
 const productionOtpEnv = {
@@ -31,6 +36,7 @@ describe('login OTP service', () => {
     beforeEach(() => {
         jest.clearAllMocks();
         sendOtp.mockResolvedValue({ success: true, provider: 'whatchimp', messageId: 'wamid-1' });
+        sendLoginOtpEmail.mockResolvedValue({ success: true, provider: 'smtp', channel: 'email', messageId: 'mail-1' });
     });
 
     test('covers company, agency, client, and executor portals', () => {
@@ -149,5 +155,133 @@ describe('login OTP service', () => {
     test('explains a missing WhatsApp phone without leaking an OTP', () => {
         expect(publicDeliveryMessage('WHATSAPP_PHONE_REQUIRED')).toContain('لا يوجد رقم واتساب');
         expect(publicDeliveryMessage('WHATSAPP_PHONE_REQUIRED')).not.toMatch(/\d{6}/);
+        expect(publicDeliveryMessage('SMTP_CONFIG_MISSING')).toContain('إعداد البريد');
+        expect(publicDeliveryMessage('EMAIL_OTP_ADDRESS_INVALID')).toContain('البريد الإلكتروني');
+        expect(publicDeliveryMessage('SMTP_CONFIG_MISSING')).not.toMatch(/\d{6}/);
+    });
+
+    test('keeps WhatsApp when an email exists but email OTP is not enabled', async () => {
+        const account = {
+            _id: 'user-mail',
+            phone: '0912345678',
+            name: 'عميل',
+            email: 'owner@example.com',
+            businessProfile: { email: 'owner@example.com' },
+            otpDeliveryChannel: 'whatsapp'
+        };
+        expect(selectLoginOtpChannel(account).channel).toBe('whatsapp');
+        const result = await issueLoginOtp({ account, accountType: 'user', session: {} });
+        expect(result.status).toBe('sent');
+        expect(result.delivery.channel).toBe('whatsapp');
+        expect(sendOtp).toHaveBeenCalledWith(expect.objectContaining({ phone: '0912345678' }));
+        expect(sendLoginOtpEmail).not.toHaveBeenCalled();
+    });
+
+    test('sends login OTP by email when the account flag and address are valid', async () => {
+        const account = {
+            _id: 'company-mail',
+            phone: '0912345678',
+            name: 'موظف الشركة',
+            email: 'staff@example.com',
+            otpDeliveryChannel: 'email'
+        };
+        const result = await issueLoginOtp({ account, accountType: 'company', session: {} });
+        expect(result.status).toBe('sent');
+        expect(result.delivery.provider).toBe('smtp');
+        expect(sendOtp).not.toHaveBeenCalled();
+        expect(sendLoginOtpEmail).toHaveBeenCalledWith(expect.objectContaining({
+            to: 'staff@example.com',
+            accountName: 'موظف الشركة',
+            expiresMinutes: 5
+        }));
+        const sentOtp = sendLoginOtpEmail.mock.calls[0][0].otp;
+        expect(sentOtp).toMatch(/^\d{6}$/);
+        expect(JSON.stringify(result)).not.toContain(sentOtp);
+        expect(require('../models/ClientEmployee').updateOne).toHaveBeenCalledTimes(1);
+    });
+
+    test('uses the commercial profile email for a client user on the email channel', async () => {
+        const account = {
+            _id: 'user-profile-mail',
+            phone: '0944444444',
+            name: 'عميل البريد',
+            businessProfile: { email: 'Owner@Example.com' },
+            otpDeliveryChannel: 'email'
+        };
+        expect(selectLoginOtpChannel(account)).toEqual({ channel: 'email', email: 'owner@example.com' });
+        const result = await issueLoginOtp({ account, accountType: 'user', session: {} });
+        expect(result.status).toBe('sent');
+        expect(sendLoginOtpEmail).toHaveBeenCalledWith(expect.objectContaining({ to: 'owner@example.com' }));
+        expect(sendOtp).not.toHaveBeenCalled();
+    });
+
+    test('does not fall back to WhatsApp when email OTP is enabled but the address is invalid', async () => {
+        const result = await issueLoginOtp({
+            account: {
+                _id: 'user-bad-mail',
+                phone: '0911111111',
+                name: 'عميل',
+                businessProfile: { email: 'not-an-email' },
+                otpDeliveryChannel: 'email'
+            },
+            accountType: 'user',
+            session: {}
+        });
+        expect(result.status).toBe('failed');
+        expect(result.code).toBe('EMAIL_OTP_ADDRESS_INVALID');
+        expect(result.message).toContain('البريد الإلكتروني');
+        expect(sendOtp).not.toHaveBeenCalled();
+        expect(sendLoginOtpEmail).not.toHaveBeenCalled();
+    });
+
+    test('reports missing SMTP config and still allows the emergency bypass', async () => {
+        sendLoginOtpEmail.mockResolvedValue({ success: false, provider: 'smtp', channel: 'email', code: 'SMTP_CONFIG_MISSING' });
+        const failed = await issueLoginOtp({
+            account: {
+                _id: 'exec-mail',
+                phone: '0922222222',
+                name: 'منفذ',
+                email: 'executor@example.com',
+                otpDeliveryChannel: 'email'
+            },
+            accountType: 'executor',
+            session: {}
+        });
+        expect(failed.status).toBe('failed');
+        expect(failed.code).toBe('SMTP_CONFIG_MISSING');
+        expect(failed.message).toContain('SMTP_CONFIG_MISSING');
+        expect(sendOtp).not.toHaveBeenCalled();
+
+        const previous = {
+            BYPASS: process.env.EMERGENCY_CLIENT_OTP_BYPASS,
+            EXPIRES: process.env.EMERGENCY_CLIENT_OTP_BYPASS_EXPIRES_AT,
+            REASON: process.env.EMERGENCY_CLIENT_OTP_BYPASS_REASON
+        };
+        process.env.EMERGENCY_CLIENT_OTP_BYPASS = 'true';
+        process.env.EMERGENCY_CLIENT_OTP_BYPASS_EXPIRES_AT = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+        process.env.EMERGENCY_CLIENT_OTP_BYPASS_REASON = 'SMTP outage';
+        try {
+            const bypassed = await issueLoginOtp({
+                account: {
+                    _id: 'exec-mail-2',
+                    phone: '0922222222',
+                    name: 'منفذ',
+                    email: 'executor@example.com',
+                    otpDeliveryChannel: 'email'
+                },
+                accountType: 'executor',
+                session: {}
+            });
+            expect(bypassed.status).toBe('emergency_bypass');
+            expect(bypassed.code).toBe('SMTP_CONFIG_MISSING');
+            expect(sendOtp).not.toHaveBeenCalled();
+        } finally {
+            if (previous.BYPASS === undefined) delete process.env.EMERGENCY_CLIENT_OTP_BYPASS;
+            else process.env.EMERGENCY_CLIENT_OTP_BYPASS = previous.BYPASS;
+            if (previous.EXPIRES === undefined) delete process.env.EMERGENCY_CLIENT_OTP_BYPASS_EXPIRES_AT;
+            else process.env.EMERGENCY_CLIENT_OTP_BYPASS_EXPIRES_AT = previous.EXPIRES;
+            if (previous.REASON === undefined) delete process.env.EMERGENCY_CLIENT_OTP_BYPASS_REASON;
+            else process.env.EMERGENCY_CLIENT_OTP_BYPASS_REASON = previous.REASON;
+        }
     });
 });

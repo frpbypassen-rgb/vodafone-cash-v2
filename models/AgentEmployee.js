@@ -5,6 +5,9 @@ const agentEmployeeSchema = new mongoose.Schema({
     agentId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     name: { type: String, required: true },
     phone: { type: String },
+    // بريد رمز الدخول. يُستخدم فقط عندما تكون otpDeliveryChannel = email.
+    email: { type: String, trim: true, lowercase: true, default: '' },
+    otpDeliveryChannel: { type: String, enum: ['whatsapp', 'email'], default: 'whatsapp' },
     status: { type: String, default: 'active' },
     webUsername: { type: String, unique: true, required: true },
     webPassword: { type: String, required: true },

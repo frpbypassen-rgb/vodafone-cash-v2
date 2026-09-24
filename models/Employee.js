@@ -4,6 +4,9 @@ const bcrypt = require('bcryptjs');
 const employeeSchema = new mongoose.Schema({
     name: { type: String, required: true },
     phone: { type: String },
+    // بريد رمز الدخول. يُستخدم فقط عندما تكون otpDeliveryChannel = email.
+    email: { type: String, trim: true, lowercase: true, default: '' },
+    otpDeliveryChannel: { type: String, enum: ['whatsapp', 'email'], default: 'whatsapp' },
     role: { type: String, enum: ['operator', 'manager', 'accountant', 'external'], default: 'operator' },
     status: { type: String, enum: ['pending', 'active', 'suspended', 'banned'], default: 'pending' },
     groupId: { type: mongoose.Schema.Types.ObjectId, ref: 'ExecutorGroup', required: true },

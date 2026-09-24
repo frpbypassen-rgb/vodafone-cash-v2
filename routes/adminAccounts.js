@@ -77,6 +77,7 @@ const BOOLEAN_FIELDS = Object.freeze([
     'canCreateCompanyStaff',
     'canManageAgent',
     'canCreateAgentStaff',
+    'emailOtpEnabled',
     'inheritCompanyPolicy',
     'proofRequired',
     'sessionTtlEnabled'
@@ -113,7 +114,8 @@ const accountToFormData = (account, submitted = null) => {
         apiFieldId: account.apiFieldId ?? 5488,
         apiMachineSerial: account.apiMachineSerial || 'XP1',
         contactName: businessProfile.contactName || '',
-        email: businessProfile.email || '',
+        email: businessProfile.email || account.email || '',
+        emailOtpEnabled: account.otpDeliveryChannel === 'email',
         city: businessProfile.city || '',
         address: businessProfile.address || '',
         registrationNumber: businessProfile.registrationNumber || '',

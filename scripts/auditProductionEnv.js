@@ -187,6 +187,16 @@ if (enabled('WHATCHIMP_ENABLED')) {
     addWarning('WHATCHIMP_ENABLED', 'WhatsApp delivery is disabled');
 }
 
+if (clean('SMTP_HOST') || clean('SMTP_USER') || clean('SMTP_PASS')) {
+    requireValue('SMTP_HOST');
+    requireValue('SMTP_USER');
+    requireValue('SMTP_PASS');
+    const smtpPort = Number(clean('SMTP_PORT') || 587);
+    if (!Number.isInteger(smtpPort) || smtpPort < 1 || smtpPort > 65535) {
+        addError('SMTP_PORT', 'must be an integer from 1 to 65535');
+    }
+}
+
 if (clean('ADMIN_BOT_TOKEN') && !clean('ADMIN_TELEGRAM_ID')) {
     addWarning('ADMIN_TELEGRAM_ID', 'is missing while the administration Telegram bot token is configured');
 }

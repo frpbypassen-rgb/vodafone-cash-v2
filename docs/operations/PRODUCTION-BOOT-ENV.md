@@ -54,8 +54,11 @@ pm2 reload ecosystem.config.js --env production --update-env
 
 Leave these **out of PM2** `env_production` so a time-limited `.env` window still
 works. The flag name says `CLIENT`, but the code applies it to **every portal
-that uses WhatsApp login OTP**: retail clients, company staff, agency staff,
-agency SubAccounts, and executors.
+that uses login OTP**: retail clients, company staff, agency staff,
+agency SubAccounts, and executors. A failed WhatsApp send and a failed
+per-account email send (`SMTP_CONFIG_MISSING`, `EMAIL_OTP_SEND_FAILED`,
+`EMAIL_OTP_TIMEOUT`, `EMAIL_OTP_ADDRESS_INVALID`) both use this window.
+Accounts without `otpDeliveryChannel=email` still use WhatsApp.
 
 Do **not** set `PASSWORD_ONLY_LOGIN_MODE=true`, `BYPASS_OTP=true`, or
 `FORCE_CLIENT_OTP=false` on the live host. Those are rejected by
@@ -63,10 +66,10 @@ Do **not** set `PASSWORD_ONLY_LOGIN_MODE=true`, `BYPASS_OTP=true`, or
 
 ### Exact `.env` steps (max 24 hours)
 
-1. Confirm WhatChimp is the blocker (login page shows a WhatsApp status code
-   such as `WHATCHIMP_TIMEOUT`, `WHATCHIMP_CONFIG_MISSING`, or
-   `WHATSAPP_PHONE_REQUIRED`). Redis must stay required; this bypass does not
-   disable Redis or agency SubAccount privacy.
+1. Confirm delivery is the blocker (login page shows a status code such as
+   `WHATCHIMP_TIMEOUT`, `WHATCHIMP_CONFIG_MISSING`, `WHATSAPP_PHONE_REQUIRED`,
+   `SMTP_CONFIG_MISSING`, or `EMAIL_OTP_SEND_FAILED`). Redis must stay required;
+   this bypass does not disable Redis or agency SubAccount privacy.
 2. Edit **only** `.env` (not `ecosystem.config.js`):
 
 ```
