@@ -110,7 +110,7 @@ const hasReusableChallenge = ({ account, accountType, session = {} }) => {
     );
 };
 
-const deliverLoginOtp = async ({ phone, otp, accountName, accountTypeLabel, account }) => {
+const deliverLoginOtp = async ({ phone, otp, accountName, accountTypeLabel, account, expiresAt }) => {
     const selection = selectLoginOtpChannel(account || {});
     if (selection.channel === 'email') {
         if (selection.code) {
@@ -127,6 +127,7 @@ const deliverLoginOtp = async ({ phone, otp, accountName, accountTypeLabel, acco
                 to: selection.email,
                 otp,
                 expiresMinutes: 5,
+                expiresAt,
                 accountName: accountName || ''
             });
         } catch (error) {
@@ -201,7 +202,8 @@ const issueLoginOtp = async ({ account, accountType, session = {} }) => {
         otp,
         accountName: account.name || account.webUsername || '',
         accountTypeLabel: portal.label,
-        account
+        account,
+        expiresAt: otpExpires
     });
 
     if (delivery?.success) {
