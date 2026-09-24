@@ -167,8 +167,8 @@ const clearStoredOtp = async (Model, accountId) => {
 
 /**
  * Persist a hashed login OTP and deliver it on the account channel.
- * Email is used only when otpDeliveryChannel is email and the address is valid.
- * Every other account keeps the WhatsApp path. A failed delivery still clears the
+ * A valid stored address is delivered by email. Accounts with no usable
+ * address keep the WhatsApp path. A failed delivery still clears the
  * stored OTP and can fall through to the emergency bypass when that window is active.
  */
 const issueLoginOtp = async ({ account, accountType, session = {} }) => {

@@ -1,0 +1,33 @@
+<script>
+(function () {
+    const messageFor = (input) => (
+        input.validity.valueMissing
+            ? 'البريد الإلكتروني مطلوب.'
+            : 'أدخل بريداً إلكترونياً صالحاً.'
+    );
+    const showMessage = (input) => {
+        const message = messageFor(input);
+        input.setCustomValidity(message);
+        let hint = input.parentElement && input.parentElement.querySelector('.email-validity');
+        if (!hint && input.parentElement) {
+            hint = document.createElement('div');
+            hint.className = 'email-validity';
+            hint.style.cssText = 'color:#dc2626;font-size:.78rem;font-weight:800;margin-top:6px;';
+            input.insertAdjacentElement('afterend', hint);
+        }
+        if (hint) hint.textContent = message;
+    };
+    document.querySelectorAll('[data-required-email]').forEach((input) => {
+        input.addEventListener('invalid', (event) => {
+            event.preventDefault();
+            showMessage(input);
+            input.focus({ preventScroll: true });
+        });
+        input.addEventListener('input', () => {
+            input.setCustomValidity('');
+            const hint = input.parentElement && input.parentElement.querySelector('.email-validity');
+            if (hint) hint.textContent = '';
+        });
+    });
+})();
+</script>

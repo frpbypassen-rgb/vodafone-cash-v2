@@ -1,8 +1,10 @@
 'use strict';
 
 // Login OTP channel.
-// Email is used only when the account explicitly sets otpDeliveryChannel to
-// "email" and a valid address is stored. Every other account stays on WhatsApp.
+// A valid stored address uses email. WhatsApp remains only when no usable
+// address is stored (legacy accounts that have not been given an email yet).
+// If the account explicitly selects email but the address is missing or
+// invalid, delivery fails instead of falling back to WhatsApp.
 // User and agent addresses live on businessProfile.email. The company login
 // owner is the ClientEmployee with the canonical owner role, and that address
 // is the employee's top-level email. Other company staff, agency staff,
@@ -32,18 +34,18 @@ const isEmailOtpExplicitlyEnabled = (account = {}) => (
  * @returns {{ channel: 'whatsapp' } | { channel: 'email', email: string, code?: string }}
  */
 const selectLoginOtpChannel = (account = {}) => {
-    if (!isEmailOtpExplicitlyEnabled(account)) {
-        return { channel: 'whatsapp' };
-    }
     const email = resolveAccountOtpEmail(account);
-    if (!isValidOtpEmail(email)) {
+    if (isValidOtpEmail(email)) {
+        return { channel: 'email', email };
+    }
+    if (isEmailOtpExplicitlyEnabled(account)) {
         return {
             channel: 'email',
             email: '',
             code: 'EMAIL_OTP_ADDRESS_INVALID'
         };
     }
-    return { channel: 'email', email };
+    return { channel: 'whatsapp' };
 };
 
 module.exports = {

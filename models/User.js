@@ -28,8 +28,8 @@ const userSchema = new mongoose.Schema({
         address: { type: String, trim: true, default: '' },
         registrationNumber: { type: String, trim: true, default: '' }
     },
-    // قناة رمز الدخول. الافتراضي whatsapp يبقي مسار WhatChimp.
-    // email يستخدم businessProfile.email ولا يُفعَّل إلا من الإدارة لكل حساب.
+    // قناة رمز الدخول. حفظ بريد صالح من الإدارة يضبطها على email.
+    // whatsapp يبقى للحسابات التي لا يوجد لها بريد صالح.
     otpDeliveryChannel: { type: String, enum: ['whatsapp', 'email'], default: 'whatsapp' },
     verificationDocuments: [{
         kind: { type: String, enum: ['identity', 'tax_card', 'business_license', 'profile_photo'], required: true },

@@ -166,7 +166,7 @@
         <% if (query.error) { %>
             <div class="alert alert-danger border-0 fw-bold mb-4">
                 <i class="fa-solid fa-triangle-exclamation me-1"></i>
-                <%= query.error === 'duplicate' ? 'تعذر القبول لأن البيانات مرتبطة الآن بحساب قائم أو طلب آخر.' : query.error === 'not_found' ? 'الطلب غير موجود أو تمت مراجعته سابقاً.' : 'تعذر تنفيذ الإجراء. يرجى المحاولة مرة أخرى.' %>
+                <%= query.error === 'duplicate' ? 'تعذر القبول لأن البيانات مرتبطة الآن بحساب قائم أو طلب آخر.' : query.error === 'not_found' ? 'الطلب غير موجود أو تمت مراجعته سابقاً.' : query.error === 'email_required' ? 'البريد الإلكتروني مطلوب ويجب أن يكون بريداً صالحاً قبل إنشاء الحساب.' : 'تعذر تنفيذ الإجراء. يرجى المحاولة مرة أخرى.' %>
             </div>
         <% } %>
 
@@ -335,6 +335,10 @@
                             <% if (req.status === 'pending') { %>
                             <div class="d-flex flex-wrap gap-2 mt-3">
                                 <form action="/registration-requests/<%= req._id %>/approve" method="POST" class="flex-fill" onsubmit="return confirm('هل تريد الموافقة على هذا الطلب وإنشاء الحساب؟');">
+                                    <% if (['direct', 'company', 'new', 'agent'].includes(req.accountType)) { %>
+                                        <label class="form-label small fw-bold mb-1 d-block" for="ownerEmail-<%= req._id %>">البريد الإلكتروني لصاحب الحساب <span class="text-danger">*</span></label>
+                                        <input id="ownerEmail-<%= req._id %>" name="ownerEmail" type="email" class="form-control form-control-sm mb-2" dir="ltr" maxlength="254" required data-required-email="owner" value="<%= req.companyEmail || '' %>" placeholder="name@example.com" autocomplete="off" title="البريد الإلكتروني مطلوب ويجب أن يكون بريداً صالحاً.">
+                                    <% } %>
                                     <button type="submit" class="btn-action btn-approve w-100"><i class="fa-solid fa-check-double"></i> قبول وتفعيل</button>
                                 </form>
                                 <form action="/registration-requests/<%= req._id %>/reject" method="POST" class="flex-fill" onsubmit="return confirm('هل تريد رفض هذا الطلب؟');">
@@ -374,6 +378,7 @@
     </div>
 </div>
 
+<%- include('partials/required_owner_email_script') %>
 <script>
     function toggleSidebar() { 
         document.querySelector('.sidebar').classList.toggle('active');
