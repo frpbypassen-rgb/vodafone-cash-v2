@@ -235,7 +235,7 @@ const buildLoginOtpHtml = (input = {}) => {
 <td style="padding:14px 36px 0;">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" dir="rtl" bgcolor="#f5f7f9" style="background:#f5f7f9;border-radius:10px;border-collapse:collapse;">
 <tr>
-<td dir="ltr" width="36" valign="middle" align="center" style="width:36px;padding:8px 4px 8px 10px;color:#222222;font-family:Georgia,serif;font-size:42px;line-height:42px;text-align:center;">)</td>
+<td dir="ltr" width="40" valign="middle" align="center" style="width:40px;padding:12px 8px;font-family:'Segoe UI Emoji','Apple Color Emoji','Noto Color Emoji','Segoe UI Symbol',Tahoma,Arial,sans-serif;font-size:22px;line-height:28px;text-align:center;">⚠️</td>
 <td dir="rtl" align="right" valign="middle" style="padding:16px 8px 16px 16px;color:#4a5560;font-family:${font};font-size:14px;line-height:1.8;text-align:right;">${escapeHtml(content.security)}</td>
 </tr>
 </table>

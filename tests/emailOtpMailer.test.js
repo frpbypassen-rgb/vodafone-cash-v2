@@ -175,6 +175,9 @@ describe('email OTP mailer', () => {
         expect(text).toContain('+218 940719000');
         expect(html).toContain('dir="rtl"');
         expect(html).toContain('111222');
+        expect(html).toContain('⚠️');
+        expect(html).not.toContain('font-family:Georgia');
+        expect(html).not.toMatch(/>\)<\/td>/);
         expect(html).not.toContain('صلاحية الرمز: 5 دقائق');
     });
 
