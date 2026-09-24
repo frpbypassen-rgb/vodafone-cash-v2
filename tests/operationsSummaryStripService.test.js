@@ -3,11 +3,14 @@
 jest.mock('../middlewares/tenantResolver', () => ({ tenantMode: () => 'single' }));
 
 const {
+    OPERATIONS_TODAY_BANK_TYPES,
     activeExecutorStripQuery,
     buildOperationsDayFacetPipeline,
+    isOperationsTodayBankChannel,
     loadOperationsSummaryStrip,
     mapActiveExecutorStrip,
-    mapCompanyStrip
+    mapCompanyStrip,
+    mapTodayTotals
 } = require('../services/operationsSummaryStripService');
 
 describe('operations summary strip', () => {
@@ -26,8 +29,22 @@ describe('operations summary strip', () => {
                 { customId: { $not: /-C$/ } }
             ]
         });
-        expect(facet.totals[1].$group.egyptianEGP).toEqual({ $sum: { $ifNull: ['$amount', 0] } });
-        expect(facet.totals[1].$group.libyanLYD).toEqual({ $sum: { $ifNull: ['$costLYD', 0] } });
+        const group = facet.totals[1].$group;
+        const amount = { $ifNull: ['$amount', 0] };
+        const costLYD = { $ifNull: ['$costLYD', 0] };
+        const isBank = {
+            $or: [
+                { $in: [{ $toLower: { $ifNull: ['$transferType', ''] } }, OPERATIONS_TODAY_BANK_TYPES] },
+                { $in: [{ $toLower: { $ifNull: ['$canonicalServiceKey', ''] } }, OPERATIONS_TODAY_BANK_TYPES] }
+            ]
+        };
+        expect(OPERATIONS_TODAY_BANK_TYPES).toEqual(expect.arrayContaining(['bank_account', 'bank_transfer', 'instapay']));
+        expect(group.egyptianEGP).toEqual({ $sum: amount });
+        expect(group.libyanLYD).toEqual({ $sum: costLYD });
+        expect(group.cashEGP).toEqual({ $sum: { $cond: [isBank, 0, amount] } });
+        expect(group.bankEGP).toEqual({ $sum: { $cond: [isBank, amount, 0] } });
+        expect(group.cashLYD).toEqual({ $sum: { $cond: [isBank, 0, costLYD] } });
+        expect(group.bankLYD).toEqual({ $sum: { $cond: [isBank, costLYD, 0] } });
         expect(facet.completedByCompany[0].$match.companyId).toEqual({ $exists: true, $ne: null });
         expect(facet.depositsByCompany[0].$match).toEqual({
             status: 'deposit',
@@ -101,10 +118,55 @@ describe('operations summary strip', () => {
         ]);
     });
 
+    test('treats bank_account, bank_transfer, and instapay as the bank channel', () => {
+        expect(isOperationsTodayBankChannel({ transferType: 'vodafone' })).toBe(false);
+        expect(isOperationsTodayBankChannel({ transferType: 'post_account' })).toBe(false);
+        expect(isOperationsTodayBankChannel({ transferType: 'sefa_niger' })).toBe(false);
+        expect(isOperationsTodayBankChannel({ transferType: 'bank_account', serviceSubtype: 'instapay' })).toBe(true);
+        expect(isOperationsTodayBankChannel({ transferType: 'bank_transfer' })).toBe(true);
+        expect(isOperationsTodayBankChannel({ transferType: 'Instapay' })).toBe(true);
+        expect(isOperationsTodayBankChannel({
+            transferType: 'vodafone',
+            canonicalServiceKey: 'bank_account'
+        })).toBe(true);
+        expect(isOperationsTodayBankChannel({})).toBe(false);
+    });
+
+    test('sums stored cash and bank costLYD into the LYD total', () => {
+        expect(mapTodayTotals({
+            egyptianEGP: 12400.5,
+            libyanLYD: 2310.25,
+            cashEGP: 10000.5,
+            bankEGP: 2400,
+            cashLYD: 1900.25,
+            bankLYD: 410
+        })).toEqual({
+            egyptianEGP: 12400.5,
+            libyanLYD: 2310.25,
+            cashEGP: 10000.5,
+            bankEGP: 2400,
+            totalLYD: 2310.25
+        });
+        expect(mapTodayTotals({})).toEqual({
+            egyptianEGP: 0,
+            libyanLYD: 0,
+            cashEGP: 0,
+            bankEGP: 0,
+            totalLYD: 0
+        });
+    });
+
     test('loads the day facet, companies, and active executors together', async () => {
         const Transaction = {
             aggregate: jest.fn().mockResolvedValue([{
-                totals: [{ egyptianEGP: 12400.5, libyanLYD: 2310.25 }],
+                totals: [{
+                    egyptianEGP: 12400.5,
+                    libyanLYD: 2310.25,
+                    cashEGP: 10000.5,
+                    bankEGP: 2400,
+                    cashLYD: 1900.25,
+                    bankLYD: 410
+                }],
                 completedByCompany: [{ _id: 'c1', count: 3 }],
                 depositsByCompany: [{ _id: 'c1', total: 150 }, { _id: 'archived-co', total: 20 }],
                 completedByExecutor: [{ _id: 'e1', count: 5 }],
@@ -136,7 +198,13 @@ describe('operations summary strip', () => {
         });
 
         expect(Transaction.aggregate).toHaveBeenCalledTimes(1);
-        expect(summary.today).toEqual({ egyptianEGP: 12400.5, libyanLYD: 2310.25 });
+        expect(summary.today).toEqual({
+            egyptianEGP: 12400.5,
+            libyanLYD: 2310.25,
+            cashEGP: 10000.5,
+            bankEGP: 2400,
+            totalLYD: 2310.25
+        });
         expect(summary.todayDepositsTotal).toBe(170);
         expect(summary.todayExecutorDepositsTotal).toBe(425);
         expect(summary.companies).toEqual([

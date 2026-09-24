@@ -100,7 +100,7 @@ describe('central ledger page layout', () => {
         const html = renderTransactions({
             operationWorkspace: true,
             operationsSummary: {
-                today: { egyptianEGP: 12400.5, libyanLYD: 2310.25 },
+                today: { egyptianEGP: 12400.5, libyanLYD: 2310.25, cashEGP: 10000.5, bankEGP: 2400, totalLYD: 2310.25 },
                 todayDepositsTotal: 900,
                 todayExecutorDepositsTotal: 745.25,
                 activeExecutors: [
@@ -157,27 +157,41 @@ describe('central ledger page layout', () => {
         expect(html).not.toContain('class="ledger-stats-bar');
 
         expect(html).toContain('data-ops-summary-strip="operations"');
-        expect(html).toContain('مصري');
-        expect(html).toContain('ليبي');
+        expect(html).toContain('إجمالي الكاش');
+        expect(html).toContain('إجمالي الحساب البنكي');
         expect(html).toContain('إجمالي الإيداعات اليوم');
         expect(html).toContain('إيداعات المنفذين');
         expect(html).toContain('المنفذين النشطين');
         expect(html).toContain('إجمالي الرصيد معهم');
-        expect(html).toContain('data-ops-egyptian="12400.5"');
-        expect(html).toContain('data-ops-libyan="2310.25"');
+        expect(html).toContain('data-ops-cash-egp="10000.5"');
+        expect(html).toContain('data-ops-bank-egp="2400"');
+        expect(html).toContain('data-ops-total-lyd="2310.25"');
+        expect(html).toContain('10,000.50');
+        expect(html).toContain('2,400.00');
+        expect(html).toContain('2,310.25');
         expect(html).toContain('data-ops-deposits="900"');
         expect(html).toContain('data-ops-executor-deposits="745.25"');
         expect(html).toContain('745.25');
         const leftCluster = html.slice(html.indexOf('class="ops-summary-left"'), html.indexOf('class="ops-summary-right"'));
-        const executorDepositsBox = leftCluster.slice(leftCluster.indexOf('data-ops-executor-deposits-total'), leftCluster.indexOf('data-ops-today-totals'));
+        const todayBox = leftCluster.slice(leftCluster.indexOf('data-ops-today-totals'), leftCluster.indexOf('data-ops-executor-deposits-total'));
+        expect(todayBox).toContain('إجمالي اليوم');
+        expect(todayBox).toContain('إجمالي الكاش');
+        expect(todayBox).toContain('data-ops-cash-egp="10000.5"');
+        expect(todayBox).toContain('ج.م');
+        expect(todayBox).toContain('إجمالي الحساب البنكي');
+        expect(todayBox).toContain('data-ops-bank-egp="2400"');
+        expect(todayBox).toContain('المجموع');
+        expect(todayBox).toContain('data-ops-total-lyd="2310.25"');
+        expect(todayBox).toContain('د.ل');
+        const executorDepositsBox = leftCluster.slice(leftCluster.indexOf('data-ops-executor-deposits-total'), leftCluster.indexOf('data-ops-deposits-total'));
         expect(executorDepositsBox).toContain('إيداعات المنفذين');
         expect(executorDepositsBox).toContain('data-ops-executor-deposits="745.25"');
         expect(executorDepositsBox).toContain('EGP');
         expect(leftCluster).toContain('إجمالي الإيداعات اليوم');
         expect(leftCluster).toContain('data-ops-deposits="900"');
         expect(leftCluster).toContain('LYD');
-        expect(leftCluster.indexOf('إيداعات المنفذين')).toBeLessThan(leftCluster.indexOf('إجمالي اليوم'));
-        expect(leftCluster.indexOf('إجمالي اليوم')).toBeLessThan(leftCluster.indexOf('إجمالي الإيداعات اليوم'));
+        expect(leftCluster.indexOf('إجمالي اليوم')).toBeLessThan(leftCluster.indexOf('إيداعات المنفذين'));
+        expect(leftCluster.indexOf('إيداعات المنفذين')).toBeLessThan(leftCluster.indexOf('إجمالي الإيداعات اليوم'));
         expect(html).toContain('منفذ كاش');
         expect(html).toContain('2,500.50');
         expect(html).toContain('128,450.75');

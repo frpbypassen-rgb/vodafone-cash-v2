@@ -2,6 +2,7 @@
 
 const { applyAdminTxPrivacy } = require('./adminAccountVisibilityService');
 const { adminAccountScope } = require('../utils/tenantScope');
+const { BANK_TRANSFER_TYPES } = require('../utils/bankTransferExecution');
 const { snapshotServiceLedgers } = require('../utils/executorServiceLedger');
 const {
     loadActiveClientCompanyBalances,
@@ -11,13 +12,36 @@ const {
 const COMPLETED_STATUS = 'completed';
 const DEPOSIT_STATUS = 'deposit';
 
+// Bank transfers, including the legacy instapay transferType. Instapay-on-bank
+// is already stored as bank_account (see bankTransferExecution). Cash is the
+// rest of the same completed-today set, so the two EGP lines add up to the
+// Egyptian total this strip already showed.
+const OPERATIONS_TODAY_BANK_TYPES = Object.freeze([...BANK_TRANSFER_TYPES, 'instapay']);
+
+const emptyTodayTotals = () => ({
+    egyptianEGP: 0,
+    libyanLYD: 0,
+    cashEGP: 0,
+    bankEGP: 0,
+    totalLYD: 0
+});
+
 const emptyOperationsSummary = () => ({
-    today: { egyptianEGP: 0, libyanLYD: 0 },
+    today: emptyTodayTotals(),
     todayDepositsTotal: 0,
     todayExecutorDepositsTotal: 0,
     activeExecutors: [],
     companies: []
 });
+
+const normalizeChannelToken = (value) => String(value || '').trim().toLowerCase();
+
+const isOperationsTodayBankChannel = (transaction = {}) => {
+    const transferType = normalizeChannelToken(transaction.transferType);
+    const canonicalServiceKey = normalizeChannelToken(transaction.canonicalServiceKey);
+    return OPERATIONS_TODAY_BANK_TYPES.includes(transferType)
+        || OPERATIONS_TODAY_BANK_TYPES.includes(canonicalServiceKey);
+};
 
 const balanceTransferCounterpartExclusion = () => ({
     $or: [
@@ -56,8 +80,7 @@ const buildOperationsDayFacetPipeline = (source, now = new Date()) => {
                     {
                         $group: {
                             _id: null,
-                            egyptianEGP: { $sum: { $ifNull: ['$amount', 0] } },
-                            libyanLYD: { $sum: { $ifNull: ['$costLYD', 0] } }
+                            ...operationsTodayTotalsGroup()
                         }
                     }
                 ],
@@ -170,6 +193,43 @@ const mapCompanyStrip = (companies = [], completedByCompany = new Map(), deposit
 const sumValues = (rows, key) => (Array.isArray(rows) ? rows : [])
     .reduce((sum, row) => sum + (Number(row[key]) || 0), 0);
 
+const loweredField = (field) => ({ $toLower: { $ifNull: [field, ''] } });
+
+// LYD on this strip is the sum of stored costLYD. Each completed operation
+// already converted EGP → LYD with calculateTransferCostLYD (amount ÷ the
+// operation exchange rate for vodafone and bank_account). Reports use the
+// same stored costLYD. The combined EGP is not repriced at one live rate.
+const operationsTodayTotalsGroup = () => {
+    const amount = { $ifNull: ['$amount', 0] };
+    const costLYD = { $ifNull: ['$costLYD', 0] };
+    const isBank = {
+        $or: [
+            { $in: [loweredField('$transferType'), OPERATIONS_TODAY_BANK_TYPES] },
+            { $in: [loweredField('$canonicalServiceKey'), OPERATIONS_TODAY_BANK_TYPES] }
+        ]
+    };
+    return {
+        egyptianEGP: { $sum: amount },
+        libyanLYD: { $sum: costLYD },
+        cashEGP: { $sum: { $cond: [isBank, 0, amount] } },
+        bankEGP: { $sum: { $cond: [isBank, amount, 0] } },
+        cashLYD: { $sum: { $cond: [isBank, 0, costLYD] } },
+        bankLYD: { $sum: { $cond: [isBank, costLYD, 0] } }
+    };
+};
+
+const mapTodayTotals = (totals = {}) => {
+    const cashLYD = Number(totals.cashLYD) || 0;
+    const bankLYD = Number(totals.bankLYD) || 0;
+    return {
+        egyptianEGP: Number(totals.egyptianEGP) || 0,
+        libyanLYD: Number(totals.libyanLYD) || 0,
+        cashEGP: Number(totals.cashEGP) || 0,
+        bankEGP: Number(totals.bankEGP) || 0,
+        totalLYD: cashLYD + bankLYD
+    };
+};
+
 const loadAllocatedBalances = async (groupIds) => {
     try {
         const { loadAllocatedByGroupIds } = require('./executorBalancePoolService');
@@ -201,10 +261,7 @@ const loadOperationsSummaryStrip = async ({
     const completedByExecutor = indexAggregation(facet.completedByExecutor, 'count');
     const depositsByExecutor = indexAggregation(facet.depositsByExecutor, 'total');
     return {
-        today: {
-            egyptianEGP: Number(totals.egyptianEGP) || 0,
-            libyanLYD: Number(totals.libyanLYD) || 0
-        },
+        today: mapTodayTotals(totals),
         todayDepositsTotal: sumValues(facet.depositsByCompany, 'total'),
         // All executor-group deposit rows for today, including groups that
         // are not on an active card. Company deposits stay in todayDepositsTotal.
@@ -215,10 +272,13 @@ const loadOperationsSummaryStrip = async ({
 };
 
 module.exports = {
+    OPERATIONS_TODAY_BANK_TYPES,
     activeExecutorStripQuery,
     buildOperationsDayFacetPipeline,
     emptyOperationsSummary,
+    isOperationsTodayBankChannel,
     loadOperationsSummaryStrip,
     mapActiveExecutorStrip,
-    mapCompanyStrip
+    mapCompanyStrip,
+    mapTodayTotals
 };

@@ -400,7 +400,17 @@
             padding: 7px 10px;
             border-radius: 12px;
         }
-        .ops-mini-card.ops-today { border-color: rgba(212, 175, 55, .45); }
+        .ops-mini-card.ops-today {
+            border-color: rgba(212, 175, 55, .45);
+            direction: rtl;
+            min-width: 220px;
+        }
+        .ops-mini-card.ops-today .ops-currency-name { white-space: nowrap; }
+        .ops-mini-card.ops-today .ops-today-sum {
+            margin-top: 4px;
+            padding-top: 3px;
+            border-top: 1px dashed rgba(212, 175, 55, .45);
+        }
         .ops-mini-card.ops-deposits { border-color: rgba(59, 130, 246, .35); }
         .ops-mini-card.ops-executor-deposits { border-color: rgba(16, 185, 129, .4); }
         .ops-mini-label,
@@ -656,9 +666,9 @@
     const ledgerExecutors = Array.isArray(typeof fundedExecutorCompanies !== 'undefined' ? fundedExecutorCompanies : null) ? fundedExecutorCompanies : [];
     const opsWorkspace = typeof operationWorkspace !== 'undefined' && Boolean(operationWorkspace);
     const opsSummary = opsWorkspace
-        ? ((typeof operationsSummary !== 'undefined' && operationsSummary) ? operationsSummary : { today: { egyptianEGP: 0, libyanLYD: 0 }, todayDepositsTotal: 0, todayExecutorDepositsTotal: 0, activeExecutors: [], companies: [] })
+        ? ((typeof operationsSummary !== 'undefined' && operationsSummary) ? operationsSummary : { today: { egyptianEGP: 0, libyanLYD: 0, cashEGP: 0, bankEGP: 0, totalLYD: 0 }, todayDepositsTotal: 0, todayExecutorDepositsTotal: 0, activeExecutors: [], companies: [] })
         : null;
-    const opsToday = opsSummary && opsSummary.today ? opsSummary.today : { egyptianEGP: 0, libyanLYD: 0 };
+    const opsToday = opsSummary && opsSummary.today ? opsSummary.today : { egyptianEGP: 0, libyanLYD: 0, cashEGP: 0, bankEGP: 0, totalLYD: 0 };
     const opsExecutors = opsSummary && Array.isArray(opsSummary.activeExecutors) ? opsSummary.activeExecutors : [];
     const opsCompanies = opsSummary && Array.isArray(opsSummary.companies) ? opsSummary.companies : [];
     const operationAgeFor = (tx = {}) => {
@@ -792,20 +802,24 @@
         <section class="ops-summary-strip" data-ops-summary-strip="operations" aria-label="ملخص العمليات">
             <div class="ops-summary-top">
                 <div class="ops-summary-left">
-                    <article class="ops-mini-card ops-executor-deposits" data-ops-executor-deposits-total>
-                        <span class="ops-mini-label">إيداعات المنفذين</span>
-                        <strong class="ops-mini-value" data-ops-executor-deposits="<%= Number(opsSummary.todayExecutorDepositsTotal) || 0 %>"><%= formatMoney(opsSummary.todayExecutorDepositsTotal) %> <small>EGP</small></strong>
-                    </article>
                     <article class="ops-mini-card ops-today" data-ops-today-totals>
                         <span class="ops-mini-label">إجمالي اليوم</span>
                         <div class="ops-currency-row">
-                            <span class="ops-currency-name">مصري</span>
-                            <strong class="ops-currency-value" data-ops-egyptian="<%= Number(opsToday.egyptianEGP) || 0 %>"><%= formatMoney(opsToday.egyptianEGP) %> <small>EGP</small></strong>
+                            <span class="ops-currency-name">إجمالي الكاش</span>
+                            <strong class="ops-currency-value" data-ops-cash-egp="<%= Number(opsToday.cashEGP) || 0 %>"><%= formatMoney(opsToday.cashEGP) %> <small>ج.م</small></strong>
                         </div>
                         <div class="ops-currency-row">
-                            <span class="ops-currency-name">ليبي</span>
-                            <strong class="ops-currency-value" data-ops-libyan="<%= Number(opsToday.libyanLYD) || 0 %>"><%= formatMoney(opsToday.libyanLYD) %> <small>LYD</small></strong>
+                            <span class="ops-currency-name">إجمالي الحساب البنكي</span>
+                            <strong class="ops-currency-value" data-ops-bank-egp="<%= Number(opsToday.bankEGP) || 0 %>"><%= formatMoney(opsToday.bankEGP) %> <small>ج.م</small></strong>
                         </div>
+                        <div class="ops-currency-row ops-today-sum">
+                            <span class="ops-currency-name">المجموع</span>
+                            <strong class="ops-currency-value" data-ops-total-lyd="<%= Number(opsToday.totalLYD) || 0 %>"><%= formatMoney(opsToday.totalLYD) %> <small>د.ل</small></strong>
+                        </div>
+                    </article>
+                    <article class="ops-mini-card ops-executor-deposits" data-ops-executor-deposits-total>
+                        <span class="ops-mini-label">إيداعات المنفذين</span>
+                        <strong class="ops-mini-value" data-ops-executor-deposits="<%= Number(opsSummary.todayExecutorDepositsTotal) || 0 %>"><%= formatMoney(opsSummary.todayExecutorDepositsTotal) %> <small>EGP</small></strong>
                     </article>
                     <article class="ops-mini-card ops-deposits" data-ops-deposits-total>
                         <span class="ops-mini-label">إجمالي الإيداعات اليوم</span>
