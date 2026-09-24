@@ -362,30 +362,31 @@
             gap: 8px;
             margin-bottom: 12px;
         }
-        .ops-summary-top {
-            display: flex;
-            flex-wrap: wrap;
-            align-items: flex-start;
-            justify-content: space-between;
-            gap: 8px;
-            direction: ltr;
+        /* الشبكة باتجاه RTL: المسار الأول يمين الشاشة (الشركات 75%) والثاني يسارها (المنفذون والملخص 25%). */
+        .ops-summary-layout {
+            display: grid;
+            grid-template-columns: minmax(0, 3fr) minmax(0, 1fr);
+            gap: 12px;
+            align-items: start;
+            direction: rtl;
         }
-        .ops-summary-left {
-            display: flex;
-            flex-direction: row;
-            align-items: stretch;
-            gap: 6px;
-            direction: ltr;
-            flex: 0 1 auto;
+        .ops-summary-companies,
+        .ops-summary-side {
+            min-width: 0;
+            direction: rtl;
         }
-        .ops-summary-right {
+        .ops-summary-side {
             display: flex;
             flex-direction: column;
             align-items: stretch;
-            gap: 4px;
-            flex: 1 1 240px;
-            min-width: 0;
-            direction: rtl;
+            gap: 8px;
+        }
+        .ops-summary-totals {
+            display: flex;
+            flex-direction: column;
+            align-items: stretch;
+            gap: 6px;
+            width: 100%;
         }
         .ops-mini-card,
         .ops-exec-card,
@@ -397,15 +398,17 @@
         }
         .ops-mini-card {
             min-width: 0;
+            width: 100%;
             padding: 7px 10px;
             border-radius: 12px;
         }
         .ops-mini-card.ops-today {
             border-color: rgba(212, 175, 55, .45);
             direction: rtl;
-            min-width: 220px;
+            min-width: 0;
+            width: 100%;
         }
-        .ops-mini-card.ops-today .ops-currency-name { white-space: nowrap; }
+        .ops-mini-card.ops-today .ops-currency-name { white-space: normal; }
         .ops-mini-card.ops-today .ops-today-sum {
             margin-top: 4px;
             padding-top: 3px;
@@ -429,6 +432,14 @@
             justify-content: space-between;
             gap: 10px;
             margin-top: 3px;
+        }
+        .ops-summary-side .ops-currency-row {
+            flex-wrap: wrap;
+            column-gap: 8px;
+            row-gap: 2px;
+        }
+        .ops-summary-side .ops-currency-value {
+            margin-inline-start: auto;
         }
         .ops-currency-name {
             color: var(--text-muted);
@@ -470,27 +481,31 @@
             font-weight: 800;
             text-align: right;
         }
-        .ops-exec-row,
-        .ops-company-row {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 6px;
-        }
         .ops-exec-row {
+            display: flex;
+            flex-direction: column;
+            flex-wrap: nowrap;
+            align-items: stretch;
+            gap: 6px;
             width: 100%;
             direction: rtl;
-            justify-content: flex-start;
         }
-        .ops-company-row { direction: rtl; }
+        .ops-company-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 8px;
+            direction: rtl;
+            align-items: stretch;
+        }
         .ops-exec-label,
         .ops-company-label {
             font-size: .72rem;
         }
         .ops-uniform-card {
             box-sizing: border-box;
-            width: 210px;
+            width: 100%;
             height: 152px;
-            flex: 0 0 210px;
+            min-width: 0;
             overflow: hidden;
         }
         .ops-exec-card {
@@ -499,9 +514,10 @@
             flex-direction: column;
             justify-content: space-between;
             gap: 4px;
-            width: 160px;
+            width: 100%;
             height: 100px;
-            flex: 0 0 160px;
+            min-width: 0;
+            flex: 0 0 auto;
             overflow: hidden;
             padding: 5px 8px;
             border-radius: 12px;
@@ -584,10 +600,16 @@
             font-weight: 800;
             padding: 4px 2px;
         }
+        @media (max-width: 991.98px) {
+            .ops-summary-layout { grid-template-columns: 1fr; }
+        }
         @media (max-width: 767.98px) {
             .ledger-stats-bar { grid-template-columns: 1fr; }
             .ledger-panel-list { max-height: none; }
-            .ops-summary-right { flex-basis: 100%; }
+            .ops-summary-layout { grid-template-columns: 1fr; }
+        }
+        @media (max-width: 575.98px) {
+            .ops-company-row { grid-template-columns: 1fr; }
         }
     </style>
     <link rel="stylesheet" href="/css/admin-operation-details.css?v=20260919-od2">
@@ -800,33 +822,35 @@
 
         <% if (opsSummary) { %>
         <section class="ops-summary-strip" data-ops-summary-strip="operations" aria-label="ملخص العمليات">
-            <div class="ops-summary-top">
-                <div class="ops-summary-left">
-                    <article class="ops-mini-card ops-today" data-ops-today-totals>
-                        <span class="ops-mini-label">إجمالي اليوم</span>
-                        <div class="ops-currency-row">
-                            <span class="ops-currency-name">إجمالي الكاش</span>
-                            <strong class="ops-currency-value" data-ops-cash-egp="<%= Number(opsToday.cashEGP) || 0 %>"><%= formatMoney(opsToday.cashEGP) %> <small>ج.م</small></strong>
-                        </div>
-                        <div class="ops-currency-row">
-                            <span class="ops-currency-name">إجمالي الحساب البنكي</span>
-                            <strong class="ops-currency-value" data-ops-bank-egp="<%= Number(opsToday.bankEGP) || 0 %>"><%= formatMoney(opsToday.bankEGP) %> <small>ج.م</small></strong>
-                        </div>
-                        <div class="ops-currency-row ops-today-sum">
-                            <span class="ops-currency-name">المجموع</span>
-                            <strong class="ops-currency-value" data-ops-total-lyd="<%= Number(opsToday.totalLYD) || 0 %>"><%= formatMoney(opsToday.totalLYD) %> <small>د.ل</small></strong>
-                        </div>
-                    </article>
-                    <article class="ops-mini-card ops-executor-deposits" data-ops-executor-deposits-total>
-                        <span class="ops-mini-label">إيداعات المنفذين</span>
-                        <strong class="ops-mini-value" data-ops-executor-deposits="<%= Number(opsSummary.todayExecutorDepositsTotal) || 0 %>"><%= formatMoney(opsSummary.todayExecutorDepositsTotal) %> <small>EGP</small></strong>
-                    </article>
-                    <article class="ops-mini-card ops-deposits" data-ops-deposits-total>
-                        <span class="ops-mini-label">إجمالي الإيداعات اليوم</span>
-                        <strong class="ops-mini-value" data-ops-deposits="<%= Number(opsSummary.todayDepositsTotal) || 0 %>"><%= formatMoney(opsSummary.todayDepositsTotal) %> <small>LYD</small></strong>
-                    </article>
+            <div class="ops-summary-layout">
+                <div class="ops-summary-companies">
+                    <div class="ops-company-row">
+                        <% if (opsCompanies.length) { %>
+                            <% opsCompanies.forEach(function(company) { %>
+                                <a class="ops-company-card ops-uniform-card" data-ops-company="<%= company.id %>" href="/company/<%= company.id %>" title="<%= company.name %>">
+                                    <span class="ops-company-head">
+                                        <span class="ops-company-name"><%= company.name %></span>
+                                        <span class="ops-company-label">الرصيد المتاح</span>
+                                        <strong class="ops-company-balance <%= Number(company.balance) < 0 ? 'is-negative' : '' %>"><%= formatMoney(company.balance) %> <small>LYD</small></strong>
+                                    </span>
+                                    <div class="ops-micro-stack">
+                                        <span class="ops-micro ops-micro-completed" data-ops-micro="completed" title="عمليات مكتملة اليوم">
+                                            <span class="ops-micro-label">عمليات اليوم</span>
+                                            <strong class="ops-micro-value" data-ops-completed="<%= Number(company.completedToday) || 0 %>"><%= formatCount(company.completedToday) %></strong>
+                                        </span>
+                                        <span class="ops-micro ops-micro-deposit" data-ops-micro="deposit" title="إيداع الشركة اليوم">
+                                            <span class="ops-micro-label">إيداع اليوم</span>
+                                            <strong class="ops-micro-value" data-ops-company-deposit="<%= Number(company.depositsToday) || 0 %>"><%= formatMoney(company.depositsToday) %></strong>
+                                        </span>
+                                    </div>
+                                </a>
+                            <% }); %>
+                        <% } else { %>
+                            <div class="ops-summary-empty">لا توجد شركات لعرضها.</div>
+                        <% } %>
+                    </div>
                 </div>
-                <div class="ops-summary-right">
+                <div class="ops-summary-side">
                     <div class="ops-exec-head">المنفذين النشطين</div>
                     <div class="ops-exec-row">
                         <% if (opsExecutors.length) { %>
@@ -853,32 +877,32 @@
                             <div class="ops-summary-empty">لا يوجد منفذون نشطون.</div>
                         <% } %>
                     </div>
-                </div>
-            </div>
-            <div class="ops-company-row">
-                <% if (opsCompanies.length) { %>
-                    <% opsCompanies.forEach(function(company) { %>
-                        <a class="ops-company-card ops-uniform-card" data-ops-company="<%= company.id %>" href="/company/<%= company.id %>" title="<%= company.name %>">
-                            <span class="ops-company-head">
-                                <span class="ops-company-name"><%= company.name %></span>
-                                <span class="ops-company-label">الرصيد المتاح</span>
-                                <strong class="ops-company-balance <%= Number(company.balance) < 0 ? 'is-negative' : '' %>"><%= formatMoney(company.balance) %> <small>LYD</small></strong>
-                            </span>
-                            <div class="ops-micro-stack">
-                                <span class="ops-micro ops-micro-completed" data-ops-micro="completed" title="عمليات مكتملة اليوم">
-                                    <span class="ops-micro-label">عمليات اليوم</span>
-                                    <strong class="ops-micro-value" data-ops-completed="<%= Number(company.completedToday) || 0 %>"><%= formatCount(company.completedToday) %></strong>
-                                </span>
-                                <span class="ops-micro ops-micro-deposit" data-ops-micro="deposit" title="إيداع الشركة اليوم">
-                                    <span class="ops-micro-label">إيداع اليوم</span>
-                                    <strong class="ops-micro-value" data-ops-company-deposit="<%= Number(company.depositsToday) || 0 %>"><%= formatMoney(company.depositsToday) %></strong>
-                                </span>
+                    <div class="ops-summary-totals">
+                        <article class="ops-mini-card ops-today" data-ops-today-totals>
+                            <span class="ops-mini-label">إجمالي اليوم</span>
+                            <div class="ops-currency-row">
+                                <span class="ops-currency-name">إجمالي الكاش</span>
+                                <strong class="ops-currency-value" data-ops-cash-egp="<%= Number(opsToday.cashEGP) || 0 %>"><%= formatMoney(opsToday.cashEGP) %> <small>ج.م</small></strong>
                             </div>
-                        </a>
-                    <% }); %>
-                <% } else { %>
-                    <div class="ops-summary-empty">لا توجد شركات لعرضها.</div>
-                <% } %>
+                            <div class="ops-currency-row">
+                                <span class="ops-currency-name">إجمالي الحساب البنكي</span>
+                                <strong class="ops-currency-value" data-ops-bank-egp="<%= Number(opsToday.bankEGP) || 0 %>"><%= formatMoney(opsToday.bankEGP) %> <small>ج.م</small></strong>
+                            </div>
+                            <div class="ops-currency-row ops-today-sum">
+                                <span class="ops-currency-name">المجموع</span>
+                                <strong class="ops-currency-value" data-ops-total-lyd="<%= Number(opsToday.totalLYD) || 0 %>"><%= formatMoney(opsToday.totalLYD) %> <small>د.ل</small></strong>
+                            </div>
+                        </article>
+                        <article class="ops-mini-card ops-executor-deposits" data-ops-executor-deposits-total>
+                            <span class="ops-mini-label">إيداعات المنفذين</span>
+                            <strong class="ops-mini-value" data-ops-executor-deposits="<%= Number(opsSummary.todayExecutorDepositsTotal) || 0 %>"><%= formatMoney(opsSummary.todayExecutorDepositsTotal) %> <small>EGP</small></strong>
+                        </article>
+                        <article class="ops-mini-card ops-deposits" data-ops-deposits-total>
+                            <span class="ops-mini-label">إيداعات الشركات</span>
+                            <strong class="ops-mini-value" data-ops-deposits="<%= Number(opsSummary.todayDepositsTotal) || 0 %>"><%= formatMoney(opsSummary.todayDepositsTotal) %> <small>LYD</small></strong>
+                        </article>
+                    </div>
+                </div>
             </div>
         </section>
         <% } %>
