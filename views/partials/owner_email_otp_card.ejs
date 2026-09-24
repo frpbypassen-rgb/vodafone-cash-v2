@@ -1,0 +1,27 @@
+<div class="col-12" id="owner-email-otp">
+    <div class="info-box border-0 m-0 shadow-sm control-card-3d d-block" style="background: rgba(8, 127, 116, 0.08); border-right: 4px solid #087f74 !important;">
+        <label class="form-label fw-bold text-dark mb-1" for="accountOwnerEmail"><i class="fa-solid fa-envelope-circle-check me-1" style="color:#087f74;"></i> البريد الإلكتروني لصاحب الحساب</label>
+        <% if (ownerOtp.missingOwner) { %>
+            <div class="alert alert-warning fw-bold small mb-2">لا يوجد حساب مالك لهذه الشركة. أنشئ حساب المالك قبل تفعيل إرسال رمز التحقق عبر البريد.</div>
+        <% } else if (ownerOtp.showLoginAccount && ownerOtp.ownerName) { %>
+            <div class="small text-muted fw-bold mb-2">حساب الدخول: <%= ownerOtp.ownerName %><% if (ownerOtp.ownerUsername) { %> — <bdi dir="ltr"><%= ownerOtp.ownerUsername %></bdi><% } %></div>
+        <% } %>
+        <form action="/admin/accounts/<%= ownerOtp.type %>/<%= ownerOtp.id %>/owner-otp" method="POST" class="row g-2 align-items-center">
+            <div class="col-md-7">
+                <input id="accountOwnerEmail" type="email" name="email" class="form-control fw-bold unified-height border-0 shadow-sm" dir="ltr" maxlength="254" value="<%= ownerOtp.email || '' %>" placeholder="name@example.com" autocomplete="off" <%= ownerOtp.missingOwner ? 'disabled' : '' %>>
+            </div>
+            <div class="col-md-5">
+                <button type="submit" class="btn w-100 fw-bold text-white unified-height justify-content-center shadow-sm btn-3d-hover d-flex align-items-center gap-2" style="background:#087f74;" <%= ownerOtp.missingOwner ? 'disabled' : '' %>>
+                    <i class="fa-solid fa-floppy-disk"></i> <span>حفظ البريد</span>
+                </button>
+            </div>
+            <div class="col-12">
+                <label class="d-flex align-items-center gap-2 fw-bold mb-0" style="cursor:pointer;">
+                    <input type="checkbox" name="emailOtpEnabled" value="true" <%= ownerOtp.emailOtpEnabled ? 'checked' : '' %> <%= ownerOtp.missingOwner ? 'disabled' : '' %>>
+                    <span>إرسال رمز التحقق عبر البريد</span>
+                </label>
+                <div class="small text-muted mt-1">واتساب هو المسار الافتراضي ويبقى كذلك حتى تفعيل هذا الخيار. عند الإيقاف يُرسل رمز التحقق عبر واتساب.</div>
+            </div>
+        </form>
+    </div>
+</div>

@@ -169,7 +169,7 @@
             <h3 class="fw-bold m-0" style="color: var(--text-main);"><i class="fa-solid fa-building text-primary me-2"></i> بيانات الشركة (الوكيل)</h3>
             <div class="d-flex flex-wrap gap-2">
                 <% if (typeof isMaster !== 'undefined' && isMaster) { %>
-                    <a href="/admin/accounts/company/<%= company._id %>/edit" class="btn btn-success fw-bold rounded-3 shadow-sm px-3 btn-3d-hover"><i class="fa-solid fa-pen-to-square me-1"></i> تعديل البيانات</a>
+                    <a href="/admin/accounts/company/<%= company._id %>/edit#owner-email-otp" class="btn btn-success fw-bold rounded-3 shadow-sm px-3 btn-3d-hover"><i class="fa-solid fa-pen-to-square me-1"></i> تعديل البيانات</a>
                     <a href="/company/<%= company._id %>/integration-guide.pdf" class="btn btn-dark fw-bold rounded-3 shadow-sm px-3 btn-3d-hover" title="تنزيل وثيقة ربط API الخاصة بالشركة"><i class="fa-solid fa-file-pdf me-1"></i> وثيقة ربط API</a>
                 <% } %>
                 <a href="/clients" class="btn btn-secondary fw-bold rounded-3 shadow-sm px-3 btn-3d-hover"><i class="fa-solid fa-arrow-right me-1"></i> عودة للقائمة</a>
@@ -190,6 +190,15 @@
         <% } %>
         <% if (query && query.balanceError) { %>
             <div class="alert alert-danger fw-bold rounded-4 shadow-sm"><i class="fa-solid fa-triangle-exclamation me-1"></i> تعذر تحديث الرصيد. تحقق من المبلغ والحساب ثم أعد المحاولة.</div>
+        <% } %>
+        <% if (query && query.ownerOtpSaved) { %>
+            <div class="alert alert-success fw-bold rounded-4 shadow-sm"><i class="fa-solid fa-circle-check me-1"></i> تم حفظ بريد صاحب الحساب.</div>
+        <% } else if (query && query.ownerOtpError === 'invalid_email') { %>
+            <div class="alert alert-danger fw-bold rounded-4 shadow-sm"><i class="fa-solid fa-triangle-exclamation me-1"></i> لتفعيل إرسال رمز التحقق عبر البريد، أدخل بريداً إلكترونياً صالحاً.</div>
+        <% } else if (query && query.ownerOtpError === 'owner_missing') { %>
+            <div class="alert alert-danger fw-bold rounded-4 shadow-sm"><i class="fa-solid fa-triangle-exclamation me-1"></i> لا يوجد حساب مالك لهذه الشركة. أنشئ حساب المالك قبل تفعيل إرسال رمز التحقق عبر البريد.</div>
+        <% } else if (query && query.ownerOtpError) { %>
+            <div class="alert alert-danger fw-bold rounded-4 shadow-sm"><i class="fa-solid fa-triangle-exclamation me-1"></i> تعذر حفظ بريد صاحب الحساب. حاول مرة أخرى.</div>
         <% } %>
         <% if (query && query.apiTokenRotated) { %>
             <div class="alert alert-success fw-bold rounded-4 shadow-sm"><i class="fa-solid fa-key me-1"></i> تم إصدار مفتاح API جديد وإيقاف المفتاح السابق فوراً. حمّل وثيقة الربط الجديدة وشارك المفتاح الجديد فقط مع جهة الربط.</div>
@@ -241,6 +250,18 @@
 
                     <div class="row g-3">
                         <% if (typeof isMaster !== 'undefined' && isMaster) { %>
+                            <%- include('partials/owner_email_otp_card', {
+                                ownerOtp: {
+                                    type: 'company',
+                                    id: company._id,
+                                    email: (typeof companyOwner !== 'undefined' && companyOwner && companyOwner.email) || '',
+                                    emailOtpEnabled: typeof companyOwner !== 'undefined' && companyOwner && companyOwner.otpDeliveryChannel === 'email',
+                                    ownerName: (typeof companyOwner !== 'undefined' && companyOwner && companyOwner.name) || '',
+                                    ownerUsername: (typeof companyOwner !== 'undefined' && companyOwner && companyOwner.webUsername) || '',
+                                    showLoginAccount: true,
+                                    missingOwner: !(typeof companyOwner !== 'undefined' && companyOwner)
+                                }
+                            }) %>
                             <div class="col-12" id="company-api-integration">
                                 <div class="info-box border-0 m-0 shadow-sm control-card-3d d-block" style="background: rgba(14, 165, 233, 0.06); border-right: 4px solid #0ea5e9 !important;">
                                     <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">

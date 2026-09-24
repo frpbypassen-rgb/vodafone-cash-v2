@@ -21,6 +21,7 @@ const { createDepositReceiptProof } = require('../services/depositReceiptService
 const { voidBalanceAdjustment } = require('../services/balanceAdjustmentService');
 const { logAction } = require('../services/auditService');
 const { loadAdminAccountDirectory } = require('../services/adminAccountDirectoryService');
+const { findCompanyLoginOwner } = require('../services/adminAccountManagementService');
 const {
     adminAccountFindQuery,
     loadAdminAccountHistory
@@ -362,8 +363,16 @@ router.get('/company/:id', requireAuth, async (req, res) => {
         entityModel: 'ClientCompany',
         entityId: company._id
     });
+    const companyOwnerAccount = await findCompanyLoginOwner(company._id).catch(() => null);
+    const companyOwner = companyOwnerAccount ? {
+        name: companyOwnerAccount.name || '',
+        webUsername: companyOwnerAccount.webUsername || '',
+        email: companyOwnerAccount.email || '',
+        otpDeliveryChannel: companyOwnerAccount.otpDeliveryChannel === 'email' ? 'email' : 'whatsapp'
+    } : null;
     res.render('company_details', {
         company,
+        companyOwner,
         transactions,
         reversibleSettlements,
         accountCodeLength: CODE_LENGTHS.company,
