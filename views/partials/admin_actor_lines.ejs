@@ -1,0 +1,19 @@
+<%
+const actorTx = typeof tx !== 'undefined' ? tx : null;
+const actorLines = [];
+if (actorTx && actorTx.routedByAdminName && actorTx.status !== 'pending') {
+    actorLines.push({ label: 'وجّهها', name: actorTx.routedByAdminName });
+}
+if (actorTx && ['deposit', 'deduction', 'deposit_pending'].includes(actorTx.status) && actorTx.performedByAdminName) {
+    const label = actorTx.status === 'deduction' ? 'خصمها' : (actorTx.status === 'deposit_pending' ? 'سجّلها' : 'أودعها');
+    actorLines.push({ label, name: actorTx.performedByAdminName });
+} else if (actorTx && actorTx.depositRequest && actorTx.depositRequest.reviewedByName && ['deposit', 'deduction', 'deposit_pending', 'rejected'].includes(actorTx.status)) {
+    actorLines.push({ label: 'راجعها', name: actorTx.depositRequest.reviewedByName });
+}
+if (actorTx && actorTx.cancelledBy && ['rejected', 'cancelled_by_admin'].includes(actorTx.status)) {
+    actorLines.push({ label: 'ألغاها', name: actorTx.cancelledBy });
+}
+%>
+<% actorLines.forEach((line) => { %>
+<div class="admin-actor-line"><%= line.label %>: <%= line.name %></div>
+<% }) %>

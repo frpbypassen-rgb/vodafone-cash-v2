@@ -243,7 +243,7 @@ const editTransactionAmount = async ({
 });
 
 /** Reassigns a completed transfer and its executor ledger balances atomically. */
-const reassignTransactionExecutor = async ({ transactionId, newGroupId }) => withOptionalMongoTransaction(async (session) => {
+const reassignTransactionExecutor = async ({ transactionId, newGroupId, routedBy = null }) => withOptionalMongoTransaction(async (session) => {
     const transaction = await loadAdminVisibleTransaction(transactionId, session);
     if (transaction.status !== 'completed') throw new Error('TRANSACTION_NOT_COMPLETED');
     if (transaction.executorGroupId && String(transaction.executorGroupId) === String(newGroupId)) {
@@ -295,6 +295,14 @@ const reassignTransactionExecutor = async ({ transactionId, newGroupId }) => wit
     }
 
     const note = `[تم النقل محاسبياً إلى بوت: ${newGroup.name || 'غير معروف'}]`;
+    const routedAt = new Date();
+    const routedActor = routedBy && String(routedBy.id || '').trim() && String(routedBy.name || '').trim()
+        ? {
+            routedByAdminId: String(routedBy.id).trim(),
+            routedByAdminName: String(routedBy.name).trim(),
+            routedAt: routedBy.at instanceof Date ? routedBy.at : routedAt
+        }
+        : {};
     const updated = await Transaction.findOneAndUpdate(
         { _id: transaction._id },
         {
@@ -303,7 +311,8 @@ const reassignTransactionExecutor = async ({ transactionId, newGroupId }) => wit
                 managerGroupId: newManagerId,
                 executorName: newGroup.name || 'غير محدد',
                 adminNotes: appendNote(transaction.adminNotes, note),
-                updatedAt: new Date()
+                updatedAt: routedAt,
+                ...routedActor
             }
         },
         { new: true, ...(session ? { session } : {}), timestamps: false }

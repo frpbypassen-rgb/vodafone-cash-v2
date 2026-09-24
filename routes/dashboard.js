@@ -22,6 +22,13 @@ const {
 } = require('../services/dashboardIntelligenceService');
 const { adminVisibleTransactionQuery } = require('../services/adminAccountVisibilityService');
 const { adminAccountScope, tenantScope } = require('../utils/tenantScope');
+const {
+    requireAdminActor,
+    isAdminActorError,
+    cancellationFields,
+    ACTOR_MESSAGE,
+    auditAdminAction
+} = require('../utils/adminActor');
 
 const appendAdminNoteText = (current, note) => {
     const cleanNote = String(note || '').trim();
@@ -207,6 +214,7 @@ router.post('/api/resolve-complaint', requireAuth, async (req, res) => {
 
 router.post('/api/complaints/:id/edit-amount', requireAuth, async (req, res) => {
     try {
+        const actor = requireAdminActor(req);
         const txId = req.params.id;
         const newAmount = parseFloat(req.body.newAmount);
         const reason = req.body.reason || '';
@@ -216,13 +224,20 @@ router.post('/api/complaints/:id/edit-amount', requireAuth, async (req, res) => 
         const result = await editTransactionAmount({
             transactionId: txId,
             newAmount,
-            adminName: req.session.adminName || 'الإدارة',
+            adminName: actor.name,
             noteDetail: reason
         });
         for (const groupId of result.syncGroupIds) await syncBotBalance(groupId);
+        await auditAdminAction(req, actor, {
+            action: 'TRANSACTION_DATA_EDITED',
+            targetId: txId,
+            newData: { amount: newAmount },
+            metadata: { reason }
+        });
 
         res.json({ success: true });
     } catch (e) {
+        if (isAdminActorError(e)) return res.status(401).json({ success: false, error: ACTOR_MESSAGE });
         if (e.message === 'TRANSACTION_NOT_FOUND') return res.status(404).json({ error: 'العملية غير موجودة' });
         if (e.message === 'TRANSACTION_NOT_EDITABLE') return res.status(400).json({ error: 'لا يمكن تعديل عملية ملغاة' });
         if (e.code === 'FINANCIAL_TRANSACTIONS_UNAVAILABLE') return res.status(503).json({ error: 'تعذر تأكيد التعديل المالي حالياً. حاول لاحقاً.' });
@@ -232,6 +247,7 @@ router.post('/api/complaints/:id/edit-amount', requireAuth, async (req, res) => 
 
 router.post('/api/complaints/:id/edit-rate', requireAuth, async (req, res) => {
     try {
+        const actor = requireAdminActor(req);
         const newRate = parseFloat(req.body.newRate);
         const reason = req.body.reason || '';
         if (isNaN(newRate) || newRate <= 0) return res.status(400).json({ error: 'سعر الصرف غير صالح' });
@@ -239,11 +255,18 @@ router.post('/api/complaints/:id/edit-rate', requireAuth, async (req, res) => {
         await repriceTransaction({
             transactionId: req.params.id,
             newRate,
-            adminName: req.session.adminName || 'الإدارة',
+            adminName: actor.name,
             noteDetail: reason
+        });
+        await auditAdminAction(req, actor, {
+            action: 'TRANSACTION_RATE_EDITED',
+            targetId: req.params.id,
+            newData: { exchangeRate: newRate },
+            metadata: { reason }
         });
         res.json({ success: true });
     } catch (error) {
+        if (isAdminActorError(error)) return res.status(401).json({ success: false, error: ACTOR_MESSAGE });
         if (error.message === 'TRANSACTION_NOT_FOUND') return res.status(404).json({ error: 'العملية غير موجودة' });
         if (error.message === 'TRANSACTION_NOT_EDITABLE') return res.status(400).json({ error: 'لا يمكن تعديل عملية ملغاة' });
         if (error.code === 'FINANCIAL_TRANSACTIONS_UNAVAILABLE') return res.status(503).json({ error: 'تعذر تأكيد التعديل المالي حالياً. حاول لاحقاً.' });
@@ -257,11 +280,18 @@ router.get('/api/client-service-requests', requireAuth, async (_req, res) => {
 });
 
 router.post('/api/client-service-requests/:id/review', requireAuth, async (req, res) => {
+    let actor;
+    try {
+        actor = requireAdminActor(req);
+    } catch (error) {
+        if (isAdminActorError(error)) return res.status(401).json({ success: false, error: ACTOR_MESSAGE });
+        throw error;
+    }
     const decision = String(req.body?.decision || '');
     if (!['approved', 'rejected'].includes(decision)) return res.status(422).json({ success: false, error: 'INVALID_DECISION' });
     const request = await ClientServiceRequest.findOneAndUpdate(
         { _id: req.params.id, status: 'pending_admin' },
-        { $set: { status: decision, adminNote: String(req.body?.note || '').slice(0, 1000), reviewedById: String(req.session.adminId || ''), reviewedByName: String(req.session.adminName || 'الإدارة'), reviewedAt: new Date() }, $push: { audit: { action: decision, actorId: String(req.session.adminId || ''), actorName: String(req.session.adminName || 'الإدارة'), note: String(req.body?.note || '').slice(0, 1000) } } },
+        { $set: { status: decision, adminNote: String(req.body?.note || '').slice(0, 1000), reviewedById: actor.id, reviewedByName: actor.name, reviewedAt: actor.at }, $push: { audit: { action: decision, actorId: actor.id, actorName: actor.name, note: String(req.body?.note || '').slice(0, 1000) } } },
         { returnDocument: 'after' }
     );
     if (!request) return res.status(404).json({ success: false, error: 'REQUEST_NOT_FOUND_OR_REVIEWED' });
@@ -270,6 +300,7 @@ router.post('/api/client-service-requests/:id/review', requireAuth, async (req, 
 
 router.post('/api/complaints/:id/upload-proof', requireAuth, async (req, res) => {
     try {
+        const actor = requireAdminActor(req);
         const { imageBase64 } = req.body;
         if (!imageBase64) return res.status(400).json({ error: 'الصورة مطلوبة' });
 
@@ -288,12 +319,12 @@ router.post('/api/complaints/:id/upload-proof', requireAuth, async (req, res) =>
         if (!tx.proofImages) tx.proofImages = [];
         tx.proofImages.push(fileName);
         
-        const adminName = req.session.adminName || 'الإدارة';
-        tx.adminNotes = appendAdminNoteText(tx.adminNotes, `[تم إرفاق إثبات جديد بواسطة: ${adminName}]`);
+        tx.adminNotes = appendAdminNoteText(tx.adminNotes, `[تم إرفاق إثبات جديد بواسطة: ${actor.name}]`);
         await tx.save();
 
         res.json({ success: true, imageUrl: `/proxy/image/${tx._id}/${tx.proofImages.length - 1}` });
     } catch (e) {
+        if (isAdminActorError(e)) return res.status(401).json({ success: false, error: ACTOR_MESSAGE });
         res.status(500).json({ error: 'خطأ داخلي: ' + e.message });
     }
 });
@@ -304,11 +335,11 @@ router.post('/api/complaints/:id/resolve', requireAuth, async (req, res) => {
         const { reason } = req.body;
         if (!reason) return res.status(400).json({ error: 'السبب مطلوب' });
 
+        const actor = requireAdminActor(req);
         const tx = await Transaction.findOne(adminVisibleTransactionQuery(tenantScope(req), { _id: txId }));
         if (!tx) return res.status(404).json({ error: 'العملية غير موجودة' });
 
-        const adminName = req.session.adminName || 'الإدارة';
-        tx.adminNotes = appendAdminNoteText(tx.adminNotes, `[تم حل الشكوى بواسطة: ${adminName} | السبب: ${reason}]`);
+        tx.adminNotes = appendAdminNoteText(tx.adminNotes, `[تم حل الشكوى بواسطة: ${actor.name} | السبب: ${reason}]`);
         
         // Unset complaint fields
         tx.complaintText = undefined;
@@ -317,6 +348,7 @@ router.post('/api/complaints/:id/resolve', requireAuth, async (req, res) => {
 
         res.json({ success: true });
     } catch (e) {
+        if (isAdminActorError(e)) return res.status(401).json({ success: false, error: ACTOR_MESSAGE });
         res.status(500).json({ error: 'خطأ داخلي: ' + e.message });
     }
 });
@@ -327,12 +359,12 @@ router.post('/api/complaints/:id/cancel', requireAuth, async (req, res) => {
         const { reason } = req.body;
         if (!reason) return res.status(400).json({ error: 'السبب مطلوب' });
 
+        const actor = requireAdminActor(req);
         const tx = await Transaction.findOne(adminVisibleTransactionQuery(tenantScope(req), { _id: txId }));
         if (tx) {
             const groupId = tx.executorGroupId;
             const managerGroupId = tx.managerGroupId;
-            const adminName = req.session.adminName || 'الإدارة';
-            const result = await reversalService.reverseTransaction(txId, reason, adminName, { status: 'cancelled_by_admin' });
+            const result = await reversalService.reverseTransaction(txId, reason, actor.name, { status: 'cancelled_by_admin' });
 
             if (!result.success) {
                 return res.status(400).json({ error: result.message });
@@ -340,9 +372,15 @@ router.post('/api/complaints/:id/cancel', requireAuth, async (req, res) => {
 
             await Transaction.updateOne(
                 { _id: tx._id, ...tenantScope(req) },
-                { $unset: { complaintText: '', emergencyAlert: '' }, $set: { updatedAt: new Date() } },
+                { $unset: { complaintText: '', emergencyAlert: '' }, $set: { updatedAt: new Date(), ...cancellationFields(actor) } },
                 { timestamps: false }
             );
+            await auditAdminAction(req, actor, {
+                action: 'TRANSACTION_CANCELLED_BY_ADMIN',
+                targetId: tx._id,
+                newData: { status: 'cancelled_by_admin', cancelledBy: actor.name },
+                metadata: { reason, cancellationNumber: result.cancellationNumber }
+            });
 
             if (groupId) await syncBotBalance(groupId);
             if (managerGroupId) await syncBotBalance(managerGroupId);
@@ -351,6 +389,7 @@ router.post('/api/complaints/:id/cancel', requireAuth, async (req, res) => {
         }
         if (!tx) return res.status(404).json({ error: 'العملية غير موجودة' });
     } catch (e) {
+        if (isAdminActorError(e)) return res.status(401).json({ success: false, error: ACTOR_MESSAGE });
         res.status(500).json({ error: 'خطأ داخلي: ' + e.message });
     }
 });

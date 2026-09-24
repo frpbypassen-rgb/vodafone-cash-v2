@@ -12,6 +12,7 @@ const {
     isWhatsAppSupportTicket
 } = require('../services/whatChimpSupportService');
 const { createSupportReplyNotifications } = require('../services/clientNotificationService');
+const { requireAdminActor, isAdminActorError, ACTOR_MESSAGE } = require('../utils/adminActor');
 const { resolveDepositTicket } = require('../services/executorDepositRequestService');
 const { resolveClientDepositTicket } = require('../services/clientDepositRequestService');
 const { recordWhatsAppDeliveryAttempt } = require('../services/whatsappReceiptDeliveryService');
@@ -642,16 +643,20 @@ router.post('/api/support/tickets/:id/executor-deposit/:decision', requireAuth, 
         if (ticket?.metadata?.depositRequest?.submittedByRole === 'admin' || ticket?.messages?.[0]?.sender === 'admin') {
             return res.status(403).json({ success: false, error: 'هذا طلب إيداع صادر من الإدارة ويجب أن تراجعه شركة التنفيذ من حسابها.' });
         }
+        const actor = requireAdminActor(req);
         const result = await resolveDepositTicket({
             ticketId: req.params.id,
-            admin: getAdminIdentity(req),
+            admin: actor,
             approved: decision === 'approve',
             reason: req.body?.reason
         });
         emitTicketUpdate(req, result.ticket);
         return res.json({ success: true, status: decision === 'approve' ? 'approved' : 'rejected' });
     } catch (error) {
-        return res.status(error.status || 500).json({ success: false, error: error.message || 'تعذر مراجعة طلب الإيداع.' });
+        return res.status(error.status || error.statusCode || 500).json({
+            success: false,
+            error: isAdminActorError(error) ? ACTOR_MESSAGE : (error.message || 'تعذر مراجعة طلب الإيداع.')
+        });
     }
 });
 
@@ -661,16 +666,20 @@ router.post('/api/support/tickets/:id/client-deposit/:decision', requireAuth, re
         if (!['approve', 'reject'].includes(decision)) {
             return res.status(422).json({ success: false, error: 'قرار المراجعة غير صالح.' });
         }
+        const actor = requireAdminActor(req);
         const result = await resolveClientDepositTicket({
             ticketId: req.params.id,
-            admin: getAdminIdentity(req),
+            admin: actor,
             approved: decision === 'approve',
             reason: req.body?.reason
         });
         emitTicketUpdate(req, result.ticket);
         return res.json({ success: true, status: decision === 'approve' ? 'approved' : 'rejected' });
     } catch (error) {
-        return res.status(error.status || 500).json({ success: false, error: error.message || 'تعذر مراجعة طلب إيداع العميل.' });
+        return res.status(error.status || error.statusCode || 500).json({
+            success: false,
+            error: isAdminActorError(error) ? ACTOR_MESSAGE : (error.message || 'تعذر مراجعة طلب إيداع العميل.')
+        });
     }
 });
 

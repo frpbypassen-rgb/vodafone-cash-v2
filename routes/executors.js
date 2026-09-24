@@ -21,6 +21,14 @@ const {
     executorTransactionFilter
 } = require('../services/executorArchiveService');
 const { logAction } = require('../services/auditService');
+const {
+    requireAdminActor,
+    isAdminActorError,
+    performedFields,
+    cancellationFields,
+    ACTOR_MESSAGE,
+    auditAdminAction
+} = require('../utils/adminActor');
 const { reversalService } = require('../src/Application/Services/ReversalService');
 const {
     getExecutorServiceOptions,
@@ -650,22 +658,23 @@ router.post('/executor/:id/provider-return/:returnId/cancel', requireAuth, requi
             });
         }
 
+        const actor = requireAdminActor(req);
         const reason = normalizeText(req.body.reason)
             || `إلغاء بعد تأكيد استرجاع مزود API للعملية ${item.providerTransactionId}`;
-        const adminName = req.session.adminName || 'الإدارة';
         const result = await reversalService.reverseTransaction(
             String(item.transactionId),
             reason,
-            adminName,
+            actor.name,
             { status: 'cancelled_by_admin' }
         );
         if (!result.success) {
             return res.status(409).json(result);
         }
 
+        await Transaction.updateOne({ _id: item.transactionId }, { $set: cancellationFields(actor) });
         item.status = 'cancelled';
         item.reviewedAt = new Date();
-        item.reviewedBy = adminName;
+        item.reviewedBy = actor.name;
         item.reviewNotes = reason;
         item.cancellationNumber = result.cancellationNumber || '';
         await item.save();
@@ -678,9 +687,9 @@ router.post('/executor/:id/provider-return/:returnId/cancel', requireAuth, requi
         await logAction({
             action: 'API_PROVIDER_RETURN_CANCELLED',
             req,
-            performedById: req.session.adminId,
+            performedById: actor.id,
             performedByModel: 'Admin',
-            performedByName: adminName,
+            performedByName: actor.name,
             targetId: item.transactionId,
             targetModel: 'Transaction',
             metadata: {
@@ -698,6 +707,9 @@ router.post('/executor/:id/provider-return/:returnId/cancel', requireAuth, requi
             cancellationNumber: result.cancellationNumber
         });
     } catch (error) {
+        if (isAdminActorError(error)) {
+            return res.status(401).json({ success: false, message: ACTOR_MESSAGE });
+        }
         console.error('[executor/provider-return/cancel] failed:', error.stack || error.message);
         return res.status(500).json({ success: false, message: 'تعذر إلغاء العملية المسترجعة' });
     }
@@ -790,10 +802,11 @@ router.post('/executor/:id/settle', requireAuth, requireMaster, adminDepositUplo
             if (!receipts.length) {
                 return res.redirect(`/executor/${bot._id}?settlementError=RECEIPT_REQUIRED`);
             }
+            const actor = requireAdminActor(req);
             const targetBot = await ExecutorGroup.findById(targetBotId);
             const request = await createDepositRequest({
                 group: targetBot,
-                submittedBy: { id: req.session.adminId, name: req.session.adminName || 'الإدارة المركزية' },
+                submittedBy: { id: actor.id, name: actor.name, role: actor.role },
                 amount,
                 note: notes,
                 receipts,
@@ -808,10 +821,18 @@ router.post('/executor/:id/settle', requireAuth, requireMaster, adminDepositUplo
         }
 
         if (!isNaN(amount) && amount !== 0) {
+            const actor = requireAdminActor(req);
             const tx = await Transaction.create({
                 userId: 'admin', executorGroupId: targetBotId, amount: Math.abs(amount), costLYD: 0, vodafoneNumber: 'تسديد حساب',
                 status: amount > 0 ? 'deposit' : 'deduction', customId: `SETTLE-${Date.now().toString().slice(-6)}`, companyName: 'الإدارة المركزية', employeeName: amount > 0 ? 'تسديد نقدية (إيداع)' : 'خصم من المنفذ', executorName: targetBotName, notes: '', adminNotes: notes,
+                ...performedFields(actor),
                 ...fundingFields
+            });
+            await auditAdminAction(req, actor, {
+                action: amount > 0 ? 'EXECUTOR_DEPOSIT_RECORDED' : 'EXECUTOR_DEDUCTION_RECORDED',
+                targetId: tx._id,
+                newData: { status: tx.status, amount: tx.amount, executorName: targetBotName },
+                metadata: { executorGroupId: String(targetBotId), notes }
             });
             await syncBotBalance(targetBotId); if(targetBotId.toString() !== bot._id.toString()) await syncBotBalance(bot._id); 
 
@@ -835,6 +856,12 @@ router.post('/executor/:id/settle', requireAuth, requireMaster, adminDepositUplo
         }
         res.redirect(`/executor/${bot._id}`);
     } catch (e) {
+        if (isAdminActorError(e)) {
+            if (req.get('x-requested-with') === 'XMLHttpRequest') {
+                return res.status(401).json({ success: false, error: ACTOR_MESSAGE });
+            }
+            return res.redirect(`/executor/${req.params.id}?settlementError=ACTOR_REQUIRED`);
+        }
         if (req.get('x-requested-with') === 'XMLHttpRequest') {
             return res.status(e.status || 500).json({ success: false, error: e.message || 'تعذر إرسال طلب الإيداع.' });
         }

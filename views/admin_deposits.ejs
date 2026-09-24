@@ -88,6 +88,7 @@
                             <th>النوع</th>
                             <th>المبلغ</th>
                             <th>الحالة</th>
+                            <th>المدير</th>
                             <th>التاريخ</th>
                             <th>ملاحظة</th>
                             <th></th>
@@ -95,7 +96,7 @@
                     </thead>
                     <tbody>
                         <% if (!deposits.length) { %>
-                            <tr><td colspan="8" class="py-5 text-muted fw-bold">لا توجد إيداعات مطابقة في السجل.</td></tr>
+                            <tr><td colspan="9" class="py-5 text-muted fw-bold">لا توجد إيداعات مطابقة في السجل.</td></tr>
                         <% } %>
                         <% const statusLabels = { deposit_pending: 'طلب معلّق', deposit: 'إيداع', deduction: 'خصم' }; %>
                         <% const partyRowLabels = { company: 'شركة عميل', executor: 'شركة تنفيذ', client: 'عميل مباشر' }; %>
@@ -106,6 +107,10 @@
                                 <td><%= partyRowLabels[tx.party] || '-' %></td>
                                 <td class="mono fw-bold"><%= Number(tx.amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) %></td>
                                 <td><span class="status-pill status-<%= tx.status %>"><%= statusLabels[tx.status] || tx.status %></span></td>
+                                <td class="small fw-bold">
+                                    <% const depositActor = tx.performedByAdminName || (tx.depositRequest && tx.depositRequest.submittedByRole === 'admin' && tx.depositRequest.submittedByName) || (tx.depositRequest && tx.depositRequest.reviewedByName) || ''; %>
+                                    <%= depositActor || '—' %>
+                                </td>
                                 <td class="small"><%= tx.createdAt ? new Date(tx.createdAt).toLocaleString('en-GB', { timeZone: 'Africa/Tripoli', hour12: false }) : '-' %></td>
                                 <td class="small text-muted"><%= tx.notes || (tx.depositRequest && tx.depositRequest.note) || '-' %></td>
                                 <td class="text-nowrap">

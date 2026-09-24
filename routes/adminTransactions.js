@@ -18,7 +18,15 @@ const { syncBotBalance } = require('../utils/helpers');
 const { escapeRegex } = require('../middlewares/sanitize');
 const { customerNoteFromTransaction } = require('../utils/transactionNotes');
 const { sanitizeStatementTransaction } = require('../utils/accountStatementPrivacy');
-const { logAction } = require('../services/auditService');
+const {
+    requireAdminActor,
+    isAdminActorError,
+    routingFields,
+    performedFields,
+    cancellationFields,
+    ACTOR_MESSAGE,
+    auditAdminAction
+} = require('../utils/adminActor');
 const {
     executorSupportsTransferType,
     getExecutorServiceLabel,
@@ -90,20 +98,30 @@ const reportAuditMetadata = (tx, extra = {}) => ({
     ...extra
 });
 
-const logAdminFinancialChange = (req, action, tx, oldData, newData, metadata = {}) => logAction({
-    action,
-    req,
-    performedById: req.session.adminId,
-    performedByModel: 'Admin',
-    performedByName: req.session.adminName || 'الإدارة',
-    targetId: tx?._id,
-    targetModel: 'Transaction',
-    oldData,
-    newData,
-    metadata: reportAuditMetadata(tx, metadata),
-    required: true,
-    severity: 'critical'
-});
+const logAdminFinancialChange = (req, action, tx, oldData, newData, metadata = {}) => {
+    const actor = requireAdminActor(req);
+    return auditAdminAction(req, actor, {
+        action,
+        targetId: tx?._id,
+        oldData,
+        newData,
+        metadata: reportAuditMetadata(tx, metadata)
+    });
+};
+
+const respondActorRequired = (req, res, redirectUrl = '/transactions') => {
+    const glue = redirectUrl.includes('?') ? '&' : '?';
+    return respondTransactionAction(req, res, 401, {
+        success: false,
+        code: 'ADMIN_ACTOR_REQUIRED',
+        message: ACTOR_MESSAGE
+    }, `${redirectUrl}${glue}routeError=actor_missing`);
+};
+
+const stampAdminCancellation = (transactionId, actor) => Transaction.updateOne(
+    { _id: transactionId },
+    { $set: cancellationFields(actor) }
+);
 
 const isAsyncTransactionRequest = (req) => (
     req.get('x-requested-with') === 'XMLHttpRequest'
@@ -538,6 +556,7 @@ router.get('/transactions/print', async (req, res) => {
 
 router.post('/transaction/:id/assign-executor', async (req, res) => {
     try {
+        const actor = requireAdminActor(req);
         const txId = req.params.id; const executorGroupId = req.body.executorGroupId || req.body.executorBotId; const tx = await Transaction.findOne(adminTxById(req, txId));
         if (!tx || tx.status !== 'pending') {
             return respondTransactionAction(req, res, 409, {
@@ -554,13 +573,15 @@ router.post('/transaction/:id/assign-executor', async (req, res) => {
             && !executorGroup.isManagerBot
             && executorSupportsTransferType(executorGroup, tx.transferType)
         ) {
+            const routedAt = actor.at;
             const assignment = {
                 status: 'processing',
                 executorGroupId: executorGroup._id,
                 managerGroupId: getParentGroupId(executorGroup),
-                executorReceivedAt: new Date(),
+                executorReceivedAt: routedAt,
                 executorName: executorGroup.name,
-                updatedAt: new Date()
+                updatedAt: routedAt,
+                ...routingFields(actor)
             };
             // Use MongoDB's native atomic update. This deliberately bypasses
             // Mongoose document validation for legacy transactions whose old
@@ -576,6 +597,21 @@ router.post('/transaction/:id/assign-executor', async (req, res) => {
                 });
             }
             const routedTx = { ...tx.toObject(), ...assignment };
+            await auditAdminAction(req, actor, {
+                action: 'TRANSACTION_ROUTED',
+                targetId: tx._id,
+                oldData: { status: 'pending', executorName: tx.executorName || '' },
+                newData: {
+                    status: 'processing',
+                    executorGroupId: String(executorGroup._id),
+                    executorName: executorGroup.name
+                },
+                metadata: reportAuditMetadata(routedTx, {
+                    routedByAdminId: actor.id,
+                    routedByAdminName: actor.name,
+                    executorGroupId: String(executorGroup._id)
+                })
+            });
             
             // 🤖====================================================🤖
             // 🚀 المسار الذكي: إذا كان هذا البوت آلياً (API Integration)
@@ -616,6 +652,7 @@ router.post('/transaction/:id/assign-executor', async (req, res) => {
             message: 'المنفذ المحدد غير موجود أو غير نشط.'
         });
     } catch (e) {
+        if (isAdminActorError(e)) return respondActorRequired(req, res, operationsListReturnUrl(req));
         const errorId = `assign-${Date.now()}`;
         console.error('[adminTransactions/assign-executor] failed:', {
             errorId,
@@ -634,6 +671,7 @@ router.post('/transaction/:id/assign-executor', async (req, res) => {
 
 router.post('/transaction/:id/pull-task', async (req, res) => {
     try {
+        const actor = requireAdminActor(req);
         const tx = await Transaction.findOne(adminTxById(req, req.params.id));
         if (!tx || !['processing', 'accepted'].includes(tx.status)) {
             return respondTransactionAction(req, res, 409, {
@@ -642,12 +680,28 @@ router.post('/transaction/:id/pull-task', async (req, res) => {
             });
         }
         const oldGroupId = tx.executorGroupId; const displayId = tx.customId || tx._id.toString();
+        const previousRouter = {
+            routedByAdminId: tx.routedByAdminId || '',
+            routedByAdminName: tx.routedByAdminName || '',
+            executorName: tx.executorName || ''
+        };
 
-        tx.status = 'pending'; tx.executorGroupId = undefined; tx.managerGroupId = undefined; tx.executorName = undefined; tx.operatorId = undefined; tx.assignedExecutorId = undefined; tx.assignedExecutorName = undefined; tx.assignedExecutorAt = undefined; tx.broadcastMessages = []; tx.adminMessages = []; tx.emergencyAlert = undefined;
+        tx.status = 'pending'; tx.executorGroupId = undefined; tx.managerGroupId = undefined; tx.executorName = undefined; tx.operatorId = undefined; tx.assignedExecutorId = undefined; tx.assignedExecutorName = undefined; tx.assignedExecutorAt = undefined; tx.routedByAdminId = undefined; tx.routedByAdminName = undefined; tx.routedAt = undefined; tx.broadcastMessages = []; tx.adminMessages = []; tx.emergencyAlert = undefined;
 
         // 🟢 إشعارات الانسحاب عبر Socket.IO
 
         await tx.save();
+        await Transaction.updateOne(
+            { _id: tx._id },
+            { $unset: { routedByAdminId: 1, routedByAdminName: 1, routedAt: 1 } }
+        );
+        await auditAdminAction(req, actor, {
+            action: 'TRANSACTION_PULLED',
+            targetId: tx._id,
+            oldData: previousRouter,
+            newData: { status: 'pending' },
+            metadata: reportAuditMetadata(tx, previousRouter)
+        });
         eventBus.publish('executor:task-withdrawn', {
             tx: { ...tx.toObject(), executorGroupId: oldGroupId },
             source: 'admin-pull'
@@ -658,6 +712,7 @@ router.post('/transaction/:id/pull-task', async (req, res) => {
             transaction: { id: String(tx._id), status: tx.status }
         });
     } catch (e) {
+        if (isAdminActorError(e)) return respondActorRequired(req, res, operationsListReturnUrl(req));
         console.error('[adminTransactions/pull-task] failed:', e.message);
         return respondTransactionAction(req, res, 500, { success: false, message: 'تعذر سحب العملية حالياً.' });
     }
@@ -665,10 +720,17 @@ router.post('/transaction/:id/pull-task', async (req, res) => {
 
 router.post('/transaction/:id/emergency-alert', async (req, res) => {
     try {
+        const actor = requireAdminActor(req);
         const tx = await Transaction.findOne(adminTxById(req, req.params.id));
         if (!tx || !['processing', 'accepted'].includes(tx.status)) { return res.redirect('/transactions'); }
-        const alertMsg = req.body.alertMessage || `تنبيه عاجل من الإدارة للطلب رقم ${tx.customId || tx._id}! يرجى سرعة التنفيذ!`;
+        const alertMsg = req.body.alertMessage || `تنبيه عاجل من ${actor.name} للطلب رقم ${tx.customId || tx._id}! يرجى سرعة التنفيذ!`;
         await Transaction.updateOne({ _id: tx._id }, { $set: { emergencyAlert: alertMsg } }, { strict: false });
+        await auditAdminAction(req, actor, {
+            action: 'TRANSACTION_EMERGENCY_ALERT',
+            targetId: tx._id,
+            newData: { emergencyAlert: alertMsg },
+            metadata: reportAuditMetadata(tx, { alertMessage: alertMsg })
+        });
         tx.emergencyAlert = alertMsg;
         tx.updatedAt = new Date();
         eventBus.publish('executor:urgent-alert', { tx, message: alertMsg, source: 'admin' });
@@ -676,11 +738,15 @@ router.post('/transaction/:id/emergency-alert', async (req, res) => {
         // 🟢 الإشعارات عبر Socket.IO
 
         res.redirect('/transactions');
-    } catch (error) { res.redirect('/transactions'); }
+    } catch (error) {
+        if (isAdminActorError(error)) return respondActorRequired(req, res);
+        res.redirect('/transactions');
+    }
 });
 
 router.post('/transaction/:id/accept-deposit-web', async (req, res) => {
     try {
+        const actor = requireAdminActor(req);
         const tx = await Transaction.findOne(adminTxById(req, req.params.id));
         if (!tx || tx.status !== 'deposit_pending') return res.json({ success: false, error: 'الطلب غير متاح' });
 
@@ -688,22 +754,44 @@ router.post('/transaction/:id/accept-deposit-web', async (req, res) => {
             const { resolveClientDepositTicket } = require('../services/clientDepositRequestService');
             await resolveClientDepositTicket({
                 ticketId: String(tx.depositRequest.supportTicketId),
-                admin: { id: req.session.adminId || req.session.adminUsername || 'admin', name: req.session.adminName || 'الإدارة' },
+                admin: actor,
                 approved: true
+            });
+            await auditAdminAction(req, actor, {
+                action: 'DEPOSIT_APPROVED',
+                targetId: tx._id,
+                newData: { status: 'deposit' },
+                metadata: reportAuditMetadata(tx)
             });
             return res.json({ success: true });
         }
 
         let fileId = `deposit_${Date.now()}.jpg`;
-        tx.status = 'deposit'; tx.proofImage = fileId; tx.updatedAt = new Date();
+        Object.assign(tx, performedFields(actor));
+        tx.status = 'deposit'; tx.proofImage = fileId; tx.updatedAt = actor.at;
+        if (tx.depositRequest) {
+            tx.depositRequest.reviewedById = actor.id;
+            tx.depositRequest.reviewedByName = actor.name;
+            tx.depositRequest.reviewedAt = actor.at;
+        }
         await Transaction.updateOne({ _id: tx._id }, { $set: { executorWebAlert: { type: 'success', text: `تم قبول طلب الإيداع بقيمة ${tx.amount} EGP وتمت إضافة الرصيد لحسابك بنجاح.`, imageUrl: `/proxy/image/${tx._id}/0` } } }, { strict: false });
         await tx.save(); if (tx.executorGroupId) await syncBotBalance(tx.executorGroupId);
+        await auditAdminAction(req, actor, {
+            action: 'DEPOSIT_APPROVED',
+            targetId: tx._id,
+            newData: { status: 'deposit', performedByAdminName: actor.name },
+            metadata: reportAuditMetadata(tx)
+        });
         res.json({ success: true });
-    } catch (e) { res.json({ success: false, error: e.message }); }
+    } catch (e) {
+        if (isAdminActorError(e)) return res.status(401).json({ success: false, error: ACTOR_MESSAGE });
+        res.json({ success: false, error: e.message });
+    }
 });
 
 router.post('/transaction/:id/reject-deposit-web', async (req, res) => {
     try {
+        const actor = requireAdminActor(req);
         const { reason } = req.body; const tx = await Transaction.findOne(adminTxById(req, req.params.id));
         if (!tx || tx.status !== 'deposit_pending') return res.redirect('/transactions');
 
@@ -711,27 +799,53 @@ router.post('/transaction/:id/reject-deposit-web', async (req, res) => {
             const { resolveClientDepositTicket } = require('../services/clientDepositRequestService');
             await resolveClientDepositTicket({
                 ticketId: String(tx.depositRequest.supportTicketId),
-                admin: { id: req.session.adminId || req.session.adminUsername || 'admin', name: req.session.adminName || 'الإدارة' },
+                admin: actor,
                 approved: false,
                 reason
+            });
+            await auditAdminAction(req, actor, {
+                action: 'DEPOSIT_REJECTED',
+                targetId: tx._id,
+                newData: { status: 'rejected' },
+                metadata: reportAuditMetadata(tx, { reason: reason || '' })
             });
             return res.redirect('/transactions');
         }
 
-        tx.status = 'rejected'; appendAdminNote(tx, `[تم رفض الإيداع | السبب: ${reason || '---'}]`); tx.updatedAt = new Date();
+        tx.status = 'rejected';
+        Object.assign(tx, cancellationFields(actor));
+        tx.cancelledAt = actor.at;
+        if (tx.depositRequest) {
+            tx.depositRequest.reviewedById = actor.id;
+            tx.depositRequest.reviewedByName = actor.name;
+            tx.depositRequest.reviewedAt = actor.at;
+            tx.depositRequest.rejectionReason = reason || '';
+        }
+        appendAdminNote(tx, `[تم رفض الإيداع بواسطة: ${actor.name} | السبب: ${reason || '---'}]`); tx.updatedAt = actor.at;
         await Transaction.updateOne({ _id: tx._id }, { $set: { executorWebAlert: { type: 'error', text: `تم رفض طلب الإيداع بقيمة ${tx.amount} EGP.<br><b>السبب:</b> ${reason}` } } }, { strict: false });
-        await tx.save(); res.redirect('/transactions');
-    } catch(e) { res.redirect('/transactions'); }
+        await tx.save();
+        await auditAdminAction(req, actor, {
+            action: 'DEPOSIT_REJECTED',
+            targetId: tx._id,
+            newData: { status: 'rejected', cancelledBy: actor.name },
+            metadata: reportAuditMetadata(tx, { reason: reason || '' })
+        });
+        res.redirect('/transactions');
+    } catch (e) {
+        if (isAdminActorError(e)) return respondActorRequired(req, res);
+        res.redirect('/transactions');
+    }
 });
 
 router.post('/transaction/:id/edit-rate', async (req, res) => {
     try {
+        const actor = requireAdminActor(req);
         const txId = req.params.id; const newRate = parseFloat(req.body.newRate);
         if (isNaN(newRate) || newRate <= 0) return res.redirect('/transactions');
         const result = await repriceTransaction({
             transactionId: txId,
             newRate,
-            adminName: req.session.adminName || 'الإدارة'
+            adminName: actor.name
         });
         const tx = result.transaction;
         await logAdminFinancialChange(
@@ -743,6 +857,7 @@ router.post('/transaction/:id/edit-rate', async (req, res) => {
         );
         res.redirect('/transactions');
     } catch (error) {
+        if (isAdminActorError(error)) return respondActorRequired(req, res);
         if (error.code === 'FINANCIAL_TRANSACTIONS_UNAVAILABLE') {
             return res.redirect('/transactions?routeError=financial_unavailable');
         }
@@ -755,16 +870,16 @@ router.post('/transaction/:id/edit-rate', async (req, res) => {
 
 router.post('/transaction/:id/edit-data', async (req, res) => {
     try {
+        const actor = requireAdminActor(req);
         const txId = req.params.id; const newAmount = parseFloat(req.body.newAmount); const newDateStr = req.body.newDate;
         if (isNaN(newAmount) || newAmount <= 0 || !newDateStr) return res.redirect('/transactions');
         const newDate = new Date(newDateStr);
         if (Number.isNaN(newDate.getTime())) return res.redirect('/transactions');
-        const adminName = req.session.adminName || 'الإدارة';
         const result = await editTransactionAmount({
             transactionId: txId,
             newAmount,
             createdAt: newDate,
-            adminName
+            adminName: actor.name
         });
         for (const groupId of result.syncGroupIds) await syncBotBalance(groupId);
         await logAdminFinancialChange(
@@ -777,6 +892,7 @@ router.post('/transaction/:id/edit-data', async (req, res) => {
         );
         res.redirect('/transactions');
     } catch (error) {
+        if (isAdminActorError(error)) return respondActorRequired(req, res);
         if (error.code === 'FINANCIAL_TRANSACTIONS_UNAVAILABLE') {
             return res.redirect('/transactions?routeError=financial_unavailable');
         }
@@ -790,21 +906,22 @@ router.post('/transaction/:id/edit-data', async (req, res) => {
 router.post('/transaction/:id/global-cancel', async (req, res) => {
     const redirectUrl = operationsListReturnUrl(req);
     try {
+        const actor = requireAdminActor(req);
         const reason = req.body.reason || 'إلغاء من الإدارة';
-        const adminName = req.session.adminName || 'الإدارة';
         const originalTx = await Transaction.findOne(adminTxById(req, req.params.id)).lean();
         if (!originalTx) {
             return respondTransactionAction(req, res, 404, { success: false, message: 'العملية غير موجودة' }, redirectUrl);
         }
         
         // 🟢 استخدام خدمة الاسترجاع الموحدة لضمان الدبل إنتري والأحداث المتسلسلة
-        const result = await reversalService.reverseTransaction(req.params.id, reason, adminName, { status: 'cancelled_by_admin' });
+        const result = await reversalService.reverseTransaction(req.params.id, reason, actor.name, { status: 'cancelled_by_admin' });
         if (!result.success) {
             return respondTransactionAction(req, res, result.statusCode || 400, {
                 success: false,
                 message: result.message || 'تعذر إلغاء العملية.'
             }, redirectUrl);
         }
+        await stampAdminCancellation(req.params.id, actor);
         const tx = await Transaction.findOne(adminTxById(req, req.params.id));
         if (tx) {
             const groupId = tx.executorGroupId; 
@@ -835,24 +952,27 @@ router.post('/transaction/:id/global-cancel', async (req, res) => {
             message: result.message || 'تم إلغاء العملية.'
         }, redirectUrl);
     } catch (e) {
+        if (isAdminActorError(e)) return respondActorRequired(req, res, redirectUrl);
         return respondTransactionAction(req, res, 500, { success: false, message: 'تعذر إلغاء العملية.' }, redirectUrl);
     }
 });
 
 router.post('/transaction/:id/change-bot', async (req, res) => {
     try {
+        const actor = requireAdminActor(req);
         const txId = req.params.id; const newGroupId = req.body.newGroupId;
         if (!newGroupId) return res.redirect('/transactions');
-        const result = await reassignTransactionExecutor({ transactionId: txId, newGroupId });
+        const result = await reassignTransactionExecutor({ transactionId: txId, newGroupId, routedBy: actor });
         await logAdminFinancialChange(
             req,
             'TRANSACTION_EXECUTOR_CHANGED',
             result.transaction,
             { executorGroupId: result.oldExecutorGroupId, executorName: result.oldExecutorName, createdAt: result.transaction.createdAt },
-            { executorGroupId: result.transaction.executorGroupId, executorName: result.transaction.executorName, createdAt: result.transaction.createdAt }
+            { executorGroupId: result.transaction.executorGroupId, executorName: result.transaction.executorName, routedByAdminId: actor.id, routedByAdminName: actor.name, createdAt: result.transaction.createdAt }
         );
         res.redirect('/transactions');
     } catch (error) {
+        if (isAdminActorError(error)) return respondActorRequired(req, res);
         if (error.message === 'EXECUTOR_SERVICE_MISMATCH') return res.redirect('/transactions?routeError=service_mismatch');
         if (error.code === 'FINANCIAL_TRANSACTIONS_UNAVAILABLE') {
             return res.redirect('/transactions?routeError=financial_unavailable');

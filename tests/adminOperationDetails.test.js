@@ -121,6 +121,43 @@ describe('admin comprehensive operation details', () => {
         expect(JSON.stringify(pendingEvents)).not.toContain('---');
     });
 
+    test('shows the admin who routed an operation and who recorded a deposit', () => {
+        const routed = {
+            ...inProgress,
+            status: 'processing',
+            routedByAdminName: 'سارة المدير',
+            routedByAdminId: 'admin-9',
+            routedAt: '2026-09-19T14:48:00.000Z',
+            executorReceivedAt: '2026-09-19T14:48:00.000Z'
+        };
+        const events = details.buildTimeline(routed, (value) => String(value));
+        const routedEvent = events.find((event) => event.title === 'توجيه العملية');
+        expect(routedEvent.actor).toBe('سارة المدير');
+        const summary = details.renderSummaryPane(details.buildViewModel(routed, { noteView: { customerText: '', systemText: '' } }));
+        expect(summary).toContain('وجّهها');
+        expect(summary).toContain('سارة المدير');
+        expect(details.humanSummary(routed)).toContain('وجّهها سارة المدير');
+
+        const deposit = {
+            _id: 'dep1',
+            customId: 'DEP-1',
+            status: 'deposit',
+            transferType: 'vodafone',
+            companyName: 'شركة النور',
+            employeeName: 'الإدارة (إيداع)',
+            amount: 500,
+            performedByAdminName: 'خالد المحاسب',
+            performedByAdminAt: '2026-09-19T16:00:00.000Z',
+            createdAt: '2026-09-19T16:00:00.000Z'
+        };
+        const depositSummary = details.renderSummaryPane(details.buildViewModel(deposit, { noteView: { customerText: '', systemText: '' } }));
+        expect(depositSummary).toContain('أودعها');
+        expect(depositSummary).toContain('خالد المحاسب');
+        expect(details.humanSummary(deposit)).toContain('أودعها خالد المحاسب');
+        const deduction = { ...deposit, status: 'deduction', performedByAdminName: 'ليلى' };
+        expect(details.renderSummaryPane(details.buildViewModel(deduction, { noteView: { customerText: '', systemText: '' } }))).toContain('خصمها');
+    });
+
     test('finance rows use green/red semantics from existing amount and cost fields', () => {
         const rows = details.financeRows(pendingCash, [{ type: 'خصم', description: 'تكلفة العملية', amount: -264.72 }]);
         expect(rows[0]).toMatchObject({ label: 'المبلغ', tone: 'pos' });

@@ -52,6 +52,7 @@ jest.mock('../services/auditService', () => ({
 }));
 
 const Transaction = require('../models/Transaction');
+const { logAction } = require('../services/auditService');
 const ExecutorGroup = require('../models/ExecutorGroup');
 const { addTransferJob } = require('../services/bullQueueService');
 const queueService = require('../services/queueService');
@@ -59,12 +60,12 @@ const eventBus = require('../services/eventBus');
 const { executeTransferViaApi } = require('../services/externalApiService');
 const adminTransactions = require('../routes/adminTransactions');
 
-const buildApp = () => {
+const buildApp = (session) => {
     const app = express();
     app.use(express.json());
     app.use(express.urlencoded({ extended: false }));
     app.use((req, _res, next) => {
-        req.session = {
+        req.session = session || {
             isLoggedIn: true,
             adminId: 'admin-1',
             adminName: 'مدير',
@@ -130,10 +131,19 @@ describe('admin assign-executor API dispatch', () => {
                 $set: expect.objectContaining({
                     status: 'processing',
                     executorGroupId: 'api-group-historical',
-                    executorName: 'بوابة ZaynPay الآلية'
+                    executorName: 'بوابة ZaynPay الآلية',
+                    routedByAdminId: 'admin-1',
+                    routedByAdminName: 'مدير'
                 })
             })
         );
+        expect(logAction).toHaveBeenCalledWith(expect.objectContaining({
+            action: 'TRANSACTION_ROUTED',
+            performedById: 'admin-1',
+            performedByName: 'مدير',
+            performedByModel: 'Admin',
+            required: true
+        }));
         expect(addTransferJob).toHaveBeenCalledWith('tx-api-1', 'api-group-historical');
         expect(executeTransferViaApi).not.toHaveBeenCalled();
         expect(response.status).toBe(200);
@@ -196,6 +206,37 @@ describe('admin assign-executor API dispatch', () => {
         );
         expect(response.status).toBe(200);
         expect(response.body.message).toBe('تم توجيه العملية إلى المنفذ.');
+        expect(Transaction.collection.updateOne).toHaveBeenCalledWith(
+            { _id: 'tx-api-1', status: 'pending' },
+            expect.objectContaining({
+                $set: expect.objectContaining({
+                    routedByAdminId: 'admin-1',
+                    routedByAdminName: 'مدير'
+                })
+            })
+        );
+    });
+
+    test('refuses to route when the admin session has no identity', async () => {
+        ExecutorGroup.findOne.mockResolvedValue({
+            _id: 'human-group-1',
+            name: 'منفذ بشري',
+            status: 'active',
+            isApiBot: false,
+            isManagerBot: false,
+            serviceKey: 'vodafone'
+        });
+
+        const response = await request(buildApp({ isLoggedIn: true, tenantId: 'current-tenant' }))
+            .post('/transaction/tx-api-1/assign-executor')
+            .set('Accept', 'application/json')
+            .set('x-requested-with', 'XMLHttpRequest')
+            .send({ executorGroupId: 'human-group-1' });
+
+        expect(response.status).toBe(401);
+        expect(response.body.code).toBe('ADMIN_ACTOR_REQUIRED');
+        expect(Transaction.collection.updateOne).not.toHaveBeenCalled();
+        expect(logAction).not.toHaveBeenCalled();
     });
 });
 
@@ -206,6 +247,14 @@ describe('admin assign-executor source contracts', () => {
     test('looks up routing executors with adminAccountScope and always dispatches API jobs', () => {
         expect(routeSource).toMatch(/ExecutorGroup\.findOne\(\{ _id: executorGroupId, \.\.\.adminAccountScope\(req\) \}\)/);
         expect(routeSource).toMatch(/ExecutorGroup\.find\(\{ \.\.\.adminAccountScope\(req\), status: 'active', isManagerBot: \{ \$ne: true \} \}\)/);
+        expect(routeSource).toMatch(/requireAdminActor\(req\)/);
+        expect(routeSource).toMatch(/routingFields\(actor\)/);
+        const actorSource = fs.readFileSync(path.join(__dirname, '..', 'utils', 'adminActor.js'), 'utf8');
+        expect(actorSource).toMatch(/routedByAdminName: actor\.name/);
+        const viewSource = fs.readFileSync(path.join(__dirname, '..', 'views', 'partials', 'admin_actor_lines.ejs'), 'utf8');
+        expect(viewSource).toContain('وجّهها');
+        expect(viewSource).toContain('أودعها');
+        expect(viewSource).toContain('خصمها');
         expect(routeSource).toMatch(/enqueueApiExecutorTransfer\(routedTx\._id, executorGroup\._id\)/);
         expect(routeSource).toMatch(/queueService\.addJob\(String\(txId\), String\(apiGroupId\)\)/);
         expect(routeSource).not.toMatch(/executeTransferViaApi\(tx, executorGroup\)/);
