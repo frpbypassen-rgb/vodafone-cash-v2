@@ -170,7 +170,7 @@
             <h3 class="fw-bold m-0" style="color: var(--text-main);"><i class="fa-solid <%= isAgentAccount ? 'fa-user-tie text-warning' : 'fa-user-circle text-primary' %> me-2"></i> <%= isAgentAccount ? 'بيانات الوكيل' : 'بيانات العميل الفردي' %></h3>
             <div class="d-flex flex-wrap gap-2">
                 <% if (typeof isMaster !== 'undefined' && isMaster) { %>
-                    <a href="/admin/accounts/<%= isAgentAccount ? 'agent' : 'user' %>/<%= user._id %>/edit" class="btn btn-success fw-bold rounded-3 shadow-sm px-3 btn-3d-hover"><i class="fa-solid fa-pen-to-square me-1"></i> تعديل البيانات</a>
+                    <a href="/admin/accounts/<%= isAgentAccount ? 'agent' : 'user' %>/<%= user._id %>/edit#owner-email-otp" class="btn btn-success fw-bold rounded-3 shadow-sm px-3 btn-3d-hover"><i class="fa-solid fa-pen-to-square me-1"></i> تعديل البيانات</a>
                     <% if (isAgentAccount) { %>
                         <a href="/user/<%= user._id %>/integration-guide.pdf" class="btn btn-dark fw-bold rounded-3 shadow-sm px-3 btn-3d-hover" title="تنزيل وثيقة ربط API الخاصة بالوكيل"><i class="fa-solid fa-file-pdf me-1"></i> وثيقة ربط API</a>
                     <% } %>
@@ -193,6 +193,13 @@
         <% } %>
         <% if (query && query.balanceError) { %>
             <div class="alert alert-danger fw-bold rounded-4 shadow-sm"><i class="fa-solid fa-triangle-exclamation me-1"></i> تعذر تحديث الرصيد. تحقق من المبلغ والحساب ثم أعد المحاولة.</div>
+        <% } %>
+        <% if (query && query.ownerOtpSaved) { %>
+            <div class="alert alert-success fw-bold rounded-4 shadow-sm"><i class="fa-solid fa-circle-check me-1"></i> تم حفظ بريد صاحب الحساب.</div>
+        <% } else if (query && query.ownerOtpError === 'invalid_email') { %>
+            <div class="alert alert-danger fw-bold rounded-4 shadow-sm"><i class="fa-solid fa-triangle-exclamation me-1"></i> لتفعيل إرسال رمز التحقق عبر البريد، أدخل بريداً إلكترونياً صالحاً.</div>
+        <% } else if (query && query.ownerOtpError) { %>
+            <div class="alert alert-danger fw-bold rounded-4 shadow-sm"><i class="fa-solid fa-triangle-exclamation me-1"></i> تعذر حفظ بريد صاحب الحساب. حاول مرة أخرى.</div>
         <% } %>
 
         <div class="row g-4 mb-4">
@@ -231,6 +238,20 @@
                     </div>
 
                     <div class="row g-3">
+                        <% if (typeof isMaster !== 'undefined' && isMaster) { %>
+                            <%- include('partials/owner_email_otp_card', {
+                                ownerOtp: {
+                                    type: isAgentAccount ? 'agent' : 'user',
+                                    id: user._id,
+                                    email: (user.businessProfile && user.businessProfile.email) || '',
+                                    emailOtpEnabled: user.otpDeliveryChannel === 'email',
+                                    ownerName: user.name || '',
+                                    ownerUsername: user.webUsername || '',
+                                    showLoginAccount: false,
+                                    missingOwner: false
+                                }
+                            }) %>
+                        <% } %>
                         <div class="col-12">
                             <div class="info-box border-0 m-0 shadow-sm control-card-3d d-block" style="background: rgba(59, 130, 246, 0.05); border-right: 4px solid #3b82f6 !important;">
                                 <label class="form-label fw-bold text-dark small mb-2"><i class="fa-solid fa-id-badge text-primary me-1"></i> ID الحساب للتحويل الداخلي (<%= accountCodeLength %> أرقام)</label>

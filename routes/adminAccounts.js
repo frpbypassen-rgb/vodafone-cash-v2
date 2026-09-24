@@ -10,7 +10,9 @@ const { requireAuth, requireMaster } = require('../middlewares/auth');
 const { logAction } = require('../services/auditService');
 const {
     findEditableAccount,
+    findCompanyLoginOwner,
     updateEditableAccount,
+    updateAccountOwnerEmailOtp,
     loadEditOptions,
     getReturnUrl,
     getErrorMessage
@@ -85,7 +87,7 @@ const BOOLEAN_FIELDS = Object.freeze([
 
 const isChecked = (value) => ['1', 'true', 'on', 'yes'].includes(String(value || '').toLowerCase());
 
-const accountToFormData = (account, submitted = null) => {
+const accountToFormData = (account, submitted = null, extras = {}) => {
     const businessProfile = account.businessProfile?.toObject
         ? account.businessProfile.toObject()
         : { ...(account.businessProfile || {}) };
@@ -115,7 +117,13 @@ const accountToFormData = (account, submitted = null) => {
         apiMachineSerial: account.apiMachineSerial || 'XP1',
         contactName: businessProfile.contactName || '',
         email: businessProfile.email || account.email || '',
-        emailOtpEnabled: account.otpDeliveryChannel === 'email',
+        ownerEmail: extras.companyOwner?.email || '',
+        ownerName: extras.companyOwner?.name || '',
+        ownerUsername: extras.companyOwner?.webUsername || '',
+        hasCompanyOwner: Boolean(extras.companyOwner),
+        emailOtpEnabled: extras.companyOwner
+            ? extras.companyOwner.otpDeliveryChannel === 'email'
+            : account.otpDeliveryChannel === 'email',
         city: businessProfile.city || '',
         address: businessProfile.address || '',
         registrationNumber: businessProfile.registrationNumber || '',
@@ -158,12 +166,15 @@ const activePageForType = (type) => {
 
 const renderEditor = async (req, res, { error = '', submitted = null, statusCode = 200 } = {}) => {
     const { definition, account } = await findEditableAccount(req.params.type, req.params.id);
+    const companyOwner = definition.type === 'company'
+        ? await findCompanyLoginOwner(account._id)
+        : null;
     const options = await loadEditOptions(definition.type, account);
     return res.status(statusCode).render('admin_account_edit', {
         account,
         accountType: definition.type,
         accountLabel: definition.label,
-        formData: accountToFormData(account, submitted),
+        formData: accountToFormData(account, submitted, { companyOwner }),
         options,
         returnUrl: getReturnUrl(definition.type, account),
         activePage: activePageForType(definition.type),
@@ -171,6 +182,55 @@ const renderEditor = async (req, res, { error = '', submitted = null, statusCode
         query: req.query || {}
     });
 };
+
+const ownerOtpErrorCode = (error) => {
+    if (error?.code === 'EMAIL_OTP_ADDRESS_INVALID') return 'invalid_email';
+    if (error?.code === 'COMPANY_OWNER_REQUIRED') return 'owner_missing';
+    if (error?.code === 'ACCOUNT_NOT_FOUND' || error?.code === 'INVALID_ACCOUNT_ID') return 'notfound';
+    return 'failed';
+};
+
+router.post('/admin/accounts/:type/:id/owner-otp', requireAuth, requireMaster, async (req, res) => {
+    try {
+        const result = await updateAccountOwnerEmailOtp({
+            type: req.params.type,
+            id: req.params.id,
+            payload: req.body || {}
+        });
+
+        await logAction({
+            action: 'ADMIN_ACCOUNT_UPDATED',
+            req,
+            performedById: req.session.adminId,
+            performedByModel: 'Admin',
+            performedByName: req.session.adminName || req.session.adminUsername || 'الإدارة',
+            targetId: result.account._id,
+            targetModel: result.definition.modelName,
+            oldData: result.oldData,
+            newData: result.newData,
+            result: 'ناجح',
+            metadata: {
+                accountType: result.definition.type,
+                accountLabel: result.definition.label,
+                changedFields: result.changedFields,
+                ownerEmailOtp: true
+            }
+        }).catch(() => {});
+
+        const returnUrl = getReturnUrl(result.definition.type, result.account);
+        const separator = returnUrl.includes('?') ? '&' : '?';
+        return res.redirect(`${returnUrl}${separator}ownerOtpSaved=1`);
+    } catch (error) {
+        console.error('[admin-account/owner-otp] update failed:', error.message);
+        try {
+            const returnUrl = getReturnUrl(req.params.type, { _id: req.params.id });
+            const separator = returnUrl.includes('?') ? '&' : '?';
+            return res.redirect(`${returnUrl}${separator}ownerOtpError=${ownerOtpErrorCode(error)}`);
+        } catch (_) {
+            return res.redirect('/clients?editError=failed');
+        }
+    }
+});
 
 router.get('/admin/accounts/:type/:id/edit', requireAuth, requireMaster, async (req, res) => {
     try {

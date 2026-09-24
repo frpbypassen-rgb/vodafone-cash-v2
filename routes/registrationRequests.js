@@ -15,6 +15,12 @@ const {
 } = require('../services/accountCodeService');
 const { prepareRegistrationIdentityForApproval } = require('../services/registrationIdentityService');
 const { createRegisteredExecutorAccount } = require('../services/executorAccountService');
+const { normalizeOtpEmail } = require('../utils/otpDeliveryChannel');
+
+const registrationContactEmail = (value) => {
+    const email = normalizeOtpEmail(value);
+    return email.length > 254 ? email.slice(0, 254) : email;
+};
 
 const visibleRequestStatuses = new Set(['pending', 'pending_agent', 'approved', 'rejected']);
 const appendAdminNote = (current, note) => [current, String(note || '').trim()].filter(Boolean).join('\n');
@@ -111,12 +117,14 @@ router.post('/registration-requests/:id/approve', requireAuth, requireMaster, as
 
         } else if (regReq.accountType === 'company') {
             // شركة → إنشاء ClientCompany + ClientEmployee (مدير الشركة)
+            const ownerEmail = registrationContactEmail(regReq.companyEmail);
             const company = await ClientCompany.create({
                 name: regReq.companyName,
                 phone: regReq.companyPhone,
                 tier: 3,
                 balance: 0,
                 status: 'active',
+                businessProfile: { email: ownerEmail },
                 tenantId
             });
 
@@ -127,6 +135,7 @@ router.post('/registration-requests/:id/approve', requireAuth, requireMaster, as
                 webUsername: regReq.username,
                 webPassword: regReq.password,
                 role: 'owner',
+                email: ownerEmail,
                 canViewAllReports: true,
                 canManageCompany: true,
                 canCreateCompanyStaff: true,
@@ -147,6 +156,7 @@ router.post('/registration-requests/:id/approve', requireAuth, requireMaster, as
                 balance: 0,
                 status: 'active',
                 role: 'agent',
+                businessProfile: { email: registrationContactEmail(regReq.companyEmail) },
                 tenantId
             });
             const accountCode = await assignGeneratedAccountCode({

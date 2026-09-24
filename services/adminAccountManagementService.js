@@ -28,6 +28,7 @@ const {
 } = require('../utils/executorServiceCatalog');
 const { buildMarginStorage } = require('../utils/agencyPricing');
 const { isValidOtpEmail, normalizeOtpEmail } = require('../utils/otpDeliveryChannel');
+const { resolveCanonicalRole } = require('./companyAccessService');
 const {
     normalizeCreditLimit,
     assertCreditLimitCanCoverBalance
@@ -109,6 +110,7 @@ const ERROR_MESSAGES = Object.freeze({
     ACCOUNT_CODE_INVALID: 'رقم الحساب لا يطابق عدد الأرقام المطلوب.',
     IDENTITY_TAKEN: 'اسم المستخدم أو رقم الهاتف مستخدم في حساب آخر.',
     EMAIL_OTP_ADDRESS_INVALID: 'لتفعيل إرسال رمز التحقق عبر البريد، أدخل بريداً إلكترونياً صالحاً.',
+    COMPANY_OWNER_REQUIRED: 'لا يوجد حساب مالك لهذه الشركة. أنشئ حساب المالك قبل تفعيل إرسال رمز التحقق عبر البريد.',
     UPDATE_FAILED: 'تعذر حفظ التعديلات. راجع البيانات وحاول مرة أخرى.'
 });
 
@@ -229,10 +231,19 @@ const setBusinessProfile = (account, payload) => {
     }
 };
 
+const emailOtpRequested = (payload = {}) => (
+    isChecked(payload.emailOtpEnabled)
+    || cleanText(payload.otpDeliveryChannel, 20).toLowerCase() === 'email'
+);
+
+const storedOtpEmail = (value) => {
+    const email = normalizeOtpEmail(value);
+    return email.length > 254 ? email.slice(0, 254) : email;
+};
+
 const setLoginOtpDelivery = (type, account, payload) => {
     if (!LOGIN_OTP_EDITOR_TYPES.has(type)) return;
-    const enabled = isChecked(payload.emailOtpEnabled)
-        || cleanText(payload.otpDeliveryChannel, 20).toLowerCase() === 'email';
+    const enabled = emailOtpRequested(payload);
     const email = normalizeOtpEmail(payload.email);
     if (enabled && !isValidOtpEmail(email)) {
         throw new AdminAccountManagementError('EMAIL_OTP_ADDRESS_INVALID', 'email');
@@ -241,6 +252,42 @@ const setLoginOtpDelivery = (type, account, payload) => {
     if (type !== 'user' && type !== 'agent') {
         account.email = email.length > 254 ? email.slice(0, 254) : email;
     }
+};
+
+const pickCompanyLoginOwner = (employees = []) => {
+    const owners = employees.filter((employee) => resolveCanonicalRole(employee) === 'owner');
+    if (!owners.length) return null;
+    return owners.find((employee) => employee.status === 'active' && employee.role === 'owner')
+        || owners.find((employee) => employee.status === 'active')
+        || owners.find((employee) => employee.role === 'owner')
+        || owners[0];
+};
+
+const findCompanyLoginOwner = async (companyId) => {
+    if (!companyId) return null;
+    const employees = await ClientEmployee.find({
+        companyId,
+        status: { $ne: 'deleted' }
+    }).sort({ createdAt: 1, _id: 1 });
+    return pickCompanyLoginOwner(employees);
+};
+
+const applyCompanyOwnerEmailOtp = (companyOwner, payload = {}) => {
+    const enabled = emailOtpRequested(payload);
+    const email = storedOtpEmail(payload.email);
+    if (!companyOwner && (enabled || email)) {
+        throw new AdminAccountManagementError('COMPANY_OWNER_REQUIRED', 'ownerEmail');
+    }
+    if (enabled && !isValidOtpEmail(email)) {
+        throw new AdminAccountManagementError('EMAIL_OTP_ADDRESS_INVALID', 'ownerEmail');
+    }
+    if (!companyOwner) return false;
+    const nextChannel = enabled ? 'email' : 'whatsapp';
+    const previousChannel = companyOwner.otpDeliveryChannel === 'email' ? 'email' : 'whatsapp';
+    const changed = (companyOwner.email || '') !== email || previousChannel !== nextChannel;
+    companyOwner.email = email;
+    companyOwner.otpDeliveryChannel = nextChannel;
+    return changed;
 };
 
 const applyUploadedDocuments = (account, uploads = {}) => {
@@ -393,7 +440,12 @@ const updateUser = async ({ type, definition, account, payload }) => {
     return { passwordChanged };
 };
 
-const updateCompany = async ({ account, payload }) => {
+const updateCompany = async ({ account, payload, companyOwner = null }) => {
+    const ownerOtpChanged = applyCompanyOwnerEmailOtp(companyOwner, {
+        email: payload.ownerEmail,
+        emailOtpEnabled: payload.emailOtpEnabled,
+        otpDeliveryChannel: payload.otpDeliveryChannel
+    });
     setName(account, payload);
     setStatus('company', account, payload);
     const phone = normalizePhone(payload.phone, false);
@@ -409,7 +461,7 @@ const updateCompany = async ({ account, payload }) => {
     account.tier = parseNumber(payload.tier, 'tier', { min: 1, max: 3, integer: true });
     account.creditLimit = parseNumber(payload.creditLimit || 0, 'creditLimit', { min: 0, max: 1e12 });
     setBusinessProfile(account, payload);
-    return { passwordChanged: false };
+    return { passwordChanged: false, ownerOtpChanged };
 };
 
 const updateSubAccount = async ({ definition, account, payload }) => {
@@ -559,7 +611,7 @@ const updateExecutor = async ({ account, payload }) => {
     return { passwordChanged: false, secretChanges, serviceChanged: serviceKey !== oldServiceKey };
 };
 
-const safeSnapshot = (type, account) => {
+const safeSnapshot = (type, account, context = {}) => {
     const snapshot = {
         name: account.name || '',
         status: account.status || ''
@@ -580,6 +632,13 @@ const safeSnapshot = (type, account) => {
     }
     if (type === 'user' || type === 'agent') {
         snapshot.otpDeliveryChannel = account.otpDeliveryChannel === 'email' ? 'email' : 'whatsapp';
+    }
+    if (type === 'company' && hasOwn(context, 'companyOwner')) {
+        const owner = context.companyOwner;
+        snapshot.ownerId = owner ? String(owner._id || '') : '';
+        snapshot.ownerName = owner?.name || '';
+        snapshot.ownerEmail = owner?.email || '';
+        snapshot.ownerOtpDeliveryChannel = owner?.otpDeliveryChannel === 'email' ? 'email' : 'whatsapp';
     }
     if (type === 'subaccount') {
         snapshot.accountCode = account.accountCode || '';
@@ -640,9 +699,54 @@ const changedFieldsBetween = (oldData, newData) => {
     return [...fields].filter((field) => JSON.stringify(oldData[field]) !== JSON.stringify(newData[field]));
 };
 
+const updateAccountOwnerEmailOtp = async ({ type, id, payload }) => {
+    const definition = getAccountTypeDefinition(type);
+    if (!['user', 'agent', 'company'].includes(definition.type)) {
+        throw new AdminAccountManagementError('INVALID_ACCOUNT_TYPE');
+    }
+    const { account } = await findEditableAccount(definition.type, id);
+
+    if (definition.type === 'company') {
+        const companyOwner = await findCompanyLoginOwner(account._id);
+        const oldData = safeSnapshot('company', account, { companyOwner });
+        const ownerOtpChanged = applyCompanyOwnerEmailOtp(companyOwner, {
+            email: payload.email,
+            emailOtpEnabled: payload.emailOtpEnabled,
+            otpDeliveryChannel: payload.otpDeliveryChannel
+        });
+        if (ownerOtpChanged) await companyOwner.save();
+        const newData = safeSnapshot('company', account, { companyOwner });
+        return {
+            account,
+            definition,
+            oldData,
+            newData,
+            changedFields: changedFieldsBetween(oldData, newData),
+            companyOwner
+        };
+    }
+
+    const oldData = safeSnapshot(definition.type, account);
+    setLoginOtpDelivery(definition.type, account, payload);
+    account.set('businessProfile.email', storedOtpEmail(payload.email));
+    await account.save();
+    const newData = safeSnapshot(definition.type, account);
+    return {
+        account,
+        definition,
+        oldData,
+        newData,
+        changedFields: changedFieldsBetween(oldData, newData)
+    };
+};
+
 const updateEditableAccount = async ({ type, id, payload, uploads = {} }) => {
     const { definition, account } = await findEditableAccount(type, id);
-    const oldData = safeSnapshot(definition.type, account);
+    const companyOwner = definition.type === 'company'
+        ? await findCompanyLoginOwner(account._id)
+        : null;
+    const snapshotContext = definition.type === 'company' ? { companyOwner } : {};
+    const oldData = safeSnapshot(definition.type, account, snapshotContext);
     let accountCodeChange = null;
 
     try {
@@ -650,7 +754,7 @@ const updateEditableAccount = async ({ type, id, payload, uploads = {} }) => {
         if (definition.type === 'user' || definition.type === 'agent') {
             updateMetadata = await updateUser({ type: definition.type, definition, account, payload });
         } else if (definition.type === 'company') {
-            updateMetadata = await updateCompany({ account, payload });
+            updateMetadata = await updateCompany({ account, payload, companyOwner });
         } else if (definition.type === 'subaccount') {
             updateMetadata = await updateSubAccount({ definition, account, payload });
         } else if (ROLE_OPTIONS[definition.type]) {
@@ -662,6 +766,7 @@ const updateEditableAccount = async ({ type, id, payload, uploads = {} }) => {
         accountCodeChange = await prepareAccountCodeChange({ type: definition.type, account, payload });
         const uploadedDocumentKinds = applyUploadedDocuments(account, uploads);
         await account.save();
+        if (updateMetadata.ownerOtpChanged && companyOwner) await companyOwner.save();
         if (accountCodeChange) await accountCodeChange.finalize();
 
         if (definition.type === 'executor-employee') {
@@ -685,7 +790,7 @@ const updateEditableAccount = async ({ type, id, payload, uploads = {} }) => {
             ).catch(() => {});
         }
 
-        const newData = safeSnapshot(definition.type, account);
+        const newData = safeSnapshot(definition.type, account, snapshotContext);
         return {
             account,
             definition,
@@ -769,7 +874,9 @@ module.exports = {
     normalizeAccountType,
     getAccountTypeDefinition,
     findEditableAccount,
+    findCompanyLoginOwner,
     updateEditableAccount,
+    updateAccountOwnerEmailOtp,
     loadEditOptions,
     getReturnUrl,
     getErrorMessage,
