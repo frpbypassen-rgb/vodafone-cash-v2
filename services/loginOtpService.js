@@ -84,6 +84,7 @@ const publicDeliveryMessage = (code, fallback) => {
         WHATCHIMP_TIMEOUT: `انتهت مهلة إرسال واتساب. أعد المحاولة بعد دقيقة. رمز الحالة: ${normalized}`,
         WHATCHIMP_REQUEST_FAILED: `تعذر الاتصال بمزوّد واتساب. أعد المحاولة بعد دقيقة. رمز الحالة: ${normalized}`,
         EMAIL_OTP_ADDRESS_INVALID: 'البريد الإلكتروني المسجّل غير صالح لإرسال رمز التحقق. راجع الإدارة.',
+        WHATSAPP_LOGIN_OTP_DISABLED: 'إرسال رمز تسجيل الدخول عبر واتساب متوقف مؤقتاً. استخدم أو أضف بريداً إلكترونياً، أو تواصل مع الإدارة.',
         SMTP_CONFIG_MISSING: `إعداد البريد غير مكتمل على الخادم. رمز الحالة: ${normalized}`,
         EMAIL_OTP_SEND_FAILED: `تعذر إرسال رمز التحقق عبر البريد. أعد المحاولة بعد دقيقة. رمز الحالة: ${normalized}`,
         EMAIL_OTP_TIMEOUT: `انتهت مهلة إرسال البريد. أعد المحاولة بعد دقيقة. رمز الحالة: ${normalized}`
@@ -121,15 +122,15 @@ const hasReusableChallenge = ({ account, accountType, session = {} }) => {
 
 const deliverLoginOtp = async ({ phone, otp, accountName, accountTypeLabel, account, expiresAt }) => {
     const selection = selectLoginOtpChannel(account || {});
+    if (selection.code) {
+        return {
+            success: false,
+            provider: selection.channel === 'email' ? 'smtp' : 'whatsapp',
+            channel: selection.channel,
+            code: selection.code
+        };
+    }
     if (selection.channel === 'email') {
-        if (selection.code) {
-            return {
-                success: false,
-                provider: 'smtp',
-                channel: 'email',
-                code: selection.code
-            };
-        }
         try {
             const { sendLoginOtpEmail } = require('./emailOtpMailer');
             return await sendLoginOtpEmail({
@@ -177,8 +178,9 @@ const clearStoredOtp = async (Model, accountId) => {
 /**
  * Persist a hashed login OTP and deliver it on the account channel.
  * A valid stored address is delivered by email. Accounts with no usable
- * address keep the WhatsApp path. A failed delivery still clears the
- * stored OTP and can fall through to the emergency bypass when that window is active.
+ * address keep the WhatsApp path unless WHATSAPP_LOGIN_OTP_ENABLED is
+ * explicitly off. A failed delivery still clears the stored OTP and can
+ * fall through to the emergency bypass when that window is active.
  */
 const issueLoginOtp = async ({ account, accountType, session = {} }) => {
     const portal = getLoginOtpPortal(accountType);

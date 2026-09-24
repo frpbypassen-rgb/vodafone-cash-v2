@@ -167,6 +167,9 @@ describe('login OTP service', () => {
         expect(publicDeliveryMessage('WHATSAPP_PHONE_REQUIRED')).not.toMatch(/\d{6}/);
         expect(publicDeliveryMessage('SMTP_CONFIG_MISSING')).toContain('إعداد البريد');
         expect(publicDeliveryMessage('EMAIL_OTP_ADDRESS_INVALID')).toContain('البريد الإلكتروني');
+        expect(publicDeliveryMessage('WHATSAPP_LOGIN_OTP_DISABLED')).toContain('واتساب متوقف مؤقتاً');
+        expect(publicDeliveryMessage('WHATSAPP_LOGIN_OTP_DISABLED')).toContain('بريداً إلكترونياً');
+        expect(publicDeliveryMessage('WHATSAPP_LOGIN_OTP_DISABLED')).toContain('الإدارة');
         expect(publicDeliveryMessage('SMTP_CONFIG_MISSING')).not.toMatch(/\d{6}/);
     });
 
@@ -285,6 +288,89 @@ describe('login OTP service', () => {
         expect(result.message).toContain('البريد الإلكتروني');
         expect(sendOtp).not.toHaveBeenCalled();
         expect(sendLoginOtpEmail).not.toHaveBeenCalled();
+    });
+
+    test('still emails a valid address when WhatsApp login OTP is disabled', async () => {
+        const previous = process.env.WHATSAPP_LOGIN_OTP_ENABLED;
+        process.env.WHATSAPP_LOGIN_OTP_ENABLED = 'false';
+        try {
+            const account = {
+                _id: 'user-mail-killswitch',
+                phone: '0912345678',
+                name: 'عميل البريد',
+                email: 'owner@example.com'
+            };
+            expect(selectLoginOtpChannel(account)).toEqual({ channel: 'email', email: 'owner@example.com' });
+            const result = await issueLoginOtp({ account, accountType: 'user', session: {} });
+            expect(result.status).toBe('sent');
+            expect(result.delivery.channel).toBe('email');
+            expect(sendLoginOtpEmail).toHaveBeenCalledWith(expect.objectContaining({ to: 'owner@example.com' }));
+            expect(sendOtp).not.toHaveBeenCalled();
+        } finally {
+            if (previous === undefined) delete process.env.WHATSAPP_LOGIN_OTP_ENABLED;
+            else process.env.WHATSAPP_LOGIN_OTP_ENABLED = previous;
+        }
+    });
+
+    test('does not send WhatsApp login OTP when the flag is explicitly off and no email exists', async () => {
+        const previous = process.env.WHATSAPP_LOGIN_OTP_ENABLED;
+        process.env.WHATSAPP_LOGIN_OTP_ENABLED = 'off';
+        try {
+            const result = await issueLoginOtp({
+                account: { _id: 'user-no-mail', phone: '0911111111', name: 'عميل قديم' },
+                accountType: 'user',
+                session: {}
+            });
+            expect(result.status).toBe('failed');
+            expect(result.code).toBe('WHATSAPP_LOGIN_OTP_DISABLED');
+            expect(result.message).toContain('واتساب متوقف مؤقتاً');
+            expect(result.message).not.toMatch(/مزوّد|WhatChimp|WHATCHIMP/i);
+            expect(sendOtp).not.toHaveBeenCalled();
+            expect(sendLoginOtpEmail).not.toHaveBeenCalled();
+            expect(User.updateOne).toHaveBeenCalledWith(
+                { _id: 'user-no-mail' },
+                { $unset: expect.objectContaining({ otpCode: 1 }) },
+                { strict: false }
+            );
+        } finally {
+            if (previous === undefined) delete process.env.WHATSAPP_LOGIN_OTP_ENABLED;
+            else process.env.WHATSAPP_LOGIN_OTP_ENABLED = previous;
+        }
+    });
+
+    test('keeps WhatsApp login OTP for accounts without email when the flag is unset or enabled', async () => {
+        const previous = process.env.WHATSAPP_LOGIN_OTP_ENABLED;
+        delete process.env.WHATSAPP_LOGIN_OTP_ENABLED;
+        try {
+            const unset = await issueLoginOtp({
+                account: { _id: 'user-wa-default', phone: '0910000001', name: 'عميل' },
+                accountType: 'user',
+                session: {}
+            });
+            expect(selectLoginOtpChannel({ phone: '0910000001' })).toEqual({ channel: 'whatsapp' });
+            expect(unset.status).toBe('sent');
+            expect(unset.delivery.channel).toBe('whatsapp');
+            expect(sendOtp).toHaveBeenCalledTimes(1);
+        } finally {
+            if (previous === undefined) delete process.env.WHATSAPP_LOGIN_OTP_ENABLED;
+            else process.env.WHATSAPP_LOGIN_OTP_ENABLED = previous;
+        }
+
+        sendOtp.mockClear();
+        process.env.WHATSAPP_LOGIN_OTP_ENABLED = 'yes';
+        try {
+            const enabled = await issueLoginOtp({
+                account: { _id: 'user-wa-on', phone: '0910000002', name: 'عميل' },
+                accountType: 'user',
+                session: {}
+            });
+            expect(enabled.status).toBe('sent');
+            expect(enabled.delivery.channel).toBe('whatsapp');
+            expect(sendOtp).toHaveBeenCalledWith(expect.objectContaining({ phone: '0910000002' }));
+        } finally {
+            if (previous === undefined) delete process.env.WHATSAPP_LOGIN_OTP_ENABLED;
+            else process.env.WHATSAPP_LOGIN_OTP_ENABLED = previous;
+        }
     });
 
     test('reports missing SMTP config and still allows the emergency bypass', async () => {

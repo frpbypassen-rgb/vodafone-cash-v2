@@ -263,6 +263,7 @@ module.exports = {
     getEmergencyDeviceBindingBypassState,
     getEmergencyStandaloneFinancialWritesState,
     getSecurityVerificationMode,
+    isDisabled,
     isEnabled,
     isEmergencyStandaloneFinancialWritesActive,
     isProductionEnvironment,
