@@ -58,7 +58,8 @@ that uses login OTP**: retail clients, company staff, agency staff,
 agency SubAccounts, and executors. A failed WhatsApp send and a failed
 per-account email send (`SMTP_CONFIG_MISSING`, `EMAIL_OTP_SEND_FAILED`,
 `EMAIL_OTP_TIMEOUT`, `EMAIL_OTP_ADDRESS_INVALID`) both use this window.
-Accounts without `otpDeliveryChannel=email` still use WhatsApp.
+Accounts with no usable email still use WhatsApp for login OTP, unless
+`WHATSAPP_LOGIN_OTP_ENABLED` is explicitly off (see below).
 
 Do **not** set `PASSWORD_ONLY_LOGIN_MODE=true`, `BYPASS_OTP=true`, or
 `FORCE_CLIENT_OTP=false` on the live host. Those are rejected by
@@ -95,6 +96,40 @@ pm2 reload ecosystem.config.js --env production --update-env
    lines (or set the flag to `false`) and reload again.
 
 Boot still warns: `Emergency client OTP bypass is active until …`.
+
+## Login OTP WhatsApp kill-switch
+
+`WHATSAPP_LOGIN_OTP_ENABLED` controls **login OTP on WhatsApp only**. It does
+not change `WHATCHIMP_ENABLED`, OTP templates, receipts, rate-change alerts,
+or support replies. It also does not change SMTP, `FORCE_CLIENT_OTP`, or
+`EMERGENCY_CLIENT_OTP_BYPASS`. Login OTP stays required; only the WhatsApp
+send for that OTP stops. Accounts with a valid stored email still receive
+login OTP by email.
+
+| Value | Login OTP on WhatsApp |
+|---|---|
+| unset, or `1` / `true` / `yes` / `on` | Allowed for accounts with no usable email (today's behavior) |
+| `0` / `false` / `no` / `off` | Never sent. Login returns `WHATSAPP_LOGIN_OTP_DISABLED` |
+
+Intended production setting while WhatsApp login OTP is paused:
+
+```
+WHATSAPP_LOGIN_OTP_ENABLED=false
+```
+
+Put it in `.env` (not in PM2 `env_production`), then reload so Node re-reads it:
+
+```powershell
+pm2 reload ecosystem.config.js --env production --update-env
+```
+
+Accounts with no usable email see an Arabic message that WhatsApp login OTP is
+temporarily disabled and that they should use or add email, or contact an
+administrator. No WhatsApp send is attempted for that login OTP.
+
+To turn WhatsApp login OTP back on later, set `WHATSAPP_LOGIN_OTP_ENABLED=true`
+(or remove the line) and run the same `pm2 reload … --update-env`. Do not
+toggle `WHATCHIMP_ENABLED` for this.
 
 ## Documented break-glass (device-binding mismatch)
 
