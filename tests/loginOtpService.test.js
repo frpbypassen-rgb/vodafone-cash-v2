@@ -77,8 +77,12 @@ describe('login OTP service', () => {
         expect(require('../models/ClientEmployee').updateOne).toHaveBeenCalled();
         expect(sendOtp).toHaveBeenCalledWith(expect.objectContaining({
             phone: '0912345678',
-            accountType: 'الشركة'
+            accountType: 'الشركة',
+            expiresMinutes: 5,
+            accountName: 'شركة الأهرام'
         }));
+        expect(sendOtp.mock.calls[0][0]).not.toHaveProperty('expiresAt');
+        expect(sendOtp.mock.calls[0][0]).not.toHaveProperty('html');
     });
 
     test('issues executor OTP to the executor verify page', async () => {
@@ -192,9 +196,12 @@ describe('login OTP service', () => {
         expect(sendLoginOtpEmail).toHaveBeenCalledWith(expect.objectContaining({
             to: 'staff@example.com',
             accountName: 'موظف الشركة',
-            expiresMinutes: 5
+            expiresMinutes: 5,
+            expiresAt: expect.any(Date)
         }));
         const sentOtp = sendLoginOtpEmail.mock.calls[0][0].otp;
+        const storedUpdate = require('../models/ClientEmployee').updateOne.mock.calls[0][1];
+        expect(storedUpdate.$set.otpExpires).toBe(sendLoginOtpEmail.mock.calls[0][0].expiresAt);
         expect(sentOtp).toMatch(/^\d{6}$/);
         expect(JSON.stringify(result)).not.toContain(sentOtp);
         expect(require('../models/ClientEmployee').updateOne).toHaveBeenCalledTimes(1);
