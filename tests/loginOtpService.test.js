@@ -164,7 +164,7 @@ describe('login OTP service', () => {
         expect(publicDeliveryMessage('SMTP_CONFIG_MISSING')).not.toMatch(/\d{6}/);
     });
 
-    test('keeps WhatsApp when an email exists but email OTP is not enabled', async () => {
+    test('sends email OTP when a valid address is stored even if the saved flag is WhatsApp', async () => {
         const account = {
             _id: 'user-mail',
             phone: '0912345678',
@@ -173,12 +173,12 @@ describe('login OTP service', () => {
             businessProfile: { email: 'owner@example.com' },
             otpDeliveryChannel: 'whatsapp'
         };
-        expect(selectLoginOtpChannel(account).channel).toBe('whatsapp');
+        expect(selectLoginOtpChannel(account)).toEqual({ channel: 'email', email: 'owner@example.com' });
         const result = await issueLoginOtp({ account, accountType: 'user', session: {} });
         expect(result.status).toBe('sent');
-        expect(result.delivery.channel).toBe('whatsapp');
-        expect(sendOtp).toHaveBeenCalledWith(expect.objectContaining({ phone: '0912345678' }));
-        expect(sendLoginOtpEmail).not.toHaveBeenCalled();
+        expect(result.delivery.channel).toBe('email');
+        expect(sendLoginOtpEmail).toHaveBeenCalledWith(expect.objectContaining({ to: 'owner@example.com' }));
+        expect(sendOtp).not.toHaveBeenCalled();
     });
 
     test('sends login OTP by email when the account flag and address are valid', async () => {

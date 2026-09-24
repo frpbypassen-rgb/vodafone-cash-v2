@@ -109,8 +109,9 @@ const ERROR_MESSAGES = Object.freeze({
     ACCOUNT_CODE_DUPLICATE: 'رقم الحساب مستخدم في حساب آخر.',
     ACCOUNT_CODE_INVALID: 'رقم الحساب لا يطابق عدد الأرقام المطلوب.',
     IDENTITY_TAKEN: 'اسم المستخدم أو رقم الهاتف مستخدم في حساب آخر.',
-    EMAIL_OTP_ADDRESS_INVALID: 'لتفعيل إرسال رمز التحقق عبر البريد، أدخل بريداً إلكترونياً صالحاً.',
-    COMPANY_OWNER_REQUIRED: 'لا يوجد حساب مالك لهذه الشركة. أنشئ حساب المالك قبل تفعيل إرسال رمز التحقق عبر البريد.',
+    EMAIL_REQUIRED: 'البريد الإلكتروني مطلوب ويجب أن يكون بريداً صالحاً.',
+    EMAIL_OTP_ADDRESS_INVALID: 'البريد الإلكتروني مطلوب ويجب أن يكون بريداً صالحاً.',
+    COMPANY_OWNER_REQUIRED: 'لا يوجد حساب مالك لهذه الشركة. أنشئ حساب المالك قبل حفظ بريد صاحب الحساب.',
     UPDATE_FAILED: 'تعذر حفظ التعديلات. راجع البيانات وحاول مرة أخرى.'
 });
 
@@ -231,26 +232,29 @@ const setBusinessProfile = (account, payload) => {
     }
 };
 
-const emailOtpRequested = (payload = {}) => (
-    isChecked(payload.emailOtpEnabled)
-    || cleanText(payload.otpDeliveryChannel, 20).toLowerCase() === 'email'
-);
-
 const storedOtpEmail = (value) => {
     const email = normalizeOtpEmail(value);
     return email.length > 254 ? email.slice(0, 254) : email;
 };
 
+const requireOtpEmail = (value, field) => {
+    const email = storedOtpEmail(value);
+    if (!isValidOtpEmail(email)) {
+        throw new AdminAccountManagementError('EMAIL_REQUIRED', field);
+    }
+    return email;
+};
+
+// A valid address saved from admin always uses email OTP. WhatsApp remains
+// only for legacy accounts that still have no usable email.
 const setLoginOtpDelivery = (type, account, payload) => {
     if (!LOGIN_OTP_EDITOR_TYPES.has(type)) return;
-    const enabled = emailOtpRequested(payload);
-    const email = normalizeOtpEmail(payload.email);
-    if (enabled && !isValidOtpEmail(email)) {
-        throw new AdminAccountManagementError('EMAIL_OTP_ADDRESS_INVALID', 'email');
-    }
-    account.otpDeliveryChannel = enabled ? 'email' : 'whatsapp';
-    if (type !== 'user' && type !== 'agent') {
-        account.email = email.length > 254 ? email.slice(0, 254) : email;
+    const email = requireOtpEmail(payload.email, 'email');
+    account.otpDeliveryChannel = 'email';
+    if (type === 'user' || type === 'agent') {
+        account.set('businessProfile.email', email);
+    } else {
+        account.email = email;
     }
 };
 
@@ -273,20 +277,14 @@ const findCompanyLoginOwner = async (companyId) => {
 };
 
 const applyCompanyOwnerEmailOtp = (companyOwner, payload = {}) => {
-    const enabled = emailOtpRequested(payload);
-    const email = storedOtpEmail(payload.email);
-    if (!companyOwner && (enabled || email)) {
+    if (!companyOwner) {
         throw new AdminAccountManagementError('COMPANY_OWNER_REQUIRED', 'ownerEmail');
     }
-    if (enabled && !isValidOtpEmail(email)) {
-        throw new AdminAccountManagementError('EMAIL_OTP_ADDRESS_INVALID', 'ownerEmail');
-    }
-    if (!companyOwner) return false;
-    const nextChannel = enabled ? 'email' : 'whatsapp';
+    const email = requireOtpEmail(payload.email, 'ownerEmail');
     const previousChannel = companyOwner.otpDeliveryChannel === 'email' ? 'email' : 'whatsapp';
-    const changed = (companyOwner.email || '') !== email || previousChannel !== nextChannel;
+    const changed = (companyOwner.email || '') !== email || previousChannel !== 'email';
     companyOwner.email = email;
-    companyOwner.otpDeliveryChannel = nextChannel;
+    companyOwner.otpDeliveryChannel = 'email';
     return changed;
 };
 

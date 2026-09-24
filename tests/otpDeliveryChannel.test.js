@@ -7,14 +7,20 @@ const {
 } = require('../utils/otpDeliveryChannel');
 
 describe('login OTP delivery channel', () => {
-    test('stays on WhatsApp unless the account explicitly selects email', () => {
+    test('uses email when a valid address is stored and WhatsApp only when it is absent', () => {
         const withEmail = {
             email: 'staff@example.com',
             businessProfile: { email: 'owner@example.com' }
         };
-        expect(selectLoginOtpChannel(withEmail)).toEqual({ channel: 'whatsapp' });
-        expect(selectLoginOtpChannel({ ...withEmail, otpDeliveryChannel: 'whatsapp' })).toEqual({ channel: 'whatsapp' });
+        expect(selectLoginOtpChannel(withEmail)).toEqual({ channel: 'email', email: 'staff@example.com' });
+        expect(selectLoginOtpChannel({ ...withEmail, otpDeliveryChannel: 'whatsapp' })).toEqual({
+            channel: 'email',
+            email: 'staff@example.com'
+        });
         expect(selectLoginOtpChannel({})).toEqual({ channel: 'whatsapp' });
+        expect(selectLoginOtpChannel({ otpDeliveryChannel: 'whatsapp', email: 'not-an-email' })).toEqual({
+            channel: 'whatsapp'
+        });
     });
 
     test('selects email only when the flag and a valid address are both present', () => {

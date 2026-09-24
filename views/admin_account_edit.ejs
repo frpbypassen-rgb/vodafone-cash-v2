@@ -147,22 +147,23 @@
                         <% if (value('hasCompanyOwner')) { %>
                             <div class="security-note"><i class="fa-solid fa-user-tie"></i><span>حساب الدخول: <%= value('ownerName') || 'مالك الشركة' %><% if (value('ownerUsername')) { %> — <bdi><%= value('ownerUsername') %></bdi><% } %>. هذا البريد خاص بصاحب الحساب وليس بريد التواصل التجاري.</span></div>
                         <% } else { %>
-                            <div class="security-note"><i class="fa-solid fa-triangle-exclamation"></i><span>لا يوجد حساب مالك لهذه الشركة. أنشئ حساب المالك قبل تفعيل إرسال رمز التحقق عبر البريد.</span></div>
+                            <div class="security-note"><i class="fa-solid fa-triangle-exclamation"></i><span>لا يوجد حساب مالك لهذه الشركة. أنشئ حساب المالك قبل حفظ بريد صاحب الحساب.</span></div>
                         <% } %>
                     <% } %>
                     <div class="field-grid two">
                         <div class="field">
-                            <label for="accountOwnerEmail">البريد الإلكتروني لصاحب الحساب</label>
-                            <input id="accountOwnerEmail" name="<%= accountType === 'company' ? 'ownerEmail' : 'email' %>" type="email" class="form-control mono" value="<%= accountType === 'company' ? value('ownerEmail') : value('email') %>" maxlength="254" autocomplete="off" placeholder="name@example.com">
+                            <label for="accountOwnerEmail">البريد الإلكتروني لصاحب الحساب <span class="required">*</span></label>
+                            <input id="accountOwnerEmail" name="<%= accountType === 'company' ? 'ownerEmail' : 'email' %>" type="email" class="form-control mono" value="<%= accountType === 'company' ? value('ownerEmail') : value('email') %>" maxlength="254" autocomplete="off" placeholder="name@example.com" required data-required-email="owner" title="البريد الإلكتروني مطلوب ويجب أن يكون بريداً صالحاً.">
                         </div>
                     </div>
                     <div class="permission-grid mt-3">
+                        <input type="hidden" name="emailOtpEnabled" value="true">
                         <label class="permission-option">
-                            <input type="checkbox" name="emailOtpEnabled" value="true" <%= checked('emailOtpEnabled') ? 'checked' : '' %>>
+                            <input type="checkbox" checked disabled>
                             <span>إرسال رمز التحقق عبر البريد</span>
                         </label>
                     </div>
-                    <div class="security-note" style="margin-top:12px;margin-bottom:0;"><i class="fa-solid fa-envelope"></i><span>واتساب هو المسار الافتراضي ويبقى كذلك حتى تفعيل هذا الخيار. فعّله فقط مع بريد صالح. عند الإيقاف يُرسل رمز التحقق عبر واتساب.</span></div>
+                    <div class="security-note" style="margin-top:12px;margin-bottom:0;"><i class="fa-solid fa-envelope"></i><span>البريد الإلكتروني إلزامي. عند الحفظ يُرسل رمز التحقق عبر البريد في كل تسجيل دخول. مسار واتساب يبقى فقط إذا لم يوجد بريد صالح على الحساب.</span></div>
                 </section>
             <% } %>
 
@@ -191,17 +192,18 @@
                     <h2 class="section-heading"><i class="fa-solid fa-envelope-circle-check"></i> رمز التحقق عند الدخول</h2>
                     <div class="field-grid two">
                         <div class="field">
-                            <label for="email">البريد الإلكتروني</label>
-                            <input id="email" name="email" type="email" class="form-control mono" value="<%= value('email') %>" maxlength="254" autocomplete="off">
+                            <label for="email">البريد الإلكتروني <span class="required">*</span></label>
+                            <input id="email" name="email" type="email" class="form-control mono" value="<%= value('email') %>" maxlength="254" autocomplete="off" placeholder="name@example.com" required data-required-email="owner" title="البريد الإلكتروني مطلوب ويجب أن يكون بريداً صالحاً.">
                         </div>
                     </div>
                     <div class="permission-grid mt-3">
+                        <input type="hidden" name="emailOtpEnabled" value="true">
                         <label class="permission-option">
-                            <input type="checkbox" name="emailOtpEnabled" value="true" <%= checked('emailOtpEnabled') ? 'checked' : '' %>>
+                            <input type="checkbox" checked disabled>
                             <span>إرسال رمز التحقق عبر البريد</span>
                         </label>
                     </div>
-                    <div class="security-note" style="margin-top:12px;margin-bottom:0;"><i class="fa-solid fa-envelope"></i><span>فعّل هذا الخيار فقط مع بريد صالح. عند الإيقاف يُرسل رمز التحقق عبر واتساب.</span></div>
+                    <div class="security-note" style="margin-top:12px;margin-bottom:0;"><i class="fa-solid fa-envelope"></i><span>البريد الإلكتروني إلزامي. عند الحفظ يُرسل رمز التحقق عبر البريد في كل تسجيل دخول. مسار واتساب يبقى فقط إذا لم يوجد بريد صالح على الحساب.</span></div>
                 </section>
             <% } %>
 
@@ -385,6 +387,7 @@
     </div>
 </main>
 
+<%- include('partials/required_owner_email_script') %>
 <script>
     function toggleSidebar() {
         document.querySelector('.sidebar')?.classList.toggle('active');

@@ -10,6 +10,7 @@ const CLIENTS_VIEW = path.join(__dirname, '../views/clients.ejs');
 const USER_DETAILS = path.join(__dirname, '../views/user_details.ejs');
 const COMPANY_DETAILS = path.join(__dirname, '../views/company_details.ejs');
 const REGISTRATION_ROUTE = path.join(__dirname, '../routes/registrationRequests.js');
+const REGISTRATION_VIEW = path.join(__dirname, '../views/registration_requests.ejs');
 
 const formData = (overrides = {}) => ({
     name: 'حساب تجريبي',
@@ -88,7 +89,7 @@ const renderEditor = (accountType, overrides = {}) => ejs.renderFile(EDIT_VIEW, 
     },
     returnUrl: '/clients',
     activePage: 'clients',
-    error: accountType === 'company' ? 'لتفعيل إرسال رمز التحقق عبر البريد، أدخل بريداً إلكترونياً صالحاً.' : '',
+    error: accountType === 'company' ? 'البريد الإلكتروني مطلوب ويجب أن يكون بريداً صالحاً.' : '',
     query: {}
 }, { filename: EDIT_VIEW });
 
@@ -101,9 +102,10 @@ describe('owner email OTP admin screens', () => {
         expect(html).toContain('id="owner-email-otp"');
         expect(html).toContain('البريد الإلكتروني لصاحب الحساب');
         expect(html).toContain('إرسال رمز التحقق عبر البريد');
-        expect(html).toContain('واتساب هو المسار الافتراضي');
+        expect(html).toContain('البريد الإلكتروني إلزامي');
         expect(html).toContain('name="emailOtpEnabled"');
         expect(html.match(/name="emailOtpEnabled"/g)).toHaveLength(1);
+        expect(html).toMatch(/id="accountOwnerEmail"[^>]*required/);
         if (accountType === 'company') {
             expect(html).toContain('name="ownerEmail"');
             expect(html).toContain('البريد الإلكتروني للشركة');
@@ -134,8 +136,11 @@ describe('owner email OTP admin screens', () => {
 
         expect(card).toContain('البريد الإلكتروني لصاحب الحساب');
         expect(card).toContain('إرسال رمز التحقق عبر البريد');
+        expect(card).toContain('البريد الإلكتروني إلزامي');
+        expect(card).toContain('required');
+        expect(card).toContain('البريد الإلكتروني مطلوب.');
         expect(card).toContain('/admin/accounts/company/507f1f77bcf86cd799439011/owner-otp');
-        expect(card).not.toContain('checked');
+        expect(card).toContain('checked');
         expect(clients).toContain('/user/<%= u._id %>#owner-email-otp');
         expect(clients).toContain('/company/<%= c._id %>#owner-email-otp');
         expect(clients).toContain('/user/<%= agent._id %>#owner-email-otp');
@@ -144,11 +149,15 @@ describe('owner email OTP admin screens', () => {
         expect(companyDetails).toContain('لا يوجد حساب مالك لهذه الشركة');
     });
 
-    test('approving a company or agent stores the contact email without enabling email OTP', () => {
+    test('approving a client, company, or agent requires an email and enables email OTP', () => {
         const source = fs.readFileSync(REGISTRATION_ROUTE, 'utf8');
+        const view = fs.readFileSync(REGISTRATION_VIEW, 'utf8');
         expect(source).toContain('businessProfile: { email: ownerEmail }');
         expect(source).toContain('email: ownerEmail');
-        expect(source).toContain('businessProfile: { email: registrationContactEmail(regReq.companyEmail) }');
-        expect(source).not.toContain("otpDeliveryChannel: 'email'");
+        expect(source).toContain("otpDeliveryChannel: 'email'");
+        expect(source).toContain('error=email_required');
+        expect(view).toContain('name="ownerEmail"');
+        expect(view).toContain('data-required-email="owner"');
+        expect(view).toContain('البريد الإلكتروني مطلوب ويجب أن يكون بريداً صالحاً قبل إنشاء الحساب.');
     });
 });

@@ -15,12 +15,18 @@ const {
 } = require('../services/accountCodeService');
 const { prepareRegistrationIdentityForApproval } = require('../services/registrationIdentityService');
 const { createRegisteredExecutorAccount } = require('../services/executorAccountService');
-const { normalizeOtpEmail } = require('../utils/otpDeliveryChannel');
+const { isValidOtpEmail, normalizeOtpEmail } = require('../utils/otpDeliveryChannel');
 
 const registrationContactEmail = (value) => {
     const email = normalizeOtpEmail(value);
     return email.length > 254 ? email.slice(0, 254) : email;
 };
+
+const LOGIN_EMAIL_ACCOUNT_TYPES = new Set(['direct', 'new', 'company', 'agent']);
+
+const submittedOwnerEmail = (regReq, body = {}) => registrationContactEmail(
+    body.ownerEmail || body.email || regReq.companyEmail
+);
 
 const visibleRequestStatuses = new Set(['pending', 'pending_agent', 'approved', 'rejected']);
 const appendAdminNote = (current, note) => [current, String(note || '').trim()].filter(Boolean).join('\n');
@@ -80,6 +86,14 @@ router.post('/registration-requests/:id/approve', requireAuth, requireMaster, as
         });
 
         const tenantId = regReq.tenantId || (req.tenant && req.tenant._id) || undefined;
+        let ownerEmail = '';
+        if (LOGIN_EMAIL_ACCOUNT_TYPES.has(regReq.accountType)) {
+            ownerEmail = submittedOwnerEmail(regReq, req.body);
+            if (!isValidOtpEmail(ownerEmail)) {
+                return res.redirect('/registration-requests?error=email_required');
+            }
+            regReq.companyEmail = ownerEmail;
+        }
 
         // ─── إنشاء الحساب حسب نوع الطلب ───
         if (regReq.accountType === 'direct') {
@@ -95,6 +109,8 @@ router.post('/registration-requests/:id/approve', requireAuth, requireMaster, as
                 balance: 0,
                 status: 'active',
                 role: 'user',
+                businessProfile: { email: ownerEmail },
+                otpDeliveryChannel: 'email',
                 tenantId
             });
 
@@ -112,12 +128,13 @@ router.post('/registration-requests/:id/approve', requireAuth, requireMaster, as
                 balance: 0,
                 status: 'active',
                 role: 'user',
+                businessProfile: { email: ownerEmail },
+                otpDeliveryChannel: 'email',
                 tenantId
             });
 
         } else if (regReq.accountType === 'company') {
             // شركة → إنشاء ClientCompany + ClientEmployee (مدير الشركة)
-            const ownerEmail = registrationContactEmail(regReq.companyEmail);
             const company = await ClientCompany.create({
                 name: regReq.companyName,
                 phone: regReq.companyPhone,
@@ -136,6 +153,7 @@ router.post('/registration-requests/:id/approve', requireAuth, requireMaster, as
                 webPassword: regReq.password,
                 role: 'owner',
                 email: ownerEmail,
+                otpDeliveryChannel: 'email',
                 canViewAllReports: true,
                 canManageCompany: true,
                 canCreateCompanyStaff: true,
@@ -156,7 +174,8 @@ router.post('/registration-requests/:id/approve', requireAuth, requireMaster, as
                 balance: 0,
                 status: 'active',
                 role: 'agent',
-                businessProfile: { email: registrationContactEmail(regReq.companyEmail) },
+                businessProfile: { email: ownerEmail },
+                otpDeliveryChannel: 'email',
                 tenantId
             });
             const accountCode = await assignGeneratedAccountCode({
