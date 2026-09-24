@@ -5,6 +5,7 @@
 const { body, validationResult } = require('express-validator');
 const { sendMobileError } = require('../mappers/mobileErrorMapper');
 const { getEnabledMobileTransferServiceKeys, getTransferServiceDefinition } = require('../utils/mobileTransferServiceCatalog');
+const { normalizeStoredBank } = require('../utils/egyptianBanks');
 
 /**
  * Middleware Ù„Ù„ØªØ­Ù‚Ù‚ Ù…Ù† Ù†ØªØ§Ø¦Ø¬ Ø§Ù„Ù€ validation ÙˆØ¥Ø±Ø¬Ø§Ø¹ Ø®Ø·Ø£ Ù…ÙˆØ­Ø¯
@@ -92,12 +93,17 @@ const transferValidator = [
         .isLength({ max: 80 }).withMessage('اسم المدينة لا يتجاوز 80 حرف')
         .escape(),
     body('bankName')
-        .optional()
+        .optional({ checkFalsy: true })
         .trim()
         .isLength({ max: 100 }).withMessage('اسم البنك لا يتجاوز 100 حرف')
         .escape(),
+    body('bankCode')
+        .optional({ checkFalsy: true })
+        .trim()
+        .isLength({ max: 40 }).withMessage('رمز البنك غير صالح')
+        .matches(/^[a-z0-9_]+$/i).withMessage('رمز البنك غير صالح'),
     body().custom((body) => {
-        const { transferType, name, number, idCardImage, oldReceiptImage, serviceSubtype, city, recipientPhone, governorate, bankName } = body;
+        const { transferType, name, number, idCardImage, oldReceiptImage, serviceSubtype, city, recipientPhone, governorate, bankName, bankCode } = body;
         const service = getTransferServiceDefinition(transferType);
         if (!service || !service.mobileEnabled) {
             throw new Error('نوع التحويل غير مدعوم للموبايل');
@@ -191,11 +197,21 @@ const transferValidator = [
                     ? 'الحد الأدنى لتحويل إنستا باي هو 500 جنيه مصري'
                     : 'الحد الأدنى للتحويل البنكي هو 500 جنيه مصري');
             }
-            if (!isInstapay) {
-                if (!bankName || !String(bankName).trim()) {
-                    throw new Error('اختر اسم البنك قبل إرسال التحويل البنكي');
-                }
-            }
+            const bankError = normalizeStoredBank({
+                transferType,
+                bankCode,
+                bankName
+            }).error;
+            if (bankError) throw new Error(bankError);
+        }
+
+        if (transferType === 'bank_transfer') {
+            const bankError = normalizeStoredBank({
+                transferType,
+                bankCode,
+                bankName
+            }).error;
+            if (bankError) throw new Error(bankError);
         }
 
         if (transferType === 'sefa_niger') {

@@ -103,11 +103,34 @@
 
     const transferForm = document.getElementById('companyTransferForm');
     if (transferForm) {
+        const companyType = transferForm.querySelector('[name="type"]');
+        const companyBankField = document.getElementById('companyBankField');
+        const companyBank = document.getElementById('companyTransferBank');
+        const syncCompanyBankField = () => {
+            const bankTransfer = companyType?.value === 'حساب بنكي';
+            if (companyBankField) companyBankField.hidden = !bankTransfer;
+            if (companyBank) {
+                companyBank.required = bankTransfer;
+                companyBank.disabled = !bankTransfer;
+                if (!bankTransfer) companyBank.value = '';
+            }
+        };
+        companyType?.addEventListener('change', syncCompanyBankField);
+        syncCompanyBankField();
         transferForm.addEventListener('submit', async (event) => {
             event.preventDefault();
             const submitBtn = document.getElementById('companyTransferSubmit');
             const formData = new FormData(transferForm);
             const payload = Object.fromEntries(formData.entries());
+            if (payload.type === 'حساب بنكي' && !payload.bankCode) {
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'تنبيه',
+                    text: 'اختر البنك قبل إرسال التحويل البنكي.',
+                    confirmButtonText: 'حسناً'
+                });
+                return;
+            }
 
             if (submitBtn) {
                 submitBtn.disabled = true;

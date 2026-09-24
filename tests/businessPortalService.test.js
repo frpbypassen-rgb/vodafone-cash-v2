@@ -245,7 +245,7 @@ describe('Business portal service', () => {
             requiresGovernorate: true,
             requiresIdentityImage: true
         });
-        expect(byKey.bank_account.requiresBankName).toBeUndefined();
+        expect(byKey.bank_account.requiresBank).toBe(true);
         expect(byKey.sefa_niger).toMatchObject({
             integerAmount: true,
             destinationMaxLength: 11,

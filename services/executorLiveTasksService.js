@@ -25,6 +25,8 @@ const LIVE_TASK_PROJECTION = [
     'vodafoneNumber',
     'accountNumber',
     'accountName',
+    'serviceDetails.bankName',
+    'serviceDetails.bankCode',
     'serviceDetails.recipientPhone',
     'notes',
     'status',

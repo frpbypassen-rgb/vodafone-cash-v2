@@ -2,6 +2,7 @@
 
 const {
     BankTransferExecutionError,
+    assertBankTransferDestination,
     isBankTransferOperation,
     prepareBankTransferCompletion
 } = require('../utils/bankTransferExecution');
@@ -27,5 +28,26 @@ describe('bank transfer execution', () => {
             imagesBase64: ['data:image/png;base64,abc'],
             senderEntries: [{ phone: '01108172258', amount: 40 }, { phone: '01095433913', amount: 60 }]
         })).toThrow('التحويل البنكي يُنفَّذ دفعة واحدة ولا يقبل التقسيم.');
+    });
+
+    test('requires an allowlisted Egyptian bank for bank transfers and ignores it for cash', () => {
+        expect(assertBankTransferDestination({
+            transferType: 'bank_account',
+            bankCode: 'cib'
+        })).toMatchObject({ code: 'cib', nameAr: 'البنك التجاري الدولي CIB' });
+        expect(assertBankTransferDestination({
+            transferType: 'bank_transfer',
+            serviceSubtype: 'instapay',
+            bankName: 'بنك قطر الوطني الأهلي QNB'
+        })).toMatchObject({ code: 'qnb' });
+
+        expect(() => assertBankTransferDestination({ transferType: 'bank_account' }))
+            .toThrow('اختر البنك قبل إرسال التحويل البنكي.');
+        expect(() => assertBankTransferDestination({
+            transferType: 'bank_transfer',
+            bankName: 'البنك المركزي المصري'
+        })).toThrow('غير مدرج');
+        expect(assertBankTransferDestination({ transferType: 'vodafone' })).toBeNull();
+        expect(assertBankTransferDestination({ transferType: 'post_account', bankName: 'بنك خيالي' })).toBeNull();
     });
 });

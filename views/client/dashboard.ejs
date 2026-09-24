@@ -1392,6 +1392,12 @@
                                         <label class="form-label small fw-bold text-muted">اسم المستفيد (رباعي)</label>
                                         <input type="text" class="form-control text-center fw-bold" id="tf_beneficiary" placeholder="اكتب الاسم رباعي">
                                     </div>
+                                    <div class="mb-3" id="bank_div" style="display: none;">
+                                        <label class="form-label small fw-bold text-muted" for="tf_bank">البنك</label>
+                                        <select class="form-select text-center fw-bold" id="tf_bank">
+                                            <%- include('../partials/egyptian_bank_options') %>
+                                        </select>
+                                    </div>
 
                                     <div class="mb-3" id="city_div" style="display: none;">
                                         <label class="form-label small fw-bold text-muted">اسم المدينة</label>
@@ -1824,6 +1830,10 @@
 
             // Hide all optional fields first
             document.getElementById('beneficiary_name_div').style.display = 'none';
+            const bankDiv = document.getElementById('bank_div');
+            const bankInput = document.getElementById('tf_bank');
+            if (bankDiv) bankDiv.style.display = 'none';
+            if (bankInput) bankInput.value = '';
             document.getElementById('national_id_div').style.display = 'none';
             document.getElementById('id_image_div').style.display = 'none';
             document.getElementById('phone_div').style.display = 'none';
@@ -1883,6 +1893,7 @@
             }
             else if (type === 'حساب بنكي') {
                 document.getElementById('beneficiary_name_div').style.display = 'block';
+                if (bankDiv) bankDiv.style.display = 'block';
                 document.getElementById('phone_div').style.display = 'block';
                 document.getElementById('lbl_tf_phone').innerText = 'رقم الحساب البنكي (IBAN)';
                 document.getElementById('tf_phone').placeholder = 'أدخل رقم IBAN';
@@ -1961,6 +1972,10 @@
                 if (['حساب بنكي', 'بنكك السودان'].includes(currentTransferType) && !beneficiaryName) {
                     return Swal.fire({ icon: 'warning', title: 'تنبيه', text: 'اسم المستفيد إجباري.', customClass: { popup: 'swal2-popup' } });
                 }
+                const selectedBank = document.getElementById('tf_bank')?.value || '';
+                if (currentTransferType === 'حساب بنكي' && !selectedBank) {
+                    return Swal.fire({ icon: 'warning', title: 'تنبيه', text: 'اختر البنك قبل إرسال التحويل البنكي.', customClass: { popup: 'swal2-popup' } });
+                }
                 if (currentTransferType === 'سيفا النيجر') {
                     if (!beneficiaryName) return Swal.fire({ icon: 'warning', title: 'تنبيه', text: 'الاسم إجباري.', customClass: { popup: 'swal2-popup' } });
                     
@@ -2023,6 +2038,9 @@
                 transferData.set('notes', finalNotes);
                 transferData.set('type', currentTransferType);
                 transferData.set('name', beneficiaryName);
+                if (currentTransferType === 'حساب بنكي') {
+                    transferData.set('bankCode', document.getElementById('tf_bank')?.value || '');
+                }
                 transferData.set('serviceSubtype', currentTransferType === 'سيفا النيجر' ? currentSefaSubtype : '');
                 transferData.set('dataEntryAcknowledged', currentTransferType === 'سيفا النيجر' && document.getElementById('tf_sefa_data_acknowledgement').checked ? 'true' : 'false');
                 transferData.set('city', city);

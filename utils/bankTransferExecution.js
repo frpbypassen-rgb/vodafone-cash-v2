@@ -4,6 +4,8 @@
 // with the legacy `bank_transfer` alias already present in admin labels).
 // Instapay stays on the same service key; this helper does not add a new flag.
 
+const { normalizeStoredBank } = require('./egyptianBanks');
+
 const BANK_TRANSFER_TYPES = new Set(['bank_account', 'bank_transfer']);
 
 const BANK_TRANSFER_SPLIT_ERROR = 'التحويل البنكي يُنفَّذ دفعة واحدة ولا يقبل التقسيم.';
@@ -48,6 +50,12 @@ const collectBankTransferProofPayloads = (body = {}) => {
     return images;
 };
 
+const assertBankTransferDestination = (source = {}) => {
+    const result = normalizeStoredBank(source);
+    if (!result.error) return result.bank;
+    throw new BankTransferExecutionError(result.code, result.error);
+};
+
 const prepareBankTransferCompletion = (body = {}) => {
     const entries = Array.isArray(body.senderEntries)
         ? body.senderEntries.filter((entry) => entry && typeof entry === 'object')
@@ -68,6 +76,7 @@ module.exports = {
     BANK_TRANSFER_SPLIT_ERROR,
     BANK_TRANSFER_TYPES,
     BankTransferExecutionError,
+    assertBankTransferDestination,
     collectBankTransferProofPayloads,
     isBankTransferOperation,
     prepareBankTransferCompletion

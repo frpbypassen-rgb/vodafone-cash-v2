@@ -657,6 +657,7 @@
     let activeTasksIds = [];
     let currentCompletingId = null; 
     let currentCompletingTransferType = '';
+    let currentCompletingBankName = '';
     let currentEmergencyId = null; 
     let selectedFilesArray = [];
     let lastTasksHash = '';
@@ -845,7 +846,13 @@
         const bankNote = document.getElementById('bankTransferCompletionNote');
         if (splitBlock) splitBlock.classList.toggle('d-none', bankTransfer);
         if (phoneBlock) phoneBlock.classList.toggle('d-none', bankTransfer);
-        if (bankNote) bankNote.classList.toggle('d-none', !bankTransfer);
+        if (bankNote) {
+            bankNote.classList.toggle('d-none', !bankTransfer);
+            const bank = String(currentCompletingBankName || '').trim();
+            bankNote.textContent = bank
+                ? `تحويل بنكي — ${bank}: أرفق صورة الإثبات فقط. تُرسل الصورة نفسها للعميل، دون رقم هاتف ودون تقسيم.`
+                : 'تحويل بنكي: أرفق صورة الإثبات فقط. تُرسل الصورة نفسها للعميل، دون رقم هاتف ودون تقسيم.';
+        }
         if (bankTransfer) {
             const splitToggle = document.getElementById('splitOperationToggle');
             if (splitToggle) splitToggle.checked = false;
@@ -1240,6 +1247,9 @@
                     }).join('\n');
                     const safeDisplayNote = escapeTaskHtml(displayNote).replace(/\n/g, '<br>');
                     const safeAccountName = escapeTaskHtml(t.accountName || '').replace(/\n/g, '<br>');
+                    const safeBankName = escapeTaskHtml(t.bankName || '');
+                    const showBankName = Boolean(safeBankName) && (t.transferType === 'bank_account' || t.transferType === 'bank_transfer');
+                    const encodedBankName = encodeURIComponent(t.bankName || '');
 
                     const taskArrivalAt = t.executorReceivedAt || t.createdAt;
                     html += `
@@ -1277,6 +1287,7 @@
 
                                     ${safeDisplayNote ? `<div class="tx-notes"><i class="fa-solid fa-comment-dots me-1 opacity-50"></i> ${safeDisplayNote}</div>` : ''}
                                     ${safeAccountName && t.transferType !== 'vodafone' ? `<div class="tx-beneficiary"><i class="fa-solid fa-user me-1 opacity-50"></i> ${safeAccountName}</div>` : ''}
+                                    ${showBankName ? `<div class="tx-beneficiary"><i class="fa-solid fa-building-columns me-1 opacity-50"></i> ${safeBankName}</div>` : ''}
                                     ${recipientIsVisible ? '' : '<div class="executor-task-privacy"><i class="fa-solid fa-shield-halved"></i><span>يظهر الرقم كاملًا بعد قبول المهمة للمنفذ الذي سحبها فقط.</span></div>'}
                                     ${(isExecutorManager || routedToMe) && assigneeName ? `
                                     <div class="executor-assignee-strip ${routingState === 'in_progress' ? 'in-progress' : (routingState === 'pending_with_assignee' ? 'waiting' : '')}">
@@ -1298,7 +1309,7 @@
                                       acceptedByOther ? `<div class="p-2 rounded-3 text-center fw-bold text-muted border w-100 small" style="background: rgba(0,0,0,0.05);"><i class="fa-solid fa-user-gear me-1"></i> بدأ التنفيذ: ${escapeTaskHtml(assigneeName || 'منفذ آخر')}</div>` :
                                       isMine ? `
                                          <div class="complete-actions-row">
-                                            <button onclick="openUpload('${t._id}', '${t.transferType || ''}', ${Number(t.amount || 0)})" class="btn-cyber-main mb-0"><i class="fa-solid fa-check-double"></i> إنهاء العملية</button>
+                                            <button onclick="openUpload('${t._id}', '${t.transferType || ''}', ${Number(t.amount || 0)}, '${encodedBankName}')" class="btn-cyber-main mb-0"><i class="fa-solid fa-check-double"></i> إنهاء العملية</button>
                                             ${showQuickExecute ? `
                                             <button type="button" onclick="quickExecuteDial('${t._id}')" class="btn-quick-execute" title="تنفيذ سريع" aria-label="تنفيذ سريع">
                                                 <i class="fa-solid fa-phone-flip"></i>
@@ -1524,10 +1535,15 @@
             await refreshTasks();
         }
     }
-    function openUpload(id, transferType, amount = 0) {
+    function openUpload(id, transferType, amount = 0, bankName = '') {
         currentCompletingId = id;
         currentCompletingTransferType = String(transferType || '').toLowerCase();
         currentCompletingAmount = Number(amount || 0);
+        try {
+            currentCompletingBankName = decodeURIComponent(String(bankName || ''));
+        } catch (_error) {
+            currentCompletingBankName = '';
+        }
         resetUploadModal();
         new bootstrap.Modal(document.getElementById('uploadModal')).show();
     }

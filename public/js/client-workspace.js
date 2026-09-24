@@ -232,6 +232,7 @@
     const transferAmountCurrency = document.getElementById('transferAmountCurrency');
     const transferAmountFlag = document.getElementById('transferAmountFlag');
     const transferBeneficiary = document.getElementById('transferBeneficiary');
+    const transferBank = document.getElementById('transferBank');
     const beneficiaryFieldLabel = document.getElementById('beneficiaryFieldLabel');
     const transferSubtype = document.getElementById('transferSubtype');
     const transferCity = document.getElementById('transferCity');
@@ -404,7 +405,7 @@
 
     const clearTransferValues = () => {
         [transferDestination, transferAccountNumber, transferAmount, transferAmountLyd, transferBeneficiary,
-            transferCity, transferNationalId, transferGovernorate, transferClientPhone].forEach((input) => {
+            transferCity, transferNationalId, transferGovernorate, transferClientPhone, transferBank].forEach((input) => {
             if (input) input.value = '';
         });
         if (transferIdentityImage) transferIdentityImage.value = '';
@@ -443,6 +444,9 @@
         toggleConditionalField('[data-beneficiary-field]', Boolean(service.beneficiaryRequired), transferBeneficiary);
         if (beneficiaryFieldLabel) beneficiaryFieldLabel.textContent = service.beneficiaryLabel || 'اسم المستفيد';
         if (transferBeneficiary) transferBeneficiary.placeholder = service.beneficiaryPlaceholder || 'أدخل اسم المستفيد';
+        const bankRequired = Boolean(service.requiresBank || service.key === 'bank_account');
+        toggleConditionalField('[data-bank-field]', bankRequired, transferBank);
+        if (transferBank) transferBank.disabled = !bankRequired;
         toggleConditionalField('[data-subtype-field]', Boolean(service.requiresSubtype), transferSubtype);
         if (service.requiresSubtype && transferSubtype && !transferSubtype.value) {
             transferSubtype.value = service.allowedSubtypes?.[0] || 'nita';
@@ -775,6 +779,9 @@
         if (activeService?.beneficiaryMinWords && beneficiaryName.split(/\s+/).filter(Boolean).length < activeService.beneficiaryMinWords) {
             return { message: 'اسم المستفيد الرباعي مطلوب لهذه الخدمة.', input: transferBeneficiary };
         }
+        if ((activeService?.requiresBank || activeService?.key === 'bank_account') && !transferBank?.value) {
+            return { message: 'اختر البنك قبل إرسال التحويل البنكي.', input: transferBank };
+        }
 
         const subtype = transferSubtype?.value || '';
         if (activeService?.requiresSubtype && !subtype) return { message: 'اختر نوع خدمة سيفا.', input: transferSubtype };
@@ -915,6 +922,7 @@
                 amount: transferAmount?.value || '',
                 notes: transferNotes?.value || '',
                 name: transferBeneficiary?.value || '',
+                bankCode: transferBank?.value || '',
                 clientPhone: transferClientPhone?.value || ''
             }));
         } catch (_) { /* optional */ }
@@ -931,6 +939,7 @@
         if (transferAmount && draft.amount) transferAmount.value = draft.amount;
         if (transferNotes && draft.notes) transferNotes.value = draft.notes;
         if (transferBeneficiary && draft.name) transferBeneficiary.value = draft.name;
+        if (transferBank && draft.bankCode) transferBank.value = draft.bankCode;
         if (transferClientPhone && draft.clientPhone) transferClientPhone.value = draft.clientPhone;
         updateCostEstimate();
     };
@@ -1113,6 +1122,8 @@
             <div class="bw-cost-preview">
                 <div><span>الخدمة</span><strong>${escapeHtml(activeService?.label || '')}</strong></div>
                 <div><span>المستلم</span><strong class="bw-mono">${escapeHtml(destination || '---')}</strong></div>
+                ${transferBeneficiary?.value.trim() ? `<div><span>الاسم</span><strong>${escapeHtml(transferBeneficiary.value.trim())}</strong></div>` : ''}
+                ${(activeService?.requiresBank || activeService?.key === 'bank_account') && transferBank?.selectedOptions?.[0] ? `<div><span>البنك</span><strong>${escapeHtml(transferBank.selectedOptions[0].text)}</strong></div>` : ''}
                 <div><span>المبلغ</span><strong class="bw-mono">${escapeHtml(formatNumber(amount, 2))} ${escapeHtml(sourceCurrencyLabel(activeService))}</strong></div>
                 <div><span>التكلفة</span><strong class="bw-mono">${escapeHtml(formatNumber(cost, 3))} LYD</strong></div>
             </div>`,
@@ -1142,7 +1153,7 @@
         if (transferConfirmTitle) transferConfirmTitle.textContent = 'تأكيد العملية';
         if (transferConfirmSubmit) transferConfirmSubmit.innerHTML = defaultTransferConfirmSubmitHtml;
     });
-    [transferDestination, transferAmount, transferNotes, transferBeneficiary, transferClientPhone].forEach((input) => {
+    [transferDestination, transferAmount, transferNotes, transferBeneficiary, transferBank, transferClientPhone].forEach((input) => {
         input?.addEventListener('input', persistTransferDraft);
     });
     restoreTransferDraft();

@@ -6060,37 +6060,41 @@ class _TransferScreenState extends State<TransferScreen> {
   static const _egyptBanks = <String>[
     'البنك الأهلي المصري',
     'بنك مصر',
-    'بنك القاهرة',
     'البنك التجاري الدولي CIB',
-    'بنك الإسكندرية',
     'بنك قطر الوطني الأهلي QNB',
+    'بنك القاهرة',
+    'البنك العربي الأفريقي الدولي',
+    'مصرف أبوظبي الإسلامي ADIB',
     'بنك فيصل الإسلامي المصري',
+    'بنك الشركة المصرفية العربية الدولية saib',
+    'بنك HSBC مصر',
+    'بنك الإسكندرية',
+    'البنك الأهلي المتحد مصر',
+    'المصرف العربي الدولي',
+    'بنك المؤسسة العربية المصرفية ABC',
+    'بنك بلوم مصر',
+    'بنك الإمارات دبي الوطني مصر',
+    'بنك أبوظبي التجاري ADCB',
+    'بنك المشرق',
+    'بنك عوده مصر',
+    'بنك الكويت الوطني مصر',
+    'التجاري وفا بنك إيجيبت',
+    'بنك التنمية الصناعية',
+    'بنك التعمير والإسكان',
+    'البنك العقاري المصري العربي',
+    'البنك الزراعي المصري',
     'المصرف المتحد',
     'بنك البركة مصر',
-    'بنك أبو ظبي الإسلامي مصر',
-    'بنك أبو ظبي التجاري مصر',
-    'بنك الإمارات دبي الوطني مصر',
-    'بنك التعمير والإسكان',
     'بنك قناة السويس',
-    'البنك العربي الأفريقي الدولي',
     'البنك العربي',
-    'بنك الشركة المصرفية العربية الدولية SAIB',
     'بنك كريدي أجريكول مصر',
-    'بنك المشرق مصر',
     'البنك الأهلي الكويتي مصر',
-    'بنك المؤسسة العربية المصرفية ABC',
-    'بنك نكست',
-    'بنك التنمية الصناعية',
     'بنك الاستثمار العربي',
-    'المصرف العربي الدولي',
     'سيتي بنك مصر',
-    'بنك HSBC مصر',
-    'البنك العقاري المصري العربي',
     'البنك المصري الخليجي EGBANK',
-    'بنك الكويت الوطني مصر',
-    'البنك الأهلي المتحد مصر',
-    'البنك الزراعي المصري',
     'البنك المصري لتنمية الصادرات',
+    'بنك أبوظبي الأول مصر FAB',
+    'بنك نكست',
   ];
 
   @override
@@ -6550,10 +6554,10 @@ class _TransferScreenState extends State<TransferScreen> {
       final validRecipient = RegExp(
         r'^(?:(010|011|012|015)\d{8}|[A-Za-z0-9._@-]{3,50}|\d{16})$',
       ).hasMatch(recipient);
-      if (nameParts.length < 3 || !validRecipient) {
+      if (nameParts.length < 3 || !validRecipient || (_bankName ?? '').isEmpty) {
         setState(
           () => _error =
-              'أدخل الاسم الثلاثي ورقم الهاتف أو عنوان الدفع اللحظي أو رقم البطاقة الإلكتروني الصحيح.',
+              'أدخل الاسم الثلاثي واختر البنك ورقم الهاتف أو عنوان الدفع اللحظي أو رقم البطاقة الإلكتروني الصحيح.',
         );
         return;
       }
@@ -7976,10 +7980,11 @@ class _TransferScreenState extends State<TransferScreen> {
         .where((part) => part.isNotEmpty);
     if (amount < 500 ||
         nameParts.length < 3 ||
+        (_bankName ?? '').isEmpty ||
         !_isValidInstapayRecipient(recipient)) {
       setState(
         () => _error =
-            'راجع الاسم الثلاثي وبيانات المستلم وقيمة التحويل قبل المتابعة.',
+            'راجع الاسم الثلاثي والبنك وبيانات المستلم وقيمة التحويل قبل المتابعة.',
       );
       return;
     }
@@ -7989,6 +7994,7 @@ class _TransferScreenState extends State<TransferScreen> {
       lines: [
         CustomerReviewLine('الخدمة', _selectedServiceLabel),
         CustomerReviewLine('المستفيد', _name.text.trim()),
+        CustomerReviewLine('البنك', _bankName!),
         CustomerReviewLine('المستلم', recipient),
         CustomerReviewLine('المبلغ', '${formatEgpAmount(amount)} ج.م'),
         CustomerReviewLine('بالدينار', '${formatAmount(_cashAmountLyd)} د.ل'),
@@ -7998,6 +8004,7 @@ class _TransferScreenState extends State<TransferScreen> {
         context: context,
         builder: (context) => _InstapayPreviewDialog(
           beneficiaryName: _name.text.trim(),
+          bankName: _bankName!,
           recipient: recipient,
           amountEgp: amount,
           rate: _rate,
@@ -8084,6 +8091,8 @@ class _TransferScreenState extends State<TransferScreen> {
                     ? null
                     : 'أدخل اسم المستفيد ثلاثياً.',
               ),
+              const SizedBox(height: 14),
+              _egyptBankField(),
               const SizedBox(height: 14),
               TextFormField(
                 controller: _number,
@@ -8191,6 +8200,22 @@ class _TransferScreenState extends State<TransferScreen> {
           label: Text(_busy ? 'جارٍ تجهيز العملية...' : 'معاينة العملية'),
         ),
       ],
+    );
+  }
+
+  Widget _egyptBankField() {
+    return TextFormField(
+      controller: _bankNameController,
+      enabled: !_busy,
+      readOnly: true,
+      onTap: _busy ? null : _selectEgyptBank,
+      decoration: const InputDecoration(
+        labelText: 'البنك',
+        hintText: 'اضغط لاختيار البنك',
+        prefixIcon: Icon(Icons.account_balance_outlined),
+        suffixIcon: Icon(Icons.keyboard_arrow_down_outlined),
+      ),
+      validator: (value) => (value ?? '').trim().isEmpty ? 'اختر البنك.' : null,
     );
   }
 
@@ -8512,6 +8537,8 @@ class _TransferScreenState extends State<TransferScreen> {
                     : 'أدخل اسم المستفيد ثلاثياً.',
               ),
               const SizedBox(height: 14),
+              _egyptBankField(),
+              const SizedBox(height: 14),
               TextFormField(
                 controller: _number,
                 enabled: !_busy,
@@ -8529,21 +8556,6 @@ class _TransferScreenState extends State<TransferScreen> {
                     ).hasMatch((value ?? '').trim())
                     ? null
                     : 'أدخل رقم حساب أو IBAN صحيحاً.',
-              ),
-              const SizedBox(height: 14),
-              TextFormField(
-                controller: _bankNameController,
-                enabled: !_busy,
-                readOnly: true,
-                onTap: _busy ? null : _selectEgyptBank,
-                decoration: const InputDecoration(
-                  labelText: 'اسم البنك',
-                  hintText: 'اضغط لاختيار البنك',
-                  prefixIcon: Icon(Icons.account_balance_outlined),
-                  suffixIcon: Icon(Icons.keyboard_arrow_down_outlined),
-                ),
-                validator: (value) =>
-                    (value ?? '').trim().isEmpty ? 'اختر اسم البنك.' : null,
               ),
               const SizedBox(height: 14),
               TextFormField(
@@ -10738,6 +10750,7 @@ class _NitaPreviewDialog extends StatelessWidget {
 class _InstapayPreviewDialog extends StatelessWidget {
   const _InstapayPreviewDialog({
     required this.beneficiaryName,
+    required this.bankName,
     required this.recipient,
     required this.amountEgp,
     required this.rate,
@@ -10748,6 +10761,7 @@ class _InstapayPreviewDialog extends StatelessWidget {
   });
 
   final String beneficiaryName;
+  final String bankName;
   final String recipient;
   final double amountEgp;
   final double rate;
@@ -10830,6 +10844,8 @@ class _InstapayPreviewDialog extends StatelessWidget {
                       label: 'اسم المستفيد',
                       value: beneficiaryName,
                     ),
+                    if (bankName.isNotEmpty)
+                      _CashPreviewRow(label: 'البنك', value: bankName),
                     _CashPreviewRow(
                       label: 'بيانات المستلم',
                       value: recipient,
@@ -22603,6 +22619,11 @@ class _CompleteTaskDialogState extends State<CompleteTaskDialog> {
                 label: 'المستلم',
                 value: '${widget.task['recipientNumber'] ?? '-'}',
               ),
+              if ('${widget.task['bankName'] ?? ''}'.trim().isNotEmpty)
+                DetailLine(
+                  label: 'البنك',
+                  value: '${widget.task['bankName']}',
+                ),
               const SizedBox(height: 14),
               if (_bankTransfer)
                 Text(
@@ -24912,6 +24933,14 @@ class ExecutorTaskTile extends StatelessWidget {
                       '${task['transferTypeLabel'] ?? serviceLabel(task['transferType']?.toString())}',
                       style: TextStyle(color: colors.onSurfaceVariant),
                     ),
+                    if ('${task['bankName'] ?? ''}'.trim().isNotEmpty)
+                      Text(
+                        '${task['bankName']}',
+                        style: TextStyle(
+                          color: colors.onSurface,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
                   ],
                 ),
               ),
