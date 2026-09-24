@@ -11,6 +11,7 @@ const ClientEmployee = require('../models/ClientEmployee');
 const AgentEmployee = require('../models/AgentEmployee');
 const SubAccount = require('../models/SubAccount');
 const Employee = require('../models/Employee');
+const { selectLoginOtpChannel } = require('../utils/otpDeliveryChannel');
 
 const LOGIN_OTP_PORTALS = Object.freeze({
     user: {
@@ -72,7 +73,11 @@ const publicDeliveryMessage = (code, fallback) => {
         WHATCHIMP_DISABLED: `تكامل واتساب غير مفعّل. رمز الحالة: ${normalized}`,
         WHATCHIMP_OTP_TEMPLATE_NOT_APPROVED: `قالب رمز التحقق غير معتمد حالياً. رمز الحالة: ${normalized}`,
         WHATCHIMP_TIMEOUT: `انتهت مهلة إرسال واتساب. أعد المحاولة بعد دقيقة. رمز الحالة: ${normalized}`,
-        WHATCHIMP_REQUEST_FAILED: `تعذر الاتصال بمزوّد واتساب. أعد المحاولة بعد دقيقة. رمز الحالة: ${normalized}`
+        WHATCHIMP_REQUEST_FAILED: `تعذر الاتصال بمزوّد واتساب. أعد المحاولة بعد دقيقة. رمز الحالة: ${normalized}`,
+        EMAIL_OTP_ADDRESS_INVALID: 'البريد الإلكتروني المسجّل غير صالح لإرسال رمز التحقق. راجع الإدارة.',
+        SMTP_CONFIG_MISSING: `إعداد البريد غير مكتمل على الخادم. رمز الحالة: ${normalized}`,
+        EMAIL_OTP_SEND_FAILED: `تعذر إرسال رمز التحقق عبر البريد. أعد المحاولة بعد دقيقة. رمز الحالة: ${normalized}`,
+        EMAIL_OTP_TIMEOUT: `انتهت مهلة إرسال البريد. أعد المحاولة بعد دقيقة. رمز الحالة: ${normalized}`
     };
     if (messages[normalized]) return messages[normalized];
     return fallback || `تعذر إرسال رمز التحقق عبر واتساب حالياً. أعد المحاولة بعد دقيقة. رمز الحالة: ${normalized}`;
@@ -105,20 +110,50 @@ const hasReusableChallenge = ({ account, accountType, session = {} }) => {
     );
 };
 
-const deliverLoginOtp = async ({ phone, otp, accountName, accountTypeLabel }) => {
+const deliverLoginOtp = async ({ phone, otp, accountName, accountTypeLabel, account }) => {
+    const selection = selectLoginOtpChannel(account || {});
+    if (selection.channel === 'email') {
+        if (selection.code) {
+            return {
+                success: false,
+                provider: 'smtp',
+                channel: 'email',
+                code: selection.code
+            };
+        }
+        try {
+            const { sendLoginOtpEmail } = require('./emailOtpMailer');
+            return await sendLoginOtpEmail({
+                to: selection.email,
+                otp,
+                expiresMinutes: 5,
+                accountName: accountName || ''
+            });
+        } catch (error) {
+            return {
+                success: false,
+                provider: 'smtp',
+                channel: 'email',
+                code: error.code || 'EMAIL_OTP_SEND_FAILED'
+            };
+        }
+    }
+
     try {
         const { sendOtp } = require('./whatsappService');
-        return await sendOtp({
+        const result = await sendOtp({
             phone,
             otp,
             expiresMinutes: 5,
             accountName: accountName || '',
             accountType: accountTypeLabel
         });
+        return { ...result, channel: 'whatsapp' };
     } catch (error) {
         return {
             success: false,
             provider: 'whatchimp',
+            channel: 'whatsapp',
             code: error.code || 'WHATSAPP_OTP_FAILED',
             message: error.message
         };
@@ -130,8 +165,10 @@ const clearStoredOtp = async (Model, accountId) => {
 };
 
 /**
- * Persist a hashed login OTP and attempt WhatsApp delivery.
- * Returns a status the HTTP layer can turn into a redirect, emergency login, or error.
+ * Persist a hashed login OTP and deliver it on the account channel.
+ * Email is used only when otpDeliveryChannel is email and the address is valid.
+ * Every other account keeps the WhatsApp path. A failed delivery still clears the
+ * stored OTP and can fall through to the emergency bypass when that window is active.
  */
 const issueLoginOtp = async ({ account, accountType, session = {} }) => {
     const portal = getLoginOtpPortal(accountType);
@@ -163,7 +200,8 @@ const issueLoginOtp = async ({ account, accountType, session = {} }) => {
         phone: account.phone,
         otp,
         accountName: account.name || account.webUsername || '',
-        accountTypeLabel: portal.label
+        accountTypeLabel: portal.label,
+        account
     });
 
     if (delivery?.success) {
@@ -198,5 +236,6 @@ module.exports = {
     hasReusableChallenge,
     isLoginOtpRequired,
     issueLoginOtp,
-    publicDeliveryMessage
+    publicDeliveryMessage,
+    selectLoginOtpChannel
 };

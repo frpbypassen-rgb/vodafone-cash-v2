@@ -159,6 +159,25 @@
                 </section>
             <% } %>
 
+            <% if (hasLogin && !['user', 'agent'].includes(accountType)) { %>
+                <section class="form-section">
+                    <h2 class="section-heading"><i class="fa-solid fa-envelope-circle-check"></i> رمز التحقق عند الدخول</h2>
+                    <div class="field-grid two">
+                        <div class="field">
+                            <label for="email">البريد الإلكتروني</label>
+                            <input id="email" name="email" type="email" class="form-control mono" value="<%= value('email') %>" maxlength="254" autocomplete="off">
+                        </div>
+                    </div>
+                    <div class="permission-grid mt-3">
+                        <label class="permission-option">
+                            <input type="checkbox" name="emailOtpEnabled" value="true" <%= checked('emailOtpEnabled') ? 'checked' : '' %>>
+                            <span>إرسال رمز التحقق عبر البريد</span>
+                        </label>
+                    </div>
+                    <div class="security-note" style="margin-top:12px;margin-bottom:0;"><i class="fa-solid fa-envelope"></i><span>فعّل هذا الخيار فقط مع بريد صالح. عند الإيقاف يُرسل رمز التحقق عبر واتساب.</span></div>
+                </section>
+            <% } %>
+
             <% if (hasFinancialConfig) { %>
                 <section class="form-section">
                     <h2 class="section-heading"><i class="fa-solid fa-sliders"></i> إعدادات الحساب</h2>
@@ -202,10 +221,19 @@
                     <h2 class="section-heading"><i class="fa-solid fa-building-circle-check"></i> الملف التجاري والتواصل</h2>
                     <div class="field-grid">
                         <div class="field"><label for="contactName">اسم مسؤول التواصل</label><input id="contactName" name="contactName" class="form-control" value="<%= value('contactName') %>" maxlength="120"></div>
-                        <div class="field"><label for="email">البريد الإلكتروني</label><input id="email" name="email" type="email" class="form-control mono" value="<%= value('email') %>" maxlength="120"></div>
+                        <div class="field"><label for="email">البريد الإلكتروني</label><input id="email" name="email" type="email" class="form-control mono" value="<%= value('email') %>" maxlength="254"></div>
                         <div class="field"><label for="city">المدينة</label><input id="city" name="city" class="form-control" value="<%= value('city') %>" maxlength="120"></div>
                         <div class="field"><label for="registrationNumber">رقم التسجيل</label><input id="registrationNumber" name="registrationNumber" class="form-control mono" value="<%= value('registrationNumber') %>" maxlength="120"></div>
                         <div class="field full"><label for="address">العنوان</label><textarea id="address" name="address" class="form-control" maxlength="240"><%= value('address') %></textarea></div>
+                        <% if (['user', 'agent'].includes(accountType)) { %>
+                            <div class="field full">
+                                <label class="permission-option">
+                                    <input type="checkbox" name="emailOtpEnabled" value="true" <%= checked('emailOtpEnabled') ? 'checked' : '' %>>
+                                    <span>إرسال رمز التحقق عبر البريد</span>
+                                </label>
+                                <div class="security-note" style="margin-top:12px;margin-bottom:0;"><i class="fa-solid fa-envelope"></i><span>يستخدم البريد الإلكتروني أعلاه. عند الإيقاف يُرسل رمز التحقق عبر واتساب إلى رقم الهاتف المسجّل.</span></div>
+                            </div>
+                        <% } %>
                     </div>
                 </section>
             <% } %>
