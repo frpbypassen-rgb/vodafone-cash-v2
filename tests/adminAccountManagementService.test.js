@@ -163,7 +163,7 @@ describe('admin account management service', () => {
             type: 'user',
             id: IDS.account,
             payload: userPayload({ email: 'not-an-email', emailOtpEnabled: 'on' })
-        })).rejects.toMatchObject({ code: 'EMAIL_REQUIRED', field: 'email' });
+        })).rejects.toMatchObject({ code: 'EMAIL_INVALID', field: 'email' });
 
         await expect(updateEditableAccount({
             type: 'user',
@@ -429,6 +429,21 @@ describe('admin account management service', () => {
         expect(account.otpDeliveryChannel).toBe('email');
     });
 
+    test('accepts any normal owner email, including gmail, and stores it lowercase', async () => {
+        const account = makeAccount();
+        User.findById.mockResolvedValue(account);
+
+        await updateAccountOwnerEmailOtp({
+            type: 'user',
+            id: IDS.account,
+            payload: { email: '  TZDANALLYBYH@Gmail.COM ' }
+        });
+
+        expect(account.businessProfile.email).toBe('tzdanallybyh@gmail.com');
+        expect(account.otpDeliveryChannel).toBe('email');
+        expect(account.save).toHaveBeenCalled();
+    });
+
     const companyPayload = (overrides = {}) => ({
         name: 'شركة الاختبار',
         phone: '0912222222',
@@ -502,7 +517,7 @@ describe('admin account management service', () => {
             type: 'company',
             id: IDS.account,
             payload: companyPayload({ ownerEmail: 'not-an-email', emailOtpEnabled: 'on' })
-        })).rejects.toMatchObject({ code: 'EMAIL_REQUIRED', field: 'ownerEmail' });
+        })).rejects.toMatchObject({ code: 'EMAIL_INVALID', field: 'ownerEmail' });
 
         await expect(updateAccountOwnerEmailOtp({
             type: 'company',
@@ -513,7 +528,13 @@ describe('admin account management service', () => {
         expect(company.save).not.toHaveBeenCalled();
         expect(owner.save).not.toHaveBeenCalled();
         expect(getErrorMessage(new AdminAccountManagementError('EMAIL_REQUIRED')))
-            .toBe('البريد الإلكتروني مطلوب ويجب أن يكون بريداً صالحاً.');
+            .toBe('البريد الإلكتروني مطلوب.');
+        expect(getErrorMessage(new AdminAccountManagementError('EMAIL_INVALID')))
+            .toBe('أدخل بريداً إلكترونياً صالحاً.');
+        expect(getErrorMessage(new AdminAccountManagementError('EMAIL_TAKEN')))
+            .toBe('هذا البريد الإلكتروني مستخدم في حساب آخر.');
+        expect(getErrorMessage(new AdminAccountManagementError('EMAIL_TAKEN')))
+            .not.toBe(getErrorMessage(new AdminAccountManagementError('EMAIL_INVALID')));
     });
 
     test('keeps company owner OTP on email when the checkbox is cleared', async () => {

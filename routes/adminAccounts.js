@@ -184,7 +184,9 @@ const renderEditor = async (req, res, { error = '', submitted = null, statusCode
 };
 
 const ownerOtpErrorCode = (error) => {
-    if (error?.code === 'EMAIL_REQUIRED' || error?.code === 'EMAIL_OTP_ADDRESS_INVALID') return 'invalid_email';
+    if (error?.code === 'EMAIL_REQUIRED') return 'email_required';
+    if (error?.code === 'EMAIL_INVALID' || error?.code === 'EMAIL_OTP_ADDRESS_INVALID') return 'invalid_email';
+    if (error?.code === 'EMAIL_TAKEN') return 'email_taken';
     if (error?.code === 'COMPANY_OWNER_REQUIRED') return 'owner_missing';
     if (error?.code === 'ACCOUNT_NOT_FOUND' || error?.code === 'INVALID_ACCOUNT_ID') return 'notfound';
     return 'failed';

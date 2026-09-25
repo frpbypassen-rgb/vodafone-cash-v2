@@ -1,8 +1,10 @@
 'use strict';
 
 const {
+    assertProductionSecurityEnv,
     getSecurityVerificationMode,
     isEmergencyStandaloneFinancialWritesActive,
+    isLoginOtpSkipWithoutEmailEnabled,
     isPasskeyRequired,
     isPasswordOnlyLoginMode,
     isSecurityVerificationEnforcementEnabled,
@@ -161,6 +163,29 @@ describe('Production security policy', () => {
 
         expect(isEmergencyStandaloneFinancialWritesActive(env, Date.parse('2026-08-20T20:00:00Z'))).toBe(true);
         expect(isEmergencyStandaloneFinancialWritesActive(env, Date.parse('2026-08-21T02:00:01Z'))).toBe(false);
+    });
+
+    test('accepts LOGIN_OTP_SKIP_WITHOUT_EMAIL in production and warns at boot', () => {
+        const env = productionEnv({ LOGIN_OTP_SKIP_WITHOUT_EMAIL: 'true' });
+        const result = validateProductionSecurityEnv(env);
+        expect(isLoginOtpSkipWithoutEmailEnabled(env)).toBe(true);
+        expect(isPasswordOnlyLoginMode(env)).toBe(false);
+        expect(isSecurityVerificationRequired(env)).toBe(true);
+        expect(shouldBypassClientOtp(env)).toBe(false);
+        expect(isPasswordOnlyLoginMode(env) ? 'password-only' : 'enhanced-verification').toBe('enhanced-verification');
+        expect(result.valid).toBe(true);
+        expect(result.errors).toEqual([]);
+        expect(result.warnings.join(' ')).toContain('LOGIN_OTP_SKIP_WITHOUT_EMAIL is active');
+        expect(result.warnings.join(' ')).toContain('valid email still require an email OTP');
+
+        const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+        expect(() => assertProductionSecurityEnv(env)).not.toThrow();
+        expect(warn).toHaveBeenCalledWith(expect.stringContaining('[SECURITY WARNING] LOGIN_OTP_SKIP_WITHOUT_EMAIL is active'));
+        warn.mockRestore();
+
+        const disabled = validateProductionSecurityEnv(productionEnv({ LOGIN_OTP_SKIP_WITHOUT_EMAIL: 'false' }));
+        expect(disabled.valid).toBe(true);
+        expect(disabled.warnings.join(' ')).not.toContain('LOGIN_OTP_SKIP_WITHOUT_EMAIL');
     });
 
     test('rejects reused secrets and insecure cookies', () => {

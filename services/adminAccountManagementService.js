@@ -27,7 +27,7 @@ const {
     getExecutorSupportedTransferTypes
 } = require('../utils/executorServiceCatalog');
 const { buildMarginStorage } = require('../utils/agencyPricing');
-const { isValidOtpEmail, normalizeOtpEmail } = require('../utils/otpDeliveryChannel');
+const { classifyEmailAddress, normalizeEmailAddress } = require('../utils/emailAddress');
 const { resolveCanonicalRole } = require('./companyAccessService');
 const {
     normalizeCreditLimit,
@@ -109,8 +109,10 @@ const ERROR_MESSAGES = Object.freeze({
     ACCOUNT_CODE_DUPLICATE: 'رقم الحساب مستخدم في حساب آخر.',
     ACCOUNT_CODE_INVALID: 'رقم الحساب لا يطابق عدد الأرقام المطلوب.',
     IDENTITY_TAKEN: 'اسم المستخدم أو رقم الهاتف مستخدم في حساب آخر.',
-    EMAIL_REQUIRED: 'البريد الإلكتروني مطلوب ويجب أن يكون بريداً صالحاً.',
-    EMAIL_OTP_ADDRESS_INVALID: 'البريد الإلكتروني مطلوب ويجب أن يكون بريداً صالحاً.',
+    EMAIL_REQUIRED: 'البريد الإلكتروني مطلوب.',
+    EMAIL_INVALID: 'أدخل بريداً إلكترونياً صالحاً.',
+    EMAIL_TAKEN: 'هذا البريد الإلكتروني مستخدم في حساب آخر.',
+    EMAIL_OTP_ADDRESS_INVALID: 'أدخل بريداً إلكترونياً صالحاً.',
     COMPANY_OWNER_REQUIRED: 'لا يوجد حساب مالك لهذه الشركة. أنشئ حساب المالك قبل حفظ بريد صاحب الحساب.',
     UPDATE_FAILED: 'تعذر حفظ التعديلات. راجع البيانات وحاول مرة أخرى.'
 });
@@ -227,22 +229,30 @@ const LOGIN_OTP_EDITOR_TYPES = new Set([
 const setBusinessProfile = (account, payload) => {
     const fields = ['contactName', 'email', 'city', 'address', 'registrationNumber'];
     for (const field of fields) {
-        const maxLength = field === 'address' ? 240 : field === 'email' ? 254 : 120;
+        if (field === 'email') {
+            const raw = String(payload.email || '');
+            if (!raw.trim()) {
+                account.set('businessProfile.email', '');
+                continue;
+            }
+            const parsed = classifyEmailAddress(raw);
+            if (!parsed.ok) throw new AdminAccountManagementError('EMAIL_INVALID', 'email');
+            account.set('businessProfile.email', parsed.email);
+            continue;
+        }
+        const maxLength = field === 'address' ? 240 : 120;
         account.set(`businessProfile.${field}`, cleanText(payload[field], maxLength));
     }
 };
 
-const storedOtpEmail = (value) => {
-    const email = normalizeOtpEmail(value);
-    return email.length > 254 ? email.slice(0, 254) : email;
-};
+const storedOtpEmail = (value) => normalizeEmailAddress(value);
 
 const requireOtpEmail = (value, field) => {
-    const email = storedOtpEmail(value);
-    if (!isValidOtpEmail(email)) {
-        throw new AdminAccountManagementError('EMAIL_REQUIRED', field);
+    const parsed = classifyEmailAddress(value);
+    if (!parsed.ok) {
+        throw new AdminAccountManagementError(parsed.code === 'required' ? 'EMAIL_REQUIRED' : 'EMAIL_INVALID', field);
     }
-    return email;
+    return parsed.email;
 };
 
 // A valid address saved from admin always uses email OTP. WhatsApp remains

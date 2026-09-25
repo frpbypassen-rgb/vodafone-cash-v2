@@ -10,7 +10,7 @@ const {
     isPasskeyRequired,
     isSecurityVerificationRequired
 } = require('../config/securityPolicy');
-const { isLoginOtpRequired, issueLoginOtp } = require('../services/loginOtpService');
+const { isLoginOtpRequired, issueLoginOtp, buildLoginOtpSkippedAudit } = require('../services/loginOtpService');
 const { isEnvironmentAdminLoginEnabled } = require('../config/adminAuthPolicy');
 const { establishAuthenticatedSession } = require('../utils/sessionSecurity');
 const Admin = require('../models/Admin');
@@ -856,11 +856,19 @@ const loginAsClient = async (req, res, account, accountType, { authenticatorVeri
 };
 
 const finishLoginAfterOtpBypass = async (req, res, account, accountType) => {
+    // Same post-password completion the emergency OTP window uses: verified
+    // login enrolls the first device and rebinds a stale one, so the session
+    // guard does not bounce to DEVICE_BINDING_MISMATCH.
     if (accountType === 'executor') {
         return loginAsExecutor(req, res, account, { showMfaEnableNotice: true });
     }
     return loginAsClient(req, res, account, accountType);
 };
+
+const auditSkippedLoginOtp = (req, account, accountType) => logAction({
+    req,
+    ...buildLoginOtpSkippedAudit({ account, accountType })
+});
 
 const startClientOtp = async (req, res, account, accountType) => {
     const deviceId = securityControl.ensureDeviceId(req, res);
@@ -872,6 +880,11 @@ const startClientOtp = async (req, res, account, accountType) => {
 
     if (issued.status === 'reuse') {
         return saveAndRedirect(req, res, portal.verifyPath);
+    }
+
+    if (issued.status === 'skip_no_email') {
+        await auditSkippedLoginOtp(req, account, accountType);
+        return finishLoginAfterOtpBypass(req, res, account, accountType);
     }
 
     if (issued.status === 'emergency_bypass') {
@@ -970,6 +983,11 @@ const startAdminOtp = async (req, res, adminData, options = {}) => {
 
     if (issued.status === 'reuse') {
         return saveAndRedirect(req, res, portal?.verifyPath || '/admin/verify');
+    }
+
+    if (issued.status === 'skip_no_email') {
+        await auditSkippedLoginOtp(req, adminData, 'admin');
+        return loginAsAdmin(req, res, adminData, options);
     }
 
     if (issued.status === 'emergency_bypass') {

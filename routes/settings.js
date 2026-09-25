@@ -421,7 +421,7 @@ router.post('/users/add', requireMaster, async (req, res) => {
         const { name, webUsername, webPassword } = req.body;
         if (!name || !webUsername || !webPassword) return res.redirect('/settings/users?error=missing');
         const loginEmail = parseAdminLoginEmail(req.body.email);
-        if (!loginEmail.ok) return res.redirect('/settings/users?error=email');
+        if (!loginEmail.ok) return res.redirect(`/settings/users?error=${loginEmail.code === 'required' ? 'email_required' : 'email'}`);
         const role = normalizeAdminRole(req.body.role === 'master' ? 'admin' : req.body.role);
 
         const admin = await Admin.create({
@@ -461,7 +461,7 @@ router.post('/users/add', requireMaster, async (req, res) => {
 router.post('/users/email/:id', requireMaster, async (req, res) => {
     try {
         const loginEmail = parseAdminLoginEmail(req.body.email);
-        if (!loginEmail.ok) return res.redirect('/settings/users?error=email');
+        if (!loginEmail.ok) return res.redirect(`/settings/users?error=${loginEmail.code === 'required' ? 'email_required' : 'email'}`);
         const admin = await Admin.findById(req.params.id);
         if (!admin) return res.redirect('/settings/users?error=missing');
         const previous = {

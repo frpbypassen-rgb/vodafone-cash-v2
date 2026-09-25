@@ -199,7 +199,11 @@
         <% if (query && query.ownerOtpSaved) { %>
             <div class="alert alert-success fw-bold rounded-4 shadow-sm"><i class="fa-solid fa-circle-check me-1"></i> تم حفظ بريد صاحب الحساب.</div>
         <% } else if (query && query.ownerOtpError === 'invalid_email') { %>
-            <div class="alert alert-danger fw-bold rounded-4 shadow-sm"><i class="fa-solid fa-triangle-exclamation me-1"></i> البريد الإلكتروني مطلوب ويجب أن يكون بريداً صالحاً.</div>
+            <div class="alert alert-danger fw-bold rounded-4 shadow-sm"><i class="fa-solid fa-triangle-exclamation me-1"></i> أدخل بريداً إلكترونياً صالحاً.</div>
+        <% } else if (query && query.ownerOtpError === 'email_required') { %>
+            <div class="alert alert-danger fw-bold rounded-4 shadow-sm"><i class="fa-solid fa-triangle-exclamation me-1"></i> البريد الإلكتروني مطلوب.</div>
+        <% } else if (query && query.ownerOtpError === 'email_taken') { %>
+            <div class="alert alert-danger fw-bold rounded-4 shadow-sm"><i class="fa-solid fa-triangle-exclamation me-1"></i> هذا البريد الإلكتروني مستخدم في حساب آخر.</div>
         <% } else if (query && query.ownerOtpError) { %>
             <div class="alert alert-danger fw-bold rounded-4 shadow-sm"><i class="fa-solid fa-triangle-exclamation me-1"></i> تعذر حفظ بريد صاحب الحساب. حاول مرة أخرى.</div>
         <% } %>

@@ -8,14 +8,16 @@
 // support replies are unaffected. If the account explicitly selects email but
 // the address is missing or invalid, delivery fails instead of falling back
 // to WhatsApp.
+// LOGIN_OTP_SKIP_WITHOUT_EMAIL does not change this selection. When that
+// flag is on, loginOtpService treats a whatsapp selection as "no usable
+// email" and completes login without sending.
 // User and agent addresses live on businessProfile.email. The company login
 // owner is the ClientEmployee with the canonical owner role, and that address
 // is the employee's top-level email. Other company staff, agency staff,
 // sub-accounts, executors, and admin accounts also store a top-level email.
 
 const { isDisabled } = require('../config/securityPolicy');
-
-const EMAIL_PATTERN = /^[a-z0-9._%+-]+@[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)*\.[a-z]{2,}$/i;
+const { isValidEmailAddress, normalizeEmailAddress } = require('./emailAddress');
 
 /**
  * Login OTP on WhatsApp stays available unless the operator turns it off.
@@ -25,12 +27,9 @@ const isWhatsappLoginOtpEnabled = (env = process.env) => (
     !isDisabled(env.WHATSAPP_LOGIN_OTP_ENABLED)
 );
 
-const normalizeOtpEmail = (value) => String(value || '').trim().toLowerCase();
+const normalizeOtpEmail = normalizeEmailAddress;
 
-const isValidOtpEmail = (value) => {
-    const email = normalizeOtpEmail(value);
-    return email.length > 0 && email.length <= 254 && EMAIL_PATTERN.test(email);
-};
+const isValidOtpEmail = isValidEmailAddress;
 
 const resolveAccountOtpEmail = (account = {}) => {
     const direct = normalizeOtpEmail(account.email);

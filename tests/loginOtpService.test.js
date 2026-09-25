@@ -19,11 +19,13 @@ const Admin = require('../models/Admin');
 const { sendOtp } = require('../services/whatsappService');
 const { sendLoginOtpEmail } = require('../services/emailOtpMailer');
 const {
+    buildLoginOtpSkippedAudit,
     getLoginOtpPortal,
     isLoginOtpRequired,
     issueLoginOtp,
     publicDeliveryMessage,
-    selectLoginOtpChannel
+    selectLoginOtpChannel,
+    shouldSkipLoginOtpWithoutEmail
 } = require('../services/loginOtpService');
 
 const productionOtpEnv = {
@@ -37,6 +39,7 @@ const productionOtpEnv = {
 describe('login OTP service', () => {
     beforeEach(() => {
         jest.clearAllMocks();
+        delete process.env.LOGIN_OTP_SKIP_WITHOUT_EMAIL;
         sendOtp.mockResolvedValue({ success: true, provider: 'whatchimp', messageId: 'wamid-1' });
         sendLoginOtpEmail.mockResolvedValue({ success: true, provider: 'smtp', channel: 'email', messageId: 'mail-1' });
     });
@@ -422,5 +425,138 @@ describe('login OTP service', () => {
             if (previous.REASON === undefined) delete process.env.EMERGENCY_CLIENT_OTP_BYPASS_REASON;
             else process.env.EMERGENCY_CLIENT_OTP_BYPASS_REASON = previous.REASON;
         }
+    });
+
+    test('still sends email OTP when skip-without-email is on and the account has a valid address', async () => {
+        process.env.LOGIN_OTP_SKIP_WITHOUT_EMAIL = 'true';
+        process.env.WHATSAPP_LOGIN_OTP_ENABLED = 'false';
+        const account = {
+            _id: 'user-mail-skip-flag',
+            phone: '0912345678',
+            name: 'عميل البريد',
+            businessProfile: { email: 'Owner@Example.com' },
+            otpDeliveryChannel: 'whatsapp'
+        };
+        const result = await issueLoginOtp({ account, accountType: 'user', session: {} });
+        expect(shouldSkipLoginOtpWithoutEmail(account)).toBe(false);
+        expect(result.status).toBe('sent');
+        expect(result.delivery.channel).toBe('email');
+        expect(sendLoginOtpEmail).toHaveBeenCalledWith(expect.objectContaining({ to: 'owner@example.com' }));
+        expect(sendOtp).not.toHaveBeenCalled();
+        delete process.env.WHATSAPP_LOGIN_OTP_ENABLED;
+    });
+
+    test('logs in without OTP for every portal when the account has no usable email and the flag is on', async () => {
+        process.env.LOGIN_OTP_SKIP_WITHOUT_EMAIL = 'true';
+        process.env.WHATSAPP_LOGIN_OTP_ENABLED = 'false';
+        const portals = [
+            ['user', require('../models/User'), 'User'],
+            ['company', require('../models/ClientEmployee'), 'ClientEmployee'],
+            ['agent_staff', require('../models/AgentEmployee'), 'AgentEmployee'],
+            ['sub_client', require('../models/SubAccount'), 'SubAccount'],
+            ['executor', require('../models/Employee'), 'Employee'],
+            ['admin', require('../models/Admin'), 'Admin']
+        ];
+        for (const [accountType, Model, performedByModel] of portals) {
+            const account = {
+                _id: `${accountType}-no-mail`,
+                phone: '0911111111',
+                name: 'حساب بلا بريد',
+                email: '   ',
+                businessProfile: { email: 'not-an-email' }
+            };
+            const result = await issueLoginOtp({
+                account,
+                accountType,
+                session: {
+                    tempClientId: account._id,
+                    tempAccountType: accountType,
+                    otpChallengeId: 'pending-challenge',
+                    [getLoginOtpPortal(accountType).sessionTempIdKey]: account._id
+                }
+            });
+            expect(result.status).toBe('skip_no_email');
+            expect(result.reason).toBe('no_email');
+            expect(result.portal.accountType).toBe(accountType);
+            expect(buildLoginOtpSkippedAudit({ account, accountType })).toEqual({
+                action: 'LOGIN_OTP_SKIPPED',
+                performedById: account._id,
+                performedByModel,
+                performedByName: 'حساب بلا بريد',
+                success: true,
+                severity: 'warning',
+                metadata: {
+                    accountId: account._id,
+                    portal: accountType,
+                    reason: 'no_email'
+                }
+            });
+            expect(Model.updateOne).toHaveBeenCalledWith(
+                { _id: account._id },
+                { $unset: expect.objectContaining({ otpCode: 1, otpChallengeId: 1 }) },
+                { strict: false }
+            );
+            expect(Model.updateOne.mock.calls.some((call) => call[1] && call[1].$set)).toBe(false);
+        }
+        expect(sendOtp).not.toHaveBeenCalled();
+        expect(sendLoginOtpEmail).not.toHaveBeenCalled();
+        expect(isLoginOtpRequired(productionOtpEnv)).toBe(true);
+        delete process.env.WHATSAPP_LOGIN_OTP_ENABLED;
+    });
+
+    test('keeps the current no-email failure when skip-without-email is off', async () => {
+        process.env.LOGIN_OTP_SKIP_WITHOUT_EMAIL = 'false';
+        process.env.WHATSAPP_LOGIN_OTP_ENABLED = 'false';
+        const result = await issueLoginOtp({
+            account: { _id: 'user-locked', phone: '0911111111', name: 'عميل قديم' },
+            accountType: 'user',
+            session: {}
+        });
+        expect(shouldSkipLoginOtpWithoutEmail({ phone: '0911111111' })).toBe(false);
+        expect(result.status).toBe('failed');
+        expect(result.code).toBe('WHATSAPP_LOGIN_OTP_DISABLED');
+        expect(sendOtp).not.toHaveBeenCalled();
+        expect(sendLoginOtpEmail).not.toHaveBeenCalled();
+        delete process.env.WHATSAPP_LOGIN_OTP_ENABLED;
+    });
+
+    test('does not skip OTP when an account has an email and delivery fails', async () => {
+        process.env.LOGIN_OTP_SKIP_WITHOUT_EMAIL = 'true';
+        sendLoginOtpEmail.mockResolvedValue({
+            success: false,
+            provider: 'smtp',
+            channel: 'email',
+            code: 'EMAIL_OTP_SEND_FAILED'
+        });
+        const invalid = await issueLoginOtp({
+            account: {
+                _id: 'user-explicit-bad',
+                phone: '0911111111',
+                name: 'عميل',
+                otpDeliveryChannel: 'email',
+                email: 'not-an-email'
+            },
+            accountType: 'company',
+            session: {}
+        });
+        expect(invalid.status).toBe('failed');
+        expect(invalid.code).toBe('EMAIL_OTP_ADDRESS_INVALID');
+        expect(invalid.status).not.toBe('skip_no_email');
+
+        const failedSend = await issueLoginOtp({
+            account: {
+                _id: 'user-smtp-fail',
+                phone: '0911111111',
+                name: 'عميل',
+                email: 'owner@example.com'
+            },
+            accountType: 'user',
+            session: {}
+        });
+        expect(failedSend.status).toBe('failed');
+        expect(failedSend.code).toBe('EMAIL_OTP_SEND_FAILED');
+        expect(failedSend.status).not.toBe('skip_no_email');
+        expect(sendOtp).not.toHaveBeenCalled();
+        expect(sendLoginOtpEmail).toHaveBeenCalledTimes(1);
     });
 });
