@@ -19,9 +19,20 @@ describe('admin login email', () => {
         expect(parseAdminLoginEmail('')).toEqual({
             ok: false,
             email: '',
+            code: 'required',
             message: ADMIN_EMAIL_REQUIRED_MESSAGE
         });
-        expect(parseAdminLoginEmail('not-an-email').message).toBe('البريد الإلكتروني مطلوب ويجب أن يكون بريداً صالحاً.');
+        expect(parseAdminLoginEmail('not-an-email')).toMatchObject({
+            ok: false,
+            code: 'invalid',
+            message: 'أدخل بريداً إلكترونياً صالحاً.'
+        });
+        expect(parseAdminLoginEmail('  tzdanallybyh@gmail.com  ')).toEqual({
+            ok: true,
+            email: 'tzdanallybyh@gmail.com',
+            otpDeliveryChannel: 'email',
+            message: ''
+        });
         expect(parseAdminLoginEmail('a@b.c').ok).toBe(false);
     });
 
@@ -51,7 +62,7 @@ describe('admin login email', () => {
         expect(security).toContain('email:f.email.value');
         expect(security).toContain('email:adminEditorEmail.value');
         expect(securityRoute).toContain('parseAdminLoginEmail');
-        expect(settingsRoute).toContain("res.redirect('/settings/users?error=email')");
+        expect(settingsRoute).toContain("error=${loginEmail.code === 'required' ? 'email_required' : 'email'}");
         expect(authRoute).toContain("issueLoginOtp({ account: adminData, accountType: 'admin'");
         expect(authRoute).toContain('continueAdminLogin');
         expect(authRoute).not.toContain('EMERGENCY_CLIENT_OTP_BYPASS=');

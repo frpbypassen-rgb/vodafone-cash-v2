@@ -17,8 +17,7 @@
 // sub-accounts, executors, and admin accounts also store a top-level email.
 
 const { isDisabled } = require('../config/securityPolicy');
-
-const EMAIL_PATTERN = /^[a-z0-9._%+-]+@[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)*\.[a-z]{2,}$/i;
+const { isValidEmailAddress, normalizeEmailAddress } = require('./emailAddress');
 
 /**
  * Login OTP on WhatsApp stays available unless the operator turns it off.
@@ -28,12 +27,9 @@ const isWhatsappLoginOtpEnabled = (env = process.env) => (
     !isDisabled(env.WHATSAPP_LOGIN_OTP_ENABLED)
 );
 
-const normalizeOtpEmail = (value) => String(value || '').trim().toLowerCase();
+const normalizeOtpEmail = normalizeEmailAddress;
 
-const isValidOtpEmail = (value) => {
-    const email = normalizeOtpEmail(value);
-    return email.length > 0 && email.length <= 254 && EMAIL_PATTERN.test(email);
-};
+const isValidOtpEmail = isValidEmailAddress;
 
 const resolveAccountOtpEmail = (account = {}) => {
     const direct = normalizeOtpEmail(account.email);

@@ -10,6 +10,7 @@ const { logAction } = require('../services/auditService');
 const securityControl = require('../services/securityControlService');
 const { isPasskeyRequired } = require('../config/securityPolicy');
 const { checkRegistrationIdentityAvailability } = require('../services/registrationIdentityService');
+const { classifyEmailAddress } = require('../utils/emailAddress');
 const { resolveClientPostLoginHref } = require('../services/businessPortalService');
 
 const LIBYAN_CITIES = [
@@ -227,7 +228,7 @@ exports.postRegister = async (req, res) => {
             const fullName = getField(req.body.agentFullName).trim();
             const phone = getField(req.body.agentPhone).trim();
             const address = getField(req.body.agentAddress).trim();
-            const companyEmail = getField(req.body.agentEmail).trim();
+            const companyEmail = classifyEmailAddress(getField(req.body.agentEmail));
             let username = getField(req.body.agentUsername).trim();
             if (username && !username.includes('@')) username += '@ahram.com';
             const password = getField(req.body.agentPassword);
@@ -237,7 +238,7 @@ exports.postRegister = async (req, res) => {
             if (!fullName || fullName.split(/\s+/).length < 3) return fail('يرجى إدخال اسم الوكيل الثلاثي كاملاً.');
             if (!phone || phone.length < 10) return fail('يرجى إدخال رقم هاتف صحيح.');
             if (!address) return fail('يرجى إدخال العنوان.');
-            if (!companyEmail || !/^\S+@\S+\.\S+$/.test(companyEmail)) return fail('يرجى إدخال بريد إلكتروني رسمي صحيح.');
+            if (!companyEmail.ok) return fail(companyEmail.code === 'required' ? 'يرجى إدخال بريد إلكتروني رسمي صحيح.' : companyEmail.message);
             if (!username || !/^[a-zA-Z0-9_]{3,20}@ahram\.com$/.test(username)) return fail('اسم المستخدم يجب أن يكون باللغة الإنجليزية وبدون مسافات.');
             if (!password || password.length < 6) return fail('الرقم السري يجب أن يكون 6 أحرف على الأقل.');
             if (password !== passwordConfirm) return fail('الرقم السري غير متطابق.');
@@ -246,7 +247,7 @@ exports.postRegister = async (req, res) => {
             if (!identityCheck.success) return fail(identityCheck.message);
 
             const regRequest = await RegistrationRequest.create({
-                accountType, companyName, fullName, phone, address, companyEmail, username, password,
+                accountType, companyName, fullName, phone, address, companyEmail: companyEmail.email, username, password,
                 tenantId: (req.tenant && req.tenant._id) || undefined,
                 ...identityCheck.requestMetadata,
                 ipAddress: req.ip || req.headers['x-forwarded-for'] || 'unknown',
@@ -269,7 +270,7 @@ exports.postRegister = async (req, res) => {
             const companyName = getField(req.body.companyName).trim();
             const companyContact = getField(req.body.companyContact).trim();
             const companyPhone = getField(req.body.companyPhone).trim();
-            const companyEmail = getField(req.body.companyEmail).trim();
+            const companyEmail = classifyEmailAddress(getField(req.body.companyEmail));
             let username = getField(req.body.username).trim();
             if (username && !username.includes('@')) username += '@ahram.com';
             const password = getField(req.body.password);
@@ -278,7 +279,7 @@ exports.postRegister = async (req, res) => {
             if (!companyName) return fail('يرجى إدخال اسم الشركة القانوني.');
             if (!companyContact) return fail('يرجى إدخال اسم مدير الشركة.');
             if (!companyPhone || companyPhone.length < 10) return fail('يرجى إدخال رقم تواصل صحيح للشركة.');
-            if (!companyEmail || !/^\S+@\S+\.\S+$/.test(companyEmail)) return fail('يرجى إدخال بريد إلكتروني رسمي صحيح.');
+            if (!companyEmail.ok) return fail(companyEmail.code === 'required' ? 'يرجى إدخال بريد إلكتروني رسمي صحيح.' : companyEmail.message);
             if (!username || !/^[a-zA-Z0-9_]{3,20}@ahram\.com$/.test(username)) return fail('اسم المستخدم يجب أن يكون باللغة الإنجليزية وبدون مسافات.');
             if (!password || password.length < 6) return fail('الرقم السري يجب أن يكون 6 أحرف على الأقل.');
             if (password !== passwordConfirm) return fail('الرقم السري غير متطابق.');
@@ -287,7 +288,7 @@ exports.postRegister = async (req, res) => {
             if (!identityCheck.success) return fail(identityCheck.message);
 
             const regRequest = await RegistrationRequest.create({
-                accountType, companyName, companyContact, companyPhone, companyEmail, username, password,
+                accountType, companyName, companyContact, companyPhone, companyEmail: companyEmail.email, username, password,
                 tenantId: (req.tenant && req.tenant._id) || undefined,
                 ...identityCheck.requestMetadata,
                 ipAddress: req.ip || req.headers['x-forwarded-for'] || 'unknown',

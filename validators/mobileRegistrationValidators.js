@@ -6,6 +6,16 @@
 
 const { body, validationResult } = require('express-validator');
 const { sendMobileError } = require('../mappers/mobileErrorMapper');
+const { classifyEmailAddress } = require('../utils/emailAddress');
+
+const accountEmailField = (field, emptyMessage) => body(field).custom((value, { req }) => {
+    const parsed = classifyEmailAddress(value);
+    if (!parsed.ok) {
+        throw new Error(parsed.code === 'required' ? emptyMessage : parsed.message);
+    }
+    req.body[field] = parsed.email;
+    return true;
+});
 
 const validate = (req, res, next) => {
     const errors = validationResult(req);
@@ -139,10 +149,7 @@ const companyRegisterValidator = [
         .notEmpty().withMessage('رقم هاتف الشركة مطلوب')
         .isLength({ min: 10, max: 20 }).withMessage('رقم الهاتف يجب أن يكون بين 10 و 20 رقماً')
         .isNumeric().withMessage('رقم الهاتف يجب أن يحتوي على أرقام فقط'),
-    body('companyEmail')
-        .trim()
-        .notEmpty().withMessage('البريد الرسمي مطلوب')
-        .isEmail().withMessage('البريد الإلكتروني غير صالح'),
+    accountEmailField('companyEmail', 'البريد الرسمي مطلوب'),
     body('username')
         .trim()
         .notEmpty().withMessage('اسم المستخدم مطلوب'),
@@ -190,10 +197,7 @@ const agentRegisterValidator = [
     body('city')
         .trim()
         .notEmpty().withMessage('المحافظة مطلوبة'),
-    body('companyEmail')
-        .trim()
-        .notEmpty().withMessage('البريد الإلكتروني مطلوب')
-        .isEmail().withMessage('البريد الإلكتروني غير صالح'),
+    accountEmailField('companyEmail', 'البريد الإلكتروني مطلوب'),
     body('username')
         .trim()
         .notEmpty().withMessage('اسم المستخدم مطلوب'),

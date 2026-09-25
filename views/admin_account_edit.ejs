@@ -153,7 +153,7 @@
                     <div class="field-grid two">
                         <div class="field">
                             <label for="accountOwnerEmail">البريد الإلكتروني لصاحب الحساب <span class="required">*</span></label>
-                            <input id="accountOwnerEmail" name="<%= accountType === 'company' ? 'ownerEmail' : 'email' %>" type="email" class="form-control mono" value="<%= accountType === 'company' ? value('ownerEmail') : value('email') %>" maxlength="254" autocomplete="off" placeholder="name@example.com" required data-required-email="owner" title="البريد الإلكتروني مطلوب ويجب أن يكون بريداً صالحاً.">
+                            <input id="accountOwnerEmail" name="<%= accountType === 'company' ? 'ownerEmail' : 'email' %>" type="text" inputmode="email" autocapitalize="none" spellcheck="false" class="form-control mono" value="<%= accountType === 'company' ? value('ownerEmail') : value('email') %>" maxlength="254" autocomplete="off" placeholder="name@example.com" required data-required-email="owner" title="البريد الإلكتروني مطلوب ويجب أن يكون بريداً صالحاً.">
                         </div>
                     </div>
                     <div class="permission-grid mt-3">
@@ -193,7 +193,7 @@
                     <div class="field-grid two">
                         <div class="field">
                             <label for="email">البريد الإلكتروني <span class="required">*</span></label>
-                            <input id="email" name="email" type="email" class="form-control mono" value="<%= value('email') %>" maxlength="254" autocomplete="off" placeholder="name@example.com" required data-required-email="owner" title="البريد الإلكتروني مطلوب ويجب أن يكون بريداً صالحاً.">
+                            <input id="email" name="email" type="text" inputmode="email" autocapitalize="none" spellcheck="false" class="form-control mono" value="<%= value('email') %>" maxlength="254" autocomplete="off" placeholder="name@example.com" required data-required-email="owner" title="البريد الإلكتروني مطلوب ويجب أن يكون بريداً صالحاً.">
                         </div>
                     </div>
                     <div class="permission-grid mt-3">
@@ -251,7 +251,7 @@
                     <div class="field-grid">
                         <div class="field"><label for="contactName">اسم مسؤول التواصل</label><input id="contactName" name="contactName" class="form-control" value="<%= value('contactName') %>" maxlength="120"></div>
                         <% if (accountType === 'company') { %>
-                            <div class="field"><label for="companyEmail">البريد الإلكتروني للشركة</label><input id="companyEmail" name="email" type="email" class="form-control mono" value="<%= value('email') %>" maxlength="254" autocomplete="off"></div>
+                            <div class="field"><label for="companyEmail">البريد الإلكتروني للشركة</label><input id="companyEmail" name="email" type="text" inputmode="email" autocapitalize="none" spellcheck="false" class="form-control mono" value="<%= value('email') %>" maxlength="254" autocomplete="off" data-account-email="company" dir="ltr" placeholder="name@example.com"></div>
                         <% } %>
                         <div class="field"><label for="city">المدينة</label><input id="city" name="city" class="form-control" value="<%= value('city') %>" maxlength="120"></div>
                         <div class="field"><label for="registrationNumber">رقم التسجيل</label><input id="registrationNumber" name="registrationNumber" class="form-control mono" value="<%= value('registrationNumber') %>" maxlength="120"></div>

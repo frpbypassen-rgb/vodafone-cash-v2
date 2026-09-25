@@ -27,8 +27,12 @@
         <% const settingsQuery = typeof query !== 'undefined' && query ? query : {}; %>
         <% if (settingsQuery.success === 'email' || settingsQuery.success === 'created') { %>
             <div class="alert alert-success fw-bold rounded-4 shadow-sm"><i class="fa-solid fa-circle-check me-1"></i> <%= settingsQuery.success === 'email' ? 'تم حفظ بريد حساب الإدارة.' : 'تم إنشاء حساب الإدارة وربطه بالبريد.' %></div>
+        <% } else if (settingsQuery.error === 'email_required') { %>
+            <div class="alert alert-danger fw-bold rounded-4 shadow-sm"><i class="fa-solid fa-triangle-exclamation me-1"></i> البريد الإلكتروني مطلوب.</div>
         <% } else if (settingsQuery.error === 'email') { %>
-            <div class="alert alert-danger fw-bold rounded-4 shadow-sm"><i class="fa-solid fa-triangle-exclamation me-1"></i> البريد الإلكتروني مطلوب ويجب أن يكون بريداً صالحاً.</div>
+            <div class="alert alert-danger fw-bold rounded-4 shadow-sm"><i class="fa-solid fa-triangle-exclamation me-1"></i> أدخل بريداً إلكترونياً صالحاً.</div>
+        <% } else if (settingsQuery.error === 'email_taken') { %>
+            <div class="alert alert-danger fw-bold rounded-4 shadow-sm"><i class="fa-solid fa-triangle-exclamation me-1"></i> هذا البريد الإلكتروني مستخدم في حساب آخر.</div>
         <% } else if (settingsQuery.error === 'missing') { %>
             <div class="alert alert-danger fw-bold rounded-4 shadow-sm"><i class="fa-solid fa-triangle-exclamation me-1"></i> أكمل بيانات الحساب قبل الحفظ.</div>
         <% } else if (settingsQuery.error) { %>
@@ -58,7 +62,7 @@
                             <label class="form-label fw-bold small" for="newAdminEmail">البريد الإلكتروني لرمز الدخول <span class="text-danger">*</span></label>
                             <div class="input-group">
                                 <span class="input-group-text bg-white border-0"><i class="fa-solid fa-envelope text-muted"></i></span>
-                                <input id="newAdminEmail" type="email" name="email" class="form-control bg-light border-0" placeholder="name@example.com" required maxlength="254" autocomplete="off" data-required-email="admin" title="البريد الإلكتروني مطلوب ويجب أن يكون بريداً صالحاً." style="direction: ltr; text-align: left;">
+                                <input id="newAdminEmail" type="text" inputmode="email" autocapitalize="none" spellcheck="false" name="email" class="form-control bg-light border-0" placeholder="name@example.com" required maxlength="254" autocomplete="off" data-required-email="admin" title="البريد الإلكتروني مطلوب ويجب أن يكون بريداً صالحاً." style="direction: ltr; text-align: left;">
                             </div>
                             <small class="text-muted d-block mt-2">البريد الإلكتروني إلزامي. عند الحفظ يُرسل رمز التحقق عبر البريد في كل تسجيل دخول. مسار واتساب يبقى فقط إذا لم يوجد بريد صالح على الحساب.</small>
                         </div>
@@ -111,7 +115,7 @@
                                     <td><code class="fs-6"><%= admin.webUsername %></code></td>
                                     <td>
                                         <form action="/settings/users/email/<%= admin._id %>" method="POST" class="d-flex gap-1 justify-content-center align-items-center mb-0">
-                                            <input type="email" name="email" value="<%= admin.email || '' %>" class="form-control form-control-sm" placeholder="name@example.com" required maxlength="254" autocomplete="off" data-required-email="admin" title="البريد الإلكتروني مطلوب ويجب أن يكون بريداً صالحاً." style="direction: ltr; text-align: left; min-width: 180px;">
+                                            <input type="text" inputmode="email" autocapitalize="none" spellcheck="false" name="email" value="<%= admin.email || '' %>" class="form-control form-control-sm" placeholder="name@example.com" required maxlength="254" autocomplete="off" data-required-email="admin" title="البريد الإلكتروني مطلوب ويجب أن يكون بريداً صالحاً." style="direction: ltr; text-align: left; min-width: 180px;">
                                             <button type="submit" class="btn btn-sm btn-primary shadow-sm" title="حفظ البريد">حفظ</button>
                                         </form>
                                     </td>

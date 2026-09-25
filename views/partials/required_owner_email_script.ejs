@@ -1,12 +1,9 @@
+<script src="/js/account-email-address.js"></script>
 <script>
 (function () {
-    const messageFor = (input) => (
-        input.validity.valueMissing
-            ? 'البريد الإلكتروني مطلوب.'
-            : 'أدخل بريداً إلكترونياً صالحاً.'
-    );
-    const showMessage = (input) => {
-        const message = messageFor(input);
+    const api = window.AhramEmailAddress;
+    if (!api) return;
+    const showMessage = (input, message) => {
         input.setCustomValidity(message);
         let hint = input.parentElement && input.parentElement.querySelector('.email-validity');
         if (!hint && input.parentElement) {
@@ -17,17 +14,66 @@
         }
         if (hint) hint.textContent = message;
     };
-    document.querySelectorAll('[data-required-email]').forEach((input) => {
+    const clearMessage = (input) => {
+        input.setCustomValidity('');
+        const hint = input.parentElement && input.parentElement.querySelector('.email-validity');
+        if (hint) hint.textContent = '';
+    };
+    const prepare = (input) => {
+        const normalized = api.normalizeEmailAddress(input.value);
+        if (input.value !== normalized) input.value = normalized;
+        return api.classifyEmailAddress(normalized);
+    };
+    const reject = (input, result) => {
+        const missing = Boolean(input.required) && result.code === 'required';
+        if (!missing && !api.normalizeEmailAddress(input.value)) {
+            clearMessage(input);
+            return false;
+        }
+        showMessage(input, missing ? api.EMAIL_REQUIRED_MESSAGE : result.message);
+        return true;
+    };
+    document.querySelectorAll('[data-required-email], [data-account-email]').forEach((input) => {
+        if (input.dataset.accountEmailBound === '1') return;
+        input.dataset.accountEmailBound = '1';
+        input.setAttribute('type', 'text');
+        input.setAttribute('inputmode', 'email');
+        input.setAttribute('autocapitalize', 'none');
+        input.setAttribute('spellcheck', 'false');
+        input.removeAttribute('pattern');
         input.addEventListener('invalid', (event) => {
             event.preventDefault();
-            showMessage(input);
-            input.focus({ preventScroll: true });
+            const result = prepare(input);
+            if (result.ok) {
+                clearMessage(input);
+                return;
+            }
+            if (reject(input, result)) input.focus({ preventScroll: true });
         });
-        input.addEventListener('input', () => {
-            input.setCustomValidity('');
-            const hint = input.parentElement && input.parentElement.querySelector('.email-validity');
-            if (hint) hint.textContent = '';
+        input.addEventListener('input', () => clearMessage(input));
+        input.addEventListener('blur', () => {
+            const result = prepare(input);
+            if (result.ok || (!input.required && result.code === 'required')) clearMessage(input);
         });
+        const form = input.form;
+        if (!form || form.dataset.accountEmailBound === '1') return;
+        form.dataset.accountEmailBound = '1';
+        form.addEventListener('submit', (event) => {
+            let blocked = null;
+            form.querySelectorAll('[data-required-email], [data-account-email]').forEach((field) => {
+                const result = prepare(field);
+                if (result.ok || (!field.required && result.code === 'required')) {
+                    clearMessage(field);
+                    return;
+                }
+                if (!blocked) blocked = field;
+                reject(field, result);
+            });
+            if (!blocked) return;
+            event.preventDefault();
+            event.stopPropagation();
+            blocked.focus({ preventScroll: true });
+        }, true);
     });
 })();
 </script>

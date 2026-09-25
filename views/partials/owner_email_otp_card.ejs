@@ -8,7 +8,7 @@
         <% } %>
         <form action="/admin/accounts/<%= ownerOtp.type %>/<%= ownerOtp.id %>/owner-otp" method="POST" class="row g-2 align-items-center">
             <div class="col-md-7">
-                <input id="accountOwnerEmail" type="email" name="email" class="form-control fw-bold unified-height border-0 shadow-sm" dir="ltr" maxlength="254" value="<%= ownerOtp.email || '' %>" placeholder="name@example.com" autocomplete="off" <%= ownerOtp.missingOwner ? 'disabled' : 'required' %> data-required-email="owner" title="البريد الإلكتروني مطلوب ويجب أن يكون بريداً صالحاً.">
+                <input id="accountOwnerEmail" type="text" inputmode="email" autocapitalize="none" spellcheck="false" name="email" class="form-control fw-bold unified-height border-0 shadow-sm" dir="ltr" maxlength="254" value="<%= ownerOtp.email || '' %>" placeholder="name@example.com" autocomplete="off" <%= ownerOtp.missingOwner ? 'disabled' : 'required' %> data-required-email="owner" title="البريد الإلكتروني مطلوب ويجب أن يكون بريداً صالحاً.">
             </div>
             <div class="col-md-5">
                 <button type="submit" class="btn w-100 fw-bold text-white unified-height justify-content-center shadow-sm btn-3d-hover d-flex align-items-center gap-2" style="background:#087f74;" <%= ownerOtp.missingOwner ? 'disabled' : '' %>>

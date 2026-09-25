@@ -15,12 +15,9 @@ const {
 } = require('../services/accountCodeService');
 const { prepareRegistrationIdentityForApproval } = require('../services/registrationIdentityService');
 const { createRegisteredExecutorAccount } = require('../services/executorAccountService');
-const { isValidOtpEmail, normalizeOtpEmail } = require('../utils/otpDeliveryChannel');
+const { classifyEmailAddress, normalizeEmailAddress } = require('../utils/emailAddress');
 
-const registrationContactEmail = (value) => {
-    const email = normalizeOtpEmail(value);
-    return email.length > 254 ? email.slice(0, 254) : email;
-};
+const registrationContactEmail = (value) => normalizeEmailAddress(value);
 
 const LOGIN_EMAIL_ACCOUNT_TYPES = new Set(['direct', 'new', 'company', 'agent']);
 
@@ -88,10 +85,12 @@ router.post('/registration-requests/:id/approve', requireAuth, requireMaster, as
         const tenantId = regReq.tenantId || (req.tenant && req.tenant._id) || undefined;
         let ownerEmail = '';
         if (LOGIN_EMAIL_ACCOUNT_TYPES.has(regReq.accountType)) {
-            ownerEmail = submittedOwnerEmail(regReq, req.body);
-            if (!isValidOtpEmail(ownerEmail)) {
-                return res.redirect('/registration-requests?error=email_required');
+            const parsedOwnerEmail = classifyEmailAddress(submittedOwnerEmail(regReq, req.body));
+            if (!parsedOwnerEmail.ok) {
+                const errorCode = parsedOwnerEmail.code === 'required' ? 'email_required' : 'email_invalid';
+                return res.redirect(`/registration-requests?error=${errorCode}`);
             }
+            ownerEmail = parsedOwnerEmail.email;
             regReq.companyEmail = ownerEmail;
         }
 
