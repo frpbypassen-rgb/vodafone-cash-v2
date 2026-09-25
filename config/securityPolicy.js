@@ -69,6 +69,15 @@ const isEmergencyStandaloneFinancialWritesActive = (env = process.env, now = Dat
     getEmergencyStandaloneFinancialWritesState(env, now).active
 );
 
+/**
+ * Non-expiring operator switch. Accounts with no usable stored email sign in
+ * with username and password only. Accounts with a valid stored email still
+ * require an email OTP. Unset and 0/false/no/off keep today's OTP rules.
+ */
+const isLoginOtpSkipWithoutEmailEnabled = (env = process.env) => (
+    isEnabled(env.LOGIN_OTP_SKIP_WITHOUT_EMAIL)
+);
+
 const shouldBypassClientOtp = (env = process.env, now = Date.now()) => {
     if (!isSecurityVerificationRequired(env)) return true;
     const emergencyBypass = getEmergencyClientOtpBypassState(env, now);
@@ -243,6 +252,9 @@ const validateProductionSecurityEnv = (env = process.env) => {
     if (clean(env.SECURITY_DEVICE_HASH_SECRET).length < 32) {
         warnings.push('SECURITY_DEVICE_HASH_SECRET should use a dedicated random value of at least 32 characters before device enforcement is enabled.');
     }
+    if (isLoginOtpSkipWithoutEmailEnabled(env)) {
+        warnings.push('LOGIN_OTP_SKIP_WITHOUT_EMAIL is active. Accounts without a usable email sign in with username and password only. Accounts with a valid email still require an email OTP.');
+    }
 
     return { valid: errors.length === 0, errors, warnings };
 };
@@ -266,6 +278,7 @@ module.exports = {
     isDisabled,
     isEnabled,
     isEmergencyStandaloneFinancialWritesActive,
+    isLoginOtpSkipWithoutEmailEnabled,
     isProductionEnvironment,
     isPasskeyRequired,
     isPasswordOnlyLoginMode,

@@ -8,7 +8,7 @@ const { logAction } = require('../services/auditService');
 const securityControl = require('../services/securityControlService');
 const { establishAuthenticatedSession } = require('../utils/sessionSecurity');
 const { readExecutorManualPolicy, webSessionMaxAgeMsForPolicy } = require('../utils/executorManualPolicy');
-const { isLoginOtpRequired, issueLoginOtp, getLoginOtpPortal } = require('../services/loginOtpService');
+const { isLoginOtpRequired, issueLoginOtp, getLoginOtpPortal, buildLoginOtpSkippedAudit } = require('../services/loginOtpService');
 const {
     ExecutorAccountError,
     normalizeExecutorPhone,
@@ -94,6 +94,13 @@ const startExecutorOtp = async (req, res, executor) => {
     const portal = issued.portal || getLoginOtpPortal('executor');
     if (issued.status === 'reuse') {
         return req.session.save(() => res.redirect(portal.verifyPath));
+    }
+    if (issued.status === 'skip_no_email') {
+        await logAction({
+            req,
+            ...buildLoginOtpSkippedAudit({ account: executor, accountType: 'executor' })
+        });
+        return completeExecutorLogin(req, res, executor, { showMfaNotice: true });
     }
     if (issued.status === 'emergency_bypass') {
         await logAction({

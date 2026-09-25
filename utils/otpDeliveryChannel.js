@@ -8,6 +8,9 @@
 // support replies are unaffected. If the account explicitly selects email but
 // the address is missing or invalid, delivery fails instead of falling back
 // to WhatsApp.
+// LOGIN_OTP_SKIP_WITHOUT_EMAIL does not change this selection. When that
+// flag is on, loginOtpService treats a whatsapp selection as "no usable
+// email" and completes login without sending.
 // User and agent addresses live on businessProfile.email. The company login
 // owner is the ClientEmployee with the canonical owner role, and that address
 // is the employee's top-level email. Other company staff, agency staff,

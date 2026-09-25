@@ -312,6 +312,7 @@
                         <optgroup label="🔐 المصادقة والحسابات">
                             <option value="LOGIN_SUCCESS"  <%= filters.action === 'LOGIN_SUCCESS'   ? 'selected' : '' %>>✅ دخول ناجح</option>
                             <option value="LOGIN_FAILED"   <%= filters.action === 'LOGIN_FAILED'    ? 'selected' : '' %>>❌ دخول فاشل</option>
+                            <option value="LOGIN_OTP_SKIPPED" <%= filters.action === 'LOGIN_OTP_SKIPPED' ? 'selected' : '' %>>🔓 دخول بدون رمز (لا يوجد بريد)</option>
                             <option value="LOGOUT"         <%= filters.action === 'LOGOUT'          ? 'selected' : '' %>>🚪 تسجيل خروج</option>
                             <option value="USER_CREATED"   <%= filters.action === 'USER_CREATED'    ? 'selected' : '' %>>👤 إنشاء حساب جديد</option>
                         </optgroup>
@@ -421,7 +422,9 @@
 
                         // Process Type Label translation
                         let processLabel = '—';
-                        if (log.action === 'LOGIN_SUCCESS' || log.action === 'LOGIN_FAILED') {
+                        if (log.action === 'LOGIN_OTP_SKIPPED') {
+                            processLabel = 'دخول بدون رمز — لا يوجد بريد';
+                        } else if (log.action === 'LOGIN_SUCCESS' || log.action === 'LOGIN_FAILED') {
                             processLabel = 'تسجيل دخول';
                         } else if (log.action === 'LOGOUT') {
                             processLabel = 'تسجيل خروج';

@@ -23,6 +23,7 @@ const TYPE_LABELS = Object.freeze({
 const ACTION_LABELS = Object.freeze({
     LOGIN_SUCCESS: 'تسجيل دخول',
     LOGIN_FAILED: 'محاولة دخول فاشلة',
+    LOGIN_OTP_SKIPPED: 'دخول بدون رمز تحقق (لا يوجد بريد)',
     LOGOUT: 'تسجيل خروج',
     TRANSFER_CREATED: 'تحويل جديد',
     TRANSFER_COMPLETED: 'اكتمال تحويل',

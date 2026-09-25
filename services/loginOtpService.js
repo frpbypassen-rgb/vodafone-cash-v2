@@ -4,6 +4,7 @@ const { randomUUID } = require('crypto');
 const { generateOtp, hashOtp } = require('../utils/otp');
 const {
     getEmergencyClientOtpBypassState,
+    isLoginOtpSkipWithoutEmailEnabled,
     shouldBypassClientOtp
 } = require('../config/securityPolicy');
 const User = require('../models/User');
@@ -97,6 +98,34 @@ const getLoginOtpPortal = (accountType) => LOGIN_OTP_PORTALS[accountType] || nul
 
 const isLoginOtpRequired = (env = process.env, now = Date.now()) => !shouldBypassClientOtp(env, now);
 
+/**
+ * Password-only login for accounts that have no usable stored email.
+ * A valid address stays on email OTP. An explicit email channel with a
+ * missing or invalid address stays a delivery failure (it is not "no email").
+ * WhatsApp is never selected for delivery when this returns true.
+ */
+const shouldSkipLoginOtpWithoutEmail = (account = {}, env = process.env) => {
+    if (!isLoginOtpSkipWithoutEmailEnabled(env)) return false;
+    return selectLoginOtpChannel(account, env).channel === 'whatsapp';
+};
+
+const buildLoginOtpSkippedAudit = ({ account = {}, accountType } = {}) => {
+    const portal = getLoginOtpPortal(accountType);
+    return {
+        action: 'LOGIN_OTP_SKIPPED',
+        performedById: account._id,
+        performedByModel: portal?.performedByModel,
+        performedByName: account.name || account.webUsername || '',
+        success: true,
+        severity: 'warning',
+        metadata: {
+            accountId: String(account._id || ''),
+            portal: accountType,
+            reason: 'no_email'
+        }
+    };
+};
+
 const resendCooldownSeconds = () => Math.min(
     300,
     Math.max(30, Number(process.env.OTP_RESEND_COOLDOWN_SECONDS) || 60)
@@ -179,13 +208,19 @@ const clearStoredOtp = async (Model, accountId) => {
  * Persist a hashed login OTP and deliver it on the account channel.
  * A valid stored address is delivered by email. Accounts with no usable
  * address keep the WhatsApp path unless WHATSAPP_LOGIN_OTP_ENABLED is
- * explicitly off. A failed delivery still clears the stored OTP and can
- * fall through to the emergency bypass when that window is active.
+ * explicitly off. When LOGIN_OTP_SKIP_WITHOUT_EMAIL is on, those accounts
+ * skip OTP entirely (no WhatsApp send) and the caller completes login.
+ * A failed email delivery still clears the stored OTP and can fall through
+ * to the emergency bypass when that window is active. It never skips OTP.
  */
 const issueLoginOtp = async ({ account, accountType, session = {} }) => {
     const portal = getLoginOtpPortal(accountType);
     if (!portal) {
         return { status: 'unsupported', code: 'OTP_ACCOUNT_TYPE_UNSUPPORTED', message: 'نوع الحساب لا يدعم رمز التحقق.' };
+    }
+    if (shouldSkipLoginOtpWithoutEmail(account)) {
+        await clearStoredOtp(portal.Model, account._id);
+        return { status: 'skip_no_email', portal, reason: 'no_email' };
     }
     if (hasReusableChallenge({ account, accountType, session })) {
         return { status: 'reuse', portal, otpChallengeId: String(account.otpChallengeId) };
@@ -244,11 +279,13 @@ const issueLoginOtp = async ({ account, accountType, session = {} }) => {
 
 module.exports = {
     LOGIN_OTP_PORTALS,
+    buildLoginOtpSkippedAudit,
     clearStoredOtp,
     getLoginOtpPortal,
     hasReusableChallenge,
     isLoginOtpRequired,
     issueLoginOtp,
     publicDeliveryMessage,
-    selectLoginOtpChannel
+    selectLoginOtpChannel,
+    shouldSkipLoginOtpWithoutEmail
 };
