@@ -1,11 +1,22 @@
 name: Deploy to Server
 
+# Manual only. A successful CI run does not start this workflow.
+# The deploy job uses the GitHub Environment "production". The owner must
+# create that Environment and add required reviewers under
+# Settings -> Environments -> production. This file cannot create that rule.
+# migrateTenantIsolation.js is not run here. It stays a separate manual step.
 on:
-  workflow_run:
-    workflows: ["Ahram Enterprise CI/CD Pipeline"]
-    types: [completed]
-    branches: ["main"]
   workflow_dispatch:
+    inputs:
+      confirm_sha:
+        description: 'Full 40-character commit SHA of main to deploy'
+        required: true
+        type: string
+      apply_repair:
+        description: 'Write server env repairs with repairProductionEnv.js --apply. Leave false for a preview only.'
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -18,19 +29,28 @@ concurrency:
 jobs:
   verify-ci:
     name: Verify CI gate for deployment commit
-    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     outputs:
       deploy_sha: ${{ steps.gate.outputs.deploy_sha }}
     steps:
-      - name: Require a successful CI run for the same commit
+      - name: Require the typed SHA and a successful CI run for main
         id: gate
         uses: actions/github-script@v7
         with:
           script: |
-            const sha = context.eventName === 'workflow_run'
-              ? context.payload.workflow_run.head_sha
-              : context.sha;
+            if (context.ref !== 'refs/heads/main') {
+              core.setFailed('Start this workflow from the main branch.');
+              return;
+            }
+            const sha = String(context.payload.inputs?.confirm_sha || '').trim().toLowerCase();
+            if (!/^[0-9a-f]{40}$/.test(sha)) {
+              core.setFailed('confirm_sha must be the full 40-character commit SHA.');
+              return;
+            }
+            if (sha !== String(context.sha || '').toLowerCase()) {
+              core.setFailed('confirm_sha does not match the selected main commit.');
+              return;
+            }
             const runs = await github.rest.actions.listWorkflowRuns({
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -47,6 +67,7 @@ jobs:
     name: Deploy main to production server
     needs: [verify-ci]
     runs-on: ubuntu-latest
+    environment: production
     env:
       DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
       DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
@@ -58,6 +79,7 @@ jobs:
       APP_RUNTIME_ENV_BASE64: ${{ secrets.APP_RUNTIME_ENV_BASE64 }}
       DEPLOY_SHA: ${{ needs.verify-ci.outputs.deploy_sha }}
       REPO_URL: https://github.com/${{ github.repository }}.git
+      APPLY_ENV_REPAIR: ${{ inputs.apply_repair == true && 'true' || 'false' }}
 
     steps:
       - name: Check deployment configuration
@@ -202,11 +224,17 @@ jobs:
 
           # Browser Push requires one stable VAPID key pair. Generate it once
           # on the server when absent; .env is preserved across git deploys.
-          node scripts/repairProductionEnv.js .env --apply
+          # repairProductionEnv.js --apply writes the server env file and runs
+          # only when the workflow_dispatch input apply_repair is true.
+          # migrateTenantIsolation.js is a separate manual, approved step.
+          if [ "${APPLY_ENV_REPAIR:-false}" = "true" ]; then
+            node scripts/repairProductionEnv.js .env --apply
+          else
+            node scripts/repairProductionEnv.js .env
+          fi
           node scripts/ensureWebPushKeys.js
           node scripts/auditProductionEnv.js .env
           node scripts/checkMongoTransactionSupport.js .env
-          node scripts/migrateTenantIsolation.js --apply --create-default
           chmod 600 .env
 
           if [ -n "${DEPLOY_RESTART_COMMAND:-}" ]; then
@@ -228,6 +256,7 @@ jobs:
             printf 'export REPO_URL=%q\n' "$REPO_URL"
             printf 'export DEPLOY_RESTART_COMMAND=%q\n' "${DEPLOY_RESTART_COMMAND:-}"
             printf 'export DEPLOY_SYSTEMD_SERVICE=%q\n' "${DEPLOY_SYSTEMD_SERVICE:-}"
+            printf 'export APPLY_ENV_REPAIR=%q\n' "${APPLY_ENV_REPAIR:-false}"
           } > deploy.env
 
           if [ -n "${APP_RUNTIME_ENV_BASE64:-}" ]; then
