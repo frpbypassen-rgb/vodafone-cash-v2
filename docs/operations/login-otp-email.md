@@ -40,13 +40,14 @@ Do not add the three new names to `productionSecurityDefaults` or to the
 required production boot flags.
 
 Password reset is email-only. `POST /api/password-reset/start` looks up
-the account, and when a verified email exists it sends a separate code
-with purpose `password_reset`. WhatsApp is never a fallback. Every start
-returns the same HTTP 200 body (`PASSWORD_RESET_STARTED`) whether or not
-the account exists or has an email. Accounts without a verified email are
-handled by the manual procedure in `docs/operations/password-reset.md`.
-The reset message uses the same brand identity and the same V2 template
-flag as the login OTP email, including a plain-text part.
+the account, and when `otpDeliveryChannel` is `email` and the stored
+address is valid it sends a separate code with purpose `password_reset`.
+WhatsApp is never a fallback. Every start returns the same HTTP 200 body
+(`PASSWORD_RESET_STARTED`) whether or not the account exists or has an
+approved address. Accounts that do not qualify follow the manual procedure
+in `docs/operations/password-reset.md`. The reset message uses the same
+brand identity and the same V2 template flag as the login OTP email,
+including a plain-text part.
 Accounts without an email that are not covered by
 `LOGIN_OTP_SKIP_WITHOUT_EMAIL` still fail closed on login with
 `WHATSAPP_OTP_DISABLED` (or `WHATSAPP_LOGIN_OTP_DISABLED` when that older

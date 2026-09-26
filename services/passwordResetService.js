@@ -4,7 +4,8 @@ const bcrypt = require('bcryptjs');
 const mongoose = require('mongoose');
 const { escapeRegex } = require('../utils/helpers');
 const { generateOtp, hashOtp, verifyOtp } = require('../utils/otp');
-const { isValidOtpEmail, resolveAccountOtpEmail } = require('../utils/otpDeliveryChannel');
+const { resolveAccountOtpEmail } = require('../utils/otpDeliveryChannel');
+const { isAdminApprovedResetEmail } = require('../utils/trustedResetEmail');
 const { passwordResetStartBody } = require('../utils/passwordResetAvailability');
 const { logAction } = require('./auditService');
 const User = require('../models/User');
@@ -17,13 +18,33 @@ const TTL_MS = 10 * 60 * 1000;
 const MAX_ATTEMPTS = 5;
 const ACCOUNT_WINDOW_MS = 10 * 60 * 1000;
 const ACCOUNT_MAX_SENDS = 5;
+const DEFAULT_COMPLETE_WINDOW_SECONDS = 600;
+const MIN_COMPLETE_WINDOW_SECONDS = 60;
+const MAX_COMPLETE_WINDOW_SECONDS = 600;
 
 const resendCooldownMs = () => Math.min(
     300,
     Math.max(30, Number(process.env.OTP_RESEND_COOLDOWN_SECONDS) || 60)
 ) * 1000;
 
+const completeWindowMs = (env = process.env) => {
+    const parsed = Number(env.PASSWORD_RESET_COMPLETE_WINDOW_SECONDS);
+    const seconds = Number.isFinite(parsed) && parsed > 0
+        ? Math.floor(parsed)
+        : DEFAULT_COMPLETE_WINDOW_SECONDS;
+    const clamped = Math.min(
+        MAX_COMPLETE_WINDOW_SECONDS,
+        Math.max(MIN_COMPLETE_WINDOW_SECONDS, seconds)
+    );
+    return clamped * 1000;
+};
+
 const opaqueId = () => new mongoose.Types.ObjectId().toString();
+
+const asObjectId = (value) => {
+    const text = String(value || '').trim();
+    return /^[a-f0-9]{24}$/i.test(text) ? text : '';
+};
 
 const phoneCandidates = (phone) => {
     const raw = String(phone || '').trim();
@@ -73,6 +94,13 @@ const auditReset = async ({ req, action, account, success, errorCode }) => {
     }
 };
 
+const accountRefFrom = (doc) => (doc ? {
+    _id: doc.accountId,
+    accountModel: doc.accountModel,
+    name: doc.name,
+    username: doc.username
+} : null);
+
 const findResetAccount = async (username, phone) => {
     const user = await User.findOne(usernameLookup(username)).lean();
     if (user && phoneMatches(user.phone, phone) && (user.role || 'user') !== 'agent') {
@@ -85,7 +113,8 @@ const findResetAccount = async (username, phone) => {
             name: user.name || user.webUsername,
             username: user.webUsername,
             phone: user.phone,
-            email: resolveAccountOtpEmail(user)
+            email: resolveAccountOtpEmail(user),
+            otpDeliveryChannel: user.otpDeliveryChannel
         };
     }
 
@@ -100,7 +129,8 @@ const findResetAccount = async (username, phone) => {
             name: subAccount.name || subAccount.webUsername,
             username: subAccount.webUsername,
             phone: subAccount.phone,
-            email: resolveAccountOtpEmail(subAccount)
+            email: resolveAccountOtpEmail(subAccount),
+            otpDeliveryChannel: subAccount.otpDeliveryChannel
         };
     }
 
@@ -109,15 +139,27 @@ const findResetAccount = async (username, phone) => {
 
 const publicStart = (requestId) => passwordResetStartBody(requestId || opaqueId());
 
+const deleteWebSessions = async (accountId, dbSession) => {
+    const id = asObjectId(accountId);
+    if (!id || !mongoose.connection || !mongoose.connection.db) return;
+    const collection = mongoose.connection.collection('sessions');
+    await collection.deleteMany({
+        $or: [
+            { session: new RegExp(escapeRegex(id)) },
+            { 'session.clientId': id }
+        ]
+    }, { session: dbSession });
+};
+
 const startPasswordReset = async ({ username, phone, req } = {}) => {
     const account = await findResetAccount(username, phone);
-    if (!account || !isValidOtpEmail(account.email)) {
+    if (!account || !isAdminApprovedResetEmail(account)) {
         await auditReset({
             req,
             action: 'PASSWORD_RESET_START',
             account,
             success: false,
-            errorCode: account ? 'PASSWORD_RESET_NO_EMAIL' : 'PASSWORD_RESET_ACCOUNT_ABSENT'
+            errorCode: account ? 'PASSWORD_RESET_EMAIL_NOT_APPROVED' : 'PASSWORD_RESET_ACCOUNT_ABSENT'
         });
         return publicStart();
     }
@@ -181,9 +223,10 @@ const startPasswordReset = async ({ username, phone, req } = {}) => {
         accountName: account.name
     });
     if (!delivery || !delivery.success) {
-        request.status = 'expired';
-        request.otpCode = undefined;
-        await request.save();
+        await PasswordResetRequest.updateOne(
+            { _id: request._id, status: 'otp_sent' },
+            { $set: { status: 'expired' }, $unset: { otpCode: 1 } }
+        );
         await auditReset({
             req,
             action: 'PASSWORD_RESET_START',
@@ -205,63 +248,94 @@ const startPasswordReset = async ({ username, phone, req } = {}) => {
 };
 
 const verifyPasswordReset = async ({ requestId, otp, req } = {}) => {
-    const resetRequest = requestId ? await PasswordResetRequest.findById(requestId) : null;
-    const fail = async (errorCode) => {
+    const id = asObjectId(requestId);
+    const fail = async (errorCode, doc) => {
         await auditReset({
             req,
             action: 'PASSWORD_RESET_VERIFY',
-            account: resetRequest ? {
-                _id: resetRequest.accountId,
-                accountModel: resetRequest.accountModel,
-                name: resetRequest.name,
-                username: resetRequest.username
-            } : null,
+            account: accountRefFrom(doc),
             success: false,
             errorCode
         });
         return { success: false, code: errorCode, error: 'رمز الاستعادة غير صحيح أو منتهي.' };
     };
 
-    if (!resetRequest || resetRequest.otpPurpose !== PURPOSE) return fail('PASSWORD_RESET_CODE_INVALID');
-    if (resetRequest.status === 'otp_verified' || resetRequest.status === 'completed' || resetRequest.status === 'approved') {
-        return fail('PASSWORD_RESET_REUSED');
-    }
-    if (resetRequest.status !== 'otp_sent') return fail('PASSWORD_RESET_CODE_INVALID');
-    if (!resetRequest.otpExpires || resetRequest.otpExpires < new Date()) {
-        resetRequest.status = 'expired';
-        resetRequest.otpCode = undefined;
-        await resetRequest.save();
-        return fail('PASSWORD_RESET_EXPIRED');
-    }
-    if (Number(resetRequest.otpAttempts || 0) >= MAX_ATTEMPTS) {
-        resetRequest.status = 'expired';
-        resetRequest.otpCode = undefined;
-        await resetRequest.save();
-        return fail('PASSWORD_RESET_ATTEMPTS');
-    }
-    if (!verifyOtp(otp, resetRequest.otpCode, PURPOSE)) {
-        resetRequest.otpAttempts = Number(resetRequest.otpAttempts || 0) + 1;
-        if (resetRequest.otpAttempts >= MAX_ATTEMPTS) {
-            resetRequest.status = 'expired';
-            resetRequest.otpCode = undefined;
+    if (!id) return fail('PASSWORD_RESET_CODE_INVALID', null);
+
+    const now = new Date();
+    const resetRequest = await PasswordResetRequest.findOneAndUpdate(
+        {
+            _id: id,
+            otpPurpose: PURPOSE,
+            status: 'otp_sent',
+            otpExpires: { $gt: now },
+            otpAttempts: { $lt: MAX_ATTEMPTS }
+        },
+        { $inc: { otpAttempts: 1 } },
+        { returnDocument: 'after' }
+    );
+
+    if (!resetRequest) {
+        const current = await PasswordResetRequest.findById(id)
+            .select('status otpPurpose otpExpires otpAttempts accountId accountModel name username');
+        if (!current || current.otpPurpose !== PURPOSE) return fail('PASSWORD_RESET_CODE_INVALID', current);
+        if (['otp_verified', 'completing', 'completed', 'approved'].includes(current.status)) {
+            return fail('PASSWORD_RESET_REUSED', current);
         }
-        await resetRequest.save();
-        return fail('PASSWORD_RESET_CODE_INVALID');
+        if (current.status === 'otp_sent' && (!current.otpExpires || current.otpExpires < now)) {
+            await PasswordResetRequest.updateOne(
+                { _id: id, status: 'otp_sent' },
+                { $set: { status: 'expired' }, $unset: { otpCode: 1 } }
+            );
+            return fail('PASSWORD_RESET_EXPIRED', current);
+        }
+        if (current.status === 'expired' || Number(current.otpAttempts || 0) >= MAX_ATTEMPTS) {
+            if (current.status === 'otp_sent') {
+                await PasswordResetRequest.updateOne(
+                    { _id: id, status: 'otp_sent', otpAttempts: { $gte: MAX_ATTEMPTS } },
+                    { $set: { status: 'expired' }, $unset: { otpCode: 1 } }
+                );
+            }
+            return fail(
+                Number(current.otpAttempts || 0) >= MAX_ATTEMPTS
+                    ? 'PASSWORD_RESET_ATTEMPTS'
+                    : 'PASSWORD_RESET_EXPIRED',
+                current
+            );
+        }
+        return fail('PASSWORD_RESET_CODE_INVALID', current);
     }
 
-    resetRequest.status = 'otp_verified';
-    resetRequest.otpVerifiedAt = new Date();
-    resetRequest.otpCode = undefined;
-    await resetRequest.save();
+    if (!verifyOtp(otp, resetRequest.otpCode, PURPOSE)) {
+        if (Number(resetRequest.otpAttempts) >= MAX_ATTEMPTS) {
+            await PasswordResetRequest.updateOne(
+                { _id: id, status: 'otp_sent', otpAttempts: { $gte: MAX_ATTEMPTS } },
+                { $set: { status: 'expired' }, $unset: { otpCode: 1 } }
+            );
+            return fail('PASSWORD_RESET_ATTEMPTS', resetRequest);
+        }
+        return fail('PASSWORD_RESET_CODE_INVALID', resetRequest);
+    }
+
+    const verified = await PasswordResetRequest.findOneAndUpdate(
+        {
+            _id: id,
+            status: 'otp_sent',
+            otpPurpose: PURPOSE,
+            otpCode: resetRequest.otpCode
+        },
+        {
+            $set: { status: 'otp_verified', otpVerifiedAt: new Date() },
+            $unset: { otpCode: 1 }
+        },
+        { returnDocument: 'after' }
+    );
+    if (!verified) return fail('PASSWORD_RESET_REUSED', resetRequest);
+
     await auditReset({
         req,
         action: 'PASSWORD_RESET_VERIFY',
-        account: {
-            _id: resetRequest.accountId,
-            accountModel: resetRequest.accountModel,
-            name: resetRequest.name,
-            username: resetRequest.username
-        },
+        account: accountRefFrom(verified),
         success: true,
         errorCode: ''
     });
@@ -269,56 +343,116 @@ const verifyPasswordReset = async ({ requestId, otp, req } = {}) => {
 };
 
 const completePasswordReset = async ({ requestId, newPassword, req } = {}) => {
-    const resetRequest = requestId ? await PasswordResetRequest.findById(requestId) : null;
-    const accountRef = resetRequest ? {
-        _id: resetRequest.accountId,
-        accountModel: resetRequest.accountModel,
-        name: resetRequest.name,
-        username: resetRequest.username
-    } : null;
-    const fail = async (errorCode) => {
+    const id = asObjectId(requestId);
+    const fail = async (errorCode, account) => {
         await auditReset({
             req,
             action: 'PASSWORD_RESET_FAILURE',
-            account: accountRef,
+            account,
             success: false,
             errorCode
         });
         return { success: false, code: errorCode, error: 'تعذر تغيير كلمة المرور. ابدأ الطلب من جديد.' };
     };
 
-    if (!resetRequest || resetRequest.otpPurpose !== PURPOSE) return fail('PASSWORD_RESET_CODE_INVALID');
-    if (resetRequest.status === 'completed' || resetRequest.status === 'approved') return fail('PASSWORD_RESET_REUSED');
-    if (resetRequest.status !== 'otp_verified') return fail('PASSWORD_RESET_CODE_INVALID');
+    if (!id) return fail('PASSWORD_RESET_CODE_INVALID', null);
+    const existing = await PasswordResetRequest.findById(id);
+    const account = accountRefFrom(existing);
+    if (!existing || existing.otpPurpose !== PURPOSE) return fail('PASSWORD_RESET_CODE_INVALID', account);
+    if (['completed', 'approved', 'otp_verified', 'completing'].includes(existing.status) && existing.status !== 'otp_verified') {
+        return fail(existing.status === 'completing' ? 'PASSWORD_RESET_CODE_INVALID' : 'PASSWORD_RESET_REUSED', account);
+    }
+    if (existing.status !== 'otp_verified') return fail('PASSWORD_RESET_CODE_INVALID', account);
+
+    const cutoff = new Date(Date.now() - completeWindowMs());
+    if (!existing.otpVerifiedAt || existing.otpVerifiedAt < cutoff) {
+        await PasswordResetRequest.updateOne(
+            { _id: id, status: 'otp_verified' },
+            { $set: { status: 'expired' }, $unset: { otpCode: 1 } }
+        );
+        return fail('PASSWORD_RESET_EXPIRED', account);
+    }
 
     const passwordHash = await bcrypt.hash(String(newPassword), 12);
-    const Model = resetRequest.accountModel === 'SubAccount' ? SubAccount : User;
-    await Model.updateOne(
-        { _id: resetRequest.accountId },
-        {
-            $set: { webPassword: passwordHash },
-            $inc: { sessionVersion: 1 },
-            $unset: { refreshToken: 1, otpCode: 1, otpExpires: 1, otpChallengeId: 1, otpIssuedAt: 1 }
-        },
-        { strict: false }
-    );
-    await MobileDeviceSession.updateMany(
-        {
-            accountId: resetRequest.accountId,
-            accountType: resetRequest.accountType === 'sub_client' ? 'sub_client' : 'client_user',
-            active: true
-        },
-        { $set: { active: false, revokedAt: new Date(), revokeReason: 'password_reset' } }
-    );
+    const Model = existing.accountModel === 'SubAccount' ? SubAccount : User;
+    const sessionCollections = mongoose.connection && mongoose.connection.db
+        ? await mongoose.connection.db.listCollections({ name: 'sessions' }).toArray()
+        : [];
+    const webSessionsExist = sessionCollections.length > 0;
+    const dbSession = await mongoose.startSession();
+    let committed = false;
+    try {
+        await dbSession.withTransaction(async () => {
+            committed = false;
+            const claimed = await PasswordResetRequest.findOneAndUpdate(
+                {
+                    _id: id,
+                    otpPurpose: PURPOSE,
+                    status: 'otp_verified',
+                    otpVerifiedAt: { $gte: cutoff }
+                },
+                { $set: { status: 'completing' } },
+                { returnDocument: 'after', session: dbSession }
+            );
+            if (!claimed) return;
 
-    resetRequest.status = 'completed';
-    resetRequest.pendingPasswordHash = undefined;
-    resetRequest.otpCode = undefined;
-    await resetRequest.save();
+            const passwordWrite = await Model.updateOne(
+                { _id: claimed.accountId },
+                {
+                    $set: { webPassword: passwordHash },
+                    $inc: { sessionVersion: 1 },
+                    $unset: {
+                        refreshToken: 1,
+                        otpCode: 1,
+                        otpExpires: 1,
+                        otpChallengeId: 1,
+                        otpIssuedAt: 1
+                    }
+                },
+                { session: dbSession }
+            );
+            if (!passwordWrite.matchedCount) throw new Error('PASSWORD_RESET_ACCOUNT_MISSING');
+
+            if (webSessionsExist) await deleteWebSessions(claimed.accountId, dbSession);
+            await MobileDeviceSession.updateMany(
+                {
+                    accountId: claimed.accountId,
+                    accountType: claimed.accountType === 'sub_client' ? 'sub_client' : 'client_user',
+                    active: true
+                },
+                { $set: { active: false, revokedAt: new Date(), revokeReason: 'password_reset' } },
+                { session: dbSession }
+            );
+
+            const finished = await PasswordResetRequest.updateOne(
+                { _id: id, status: 'completing' },
+                { $set: { status: 'completed' }, $unset: { otpCode: 1, pendingPasswordHash: 1 } },
+                { session: dbSession }
+            );
+            if (!finished.modifiedCount) throw new Error('PASSWORD_RESET_COMPLETE_INCOMPLETE');
+            committed = true;
+        });
+    } catch (_error) {
+        // The transaction aborted. The request stays otp_verified, and the
+        // password, sessionVersion, refresh token, and device sessions are
+        // unchanged. It is not left in completing.
+        return fail('PASSWORD_RESET_COMPLETE_FAILED', account);
+    } finally {
+        await dbSession.endSession();
+    }
+
+    if (!committed) {
+        const latest = await PasswordResetRequest.findById(id).select('status');
+        const code = latest && (latest.status === 'completed' || latest.status === 'approved')
+            ? 'PASSWORD_RESET_REUSED'
+            : 'PASSWORD_RESET_EXPIRED';
+        return fail(code, account);
+    }
+
     await auditReset({
         req,
         action: 'PASSWORD_RESET_SUCCESS',
-        account: accountRef,
+        account,
         success: true,
         errorCode: ''
     });
@@ -327,10 +461,12 @@ const completePasswordReset = async ({ requestId, newPassword, req } = {}) => {
 
 module.exports = {
     ACCOUNT_MAX_SENDS,
+    DEFAULT_COMPLETE_WINDOW_SECONDS,
     MAX_ATTEMPTS,
     PURPOSE,
     TTL_MS,
     completePasswordReset,
+    completeWindowMs,
     startPasswordReset,
     verifyPasswordReset
 };

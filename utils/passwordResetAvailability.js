@@ -21,7 +21,7 @@ const passwordResetStartBody = (requestId, env = process.env) => {
         code: 'PASSWORD_RESET_STARTED',
         requestId: String(requestId || ''),
         error: '',
-        message: `إذا كان للحساب بريد موثّق فسيصلك رمز استعادة كلمة المرور. إذا لم يكن له بريد موثّق، ${passwordResetSupportSentence(env)}`,
+        message: `إذا كان للحساب بريد مفعّل لاستقبال رمز الاستعادة فسيصلك الرمز. إذا لم يكن له بريد مفعّل، ${passwordResetSupportSentence(env)}`,
         supportPhone: brand.phoneDisplay,
         supportEmail: brand.supportEmail
     };

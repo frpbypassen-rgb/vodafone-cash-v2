@@ -120,10 +120,12 @@ on (unset counts as on) sends login OTP by email. An email failure does not
 call WhatsApp. Receipts and other non-OTP WhatsApp messages ignore
 `WHATSAPP_OTP_ENABLED`.
 
-Password reset does not use these WhatsApp flags. A verified email receives
-a separate `password_reset` code. Accounts without one follow the manual
-procedure in `docs/operations/password-reset.md`. WhatsApp is not a reset
-fallback.
+Password reset does not use these WhatsApp flags. A reset code is sent only
+when `otpDeliveryChannel` is `email` and the stored address is valid. Other
+accounts follow the manual procedure in `docs/operations/password-reset.md`.
+WhatsApp is not a reset fallback. After the code is accepted, the new
+password must be submitted within `PASSWORD_RESET_COMPLETE_WINDOW_SECONDS`
+(default 600, clamped to 60–600).
 
 A host `.env` that only sets `WHATSAPP_LOGIN_OTP_ENABLED=false` and omits
 the new names cannot send OTP on WhatsApp. Add and reload:

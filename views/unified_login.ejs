@@ -529,7 +529,7 @@
             box.replaceChildren();
             if (details && (details.code === 'PASSWORD_RESET_UNAVAILABLE' || details.code === 'PASSWORD_RESET_STARTED')) {
                 const lead = details.code === 'PASSWORD_RESET_STARTED'
-                    ? 'إذا كان للحساب بريد موثّق فسيصلك رمز استعادة كلمة المرور. إذا لم يكن له بريد موثّق، استعادة كلمة المرور غير متاحة حالياً. تواصل مع الدعم على '
+                    ? 'إذا كان للحساب بريد مفعّل لاستقبال رمز الاستعادة فسيصلك الرمز. إذا لم يكن له بريد مفعّل، استعادة كلمة المرور غير متاحة حالياً. تواصل مع الدعم على '
                     : 'استعادة كلمة المرور غير متاحة حالياً. تواصل مع الدعم على ';
                 box.append(
                     document.createTextNode(lead),
