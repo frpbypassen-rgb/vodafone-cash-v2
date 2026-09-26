@@ -105,14 +105,18 @@ node scripts/prepareAccountCodeTenantIndex.js --apply
 Remove-Item Env:ALLOW_ACCOUNT_CODE_TENANT_INDEX
 ```
 
-## 9. تشغيل الأعلام ثم إيقافها بسرعة
+## 9. لا تشغّل عزل المنظمة على أهرام باي
+
+`TENANT_MODE` يبقى `single`. لا تضبط `FINANCIAL_TENANT_GUARD` ولا `FINANCIAL_BLOCK_MASTER_SUB_TENANT_MISMATCH`. تحويل الشركة والوكيل، وخصم نقطة البيع مع الوكيل، وحركة الإدارة والمنفذ تبقى مسموحة. العلم بلا أثر أصلًا ما دام الوضع `single`، لكن لا داعي لتشغيله.
+
+إن رُغب لاحقًا في منع التكرار على حسابات اختبار فقط:
 
 ```powershell
-$env:FINANCIAL_TENANT_GUARD = 'true'
+$env:FINANCIAL_IDEMPOTENCY_ENABLED = 'true'
 pm2 restart Ahram_Core_API --update-env
 ```
 
-ابدأ بحسابات اختبار داخل المنظمة نفسها. راقب رفض `TENANT_UNRESOLVED` و`CROSS_TENANT_TRANSFER`.
+لا تشغّل `FINANCIAL_REDIS_FAIL_CLOSED` قبل نجاح `REDIS_PING` في القسم 3ب.
 
 ## 10. توسيع تدريجي
 

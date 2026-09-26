@@ -7,7 +7,9 @@ const AccountCode = require('../models/AccountCode');
 const {
     tenantGuardEnabled,
     trustedRequestTenantId,
-    codedError
+    codedError,
+    canonicalTenantId,
+    defaultTenantId
 } = require('./financialSafety');
 
 const CODE_LENGTHS = {
@@ -144,14 +146,28 @@ const resolveFromReservation = async (reservation, normalized) => {
     return { modelName: reservation.ownerModel, doc, label: accountLabel(reservation.ownerModel, doc) };
 };
 
+const tenantMatch = (tenantId) => {
+    const canonical = canonicalTenantId(tenantId);
+    if (canonical && canonical === defaultTenantId()) {
+        return {
+            $or: [
+                { tenantId: canonical },
+                { tenantId: null },
+                { tenantId: { $exists: false } }
+            ]
+        };
+    }
+    return { tenantId: canonical };
+};
+
 const findForeignAccount = async (normalized, tenantId) => {
-    const foreignFilter = { accountCode: normalized, tenantId: { $ne: tenantId } };
+    const expected = canonicalTenantId(tenantId);
     const [user, company, subAccount] = await Promise.all([
-        User.findOne(foreignFilter).select('_id tenantId').lean(),
-        ClientCompany.findOne(foreignFilter).select('_id tenantId').lean(),
-        SubAccount.findOne(foreignFilter).select('_id tenantId').lean()
+        User.findOne({ accountCode: normalized }).select('_id tenantId').lean(),
+        ClientCompany.findOne({ accountCode: normalized }).select('_id tenantId').lean(),
+        SubAccount.findOne({ accountCode: normalized }).select('_id tenantId').lean()
     ]);
-    return [user, company, subAccount].find(Boolean) || null;
+    return [user, company, subAccount].find((doc) => doc && canonicalTenantId(doc.tenantId) !== expected) || null;
 };
 
 const resolveAccountByCode = async (code, context = null) => {
@@ -161,7 +177,7 @@ const resolveAccountByCode = async (code, context = null) => {
     const enforce = tenantGuardEnabled();
     const tenantId = enforce ? trustedRequestTenantId(context) : null;
     if (enforce && !tenantId) throw codedError('TENANT_UNRESOLVED', 503);
-    const scope = enforce ? { tenantId } : {};
+    const scope = enforce ? tenantMatch(tenantId) : {};
 
     const [user, company, subAccount, reservation] = await Promise.all([
         User.findOne({ accountCode: normalized, ...scope }),

@@ -67,7 +67,10 @@ describe('financial tenant safety', () => {
         remember('MONGO_TRANSACTIONS_REQUIRED');
         remember('REDIS_REQUIRED');
         remember('NODE_ENV');
+        remember('TENANT_MODE');
+        remember('DEFAULT_TENANT_ID');
         process.env.NODE_ENV = 'test';
+        process.env.TENANT_MODE = 'multi';
         process.env.FINANCIAL_TENANT_GUARD = 'true';
         process.env.FINANCIAL_IDEMPOTENCY_ENABLED = 'true';
         delete process.env.REDIS_REQUIRED;
@@ -131,6 +134,9 @@ describe('financial tenant safety', () => {
 
     beforeEach(() => {
         process.env.FINANCIAL_TENANT_GUARD = 'true';
+        process.env.FINANCIAL_BLOCK_MASTER_SUB_TENANT_MISMATCH = 'true';
+        process.env.TENANT_MODE = 'multi';
+        delete process.env.DEFAULT_TENANT_ID;
         process.env.FINANCIAL_IDEMPOTENCY_ENABLED = 'true';
         delete process.env.REDIS_REQUIRED;
         delete process.env.MONGO_TRANSACTIONS_REQUIRED;
@@ -166,6 +172,50 @@ describe('financial tenant safety', () => {
         })).rejects.toMatchObject({ code: 'CROSS_TENANT_ACCOUNT' });
         expect((await User.findById(userA._id)).balance).toBe(beforeA);
         expect((await User.findById(userB._id)).balance).toBe(beforeB);
+    });
+
+    test('single-organization mode still allows a company and an agent to transfer when the guard flag is on', async () => {
+        process.env.TENANT_MODE = 'single';
+        process.env.DEFAULT_TENANT_ID = String(tenantA._id);
+        process.env.FINANCIAL_TENANT_GUARD = 'true';
+        process.env.FINANCIAL_BLOCK_MASTER_SUB_TENANT_MISMATCH = 'true';
+        const company = await ClientCompany.create({
+            name: 'شركة داخل الأهرام',
+            accountCode: '55551',
+            balance: 300,
+            status: 'active',
+            tenantId: null
+        });
+        const agent = await User.create({
+            name: 'وكيل داخل الأهرام',
+            role: 'agent',
+            webUsername: 'safety-agent-single',
+            webPassword: 'secret123',
+            phone: '01010000077',
+            accountCode: '4441',
+            balance: 80,
+            status: 'active',
+            tenantId: tenantB._id
+        });
+        const req = requestFor(tenantA, { accountCode: '55551' });
+        const found = await resolveAccountByCode('55551', req);
+        expect(String(found.doc._id)).toBe(String(company._id));
+        const agentFound = await resolveAccountByCode('4441', req);
+        expect(String(agentFound.doc._id)).toBe(String(agent._id));
+        const { assertMasterSubPolicy } = require('../services/financialSafety');
+        expect(() => assertMasterSubPolicy(
+            { tenantId: tenantB._id },
+            { tenantId: null }
+        )).not.toThrow();
+        const result = await executeBalanceTransfer({
+            source: { modelName: 'ClientCompany', doc: await ClientCompany.findById(company._id) },
+            targetCode: '4441',
+            amount: 12,
+            tenantContext: req
+        });
+        expect(result.success).toBe(true);
+        expect((await ClientCompany.findById(company._id)).balance).toBe(288);
+        expect((await User.findById(agent._id)).balance).toBe(92);
     });
 
     test('in-tenant transfer is balanced and the balance matches the ledger', async () => {

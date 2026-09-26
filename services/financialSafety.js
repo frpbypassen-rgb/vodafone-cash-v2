@@ -20,11 +20,20 @@ const PUBLIC_MESSAGES = {
     MASTER_SUB_TENANT_MISMATCH: 'حساب نقطة البيع والحساب الرئيسي ليسا في نفس المنظمة.'
 };
 
-const tenantGuardEnabled = () => truthy(process.env.FINANCIAL_TENANT_GUARD);
+const tenantMode = () => {
+    const configured = String(process.env.TENANT_MODE || '').trim().toLowerCase();
+    return configured === 'multi' ? 'multi' : 'single';
+};
+const multiTenantMode = () => tenantMode() === 'multi';
+// These flags are future safeguards for TENANT_MODE=multi only.
+// أهرام باي runs as one organization. Turning a flag on while mode stays single must not reject a transfer.
+const tenantGuardEnabled = () => truthy(process.env.FINANCIAL_TENANT_GUARD) && multiTenantMode();
 const idempotencyRequired = () => truthy(process.env.FINANCIAL_IDEMPOTENCY_REQUIRED);
 const idempotencyEnabled = () => idempotencyRequired() || truthy(process.env.FINANCIAL_IDEMPOTENCY_ENABLED);
 const strictIdempotencyBinding = () => truthy(process.env.FINANCIAL_IDEMPOTENCY_STRICT_BINDING);
-const blockMasterSubTenantMismatch = () => truthy(process.env.FINANCIAL_BLOCK_MASTER_SUB_TENANT_MISMATCH);
+const blockMasterSubTenantMismatch = () => (
+    truthy(process.env.FINANCIAL_BLOCK_MASTER_SUB_TENANT_MISMATCH) && multiTenantMode()
+);
 const auditInTransactionEnabled = () => truthy(process.env.FINANCIAL_AUDIT_IN_TRANSACTION);
 const redisFailClosed = () => truthy(process.env.FINANCIAL_REDIS_FAIL_CLOSED);
 
@@ -37,6 +46,11 @@ const codedError = (message, statusCode) => {
 };
 
 const idString = (value) => (value === null || value === undefined || value === '' ? null : String(value));
+
+const defaultTenantId = () => idString(process.env.DEFAULT_TENANT_ID);
+
+/** Missing tenantId on a legacy row is the single default organization, not a foreign one. */
+const canonicalTenantId = (value) => idString(value) || defaultTenantId();
 
 /**
  * Tenant comes only from the server resolver (req.tenant / req.tenantId).
@@ -57,24 +71,28 @@ const resolveStampTenant = ({ req, account } = {}) => {
         }
         return accountTenant || requestTenant || null;
     }
-    if (!requestTenant || !accountTenant || idString(requestTenant) !== idString(accountTenant)) {
+    const requestCanonical = canonicalTenantId(requestTenant);
+    const accountCanonical = canonicalTenantId(accountTenant);
+    if (!requestCanonical || !accountCanonical || requestCanonical !== accountCanonical) {
         throw codedError('TENANT_UNRESOLVED', 503);
     }
-    return requestTenant;
+    return accountTenant || requestTenant || requestCanonical;
 };
 
 const assertAccountsSameTenant = (sourceTenant, targetTenant) => {
     if (!tenantGuardEnabled()) return;
-    if (!sourceTenant || !targetTenant || idString(sourceTenant) !== idString(targetTenant)) {
+    const sourceCanonical = canonicalTenantId(sourceTenant);
+    const targetCanonical = canonicalTenantId(targetTenant);
+    if (!sourceCanonical || !targetCanonical || sourceCanonical !== targetCanonical) {
         throw codedError('CROSS_TENANT_TRANSFER', 403);
     }
 };
 
 const assertMasterSubPolicy = (subAccount, master) => {
     if (!blockMasterSubTenantMismatch()) return;
-    const subTenant = subAccount && subAccount.tenantId;
-    const masterTenant = master && master.tenantId;
-    if (subTenant && masterTenant && idString(subTenant) !== idString(masterTenant)) {
+    const subTenant = canonicalTenantId(subAccount && subAccount.tenantId);
+    const masterTenant = canonicalTenantId(master && master.tenantId);
+    if (subTenant && masterTenant && subTenant !== masterTenant) {
         throw codedError('MASTER_SUB_TENANT_MISMATCH', 403);
     }
 };
@@ -205,7 +223,11 @@ const tenantStamp = (tenantId) => (tenantId ? { tenantId } : {});
 
 module.exports = {
     PUBLIC_MESSAGES,
+    tenantMode,
+    multiTenantMode,
     tenantGuardEnabled,
+    canonicalTenantId,
+    defaultTenantId,
     idempotencyRequired,
     idempotencyEnabled,
     strictIdempotencyBinding,
