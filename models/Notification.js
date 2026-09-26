@@ -12,9 +12,11 @@ const notificationSchema = new mongoose.Schema({
     message: { type: String, required: true },
     txId: { type: String },
     metadata: { type: Object },
+    dedupeKey: { type: String },
     isRead: { type: Boolean, default: false, index: true }
 }, { timestamps: true });
 
+notificationSchema.index({ dedupeKey: 1 }, { unique: true, sparse: true });
 notificationSchema.index({ userId: 1, isRead: 1, createdAt: -1 });
 notificationSchema.index({ audience: 1, isRead: 1, createdAt: -1 });
 

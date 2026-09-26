@@ -73,7 +73,13 @@ eventBus.on('transfer:created', async (data) => {
         const Admin = require('../models/Admin');
         const admins = await Admin.find({}).lean();
         for (const admin of admins) {
-            await addNotificationJob(admin.webUsername || 'admin', 'طلب تحويل جديد', adminMsg, 'transfer');
+            await addNotificationJob(
+                admin.webUsername || 'admin',
+                'طلب تحويل جديد',
+                adminMsg,
+                'transfer',
+                `${tx.customId || tx._id}:${admin.webUsername || 'admin'}:transfer`
+            );
         }
     } catch (err) {
         logger.error('Failed to handle transfer:created event', { error: err.message });
@@ -103,7 +109,13 @@ eventBus.on('transfer:completed', async (data) => {
         
         // إشعار المستخدم أو الشركة المنشئة للعملية
         if (tx.userId) {
-            await addNotificationJob(tx.userId, 'تم إتمام الحوالة بنجاح', msg, 'transfer_complete');
+            await addNotificationJob(
+                tx.userId,
+                'تم إتمام الحوالة بنجاح',
+                msg,
+                'transfer_complete',
+                `${tx.customId || tx._id}:${tx.userId}:transfer_complete`
+            );
         }
 
         await receiptDelivery;
@@ -143,7 +155,13 @@ const handleTransferCancelled = async (data) => {
         const msg = `❌ تم إلغاء الحوالة رقم ${tx.customId} وإرجاع القيمة ${tx.costLYD} LYD لرصيدك. السبب: ${reason}`;
         
         if (tx.userId) {
-            await addNotificationJob(tx.userId, 'إلغاء التحويل وإرجاع الرصيد', msg, 'transfer_cancelled');
+            await addNotificationJob(
+                tx.userId,
+                'إلغاء التحويل وإرجاع الرصيد',
+                msg,
+                'transfer_cancelled',
+                `${tx.customId || tx._id}:${tx.userId}:transfer_cancelled`
+            );
         }
     } catch (err) {
         logger.error('Failed to handle transfer:cancelled event', { error: err.message });

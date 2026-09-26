@@ -64,6 +64,8 @@ describe('Executor web transaction completion', () => {
 
     beforeEach(() => {
         jest.clearAllMocks();
+        delete process.env.EXTERNAL_API_ENABLED;
+        delete process.env.BULLMQ_WORKERS_ENABLED;
         jest.spyOn(fs, 'existsSync').mockReturnValue(true);
         jest.spyOn(fs, 'writeFileSync').mockImplementation(() => {});
         jest.spyOn(fs, 'unlinkSync').mockImplementation(() => {});
@@ -320,5 +322,33 @@ describe('Executor web transaction completion', () => {
         });
         expect(tx.save).not.toHaveBeenCalled();
         expect(generateManualExecutorReceiptBase64).not.toHaveBeenCalled();
+    });
+
+    test('refuses ZaynPay execution before any read or ledger write when the provider switch is off', async () => {
+        process.env.EXTERNAL_API_ENABLED = 'false';
+        const before = tx.status;
+        await controller.executeViaZaynPay(req, res);
+        delete process.env.EXTERNAL_API_ENABLED;
+
+        expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+            success: false,
+            code: 'API_EXECUTION_UNAVAILABLE'
+        }));
+        expect(Transaction.findById).not.toHaveBeenCalled();
+        expect(tx.save).not.toHaveBeenCalled();
+        expect(tx.status).toBe(before);
+    });
+
+    test('does not block direct ZaynPay execution only because BullMQ workers are off', async () => {
+        process.env.BULLMQ_WORKERS_ENABLED = 'false';
+        delete process.env.EXTERNAL_API_ENABLED;
+        await controller.executeViaZaynPay(req, res);
+        delete process.env.BULLMQ_WORKERS_ENABLED;
+
+        expect(res.json).not.toHaveBeenCalledWith(expect.objectContaining({
+            code: 'API_EXECUTION_UNAVAILABLE'
+        }));
+        expect(tx.save).not.toHaveBeenCalled();
+        expect(tx.status).toBe('accepted');
     });
 });

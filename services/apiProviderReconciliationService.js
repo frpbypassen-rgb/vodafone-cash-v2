@@ -7,6 +7,7 @@ const Notification = require('../models/Notification');
 const Transaction = require('../models/Transaction');
 const { getApiProviderBalance, getApiProviderTransactions } = require('./externalApiService');
 const logger = require('../utils/logger');
+const { isFinancialSchedulersEnabled } = require('../utils/runtimeControls');
 
 const DEFAULT_BALANCE_TOLERANCE = 0.01;
 const DEFAULT_RETURN_MONITOR_INTERVAL_MS = 5 * 60 * 1000;
@@ -419,6 +420,7 @@ const reviewAllApiExecutors = async () => {
 };
 
 const startApiProviderReturnMonitor = () => {
+    if (!isFinancialSchedulersEnabled()) return null;
     if (returnMonitorTimer || process.env.API_RETURN_MONITOR_ENABLED === 'false') return returnMonitorTimer;
     const configured = Number(process.env.API_RETURN_MONITOR_INTERVAL_MS);
     const intervalMs = Number.isFinite(configured) && configured >= 60000

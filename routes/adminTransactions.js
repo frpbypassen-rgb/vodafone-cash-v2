@@ -53,6 +53,7 @@ const {
 
 // 🚀 استدعاء محرك الـ API 
 const { reversalService } = require('../src/Application/Services/ReversalService');
+const { apiQueueExecutionBlock } = require('../utils/runtimeControls');
 
 router.use(requireAuth);
 
@@ -573,6 +574,17 @@ router.post('/transaction/:id/assign-executor', async (req, res) => {
             && !executorGroup.isManagerBot
             && executorSupportsTransferType(executorGroup, tx.transferType)
         ) {
+            if (executorGroup.isApiBot) {
+                const blocked = apiQueueExecutionBlock();
+                if (blocked) {
+                    return respondTransactionAction(req, res, 409, {
+                        success: false,
+                        code: blocked.code,
+                        reason: blocked.reason,
+                        message: blocked.message
+                    }, '/transactions?routeError=api_execution_unavailable');
+                }
+            }
             const routedAt = actor.at;
             const assignment = {
                 status: 'processing',
