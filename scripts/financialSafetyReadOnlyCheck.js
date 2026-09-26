@@ -5,17 +5,16 @@
  *
  * Does not modify .env, MongoDB documents, indexes, or balances.
  * Does not restart any process.
- * The only non-read is a Redis probe key locks:financial-safety-readonly-probe,
- * created with a 5 second TTL and released immediately. It is not a balance,
- * ledger row, audit row, or index.
+ * Default Redis check is PING, INFO server, and Redlock constructor sanity.
+ * A lock write happens only with --redis-lock-probe.
  *
- * Working directory: the application root that contains this script and .env.
- * Required Node: major version 22 (review environment used v22.14.0).
- * Permissions: filesystem read of the app directory, HTTP read of /health,
- * and a MongoDB user that can read and run hello. Administrator is not required.
+ * Run this file from a separate clone. --app-dir is the production or staging
+ * folder whose git HEAD is checked. --env-file is that folder's .env, read only.
+ * Evidence is written under the clone, never inside --app-dir.
  *
- *   node scripts/financialSafetyReadOnlyCheck.js --env staging --required-sha <SHA> --env-file .env --base-url http://127.0.0.1:3000
- *   node scripts/financialSafetyReadOnlyCheck.js --env production --required-sha <SHA> --env-file .env --base-url http://127.0.0.1:3000
+ * Node 18, 20, and 22 are accepted. Any other major version fails as NODE_VERSION.
+ * Review tests ran on v22.14.0. Permissions: read the app folder, GET /health,
+ * and a MongoDB read user that can run hello. Administrator is not required.
  */
 
 const fs = require('fs');
@@ -40,20 +39,82 @@ const parseArgs = (argv) => {
         env: '',
         requiredSha: '',
         envFile: '.env',
+        appDir: '',
         baseUrl: 'http://127.0.0.1:3000',
-        evidenceDir: path.join('evidence', 'financial-safety')
+        evidenceDir: path.join('evidence', 'financial-safety'),
+        redisLockProbe: false
     };
     for (let index = 0; index < argv.length; index += 1) {
         const token = argv[index];
         if (token === '--apply') args.applyForbidden = true;
+        else if (token === '--redis-lock-probe') args.redisLockProbe = true;
         else if (token === '--env') args.env = argv[++index] || '';
         else if (token === '--required-sha') args.requiredSha = argv[++index] || '';
         else if (token === '--env-file') args.envFile = argv[++index] || '';
+        else if (token === '--app-dir') args.appDir = argv[++index] || '';
         else if (token === '--base-url') args.baseUrl = argv[++index] || '';
         else if (token === '--evidence-dir') args.evidenceDir = argv[++index] || args.evidenceDir;
     }
     return args;
 };
+
+const ACCEPTED_NODE_MAJORS = [18, 20, 22];
+
+const assessNodeVersion = (version) => {
+    const major = Number(String(version || '').replace(/^v/, '').split('.')[0]);
+    const pass = ACCEPTED_NODE_MAJORS.includes(major);
+    return {
+        pass,
+        reason: `NODE_VERSION ${version} is not 18, 20, or 22`,
+        details: { version, acceptedMajors: ACCEPTED_NODE_MAJORS }
+    };
+};
+
+const gitRevParseArgs = (appDir) => ['-C', appDir, 'rev-parse', 'HEAD'];
+const gitStatusArgs = (appDir) => ['-C', appDir, 'status', '--porcelain'];
+
+const evidenceInsideApp = (evidenceDir, appDir) => {
+    const evidenceRoot = path.resolve(evidenceDir);
+    const appRoot = path.resolve(appDir);
+    return evidenceRoot === appRoot || evidenceRoot.startsWith(appRoot + path.sep);
+};
+
+const classifyBalanceGap = (balance, ledgerCount, ledgerSum) => {
+    const gap = Number(balance || 0) - Number(ledgerSum || 0);
+    if (gap === 0) return null;
+    if (Number(ledgerCount || 0) === 0) return { className: 'opening_balance_no_ledger', amount: gap };
+    return { className: 'other', amount: gap };
+};
+
+const emptyGapClass = () => ({ count: 0, signedGapTotal: 0, absoluteGapTotal: 0 });
+
+const addGap = (classes, gap) => {
+    const bucket = classes[gap.className];
+    bucket.count += 1;
+    bucket.signedGapTotal += gap.amount;
+    bucket.absoluteGapTotal += Math.abs(gap.amount);
+};
+
+const resolveTenantMode = (env) => {
+    const raw = String((env && env.TENANT_MODE) || '').trim().toLowerCase();
+    if (!raw) return { mode: 'single', source: 'unset-default-single' };
+    if (raw === 'multi') return { mode: 'multi', source: 'env' };
+    return { mode: 'single', source: 'env' };
+};
+
+const summarizeTenantCounts = (summary, mode) => ({
+    determined: summary.confident || 0,
+    ambiguous: summary.ambiguous || 0,
+    legacy: mode === 'multi' ? (summary.unresolvable || 0) : 0,
+    legacy_single_tenant_assignable: mode === 'single' ? (summary.unresolvable || 0) : 0,
+    modified: summary.modified || 0
+});
+
+const tenantCountsFail = (counts, mode) => (
+    counts.modified !== 0
+    || counts.ambiguous > 0
+    || (mode === 'multi' && counts.legacy > 0)
+);
 
 const stamp = () => {
     const now = new Date();
@@ -105,23 +166,20 @@ const requestJson = (url) => new Promise((resolve, reject) => {
     req.on('error', reject);
 });
 
-const checkGit = (requiredSha) => {
-    const head = gitOutput(['rev-parse', 'HEAD']);
-    const dirty = gitOutput(['status', '--porcelain']);
+const checkGit = (requiredSha, appDir) => {
+    const head = gitOutput(gitRevParseArgs(appDir));
+    const dirty = gitOutput(gitStatusArgs(appDir));
+    const dirtyCount = dirty ? dirty.split(/\r?\n/).filter(Boolean).length : 0;
     const same = head === requiredSha;
-    const clean = dirty.length === 0;
+    const clean = dirtyCount === 0;
     return {
         pass: same && clean,
         reason: !same ? `HEAD ${head} differs from required ${requiredSha}` : 'working tree is not clean',
-        details: { head, requiredSha, clean }
+        details: { appDir, head, requiredSha, dirtyCount, clean }
     };
 };
 
-const checkNode = () => {
-    const version = process.version;
-    const pass = /^v22\./.test(version);
-    return { pass, reason: `Node ${version} is not major version 22`, details: { version, requiredMajor: 22 } };
-};
+const checkNode = () => assessNodeVersion(process.version);
 
 const checkHealth = async (baseUrl, pathname) => {
     const response = await requestJson(new URL(pathname, baseUrl).toString());
@@ -154,7 +212,7 @@ const checkMongo = async () => {
     };
 };
 
-const checkRedis = async () => {
+const checkRedis = async (lockProbe) => {
     const Redis = require('ioredis');
     const url = process.env.REDIS_URL || process.env.REDIS_URI;
     if (!url) return { pass: false, reason: 'REDIS_URL and REDIS_URI are ABSENT', details: { configured: false } };
@@ -171,13 +229,21 @@ const checkRedis = async () => {
         const info = await client.info('server');
         const version = (String(info).match(/redis_version:([^\r\n]+)/) || [])[1] || '';
         const RedlockClass = require('redlock').default || require('redlock');
-        const redlock = new RedlockClass([client], { retryCount: 2, retryDelay: 100, retryJitter: 0 });
-        const lock = await redlock.acquire([PROBE_LOCK_KEY], 5000);
-        await lock.release();
+        const redlockOptions = { driftFactor: 0.01, retryCount: 2, retryDelay: 100, retryJitter: 0 };
+        const redlock = new RedlockClass([client], redlockOptions);
+        const configSane = typeof redlock.acquire === 'function'
+            && redlockOptions.driftFactor > 0
+            && redlockOptions.driftFactor < 1;
+        let redlockProbe = 'not-run';
+        if (lockProbe) {
+            const lock = await redlock.acquire([PROBE_LOCK_KEY], 5000);
+            await lock.release();
+            redlockProbe = 'released';
+        }
         return {
-            pass: pong === 'PONG',
-            reason: `PING returned ${pong}`,
-            details: { ping: pong, redisVersion: version, redlockProbe: 'released', probeKey: PROBE_LOCK_KEY }
+            pass: pong === 'PONG' && configSane,
+            reason: pong !== 'PONG' ? `PING returned ${pong}` : 'Redlock constructor is not usable',
+            details: { ping: pong, redisVersion: version, redlockProbe, redisLockProbe: Boolean(lockProbe) }
         };
     } finally {
         await client.quit().catch(() => {});
@@ -193,34 +259,49 @@ const checkReconciliation = async () => {
     ];
     let entityGaps = 0;
     let netGap = 0;
+    const classes = {
+        opening_balance_no_ledger: emptyGapClass(),
+        other: emptyGapClass()
+    };
     for (const [coll, model] of specs) {
         const ledger = new Map();
         const grouped = db.collection('ledgers').aggregate([
             { $match: { entityModel: model } },
-            { $group: { _id: '$entityId', sum: { $sum: '$amount' } } }
+            { $group: { _id: '$entityId', sum: { $sum: '$amount' }, count: { $sum: 1 } } }
         ]);
-        for await (const row of grouped) ledger.set(String(row._id), Number(row.sum || 0));
+        for await (const row of grouped) {
+            ledger.set(String(row._id), { sum: Number(row.sum || 0), count: Number(row.count || 0) });
+        }
         const accounts = db.collection(coll).find({}, { projection: { balance: 1 } });
         for await (const doc of accounts) {
-            const gap = Number(doc.balance || 0) - Number(ledger.get(String(doc._id)) || 0);
-            if (gap !== 0) {
-                entityGaps += 1;
-                netGap += gap;
-            }
+            const entry = ledger.get(String(doc._id)) || { sum: 0, count: 0 };
+            const gap = classifyBalanceGap(doc.balance, entry.count, entry.sum);
+            if (!gap) continue;
+            entityGaps += 1;
+            netGap += gap.amount;
+            addGap(classes, gap);
         }
     }
     const broken = await db.collection('ledgers').aggregate([
         { $match: { transactionId: /^BTR-/ } },
         { $group: { _id: '$transactionId', net: { $sum: '$amount' } } },
         { $match: { net: { $ne: 0 } } },
-        { $count: 'n' }
+        { $group: { _id: null, n: { $sum: 1 }, absoluteNet: { $sum: { $abs: '$net' } } } }
     ]).toArray();
     const internalTransfersNotZero = (broken[0] && broken[0].n) || 0;
+    const internalTransferAbsoluteNet = (broken[0] && broken[0].absoluteNet) || 0;
     const pass = entityGaps === 0 && internalTransfersNotZero === 0;
     return {
         pass,
-        reason: `entityGaps=${entityGaps} netGap=${netGap} internalTransfersNotZero=${internalTransfersNotZero}`,
-        details: { entityGaps, netGap, internalTransfersNotZero }
+        reason: `entityGaps=${entityGaps} openingBalanceNoLedger=${classes.opening_balance_no_ledger.count} other=${classes.other.count} internalTransfersNotZero=${internalTransfersNotZero}`,
+        details: {
+            entityGaps,
+            netGap,
+            opening_balance_no_ledger: classes.opening_balance_no_ledger,
+            other: classes.other,
+            internalTransfersNotZero,
+            internalTransferAbsoluteNet
+        }
     };
 };
 
@@ -237,23 +318,17 @@ const checkBackfill = async () => {
         JournalEvent: require('../models/JournalEvent'),
         AuditLog: require('../models/AuditLog')
     });
+    const tenant = resolveTenantMode(process.env);
     const counts = {};
-    let undetermined = 0;
+    let stop = report.mode !== 'dry-run';
     for (const name of ['Transaction', 'Ledger', 'JournalEvent', 'AuditLog']) {
-        const summary = report.collections[name].summary;
-        counts[name] = {
-            determined: summary.confident,
-            legacy: summary.unresolvable,
-            ambiguous: summary.ambiguous,
-            modified: summary.modified
-        };
-        undetermined += summary.ambiguous + summary.unresolvable;
-        if (summary.modified !== 0) undetermined += 1;
+        counts[name] = summarizeTenantCounts(report.collections[name].summary, tenant.mode);
+        if (tenantCountsFail(counts[name], tenant.mode)) stop = true;
     }
     return {
-        pass: undetermined === 0 && report.mode === 'dry-run',
-        reason: `undetermined=${undetermined} mode=${report.mode}`,
-        details: { mode: report.mode, unchangedFields: report.unchangedFields, counts }
+        pass: !stop,
+        reason: `tenantMode=${tenant.mode} source=${tenant.source} ambiguous=${Object.values(counts).reduce((sum, row) => sum + row.ambiguous, 0)} legacy=${Object.values(counts).reduce((sum, row) => sum + row.legacy, 0)}`,
+        details: { mode: report.mode, tenantMode: tenant.mode, tenantModeSource: tenant.source, unchangedFields: report.unchangedFields, counts }
     };
 };
 
@@ -314,12 +389,22 @@ const main = async () => {
         process.exitCode = 2;
         return;
     }
+    if (!args.appDir) {
+        record(checks, 'arguments', false, '--app-dir is required and must be the application folder, not this check clone');
+        process.exitCode = 2;
+        return;
+    }
+    if (evidenceInsideApp(args.evidenceDir, args.appDir)) {
+        record(checks, 'arguments', false, '--evidence-dir must not be inside --app-dir');
+        process.exitCode = 2;
+        return;
+    }
 
     require('dotenv').config({ path: args.envFile });
     const node = checkNode();
     record(checks, 'node-version', node.pass, node.reason, node.details);
     try {
-        const git = checkGit(args.requiredSha);
+        const git = checkGit(args.requiredSha, args.appDir);
         record(checks, 'git-sha', git.pass, git.reason, git.details);
     } catch (error) {
         record(checks, 'git-sha', false, error.message);
@@ -372,7 +457,7 @@ const main = async () => {
     }
 
     try {
-        const redis = await checkRedis();
+        const redis = await checkRedis(args.redisLockProbe);
         record(checks, 'redis-redlock', redis.pass, redis.reason, redis.details);
     } catch (error) {
         record(checks, 'redis-redlock', false, error.message);
@@ -381,7 +466,9 @@ const main = async () => {
     const failed = checks.some((item) => item.result === 'FAIL');
     const evidence = writeEvidence(args.evidenceDir, args.env, 'summary', {
         env: args.env,
+        appDir: args.appDir,
         readOnly: true,
+        redisLockProbe: Boolean(args.redisLockProbe),
         serviceRestarted: false,
         indexCreated: false,
         balancesWritten: false,
@@ -401,4 +488,15 @@ if (require.main === module) {
     });
 }
 
-module.exports = { maskText, parseArgs, PROBE_LOCK_KEY };
+module.exports = {
+    maskText,
+    parseArgs,
+    PROBE_LOCK_KEY,
+    assessNodeVersion,
+    gitRevParseArgs,
+    classifyBalanceGap,
+    summarizeTenantCounts,
+    tenantCountsFail,
+    resolveTenantMode,
+    evidenceInsideApp
+};

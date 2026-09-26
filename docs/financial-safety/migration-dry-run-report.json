@@ -1,7 +1,7 @@
 {
   "mode": "dry-run",
-  "startedAt": "2026-09-26T14:07:46.222Z",
-  "finishedAt": "2026-09-26T14:07:46.229Z",
+  "startedAt": "2026-09-26T14:13:45.691Z",
+  "finishedAt": "2026-09-26T14:13:45.697Z",
   "note": "Dry-run does not write. Ambiguous rows are never updated. Balances, amounts, and statuses are not fields this script sets.",
   "unchangedFields": [
     "balance",
@@ -21,13 +21,13 @@
       "samples": {
         "ambiguous": [
           {
-            "_id": "6ab7d1b24be5f1e78ebbaf9b",
+            "_id": "6ab7d31907387a73796141bc",
             "reason": "company+subAccount"
           }
         ],
         "unresolvable": [
           {
-            "_id": "6ab7d1b24be5f1e78ebbaf9c",
+            "_id": "6ab7d31907387a73796141bd",
             "reason": "no-linked-tenant"
           }
         ]
@@ -45,7 +45,7 @@
       "samples": {
         "ambiguous": [
           {
-            "_id": "6ab7d1b24be5f1e78ebbaf9d",
+            "_id": "6ab7d31907387a73796141be",
             "reason": "transaction+entity"
           }
         ],
@@ -65,7 +65,7 @@
         "ambiguous": [],
         "unresolvable": [
           {
-            "_id": "6ab7d1b24be5f1e78ebbafa0",
+            "_id": "6ab7d31907387a73796141c1",
             "reason": "no-linked-tenant"
           }
         ]
@@ -84,7 +84,7 @@
         "ambiguous": [],
         "unresolvable": [
           {
-            "_id": "6ab7d1b24be5f1e78ebbafa2",
+            "_id": "6ab7d31907387a73796141c3",
             "reason": "no-linked-tenant"
           }
         ]

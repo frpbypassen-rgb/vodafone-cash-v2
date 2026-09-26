@@ -49,9 +49,7 @@ pm2 restart Ahram_Core_API --update-env
 
 أوامر الفحص المعتمدة في `FINAL_REPORT.md`. لا تعِد تشغيل الخدمة ضمن هذا الفحص، ولا تمرر `--apply`.
 
-```powershell
-Set-Location 'C:\Users\Administrator\Desktop\vodafone-cash-v2'; node scripts/financialSafetyReadOnlyCheck.js --env production --required-sha PASTE_REQUIRED_SHA --env-file .env --base-url http://127.0.0.1:3000
-```
+لا تشغّل السكربت من مجلد الإنتاج: الملف غير موجود على `main`. الأوامر الكاملة، بما فيها النسخة المنفصلة `financial-safety-check` و`--app-dir`، في `FINAL_REPORT.md`. لا `--redis-lock-probe` في الفحص الافتراضي.
 
 `transactionsCapable=true` يعني replica set أو mongos، وهو شرط المعاملات. رفض غياب الجلسة على تحويل الويب والرصيد الداخلي والموبايل موجود على `main` عندما `NODE_ENV=production` أو `MONGO_TRANSACTIONS_REQUIRED=true`. هذا الفرع لا يضيف رفضًا جديدًا على هذا الشرط. مسار الطوارئ `isEmergencyStandaloneFinancialWritesActive` ما زال يعطّل الشرط كما في `services/walletService.js`.
 
