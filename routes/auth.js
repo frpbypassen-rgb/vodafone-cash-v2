@@ -1645,7 +1645,7 @@ router.post('/api/password-reset/start', passwordResetLimiter, async (req, res) 
                 accountType: 'استعادة كلمة المرور'
             });
         } catch (error) {
-            delivery = { success: false, code: 'WHATSAPP_OTP_FAILED', message: error.message };
+            delivery = { success: false, code: error.code || 'WHATSAPP_OTP_FAILED' };
         }
 
         if (!delivery?.success) {

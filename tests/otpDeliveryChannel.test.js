@@ -1,8 +1,10 @@
 'use strict';
 
 const {
+    isEmailOtpEnabled,
     isValidOtpEmail,
     isWhatsappLoginOtpEnabled,
+    isWhatsappOtpEnabled,
     resolveAccountOtpEmail,
     selectLoginOtpChannel
 } = require('../utils/otpDeliveryChannel');
@@ -20,9 +22,13 @@ describe('login OTP delivery channel', () => {
             channel: 'email',
             email: 'staff@example.com'
         });
-        expect(selectLoginOtpChannel({})).toEqual({ channel: 'whatsapp' });
+        expect(selectLoginOtpChannel({})).toEqual({
+            channel: 'whatsapp',
+            code: 'WHATSAPP_OTP_DISABLED'
+        });
         expect(selectLoginOtpChannel({ otpDeliveryChannel: 'whatsapp', email: 'not-an-email' })).toEqual({
-            channel: 'whatsapp'
+            channel: 'whatsapp',
+            code: 'WHATSAPP_OTP_DISABLED'
         });
     });
 
@@ -78,13 +84,53 @@ describe('login OTP delivery channel', () => {
         }, whatsappOtpOff).code).toBe('EMAIL_OTP_ADDRESS_INVALID');
     });
 
-    test('keeps the WhatsApp channel when the flag is unset or truthy', () => {
-        expect(selectLoginOtpChannel({}, {})).toEqual({ channel: 'whatsapp' });
+    test('keeps the WhatsApp selection closed when the login flag is unset and WhatsApp OTP is off', () => {
+        expect(selectLoginOtpChannel({}, {})).toEqual({
+            channel: 'whatsapp',
+            code: 'WHATSAPP_OTP_DISABLED'
+        });
         expect(isWhatsappLoginOtpEnabled({})).toBe(true);
+        expect(isWhatsappOtpEnabled({})).toBe(false);
         for (const value of ['1', 'true', 'yes', 'on']) {
             expect(selectLoginOtpChannel({}, { WHATSAPP_LOGIN_OTP_ENABLED: value })).toEqual({
-                channel: 'whatsapp'
+                channel: 'whatsapp',
+                code: 'WHATSAPP_OTP_DISABLED'
             });
         }
+    });
+
+    test('opens WhatsApp only when the OTP flag is explicit and the delivery channel is not email', () => {
+        const open = { WHATSAPP_OTP_ENABLED: 'true', WHATSAPP_LOGIN_OTP_ENABLED: 'true' };
+        expect(selectLoginOtpChannel({}, open)).toEqual({ channel: 'whatsapp' });
+        expect(selectLoginOtpChannel({}, { ...open, OTP_DELIVERY_CHANNEL: 'whatsapp' })).toEqual({
+            channel: 'whatsapp'
+        });
+        expect(selectLoginOtpChannel({}, { ...open, OTP_DELIVERY_CHANNEL: 'email' })).toEqual({
+            channel: 'whatsapp',
+            code: 'WHATSAPP_OTP_DISABLED'
+        });
+        expect(selectLoginOtpChannel({}, {
+            WHATSAPP_OTP_ENABLED: 'true',
+            WHATSAPP_LOGIN_OTP_ENABLED: 'false'
+        })).toEqual({
+            channel: 'whatsapp',
+            code: 'WHATSAPP_LOGIN_OTP_DISABLED'
+        });
+    });
+
+    test('keeps a valid address on email and does not fall back when email OTP is off', () => {
+        expect(isEmailOtpEnabled({})).toBe(true);
+        expect(selectLoginOtpChannel(
+            { email: 'staff@example.com' },
+            { OTP_DELIVERY_CHANNEL: 'email', EMAIL_OTP_ENABLED: 'true', WHATSAPP_OTP_ENABLED: 'true' }
+        )).toEqual({ channel: 'email', email: 'staff@example.com' });
+        expect(selectLoginOtpChannel(
+            { email: 'staff@example.com' },
+            { EMAIL_OTP_ENABLED: 'false', WHATSAPP_OTP_ENABLED: 'true', OTP_DELIVERY_CHANNEL: 'whatsapp' }
+        )).toEqual({
+            channel: 'email',
+            email: 'staff@example.com',
+            code: 'EMAIL_OTP_DISABLED'
+        });
     });
 });

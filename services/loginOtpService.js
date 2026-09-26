@@ -85,7 +85,9 @@ const publicDeliveryMessage = (code, fallback) => {
         WHATCHIMP_TIMEOUT: `انتهت مهلة إرسال واتساب. أعد المحاولة بعد دقيقة. رمز الحالة: ${normalized}`,
         WHATCHIMP_REQUEST_FAILED: `تعذر الاتصال بمزوّد واتساب. أعد المحاولة بعد دقيقة. رمز الحالة: ${normalized}`,
         EMAIL_OTP_ADDRESS_INVALID: 'البريد الإلكتروني المسجّل غير صالح لإرسال رمز التحقق. راجع الإدارة.',
+        EMAIL_OTP_DISABLED: 'إرسال رمز التحقق عبر البريد متوقف. تواصل مع الإدارة.',
         WHATSAPP_LOGIN_OTP_DISABLED: 'إرسال رمز تسجيل الدخول عبر واتساب متوقف مؤقتاً. استخدم أو أضف بريداً إلكترونياً، أو تواصل مع الإدارة.',
+        WHATSAPP_OTP_DISABLED: 'إرسال رمز التحقق عبر واتساب متوقف. استخدم البريد الإلكتروني، أو تواصل مع الإدارة.',
         SMTP_CONFIG_MISSING: `إعداد البريد غير مكتمل على الخادم. رمز الحالة: ${normalized}`,
         EMAIL_OTP_SEND_FAILED: `تعذر إرسال رمز التحقق عبر البريد. أعد المحاولة بعد دقيقة. رمز الحالة: ${normalized}`,
         EMAIL_OTP_TIMEOUT: `انتهت مهلة إرسال البريد. أعد المحاولة بعد دقيقة. رمز الحالة: ${normalized}`
@@ -208,8 +210,7 @@ const deliverLoginOtp = async ({ phone, otp, accountName, accountTypeLabel, acco
             success: false,
             provider: 'whatchimp',
             channel: 'whatsapp',
-            code: error.code || 'WHATSAPP_OTP_FAILED',
-            message: error.message
+            code: error.code || 'WHATSAPP_OTP_FAILED'
         };
     }
 };
@@ -220,12 +221,15 @@ const clearStoredOtp = async (Model, accountId) => {
 
 /**
  * Persist a hashed login OTP and deliver it on the account channel.
- * A valid stored address is delivered by email. Accounts with no usable
- * address keep the WhatsApp path unless WHATSAPP_LOGIN_OTP_ENABLED is
- * explicitly off. When LOGIN_OTP_SKIP_WITHOUT_EMAIL is on, those accounts
- * skip OTP entirely (no WhatsApp send) and the caller completes login.
- * A failed email delivery still clears the stored OTP and can fall through
- * to the emergency bypass when that window is active. It never skips OTP.
+ * A valid stored address is delivered by email. EMAIL_OTP_ENABLED defaults
+ * to on; an explicit off returns EMAIL_OTP_DISABLED and does not use
+ * WhatsApp. Accounts with no usable address stay on the WhatsApp selection
+ * so LOGIN_OTP_SKIP_WITHOUT_EMAIL can still complete password-only login.
+ * An open WhatsApp send also requires WHATSAPP_OTP_ENABLED=true and
+ * OTP_DELIVERY_CHANNEL other than email. A failed email delivery still
+ * clears the stored OTP and can fall through to the emergency bypass when
+ * that window is active. It never falls back to WhatsApp and never skips
+ * OTP for an account that has a valid address.
  */
 const issueLoginOtp = async ({ account, accountType, session = {}, attempt = null }) => {
     const portal = getLoginOtpPortal(accountType);

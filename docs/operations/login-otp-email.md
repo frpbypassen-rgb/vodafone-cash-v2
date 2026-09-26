@@ -1,10 +1,50 @@
 # Login OTP email
 
-Email is already the live login OTP channel for any account with a usable
-address. `WHATSAPP_LOGIN_OTP_ENABLED` and `LOGIN_OTP_SKIP_WITHOUT_EMAIL`
-are unchanged: WhatsApp is only for accounts with no usable email, and
-skip-without-email still completes password-only login for those accounts.
-Do not put the email channel behind an off switch.
+Email is the live login OTP channel for any account with a usable address.
+`EMAIL_OTP_ENABLED` defaults to on when unset. An explicit `0` / `false` /
+`no` / `off` returns `EMAIL_OTP_DISABLED` and does not send on WhatsApp.
+`OTP_DELIVERY_CHANNEL=email` selects email for accounts that have a valid
+address. A failed email send never falls back to WhatsApp. The only email
+fallback is the new template to the current cream template.
+
+`WHATSAPP_OTP_ENABLED` defaults to off. Only `1` / `true` / `yes` / `on`
+allows `sendOtp` to call WhatChimp. Unset, `false`, `0`, `off`, and `no`
+return `WHATSAPP_OTP_DISABLED` with no HTTP request to WhatChimp or
+WP Sender. When the flag is on and `WHATCHIMP_ENABLED` is off, the result
+is `WHATCHIMP_DISABLED` and WP Sender is still not used for OTP. Receipts,
+cancellation receipts, rate alerts, financial group alerts, and support
+replies do not read this flag.
+
+`WHATSAPP_LOGIN_OTP_ENABLED=false` still returns
+`WHATSAPP_LOGIN_OTP_DISABLED` for accounts with no usable email, before
+the newer flag is considered. `LOGIN_OTP_SKIP_WITHOUT_EMAIL=true` still
+completes password-only login for those accounts, including when the
+selection code is `WHATSAPP_OTP_DISABLED`, because the channel stays
+`whatsapp`. An account that explicitly selects email but has no valid
+address still fails with `EMAIL_OTP_ADDRESS_INVALID`.
+
+A production `.env` that already has `WHATSAPP_LOGIN_OTP_ENABLED=false`
+and does not yet define the new variables cannot send an OTP on WhatsApp:
+unset `WHATSAPP_OTP_ENABLED` is off inside `sendOtp`. Add these lines and
+reload the process. Keep the two existing lines as well:
+
+```
+OTP_DELIVERY_CHANNEL=email
+EMAIL_OTP_ENABLED=true
+WHATSAPP_OTP_ENABLED=false
+WHATSAPP_LOGIN_OTP_ENABLED=false
+LOGIN_OTP_SKIP_WITHOUT_EMAIL=true
+```
+
+Do not add the three new names to `productionSecurityDefaults` or to the
+required production boot flags.
+
+Password reset (`POST /api/password-reset/start`) calls `sendOtp` and has
+no email path. With the default it returns `WHATSAPP_OTP_DISABLED`, expires
+the request, and stores no plaintext code. Accounts without an email that
+are not covered by `LOGIN_OTP_SKIP_WITHOUT_EMAIL` also have no OTP route
+and fail closed with `WHATSAPP_OTP_DISABLED` (or
+`WHATSAPP_LOGIN_OTP_DISABLED` when that older flag is explicitly off).
 
 `LOGIN_OTP_EMAIL_TEMPLATE_V2` changes the **template only**. It defaults to
 off. Unset, `false`, `0`, `off`, or `no` keeps sending the current cream

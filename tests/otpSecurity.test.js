@@ -70,6 +70,7 @@ describe('OTP security', () => {
         const auth = fs.readFileSync(path.join(__dirname, '../routes/auth.js'), 'utf8');
         const channel = fs.readFileSync(path.join(__dirname, '../utils/otpDeliveryChannel.js'), 'utf8');
         const defaults = fs.readFileSync(path.join(__dirname, '../config/productionSecurityDefaults.js'), 'utf8');
+        const whatsapp = fs.readFileSync(path.join(__dirname, '../services/whatsappService.js'), 'utf8');
         expect(service).toContain('otpCode: hashOtp(otp)');
         expect(service).not.toMatch(/otpCode:\s*otp\b/);
         expect(service).toContain('new Date(Date.now() + 5 * 60 * 1000)');
@@ -81,6 +82,17 @@ describe('OTP security', () => {
         expect(mailer).not.toContain('error.stack');
         expect(channel).not.toContain('LOGIN_OTP_EMAIL_TEMPLATE_V2');
         expect(defaults).not.toContain('LOGIN_OTP_EMAIL_TEMPLATE_V2');
+        expect(defaults).not.toContain('WHATSAPP_OTP_ENABLED');
+        expect(defaults).not.toContain('OTP_DELIVERY_CHANNEL');
+        expect(defaults).not.toContain('EMAIL_OTP_ENABLED');
+        expect(whatsapp).toContain("code: 'WHATSAPP_OTP_DISABLED'");
+        expect(whatsapp).toContain("code: 'WHATCHIMP_DISABLED'");
+        expect(whatsapp).not.toContain('sendLegacyWhatsAppMessage(phone, legacyMessage)');
+        const resetStart = auth.slice(auth.indexOf("router.post('/api/password-reset/start'"), auth.indexOf("router.post('/api/password-reset/verify-otp'"));
+        expect(resetStart).toContain('hashOtp(otp)');
+        expect(resetStart).toContain('sendOtp({');
+        expect(resetStart).not.toContain('message: error.message');
+        expect(resetStart).toContain("resetRequest.otpCode = undefined");
         expect(sanitizeLogValue('482913', 'otp')).toBe('[REDACTED]');
         expect(sanitizeLogValue('482913', 'otpCode')).toBe('[REDACTED]');
 
