@@ -1,6 +1,7 @@
 'use strict';
 
 const { sanitizeStatementTransaction } = require('../utils/accountStatementPrivacy');
+const { describeSplitPartProofs, listSplitCustomerProofIds } = require('../utils/splitPartProofs');
 
 const CANCELLATION_RECEIPT_PATTERN = /_cancellation_receipt\.(?:svg|jpe?g)$/i;
 const CANCELLED_RECEIPT_STATUSES = new Set(['rejected', 'cancelled_by_admin', 'cancelled', 'canceled']);
@@ -29,18 +30,36 @@ const getClientReceiptProofIds = (transaction = {}) => {
     // response. A cancelled operation prefers its cancellation receipt even
     // if an older success image is still stored beside it.
     const ids = orderedProofIds(transaction);
-    if (!ids.length) return [];
     const cancelled = CANCELLED_RECEIPT_STATUSES.has(String(transaction.status || '').toLowerCase());
     if (cancelled) {
         const cancellationId = ids.find((proofId) => CANCELLATION_RECEIPT_PATTERN.test(proofId));
         if (cancellationId) return [cancellationId];
     }
+    const splitIds = listSplitCustomerProofIds(transaction);
+    if (splitIds) return splitIds;
+    if (!ids.length) return [];
     return [ids[0]];
 };
 
 const buildClientReceiptImages = (transaction = {}) => {
     const transactionId = String(transaction._id || transaction.id || '').trim();
     if (!transactionId) return [];
+
+    const partProofs = describeSplitPartProofs(transaction).filter((part) => part.proofAvailable);
+    if (partProofs.length) {
+        return partProofs.map((part) => ({
+            index: part.receiptIndex,
+            label: `إثبات الجزء ${part.partId} — ${part.amount} من ${part.senderWallet}`,
+            url: `/client/proxy/image/${encodeURIComponent(transactionId)}/${part.receiptIndex}`,
+            partId: part.partId,
+            amount: part.amount,
+            senderWallet: part.senderWallet,
+            recipient: part.recipient,
+            reference: part.partReference,
+            confirmedAt: part.confirmedAt,
+            status: part.status
+        }));
+    }
 
     const transferType = String(transaction.transferType || transaction.canonicalServiceKey || '').trim().toLowerCase();
     const isSefaProof = transferType === 'sefa_niger';
@@ -56,9 +75,23 @@ const buildClientReceiptImages = (transaction = {}) => {
 
 const presentClientVisibleReceipts = (transaction = {}) => {
     const receiptImages = buildClientReceiptImages(transaction);
+    const partProofs = describeSplitPartProofs(transaction).map((part) => ({
+        partId: part.partId,
+        amount: part.amount,
+        senderWallet: part.senderWallet,
+        recipient: part.recipient,
+        reference: part.reference,
+        partReference: part.partReference,
+        status: part.status,
+        confirmedAt: part.confirmedAt,
+        proofStatus: part.proofStatus,
+        proofAvailable: part.proofAvailable,
+        receiptIndex: part.receiptIndex
+    }));
     return {
         hasProof: receiptImages.length > 0,
         receiptImages,
+        ...(partProofs.length ? { partProofs } : {}),
         proofImage: receiptImages.length ? 'protected' : '',
         proofImages: receiptImages.length ? ['protected'] : []
     };

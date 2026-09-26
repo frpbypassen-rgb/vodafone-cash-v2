@@ -5,6 +5,8 @@ const https = require('https');
 const Transaction = require('../models/Transaction');
 const Ledger = require('../models/Ledger');
 const { createBalanceTransferReceiptProof } = require('../services/balanceTransferReceiptService');
+const { describeSplitPartProofs } = require('../utils/splitPartProofs');
+const { retrySplitPartProof } = require('../services/splitPartProofService');
 const ExecutorGroup = require('../models/ExecutorGroup');
 const ClientCompany = require('../models/ClientCompany');
 const Employee = require('../models/Employee');
@@ -1002,6 +1004,28 @@ router.post('/admin/kyc/review', async (req, res) => {
 });
 
 // 🔍 الحصول على تفاصيل العملية الشاملة + قيود الدفتر المالي (Ledger)
+router.post('/transaction/:id/retry-part-proof/:partId', async (req, res) => {
+    try {
+        requireAdminActor(req);
+        const tx = await Transaction.findOne(adminTxById(req, req.params.id));
+        if (!tx) return res.status(404).json({ success: false, error: 'العملية غير موجودة' });
+        const result = await retrySplitPartProof(tx._id, req.params.partId);
+        return res.status(result.ok ? 200 : 409).json({
+            success: Boolean(result.ok),
+            code: result.code,
+            partId: result.partId,
+            proofStatus: result.proofStatus || null,
+            duplicate: Boolean(result.duplicate)
+        });
+    } catch (error) {
+        if (isAdminActorError(error)) {
+            return res.status(error.statusCode || 403).json({ success: false, error: error.message || ACTOR_MESSAGE });
+        }
+        console.error('[adminTransactions/retry-part-proof] failed:', error.message);
+        return res.status(500).json({ success: false, error: 'تعذر إعادة إرسال إثبات الجزء.' });
+    }
+});
+
 router.get('/transactions/:id/details', async (req, res) => {
     try {
         const tx = await Transaction.findOne(adminTxById(req, req.params.id)).select('+executorExecutionNumber');
@@ -1068,7 +1092,10 @@ router.get('/transactions/:id/details', async (req, res) => {
             };
         }
         
-        res.json({ success: true, transaction: tx, ledgerInfo, balanceTransferPair });
+        const transaction = typeof tx.toObject === 'function' ? tx.toObject() : tx;
+        const partProofs = describeSplitPartProofs(tx);
+        if (partProofs.length) transaction.partProofs = partProofs;
+        res.json({ success: true, transaction, ledgerInfo, balanceTransferPair });
     } catch (e) {
         console.error('[adminTransactions/GET details] خطأ:', e.message);
         res.status(500).json({ success: false, error: 'حدث خطأ أثناء تحميل تفاصيل العملية.' });

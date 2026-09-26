@@ -50,6 +50,44 @@ describe('client proof access authorization', () => {
         expect(result.index).toBe(0);
     });
 
+    test('serves each split-part proof only to the owning company', async () => {
+        const tx = {
+            _id: TX_A,
+            companyId: COMPANY_A,
+            status: 'completed',
+            executorSenderEntries: [
+                {
+                    partId: '1',
+                    status: 'success',
+                    customerProof: { key: `${TX_A}:1`, imageId: 'proofs/part-1000.jpg', status: 'sent' }
+                },
+                {
+                    partId: '2',
+                    status: 'success',
+                    customerProof: { key: `${TX_A}:2`, imageId: 'proofs/part-1500.jpg', status: 'sent' }
+                }
+            ]
+        };
+        Transaction.findOne.mockResolvedValue(tx);
+        mockEmployeeQuery({ _id: EMPLOYEE_A, companyId: COMPANY_A, status: 'active' });
+
+        const owned = await resolveClientProofImage({
+            session: { accountType: 'company', clientId: EMPLOYEE_A },
+            transactionId: TX_A,
+            index: 1,
+            ownershipFilter: { companyId: COMPANY_A }
+        });
+        expect(owned.photoId).toBe('proofs/part-1500.jpg');
+
+        Transaction.findOne.mockResolvedValue(null);
+        await expect(resolveClientProofImage({
+            session: { accountType: 'company', clientId: EMPLOYEE_A },
+            transactionId: TX_A,
+            index: 1,
+            ownershipFilter: { companyId: COMPANY_B }
+        })).rejects.toMatchObject({ statusCode: 403, code: 'FORBIDDEN' });
+    });
+
     test('rejects a company user when the transaction belongs to another company', async () => {
         Transaction.findOne.mockResolvedValue({
             _id: TX_A,
