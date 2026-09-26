@@ -85,11 +85,12 @@
         <form action="/admin/verify" method="POST">
             <input type="hidden" name="_csrf" value="<%= typeof csrfToken !== 'undefined' ? csrfToken : '' %>">
             <div class="mb-4">
-                <input type="text" name="otp" class="form-control otp-input bg-light" placeholder="------" maxlength="6" inputmode="numeric" autocomplete="one-time-code" required dir="ltr">
+                <input type="text" name="otp" class="form-control otp-input bg-light" placeholder="------" maxlength="32" inputmode="numeric" autocomplete="one-time-code" data-login-otp required dir="ltr">
             </div>
             <button type="submit" class="btn btn-verify w-100 text-white shadow mb-3">تأكيد الرمز <i class="fa-solid fa-check ms-1"></i></button>
             <a href="/login" class="text-muted small text-decoration-none"><i class="fa-solid fa-arrow-right me-1"></i> العودة لتسجيل الدخول</a>
         </form>
     </div>
+    <%- include('../partials/login_otp_field_script') %>
 </body>
 </html>

@@ -25,7 +25,7 @@ node scripts/checkMongoTransactionSupport.js .env
 node scripts/migrateTenantIsolation.js
 ```
 
-الأمران `repairProductionEnv` و`migrateTenantIsolation` في هذه المرحلة للمعاينة فقط ولا يكتبان أي تغيير. يجب أن ينجح فحص البيئة وفحص معاملات MongoDB قبل المتابعة. `repairProductionEnv --apply` يفرض تحقق الدخول و`REDIS_REQUIRED=true` ليتوافق مع `assertProductionSecurityEnv()`.
+الأمران `repairProductionEnv` و`migrateTenantIsolation` في هذه المرحلة للمعاينة فقط ولا يكتبان أي تغيير. يجب أن ينجح فحص البيئة وفحص معاملات MongoDB قبل المتابعة. `repairProductionEnv --apply` يفرض تحقق الدخول و`REDIS_REQUIRED=true` ليتوافق مع `assertProductionSecurityEnv()`. مسار `.github/workflows/deploy.yml` لا يشغّل `migrateTenantIsolation.js --apply`، ولا يشغّل `repairProductionEnv.js --apply` إلا إذا اختير الإدخال `apply_repair`. التطبيق اليدوي أدناه يبقى خطوة منفصلة بعد النسخ الاحتياطي والموافقة.
 
 ## 3. النسخ الاحتياطي
 

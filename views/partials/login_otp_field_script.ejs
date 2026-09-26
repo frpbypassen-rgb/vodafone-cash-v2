@@ -1,0 +1,22 @@
+<script>
+(function () {
+    var nodes = document.querySelectorAll('[data-login-otp]');
+    var normalize = function (value) {
+        return String(value || '').replace(/\D/g, '').slice(0, 6);
+    };
+    Array.prototype.forEach.call(nodes, function (input) {
+        var apply = function () {
+            var next = normalize(input.value);
+            if (input.value !== next) input.value = next;
+        };
+        input.addEventListener('input', apply);
+        input.addEventListener('paste', function (event) {
+            var clipboard = event.clipboardData || window.clipboardData;
+            if (!clipboard) return;
+            event.preventDefault();
+            input.value = normalize(clipboard.getData('text'));
+        });
+        if (input.form) input.form.addEventListener('submit', apply);
+    });
+})();
+</script>

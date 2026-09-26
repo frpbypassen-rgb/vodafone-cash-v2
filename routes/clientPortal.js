@@ -87,8 +87,9 @@ const isActiveClientSession = async (req) => {
     }
 
     if (req.session.accountType === 'sub_client') {
-        const subAccount = await SubAccount.findById(req.session.clientId).select('status').lean();
-        return Boolean(subAccount && subAccount.status === 'active');
+        const subAccount = await SubAccount.findById(req.session.clientId).select('status sessionVersion').lean();
+        if (!subAccount || subAccount.status !== 'active') return false;
+        return Number(subAccount.sessionVersion || 0) === Number(req.session.clientSessionVersion || 0);
     }
 
     if (req.session.accountType === 'agent_staff') {
@@ -99,8 +100,9 @@ const isActiveClientSession = async (req) => {
         return Boolean(agent && agent.status === 'active' && agent.role === 'agent');
     }
 
-    const user = await User.findById(req.session.clientId).select('status').lean();
-    return Boolean(user && user.status === 'active');
+    const user = await User.findById(req.session.clientId).select('status sessionVersion').lean();
+    if (!user || user.status !== 'active') return false;
+    return Number(user.sessionVersion || 0) === Number(req.session.clientSessionVersion || 0);
 };
 
 const requireClientAuth = async (req, res, next) => {

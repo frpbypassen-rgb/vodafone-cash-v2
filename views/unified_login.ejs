@@ -397,6 +397,7 @@
                     <button type="button" class="btn-close ms-0 me-auto" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body pt-3">
+                    <% if (passwordResetEmailEnabled === true) { %>
                     <div id="resetStatus" class="reset-status"></div>
 
                     <div class="reset-step active" id="resetStepAccount">
@@ -436,9 +437,17 @@
                             إرسال الطلب للإدارة <i class="fa-solid fa-paper-plane ms-1"></i>
                         </button>
                         <div class="small text-muted fw-bold mt-3">
-                            لن يتم تغيير كلمة المرور إلا بعد موافقة الإدارة من قسم الشكاوي.
+                            بعد نجاح التغيير تُغلق جلسات الحساب على الموقع والتطبيق.
                         </div>
                     </div>
+                    <% } else { %>
+                    <p class="fw-bold text-dark mb-0" id="resetSupportOnly">
+                        استعادة كلمة المرور غير متاحة حالياً. تواصل مع الدعم على
+                        <bdo dir="ltr" style="unicode-bidi:isolate;"><%= passwordResetSupportPhone || '0913731533' %></bdo>
+                        أو
+                        <bdo dir="ltr" style="unicode-bidi:isolate;"><%= passwordResetSupportEmail || 'support@ahrampay.com' %></bdo>
+                    </p>
+                    <% } %>
                 </div>
                 <div class="modal-footer border-0 pt-0">
                     <button type="button" class="btn btn-light fw-bold rounded-3 px-4" data-bs-dismiss="modal">إغلاق</button>
@@ -515,10 +524,31 @@
 
         const resetFlow = { requestId: null };
 
-        function setResetStatus(message, type = 'info') {
+        function isolateLtr(value) {
+            const node = document.createElement('bdo');
+            node.dir = 'ltr';
+            node.style.unicodeBidi = 'isolate';
+            node.textContent = String(value || '');
+            return node;
+        }
+
+        function setResetStatus(message, type = 'info', details) {
             const box = document.getElementById('resetStatus');
             box.className = `reset-status show ${type}`;
-            box.textContent = message;
+            box.replaceChildren();
+            if (details && (details.code === 'PASSWORD_RESET_UNAVAILABLE' || details.code === 'PASSWORD_RESET_STARTED')) {
+                const lead = details.code === 'PASSWORD_RESET_STARTED'
+                    ? 'إذا كان للحساب بريد مفعّل لاستقبال رمز الاستعادة فسيصلك الرمز. إذا لم يكن له بريد مفعّل، استعادة كلمة المرور غير متاحة حالياً. تواصل مع الدعم على '
+                    : 'استعادة كلمة المرور غير متاحة حالياً. تواصل مع الدعم على ';
+                box.append(
+                    document.createTextNode(lead),
+                    isolateLtr(details.supportPhone),
+                    document.createTextNode(' أو '),
+                    isolateLtr(details.supportEmail)
+                );
+                return;
+            }
+            box.textContent = message || '';
         }
 
         function clearResetStatus() {
@@ -539,7 +569,13 @@
                 body: JSON.stringify(payload)
             });
             const data = await res.json().catch(() => ({ success: false, error: 'استجابة غير صالحة من الخادم.' }));
-            if (!data.success) throw new Error(data.error || 'تعذر تنفيذ الطلب.');
+            if (!data.success) {
+                const error = new Error(data.error || 'تعذر تنفيذ الطلب.');
+                error.code = data.code || '';
+                error.supportPhone = data.supportPhone || '';
+                error.supportEmail = data.supportEmail || '';
+                throw error;
+            }
             return data;
         }
 
@@ -564,11 +600,11 @@
                     const phone = document.getElementById('resetPhone').value.trim();
                     const data = await resetFetch('/api/password-reset/start', { username, phone });
                     resetFlow.requestId = data.requestId;
-                    setResetStatus(data.message || 'تم إرسال رمز التحقق على واتساب.', 'success');
+                    setResetStatus(data.message, 'success', data);
                     showResetStep('resetStepOtp');
                     document.getElementById('resetOtp').focus();
                 } catch (error) {
-                    setResetStatus(error.message, 'error');
+                    setResetStatus(error.message, 'error', error);
                 }
             });
         }
@@ -599,7 +635,7 @@
                         newPassword,
                         confirmPassword
                     });
-                    setResetStatus(data.message || 'تم إرسال الطلب إلى الإدارة.', 'success');
+                    setResetStatus(data.message || 'تم تغيير كلمة المرور. سجّل الدخول من جديد على كل الأجهزة.', 'success');
                     showResetStep('resetStepAccount');
                     document.getElementById('resetUsername').value = '';
                     document.getElementById('resetPhone').value = '';
@@ -613,14 +649,18 @@
             });
         }
 
-        document.getElementById('forgotPasswordModal').addEventListener('hidden.bs.modal', () => {
-            resetFlow.requestId = null;
-            clearResetStatus();
-            showResetStep('resetStepAccount');
-            ['resetUsername', 'resetPhone', 'resetOtp', 'resetNewPassword', 'resetConfirmPassword'].forEach((id) => {
-                document.getElementById(id).value = '';
+        const forgotPasswordModal = document.getElementById('forgotPasswordModal');
+        if (forgotPasswordModal && document.getElementById('resetStepAccount')) {
+            forgotPasswordModal.addEventListener('hidden.bs.modal', () => {
+                resetFlow.requestId = null;
+                clearResetStatus();
+                showResetStep('resetStepAccount');
+                ['resetUsername', 'resetPhone', 'resetOtp', 'resetNewPassword', 'resetConfirmPassword'].forEach((id) => {
+                    const field = document.getElementById(id);
+                    if (field) field.value = '';
+                });
             });
-        });
+        }
 
         const b64urlToBytes = (value) => Uint8Array.from(
             atob(value.replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(value.length / 4) * 4, '=')),
