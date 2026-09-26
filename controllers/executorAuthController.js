@@ -2,13 +2,13 @@ const Employee = require('../models/Employee');
 const RegistrationRequest = require('../models/RegistrationRequest');
 const Admin = require('../models/Admin');
 const { escapeRegex, verifyAndUpgradePassword, getTodayString } = require('../utils/helpers');
-const { verifyOtp } = require('../utils/otp');
+const { normalizeSubmittedOtp, verifyOtp } = require('../utils/otp');
 const accountMfaService = require('../services/accountMfaService');
 const { logAction } = require('../services/auditService');
 const securityControl = require('../services/securityControlService');
 const { establishAuthenticatedSession } = require('../utils/sessionSecurity');
 const { readExecutorManualPolicy, webSessionMaxAgeMsForPolicy } = require('../utils/executorManualPolicy');
-const { isLoginOtpRequired, issueLoginOtp, getLoginOtpPortal, buildLoginOtpSkippedAudit } = require('../services/loginOtpService');
+const { isLoginOtpRequired, issueLoginOtp, getLoginOtpPortal, buildLoginOtpSkippedAudit, readLoginOtpAttempt } = require('../services/loginOtpService');
 const {
     ExecutorAccountError,
     normalizeExecutorPhone,
@@ -90,7 +90,7 @@ const completeExecutorLogin = async (req, res, executor, { showMfaNotice = false
 };
 
 const startExecutorOtp = async (req, res, executor) => {
-    const issued = await issueLoginOtp({ account: executor, accountType: 'executor', session: req.session });
+    const issued = await issueLoginOtp({ account: executor, accountType: 'executor', session: req.session, attempt: readLoginOtpAttempt(req) });
     const portal = issued.portal || getLoginOtpPortal('executor');
     if (issued.status === 'reuse') {
         return req.session.save(() => res.redirect(portal.verifyPath));
@@ -331,7 +331,7 @@ exports.getVerify = (req, res) => {
 
 exports.postVerify = async (req, res) => {
     try {
-        const otp = String(req.body.otp || '').trim();
+        const otp = normalizeSubmittedOtp(req.body.otp);
         const accountId = req.session.tempExecutorId;
         const otpChallengeId = String(req.session.otpChallengeId || '');
         if (!accountId || !otpChallengeId || !otp) return res.redirect('/login');

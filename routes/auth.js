@@ -4,13 +4,13 @@ const bcrypt = require('bcryptjs');
 const { randomUUID } = require('crypto');
 const rateLimit = require('express-rate-limit');
 const { escapeRegex, verifyAndUpgradePassword, getTodayString } = require('../utils/helpers');
-const { generateOtp, hashOtp, verifyOtp } = require('../utils/otp');
+const { generateOtp, hashOtp, normalizeSubmittedOtp, verifyOtp } = require('../utils/otp');
 const {
     getEmergencyClientOtpBypassState,
     isPasskeyRequired,
     isSecurityVerificationRequired
 } = require('../config/securityPolicy');
-const { isLoginOtpRequired, issueLoginOtp, buildLoginOtpSkippedAudit } = require('../services/loginOtpService');
+const { isLoginOtpRequired, issueLoginOtp, buildLoginOtpSkippedAudit, readLoginOtpAttempt } = require('../services/loginOtpService');
 const { isEnvironmentAdminLoginEnabled } = require('../config/adminAuthPolicy');
 const { establishAuthenticatedSession } = require('../utils/sessionSecurity');
 const Admin = require('../models/Admin');
@@ -874,7 +874,7 @@ const startClientOtp = async (req, res, account, accountType) => {
     const deviceId = securityControl.ensureDeviceId(req, res);
     req.session.pendingSecurityLocation = securityControl.parseLocation(req);
     req.session.pendingSecurityUsername = String(req.body.username || '');
-    const issued = await issueLoginOtp({ account, accountType, session: req.session });
+    const issued = await issueLoginOtp({ account, accountType, session: req.session, attempt: readLoginOtpAttempt(req) });
     const portal = issued.portal;
     const performedByModel = portal?.performedByModel || 'User';
 
@@ -978,7 +978,7 @@ const startAdminOtp = async (req, res, adminData, options = {}) => {
     const deviceId = securityControl.ensureDeviceId(req, res);
     req.session.pendingSecurityLocation = securityControl.parseLocation(req);
     req.session.pendingSecurityUsername = String(req.body.username || '');
-    const issued = await issueLoginOtp({ account: adminData, accountType: 'admin', session: req.session });
+    const issued = await issueLoginOtp({ account: adminData, accountType: 'admin', session: req.session, attempt: readLoginOtpAttempt(req) });
     const portal = issued.portal;
 
     if (issued.status === 'reuse') {
@@ -1502,7 +1502,7 @@ router.get('/admin/verify', (req, res) => {
 
 router.post('/admin/verify', adminOtpVerifyLimiter, async (req, res) => {
     try {
-        const otp = String(req.body.otp || '').trim();
+        const otp = normalizeSubmittedOtp(req.body.otp);
         const accountId = req.session.tempAdminId;
         const otpChallengeId = String(req.session.otpChallengeId || '');
         if (!accountId || req.session.tempAccountType !== 'admin' || !otpChallengeId || !otp) {

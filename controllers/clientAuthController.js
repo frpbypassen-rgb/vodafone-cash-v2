@@ -4,7 +4,7 @@ const SubAccount = require('../models/SubAccount');
 const AgentEmployee = require('../models/AgentEmployee');
 const RegistrationRequest = require('../models/RegistrationRequest');
 const { getTodayString } = require('../utils/helpers');
-const { verifyOtp } = require('../utils/otp');
+const { normalizeSubmittedOtp, verifyOtp } = require('../utils/otp');
 const { establishAuthenticatedSession } = require('../utils/sessionSecurity');
 const { logAction } = require('../services/auditService');
 const securityControl = require('../services/securityControlService');
@@ -325,7 +325,7 @@ exports.getVerify = (req, res) => {
 
 exports.postVerify = async (req, res) => {
     try {
-        const otp = String(req.body.otp || '').trim();
+        const otp = normalizeSubmittedOtp(req.body.otp);
         const accountId = req.session.tempClientId;
         const accountType = req.session.tempAccountType;
         const otpChallengeId = String(req.session.otpChallengeId || '');

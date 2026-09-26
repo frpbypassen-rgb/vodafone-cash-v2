@@ -149,7 +149,18 @@ const hasReusableChallenge = ({ account, accountType, session = {} }) => {
     );
 };
 
-const deliverLoginOtp = async ({ phone, otp, accountName, accountTypeLabel, account, expiresAt }) => {
+const readLoginOtpAttempt = (req = {}) => {
+    const headers = req.headers || {};
+    const headerUa = headers['user-agent'] || headers['User-Agent'] || '';
+    const fromGetter = typeof req.get === 'function' ? req.get('user-agent') : '';
+    return {
+        at: new Date(),
+        userAgent: String(fromGetter || headerUa || '').replace(/[\r\n]+/g, ' ').trim(),
+        loginAccount: String((req.body && req.body.username) || '').replace(/[\r\n]+/g, ' ').trim()
+    };
+};
+
+const deliverLoginOtp = async ({ phone, otp, accountName, accountTypeLabel, account, expiresAt, attempt }) => {
     const selection = selectLoginOtpChannel(account || {});
     if (selection.code) {
         return {
@@ -167,7 +178,10 @@ const deliverLoginOtp = async ({ phone, otp, accountName, accountTypeLabel, acco
                 otp,
                 expiresMinutes: 5,
                 expiresAt,
-                accountName: accountName || ''
+                accountName: accountName || '',
+                attemptAt: attempt && attempt.at,
+                userAgent: attempt && attempt.userAgent,
+                loginAccount: attempt && attempt.loginAccount
             });
         } catch (error) {
             return {
@@ -213,7 +227,7 @@ const clearStoredOtp = async (Model, accountId) => {
  * A failed email delivery still clears the stored OTP and can fall through
  * to the emergency bypass when that window is active. It never skips OTP.
  */
-const issueLoginOtp = async ({ account, accountType, session = {} }) => {
+const issueLoginOtp = async ({ account, accountType, session = {}, attempt = null }) => {
     const portal = getLoginOtpPortal(accountType);
     if (!portal) {
         return { status: 'unsupported', code: 'OTP_ACCOUNT_TYPE_UNSUPPORTED', message: 'نوع الحساب لا يدعم رمز التحقق.' };
@@ -249,7 +263,8 @@ const issueLoginOtp = async ({ account, accountType, session = {} }) => {
         accountName: account.name || account.webUsername || '',
         accountTypeLabel: portal.label,
         account,
-        expiresAt: otpExpires
+        expiresAt: otpExpires,
+        attempt
     });
 
     if (delivery?.success) {
@@ -286,6 +301,7 @@ module.exports = {
     isLoginOtpRequired,
     issueLoginOtp,
     publicDeliveryMessage,
+    readLoginOtpAttempt,
     selectLoginOtpChannel,
     shouldSkipLoginOtpWithoutEmail
 };

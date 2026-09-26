@@ -4,6 +4,8 @@ const crypto = require('crypto');
 
 const OTP_DIGITS = 6;
 
+const normalizeSubmittedOtp = (value) => String(value == null ? '' : value).replace(/\D/g, '');
+
 const getOtpSecret = () => (
     process.env.OTP_SECRET ||
     process.env.SESSION_SECRET ||
@@ -25,7 +27,7 @@ const safeEqual = (left, right) => {
 };
 
 const verifyOtp = (submittedOtp, storedOtp) => {
-    const submitted = String(submittedOtp || '').trim();
+    const submitted = normalizeSubmittedOtp(submittedOtp);
     const stored = String(storedOtp || '');
     if (!/^\d{6}$/.test(submitted) || !/^[a-f0-9]{64}$/i.test(stored)) return false;
 
@@ -34,7 +36,9 @@ const verifyOtp = (submittedOtp, storedOtp) => {
 };
 
 module.exports = {
+    OTP_DIGITS,
     generateOtp,
     hashOtp,
+    normalizeSubmittedOtp,
     verifyOtp
 };

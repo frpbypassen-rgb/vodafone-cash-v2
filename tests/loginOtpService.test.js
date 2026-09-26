@@ -18,12 +18,15 @@ const Employee = require('../models/Employee');
 const Admin = require('../models/Admin');
 const { sendOtp } = require('../services/whatsappService');
 const { sendLoginOtpEmail } = require('../services/emailOtpMailer');
+const fs = require('fs');
+const path = require('path');
 const {
     buildLoginOtpSkippedAudit,
     getLoginOtpPortal,
     isLoginOtpRequired,
     issueLoginOtp,
     publicDeliveryMessage,
+    readLoginOtpAttempt,
     selectLoginOtpChannel,
     shouldSkipLoginOtpWithoutEmail
 } = require('../services/loginOtpService');
@@ -174,6 +177,49 @@ describe('login OTP service', () => {
         expect(publicDeliveryMessage('WHATSAPP_LOGIN_OTP_DISABLED')).toContain('بريداً إلكترونياً');
         expect(publicDeliveryMessage('WHATSAPP_LOGIN_OTP_DISABLED')).toContain('الإدارة');
         expect(publicDeliveryMessage('SMTP_CONFIG_MISSING')).not.toMatch(/\d{6}/);
+    });
+
+    test('reads the login attempt from the request and forwards it to email OTP', async () => {
+        const attemptAt = new Date('2026-09-22T12:22:00.000Z');
+        const userAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+        const fromRequest = readLoginOtpAttempt({
+            get: (header) => (header === 'user-agent' ? userAgent : ''),
+            body: { username: ' tizari@ahram.com ' }
+        });
+        expect(fromRequest.userAgent).toBe(userAgent);
+        expect(fromRequest.loginAccount).toBe('tizari@ahram.com');
+        expect(fromRequest.at).toBeInstanceOf(Date);
+
+        const account = {
+            _id: 'user-mail',
+            name: 'عميل تجريبي',
+            email: 'owner@example.com',
+            otpDeliveryChannel: 'email'
+        };
+        const result = await issueLoginOtp({
+            account,
+            accountType: 'user',
+            session: {},
+            attempt: {
+                at: attemptAt,
+                userAgent,
+                loginAccount: 'tizari@ahram.com'
+            }
+        });
+        expect(result.status).toBe('sent');
+        expect(sendLoginOtpEmail).toHaveBeenCalledWith(expect.objectContaining({
+            to: 'owner@example.com',
+            accountName: 'عميل تجريبي',
+            attemptAt,
+            userAgent,
+            loginAccount: 'tizari@ahram.com'
+        }));
+        expect(sendOtp).not.toHaveBeenCalled();
+
+        const auth = fs.readFileSync(path.join(__dirname, '../routes/auth.js'), 'utf8');
+        const executor = fs.readFileSync(path.join(__dirname, '../controllers/executorAuthController.js'), 'utf8');
+        expect(auth.match(/attempt: readLoginOtpAttempt\(req\)/g)).toHaveLength(2);
+        expect(executor).toContain('attempt: readLoginOtpAttempt(req)');
     });
 
     test('sends admin login OTP by email when the account has a valid address', async () => {
