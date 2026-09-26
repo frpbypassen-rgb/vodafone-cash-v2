@@ -4,7 +4,7 @@ const bcrypt = require('bcryptjs');
 const { randomUUID } = require('crypto');
 const rateLimit = require('express-rate-limit');
 const { escapeRegex, verifyAndUpgradePassword, getTodayString } = require('../utils/helpers');
-const { generateOtp, hashOtp, normalizeSubmittedOtp, verifyOtp } = require('../utils/otp');
+const { normalizeSubmittedOtp, verifyOtp } = require('../utils/otp');
 const {
     getEmergencyClientOtpBypassState,
     isPasskeyRequired,
@@ -620,25 +620,6 @@ const personLookup = (username) => ({
     ],
 });
 
-const getPhoneCandidates = (phone) => {
-    const raw = String(phone || '').trim();
-    const digits = raw.replace(/\D/g, '');
-    const candidates = [raw, digits];
-
-    if (digits.startsWith('218') && digits.length === 12) candidates.push(`0${digits.slice(3)}`);
-    if (digits.startsWith('20') && digits.length === 12) candidates.push(`0${digits.slice(2)}`);
-    if (digits.startsWith('00218')) candidates.push(`0${digits.slice(5)}`);
-    if (digits.startsWith('0020')) candidates.push(`0${digits.slice(4)}`);
-
-    return [...new Set(candidates.filter(Boolean))];
-};
-
-const phoneMatches = (storedPhone, submittedPhone) => {
-    const storedCandidates = getPhoneCandidates(storedPhone);
-    const submittedCandidates = getPhoneCandidates(submittedPhone);
-    return storedCandidates.some((phone) => submittedCandidates.includes(phone));
-};
-
 const { logAction } = require('../services/auditService');
 
 const completeAdminSession = async (req, adminData = null, res = null) => {
@@ -1183,15 +1164,6 @@ router.post('/security/passkey-login/verify', async (req, res) => {
     }
 });
 
-const sanitizeAccountSnapshot = (account) => {
-    const snapshot = { ...account };
-    delete snapshot.webPassword;
-    delete snapshot.refreshToken;
-    delete snapshot.otpCode;
-    delete snapshot.otpExpires;
-    return snapshot;
-};
-
 const formatAccountCard = (snapshot) => (
     Object.entries(snapshot)
         .filter(([, value]) => value !== undefined && value !== null && value !== '')
@@ -1202,43 +1174,6 @@ const formatAccountCard = (snapshot) => (
         })
         .join('\n')
 );
-
-const findPasswordResetAccount = async (username, phone) => {
-    const user = await User.findOne(webUsernameLookup(username)).lean();
-    if (user && phoneMatches(user.phone, phone)) {
-        if ((user.role || 'user') === 'agent') {
-            return { blocked: true, reason: 'استعادة كلمة المرور غير متاحة لحسابات الوكلاء.' };
-        }
-
-        return {
-            accountType: 'user',
-            accountModel: 'User',
-            account: user,
-            name: user.name || user.webUsername,
-            phone: user.phone,
-            masterName: ''
-        };
-    }
-
-    const subAccount = await SubAccount.findOne(webUsernameLookup(username)).lean();
-    if (subAccount && phoneMatches(subAccount.phone, phone)) {
-        if (subAccount.masterType !== 'user') {
-            return { blocked: true, reason: 'استعادة كلمة المرور غير متاحة لحسابات الشركات.' };
-        }
-
-        const master = await User.findById(subAccount.masterId).lean();
-        return {
-            accountType: 'sub_client',
-            accountModel: 'SubAccount',
-            account: subAccount,
-            name: subAccount.name || subAccount.webUsername,
-            phone: subAccount.phone,
-            masterName: master ? (master.name || master.webUsername) : 'غير معروف'
-        };
-    }
-
-    return null;
-};
 
 const createPasswordResetTicket = async (resetRequest) => {
     const typeLabel = resetRequest.accountType === 'sub_client' ? 'عميل تابع لوكيل' : 'عميل مباشر';
@@ -1580,94 +1515,9 @@ router.post('/admin/verify', adminOtpVerifyLimiter, async (req, res) => {
     }
 });
 
-router.post('/api/password-reset/start', passwordResetLimiter, async (req, res) => {
-    try {
-        const username = req.body.username?.trim();
-        const phone = req.body.phone?.trim();
-
-        if (!username || !phone) {
-            return res.status(400).json({ success: false, error: 'يرجى إدخال اسم المستخدم ورقم الهاتف.' });
-        }
-
-        const resetAccount = await findPasswordResetAccount(username, phone);
-        if (!resetAccount) {
-            return res.status(404).json({ success: false, error: 'لا يوجد حساب عميل مطابق لاسم المستخدم ورقم الهاتف.' });
-        }
-        if (resetAccount.blocked) {
-            return res.status(403).json({ success: false, error: resetAccount.reason });
-        }
-
-        const existingPending = await PasswordResetRequest.findOne({
-            accountType: resetAccount.accountType,
-            accountId: resetAccount.account._id,
-            status: 'pending_admin'
-        }).lean();
-
-        if (existingPending) {
-            return res.status(409).json({ success: false, error: 'يوجد طلب استعادة قيد مراجعة الإدارة لهذا الحساب.' });
-        }
-
-        await PasswordResetRequest.updateMany(
-            {
-                accountType: resetAccount.accountType,
-                accountId: resetAccount.account._id,
-                status: { $in: ['otp_sent', 'otp_verified'] }
-            },
-            { $set: { status: 'expired' } }
-        );
-
-        const otp = generateOtp();
-        const resetRequest = await PasswordResetRequest.create({
-            accountType: resetAccount.accountType,
-            accountModel: resetAccount.accountModel,
-            accountId: resetAccount.account._id,
-            username: resetAccount.account.webUsername,
-            phone: resetAccount.phone,
-            name: resetAccount.name,
-            masterName: resetAccount.masterName,
-            otpCode: hashOtp(otp),
-            otpExpires: new Date(Date.now() + 10 * 60 * 1000),
-            accountSnapshot: {
-                ...sanitizeAccountSnapshot(resetAccount.account),
-                accountType: resetAccount.accountType,
-                masterName: resetAccount.masterName
-            }
-        });
-
-        let delivery;
-        try {
-            const { sendOtp } = require('../services/whatsappService');
-            delivery = await sendOtp({
-                phone: resetAccount.phone,
-                otp,
-                expiresMinutes: 10,
-                accountName: resetAccount.name,
-                accountType: 'استعادة كلمة المرور'
-            });
-        } catch (error) {
-            delivery = { success: false, code: error.code || 'WHATSAPP_OTP_FAILED' };
-        }
-
-        if (!delivery?.success) {
-            resetRequest.status = 'expired';
-            resetRequest.otpCode = undefined;
-            await resetRequest.save();
-            return res.status(503).json({
-                success: false,
-                error: 'تعذر إرسال رمز الاستعادة عبر واتساب. حاول لاحقاً أو راجع الدعم.',
-                code: delivery?.code || 'WHATSAPP_OTP_FAILED'
-            });
-        }
-
-        return res.json({
-            success: true,
-            requestId: resetRequest._id,
-            message: 'تم إرسال رمز التحقق على واتساب.'
-        });
-    } catch (error) {
-        console.error('[Password Reset] start failed:', error.message);
-        return res.status(500).json({ success: false, error: 'حدث خطأ أثناء بدء الاستعادة.' });
-    }
+router.post('/api/password-reset/start', passwordResetLimiter, (req, res) => {
+    const { respondPasswordResetUnavailable } = require('../utils/passwordResetAvailability');
+    return respondPasswordResetUnavailable(req, res);
 });
 
 router.post('/api/password-reset/verify-otp', passwordResetLimiter, async (req, res) => {

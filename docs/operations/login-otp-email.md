@@ -39,12 +39,14 @@ LOGIN_OTP_SKIP_WITHOUT_EMAIL=true
 Do not add the three new names to `productionSecurityDefaults` or to the
 required production boot flags.
 
-Password reset (`POST /api/password-reset/start`) calls `sendOtp` and has
-no email path. With the default it returns `WHATSAPP_OTP_DISABLED`, expires
-the request, and stores no plaintext code. Accounts without an email that
-are not covered by `LOGIN_OTP_SKIP_WITHOUT_EMAIL` also have no OTP route
-and fail closed with `WHATSAPP_OTP_DISABLED` (or
-`WHATSAPP_LOGIN_OTP_DISABLED` when that older flag is explicitly off).
+Password reset (`POST /api/password-reset/start`) does not call WhatsApp
+and does not look up the account. Every start returns HTTP 503 with
+`PASSWORD_RESET_UNAVAILABLE` and the same Arabic support message, whether
+or not an account exists. No OTP hash is stored and no session is opened.
+Accounts without an email that are not covered by
+`LOGIN_OTP_SKIP_WITHOUT_EMAIL` still fail closed on login with
+`WHATSAPP_OTP_DISABLED` (or `WHATSAPP_LOGIN_OTP_DISABLED` when that older
+flag is explicitly off).
 
 `LOGIN_OTP_EMAIL_TEMPLATE_V2` changes the **template only**. It defaults to
 off. Unset, `false`, `0`, `off`, or `no` keeps sending the current cream

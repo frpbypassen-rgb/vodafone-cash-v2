@@ -515,10 +515,28 @@
 
         const resetFlow = { requestId: null };
 
-        function setResetStatus(message, type = 'info') {
+        function isolateLtr(value) {
+            const node = document.createElement('bdo');
+            node.dir = 'ltr';
+            node.style.unicodeBidi = 'isolate';
+            node.textContent = String(value || '');
+            return node;
+        }
+
+        function setResetStatus(message, type = 'info', details) {
             const box = document.getElementById('resetStatus');
             box.className = `reset-status show ${type}`;
-            box.textContent = message;
+            box.replaceChildren();
+            if (details && details.code === 'PASSWORD_RESET_UNAVAILABLE') {
+                box.append(
+                    document.createTextNode('استعادة كلمة المرور غير متاحة حالياً. تواصل مع الدعم على '),
+                    isolateLtr(details.supportPhone),
+                    document.createTextNode(' أو '),
+                    isolateLtr(details.supportEmail)
+                );
+                return;
+            }
+            box.textContent = message || '';
         }
 
         function clearResetStatus() {
@@ -539,7 +557,13 @@
                 body: JSON.stringify(payload)
             });
             const data = await res.json().catch(() => ({ success: false, error: 'استجابة غير صالحة من الخادم.' }));
-            if (!data.success) throw new Error(data.error || 'تعذر تنفيذ الطلب.');
+            if (!data.success) {
+                const error = new Error(data.error || 'تعذر تنفيذ الطلب.');
+                error.code = data.code || '';
+                error.supportPhone = data.supportPhone || '';
+                error.supportEmail = data.supportEmail || '';
+                throw error;
+            }
             return data;
         }
 
@@ -568,7 +592,7 @@
                     showResetStep('resetStepOtp');
                     document.getElementById('resetOtp').focus();
                 } catch (error) {
-                    setResetStatus(error.message, 'error');
+                    setResetStatus(error.message, 'error', error);
                 }
             });
         }

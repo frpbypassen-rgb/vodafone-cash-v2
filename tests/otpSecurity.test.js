@@ -89,10 +89,11 @@ describe('OTP security', () => {
         expect(whatsapp).toContain("code: 'WHATCHIMP_DISABLED'");
         expect(whatsapp).not.toContain('sendLegacyWhatsAppMessage(phone, legacyMessage)');
         const resetStart = auth.slice(auth.indexOf("router.post('/api/password-reset/start'"), auth.indexOf("router.post('/api/password-reset/verify-otp'"));
-        expect(resetStart).toContain('hashOtp(otp)');
-        expect(resetStart).toContain('sendOtp({');
-        expect(resetStart).not.toContain('message: error.message');
-        expect(resetStart).toContain("resetRequest.otpCode = undefined");
+        expect(resetStart).toContain('respondPasswordResetUnavailable');
+        expect(resetStart).not.toContain('sendOtp(');
+        expect(resetStart).not.toContain('hashOtp(');
+        expect(resetStart).not.toContain('findPasswordResetAccount');
+        expect(resetStart).not.toContain('req.session');
         expect(sanitizeLogValue('482913', 'otp')).toBe('[REDACTED]');
         expect(sanitizeLogValue('482913', 'otpCode')).toBe('[REDACTED]');
 
