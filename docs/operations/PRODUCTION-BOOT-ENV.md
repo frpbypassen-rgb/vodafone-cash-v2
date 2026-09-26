@@ -108,10 +108,42 @@ or support replies. It also does not change SMTP, `FORCE_CLIENT_OTP`, or
 send for that OTP stops. Accounts with a valid stored email still receive
 login OTP by email.
 
-| Value | Login OTP on WhatsApp |
+| Value | Login OTP selection for an account with no usable email |
 |---|---|
-| unset, or `1` / `true` / `yes` / `on` | Allowed for accounts with no usable email (today's behavior) |
-| `0` / `false` / `no` / `off` | Never sent. Login returns `WHATSAPP_LOGIN_OTP_DISABLED` |
+| unset, or `1` / `true` / `yes` / `on` | Selection stays `whatsapp`. The send still requires `WHATSAPP_OTP_ENABLED` explicitly on, and `OTP_DELIVERY_CHANNEL` must not be `email`. |
+| `0` / `false` / `no` / `off` | Never sent. Login returns `WHATSAPP_LOGIN_OTP_DISABLED` before the newer flag. |
+
+`WHATSAPP_OTP_ENABLED` is a second gate inside `sendOtp`. Unset is **off**.
+Only `1` / `true` / `yes` / `on` may call WhatChimp. There is no WP Sender
+fallback for OTP. `OTP_DELIVERY_CHANNEL=email` with `EMAIL_OTP_ENABLED` left
+on (unset counts as on) sends login OTP by email. An email failure does not
+call WhatsApp. Receipts and other non-OTP WhatsApp messages ignore
+`WHATSAPP_OTP_ENABLED`.
+
+Password reset does not use these WhatsApp flags.
+`PASSWORD_RESET_EMAIL_ENABLED` defaults to off when unset. Only `1`,
+`true`, `yes`, or `on` enables the reset routes. Login OTP does not read
+it. While it is on, a reset code is sent only when `otpDeliveryChannel` is
+`email` and the stored address is valid. Other accounts follow the manual
+procedure in `docs/operations/password-reset.md`. WhatsApp is not a reset
+fallback. After the code is accepted, the new password must be submitted
+within `PASSWORD_RESET_COMPLETE_WINDOW_SECONDS` (default 600, clamped to
+60–600). Leave the reset flag false until the staging checklist in
+`docs/operations/password-reset-rollout.md` passes and the owner approves
+the next step.
+
+A host `.env` that only sets `WHATSAPP_LOGIN_OTP_ENABLED=false` and omits
+the new names cannot send OTP on WhatsApp. Add and reload:
+
+```
+OTP_DELIVERY_CHANNEL=email
+EMAIL_OTP_ENABLED=true
+WHATSAPP_OTP_ENABLED=false
+PASSWORD_RESET_EMAIL_ENABLED=false
+```
+
+Keep `WHATSAPP_LOGIN_OTP_ENABLED=false` and
+`LOGIN_OTP_SKIP_WITHOUT_EMAIL=true`. These names are not required at boot.
 
 Intended production setting while WhatsApp login OTP is paused:
 
@@ -198,9 +230,14 @@ LOGIN_OTP_SKIP_WITHOUT_EMAIL=false
 pm2 restart Ahram_Core_API --update-env
 ```
 
-With the flag off, accounts that have no usable email follow
-`WHATSAPP_LOGIN_OTP_ENABLED` again (WhatsApp OTP, or
-`WHATSAPP_LOGIN_OTP_DISABLED` when that kill-switch is off).
+With the skip flag off, accounts that have no usable email follow
+`WHATSAPP_LOGIN_OTP_ENABLED` and then `WHATSAPP_OTP_ENABLED`. Explicit
+`WHATSAPP_LOGIN_OTP_ENABLED=false` returns `WHATSAPP_LOGIN_OTP_DISABLED`.
+Otherwise an unset or false `WHATSAPP_OTP_ENABLED` returns
+`WHATSAPP_OTP_DISABLED` and does not call a provider. An open WhatsApp OTP
+send needs `WHATSAPP_OTP_ENABLED` explicitly true, the older login flag not
+explicitly off, and `OTP_DELIVERY_CHANNEL` other than `email`. That send
+uses WhatChimp only.
 
 ## Documented break-glass (device-binding mismatch)
 

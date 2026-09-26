@@ -534,7 +534,7 @@ docker compose -f docker-compose.prod.yml logs --tail 100 ahram_core_prod
 4. بناء صورة Docker واختبار `/health` داخل الحاوية.
 5. بوابة نهائية تفشل إذا فشلت أي مرحلة مطلوبة.
 
-ملف [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml) لا ينشر إلا Commit اجتاز CI نفسه. يتطلب GitHub Secrets التالية:
+ملف [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml) لا يبدأ إلا بـ `workflow_dispatch` من `main`، بعد كتابة SHA الكامل في `confirm_sha` وموافقة مراجعي بيئة GitHub المسماة `production`. نجاح CI لا ينشر. `migrateTenantIsolation.js --apply` ليس جزءاً من المسار؛ المعاينة بأمر منفصل، والتطبيق خطوة يدوية بعد موافقة. `repairProductionEnv.js --apply` لا يعمل إلا إذا فُعّل الإدخال `apply_repair`، وافتراضه إيقاف. يتطلب GitHub Secrets التالية:
 
 - `DEPLOY_HOST`
 - `DEPLOY_USER`

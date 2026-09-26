@@ -18,11 +18,16 @@ const environmentKeys = [
     'WHATCHIMP_RECEIPT_TEMPLATE',
     'WHATCHIMP_RECEIPT_TEMPLATE_LANGUAGE',
     'WHATCHIMP_RECEIPT_VARIABLE_ORDER',
-    'WHATCHIMP_API_BASE_URL'
+    'WHATCHIMP_API_BASE_URL',
+    'WHATSAPP_OTP_ENABLED',
+    'WHATSAPP_GROUP_JID',
+    'WPSENDER_API_URL',
+    'WPSENDER_API_KEY'
 ];
 const originalEnvironment = Object.fromEntries(environmentKeys.map((key) => [key, process.env[key]]));
 
 const configureWhatChimp = () => {
+    process.env.WHATSAPP_OTP_ENABLED = 'true';
     process.env.WHATCHIMP_ENABLED = 'true';
     process.env.WHATCHIMP_API_TOKEN = 'test-token';
     process.env.WHATCHIMP_PHONE_NUMBER_ID = 'phone-id-1';
@@ -166,6 +171,7 @@ describe('WhatChimp WhatsApp service', () => {
 
     test('sends a free-text support reply through the WhatChimp session endpoint', async () => {
         configureWhatChimp();
+        process.env.WHATSAPP_OTP_ENABLED = 'false';
         axios.post.mockResolvedValue({ data: { status: '1', wa_message_id: 'wamid.support.1' } });
 
         const result = await whatsappService.sendWhatChimpText({
@@ -185,6 +191,7 @@ describe('WhatChimp WhatsApp service', () => {
     });
     test('sends a receipt through the media-template endpoint', async () => {
         configureWhatChimp();
+        process.env.WHATSAPP_OTP_ENABLED = 'false';
         process.env.WHATCHIMP_RECEIPT_MEDIA_TEMPLATE_ID = '44';
         axios.post.mockResolvedValue({ data: { status: '1', wa_message_id: 'wamid.receipt.1' } });
 
@@ -203,6 +210,7 @@ describe('WhatChimp WhatsApp service', () => {
     });
 
     test('reports missing configuration without making an external request', async () => {
+        process.env.WHATSAPP_OTP_ENABLED = 'true';
         process.env.WHATCHIMP_ENABLED = 'true';
 
         const result = await whatsappService.sendOtp({ phone: '01108172258', otp: '123456' });
@@ -253,5 +261,76 @@ describe('WhatChimp WhatsApp service', () => {
         const approved = await whatsappService.getWhatChimpTemplateReadiness();
         expect(approved.receiptOperational).toBe(true);
         expect(approved.receiptTemplate.approved).toBe(true);
+    });
+
+    test('blocks WhatChimp and WP Sender when WhatsApp OTP is off', async () => {
+        process.env.WHATCHIMP_ENABLED = 'true';
+        process.env.WHATCHIMP_API_TOKEN = 'test-token';
+        process.env.WHATCHIMP_PHONE_NUMBER_ID = 'phone-id-1';
+        process.env.WHATCHIMP_OTP_TEMPLATE = 'power_pay_otp';
+        process.env.WPSENDER_API_URL = 'https://wpsender.example/send';
+        process.env.WPSENDER_API_KEY = 'wp-key';
+        const otp = '482913';
+        const logs = [];
+        const spies = ['error', 'warn', 'log'].map((method) => jest.spyOn(console, method).mockImplementation((...args) => {
+            logs.push(args.map((item) => String(item)).join(' '));
+        }));
+
+        try {
+            delete process.env.WHATSAPP_OTP_ENABLED;
+            const unset = await whatsappService.sendOtp({
+                phone: '0912345678',
+                otp,
+                expiresMinutes: 5,
+                accountName: 'عميل',
+                accountType: 'العميل'
+            });
+            expect(unset).toMatchObject({ success: false, code: 'WHATSAPP_OTP_DISABLED' });
+            expect(axios.post).not.toHaveBeenCalled();
+            expect(JSON.stringify(unset)).not.toContain(otp);
+
+            process.env.WHATSAPP_OTP_ENABLED = 'false';
+            const disabled = await whatsappService.sendOtp({ phone: '0912345678', otp });
+            expect(disabled.code).toBe('WHATSAPP_OTP_DISABLED');
+            expect(axios.post).not.toHaveBeenCalled();
+            expect(JSON.stringify(disabled)).not.toContain(otp);
+            expect(logs.join('\n')).not.toContain(otp);
+        } finally {
+            spies.forEach((spy) => spy.mockRestore());
+        }
+    });
+
+    test('does not fall back to WP Sender when WhatChimp is off and WhatsApp OTP is on', async () => {
+        process.env.WHATSAPP_OTP_ENABLED = 'true';
+        process.env.WHATCHIMP_ENABLED = 'false';
+        process.env.WPSENDER_API_URL = 'https://wpsender.example/send';
+        process.env.WPSENDER_API_KEY = 'wp-key';
+        const otp = '654321';
+        const result = await whatsappService.sendOtp({ phone: '0912345678', otp });
+        expect(result).toMatchObject({ success: false, provider: 'whatchimp', code: 'WHATCHIMP_DISABLED' });
+        expect(result.code).not.toBe('WPSENDER_SENT');
+        expect(axios.post).not.toHaveBeenCalled();
+        expect(JSON.stringify(result)).not.toContain(otp);
+    });
+
+    test('still sends a financial group alert when WhatsApp OTP is off', async () => {
+        process.env.WHATSAPP_OTP_ENABLED = 'false';
+        process.env.WPSENDER_API_URL = 'https://wpsender.example/send';
+        process.env.WPSENDER_API_KEY = 'wp-key';
+        process.env.WHATSAPP_GROUP_JID = '218912345678';
+        axios.post.mockResolvedValue({ data: { ok: true } });
+
+        const sent = await whatsappService.sendWhatsAppAlert(
+            { vodafoneNumber: '01000000000', amount: 25 },
+            { status: 'عملية ناجحة' }
+        );
+
+        expect(sent).toBe(true);
+        expect(axios.post).toHaveBeenCalledWith(
+            'https://wpsender.example/send',
+            expect.objectContaining({ number: '218912345678' }),
+            expect.objectContaining({ headers: expect.objectContaining({ 'x-api-key': 'wp-key' }) })
+        );
+        expect(axios.post.mock.calls[0][1].message).not.toMatch(/\b\d{6}\b/);
     });
 });

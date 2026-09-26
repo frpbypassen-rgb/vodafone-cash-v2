@@ -396,40 +396,52 @@ const resolveOtpTemplate = async (config = getWhatChimpConfig()) => {
     return value;
 };
 
+const isWhatsappOtpEnabled = (env = process.env) => isEnabled(env.WHATSAPP_OTP_ENABLED);
+
 const sendOtp = async ({ phone, otp, expiresMinutes = 5, accountName = '', accountType = '' }) => {
-    const config = getWhatChimpConfig();
-    if (config.enabled) {
-        if (!config.apiToken || !config.phoneNumberId) {
-            return {
-                success: false,
-                provider: 'whatchimp',
-                // Keep the public error code stable for existing clients while
-                // retaining the OTP-specific detail in the message.
-                code: 'WHATCHIMP_CONFIG_MISSING',
-                message: 'بيانات WhatsApp أو قالب رمز التحقق غير مكتملة.'
-            };
-        }
-        const resolvedTemplate = await resolveOtpTemplate(config);
-        if (!resolvedTemplate.success) {
-            return { ...resolvedTemplate, provider: 'whatchimp' };
-        }
-        const variables = buildTemplateVariables(config.otpVariableOrder, {
-            otp,
-            expiresMinutes,
-            accountName,
-            accountType
-        }).slice(0, resolvedTemplate.variableCount);
-        return sendWhatChimpTemplate({
-            phone,
-            templateName: resolvedTemplate.name,
-            languageCode: resolvedTemplate.language,
-            variables
-        });
+    if (!isWhatsappOtpEnabled()) {
+        return {
+            success: false,
+            provider: 'whatsapp',
+            code: 'WHATSAPP_OTP_DISABLED',
+            message: 'إرسال رمز التحقق عبر واتساب متوقف.'
+        };
     }
 
-    const legacyMessage = `رمز الدخول الخاص بك هو:\n\n*${otp}*\n\nالرمز صالح لمدة ${expiresMinutes} دقائق.`;
-    const legacyResult = await sendLegacyWhatsAppMessage(phone, legacyMessage);
-    return { ...legacyResult, code: legacyResult.success ? 'WPSENDER_SENT' : legacyResult.code };
+    const config = getWhatChimpConfig();
+    if (!config.enabled) {
+        return {
+            success: false,
+            provider: 'whatchimp',
+            code: 'WHATCHIMP_DISABLED',
+            message: 'تكامل WhatChimp غير مفعل.'
+        };
+    }
+
+    if (!config.apiToken || !config.phoneNumberId) {
+        return {
+            success: false,
+            provider: 'whatchimp',
+            code: 'WHATCHIMP_CONFIG_MISSING',
+            message: 'بيانات WhatsApp أو قالب رمز التحقق غير مكتملة.'
+        };
+    }
+    const resolvedTemplate = await resolveOtpTemplate(config);
+    if (!resolvedTemplate.success) {
+        return { ...resolvedTemplate, provider: 'whatchimp' };
+    }
+    const variables = buildTemplateVariables(config.otpVariableOrder, {
+        otp,
+        expiresMinutes,
+        accountName,
+        accountType
+    }).slice(0, resolvedTemplate.variableCount);
+    return sendWhatChimpTemplate({
+        phone,
+        templateName: resolvedTemplate.name,
+        languageCode: resolvedTemplate.language,
+        variables
+    });
 };
 
 const sendReceipt = async ({
@@ -587,10 +599,12 @@ const sendLegacyWhatsAppMessage = async (phone, message, bypassOtp = false) => {
     }
 
     if (!bypassOtp) {
-        const isOtp = /رمز|كود|OTP|تحقق/i.test(String(message || ''));
-        if (!isOtp) {
-            return { success: false, provider: 'wpsender', code: 'WPSENDER_NON_OTP_BLOCKED', message: 'إرسال رسائل غير OTP عبر WP Sender محظور.' };
-        }
+        return {
+            success: false,
+            provider: 'whatsapp',
+            code: 'WHATSAPP_OTP_DISABLED',
+            message: 'إرسال رمز التحقق عبر واتساب متوقف.'
+        };
     }
 
     let phoneNumber;
@@ -641,6 +655,7 @@ const sendWhatsAppAlert = async (tx, apiResult = {}) => {
 
 module.exports = {
     getWhatChimpConfigurationStatus,
+    isWhatsappOtpEnabled,
     normalizeWhatsAppPhone,
     sendOtp,
     sendReceipt,
