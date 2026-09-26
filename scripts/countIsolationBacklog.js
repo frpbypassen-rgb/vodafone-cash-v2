@@ -7,26 +7,33 @@ const providerPaidAwaitingCompletionFilter = Object.freeze({
     'apiResultData.waitingApiAutoCompletion': true
 });
 
-const countIsolationBacklog = async (db) => {
+// Same 2-minute lease as LOCK_TIMEOUT_MS in services/merchantWebhookService.js.
+const WEBHOOK_SENDING_STALE_MS = 2 * 60 * 1000;
+
+const countIsolationBacklog = async (db, now = new Date()) => {
     const transactions = db.collection('transactions');
     const deliveries = db.collection('merchantwebhookdeliveries');
+    const staleBefore = new Date(now.getTime() - WEBHOOK_SENDING_STALE_MS);
     const [
         providerPaidAwaitingCompletion,
         webhookPending,
         webhookFailed,
-        webhookSending
+        webhookSending,
+        webhookSendingStale
     ] = await Promise.all([
         transactions.countDocuments(providerPaidAwaitingCompletionFilter),
         deliveries.countDocuments({ status: 'pending' }),
         deliveries.countDocuments({ status: 'failed' }),
-        deliveries.countDocuments({ status: 'sending' })
+        deliveries.countDocuments({ status: 'sending' }),
+        deliveries.countDocuments({ status: 'sending', lockedAt: { $lte: staleBefore } })
     ]);
     return {
         readOnly: true,
         providerPaidAwaitingCompletion,
         webhookPending,
         webhookFailed,
-        webhookSending
+        webhookSending,
+        webhookSendingStale
     };
 };
 
@@ -51,6 +58,7 @@ if (require.main === module) {
 }
 
 module.exports = {
+    WEBHOOK_SENDING_STALE_MS,
     countIsolationBacklog,
     providerPaidAwaitingCompletionFilter
 };

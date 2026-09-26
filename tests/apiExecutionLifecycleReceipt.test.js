@@ -18,6 +18,7 @@ jest.mock('../services/proofStorageService', () => ({
     saveProofImage: jest.fn(() => 'proofs/system-api-receipt.jpg')
 }));
 
+const mongoose = require('mongoose');
 const Transaction = require('../models/Transaction');
 const ExecutorGroup = require('../models/ExecutorGroup');
 const { updateBalanceWithLedger } = require('../services/walletService');
@@ -47,10 +48,18 @@ const createTransaction = (overrides = {}) => ({
 const executorGroup = { _id: 'group-1', name: 'API Executor', parentGroupId: 'manager-1' };
 
 describe('API executor receipt lifecycle', () => {
+    afterEach(() => {
+        jest.restoreAllMocks();
+    });
+
     beforeEach(() => {
         jest.clearAllMocks();
         delete process.env.FINANCIAL_SCHEDULERS_ENABLED;
         updateBalanceWithLedger.mockResolvedValue({ balanceAfter: 4000 });
+        jest.spyOn(mongoose, 'startSession').mockResolvedValue({
+            withTransaction: async (work) => work(),
+            endSession: jest.fn()
+        });
         Transaction.findOneAndUpdate.mockImplementation(async () => {
             const results = Transaction.findById.mock.results;
             if (!results.length) return null;

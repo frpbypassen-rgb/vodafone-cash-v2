@@ -1,8 +1,9 @@
 'use strict';
 
+const mongoose = require('mongoose');
 const Transaction = require('../models/Transaction');
 const ExecutorGroup = require('../models/ExecutorGroup');
-const { updateBalanceWithLedger } = require('./walletService');
+const walletService = require('./walletService');
 const eventBus = require('./eventBus');
 const logger = require('../utils/logger');
 const { isFinancialSchedulersEnabled } = require('../utils/runtimeControls');
@@ -176,7 +177,7 @@ const completeApiTransactionWithReference = async ({
     let ledgerError = null;
 
     try {
-        ledgerResult = await updateBalanceWithLedger(
+        ledgerResult = await walletService.updateBalanceWithLedger(
             'ExecutorGroup',
             executorGroup._id,
             -Number(tx.amount || 0),
@@ -308,92 +309,108 @@ const completeApiTransaction = async (txId, executorGroupId) => {
         return { completed: false, reason: 'executor_not_found' };
     }
 
-    // One winner flips the waiting flag before the debit. A second concurrent
-    // call no longer matches, so it cannot post a second executor ledger entry.
-    // The amount and account are unchanged. A failed debit puts the flag back
-    // so a later attempt can post that same debit once.
-    const claimed = await Transaction.findOneAndUpdate(
-        {
-            _id: tx._id,
-            status: 'processing',
-            executorGroupId: tx.executorGroupId,
-            'apiResultData.waitingApiAutoCompletion': true
-        },
-        { $set: { 'apiResultData.waitingApiAutoCompletion': false, 'apiResultData.completionClaimedAt': new Date() } },
-        { new: true }
-    );
-    if (!claimed) {
-        return { completed: false, reason: 'completion_already_claimed' };
-    }
-
+    // Claim, executor debit, and completion save commit together. A crash
+    // before commit rolls the claim back, so the row stays waiting and a
+    // later pass can post the same debit once. The amount and account are
+    // unchanged. Nothing here refunds the customer or the executor.
+    let outcome = 'already_claimed';
+    let completedTx = null;
+    const session = await mongoose.startSession();
     try {
-        await updateBalanceWithLedger(
-            'ExecutorGroup',
-            executorGroup._id,
-            -Number(claimed.amount || 0),
-            'TRANSFER',
-            claimed.customId,
-            'تنفيذ API آلي'
-        );
+        await session.withTransaction(async () => {
+            outcome = 'already_claimed';
+            completedTx = null;
+            const claimed = await Transaction.findOneAndUpdate(
+                {
+                    _id: tx._id,
+                    status: 'processing',
+                    executorGroupId: tx.executorGroupId,
+                    'apiResultData.waitingApiAutoCompletion': true
+                },
+                { $set: { 'apiResultData.waitingApiAutoCompletion': false, 'apiResultData.completionClaimedAt': new Date() } },
+                { session, returnDocument: 'after' }
+            );
+            if (!claimed) return;
+
+            await walletService.updateBalanceWithLedger(
+                'ExecutorGroup',
+                executorGroup._id,
+                -Number(claimed.amount || 0),
+                'TRANSFER',
+                claimed.customId,
+                'تنفيذ API آلي',
+                { session }
+            );
+
+            const completedAt = new Date();
+            claimed.status = 'completed';
+            claimed.executorName = 'تنفيذ آلي (API)';
+            claimed.completedAt = completedAt;
+            let systemReceiptProof = null;
+            try {
+                systemReceiptProof = createApiExecutorReceiptProof({
+                    tx: claimed,
+                    apiResult: {
+                        reference_number: claimed.apiResultData?.referenceNumber,
+                        external_transaction_id: claimed.apiResultData?.externalTransactionId,
+                        provider_transaction_id: claimed.apiResultData?.providerTransactionId
+                    },
+                    completedAt
+                });
+                attachApiReceiptProofs({
+                    tx: claimed,
+                    systemReceiptProof,
+                    providerReceiptProof: claimed.apiResultData?.apiProviderReceiptProof
+                });
+            } catch (receiptError) {
+                appendAdminNote(claimed, `[تعذر توليد الإيصال النظامي لتنفيذ API: ${receiptError.message}]`);
+                logger.error('Delayed API executor receipt generation failed', {
+                    txId: claimed.customId,
+                    executorGroupId: String(executorGroup._id),
+                    error: receiptError.message
+                });
+            }
+            claimed.apiResultData = {
+                ...(claimed.apiResultData || {}),
+                waitingApiAutoCompletion: false,
+                completedAt,
+                executorReceiptProof: systemReceiptProof || claimed.apiResultData?.executorReceiptProof || null
+            };
+            appendAdminNote(claimed, `[تم اعتماد نجاح API بعد انتظار ${Math.round(getApiCompletionDelayMs() / 1000)} ثانية]`);
+            await claimed.save({ session });
+            completedTx = claimed;
+            outcome = 'completed';
+        });
     } catch (error) {
-        claimed.apiResultData = {
-            ...(claimed.apiResultData || {}),
-            waitingApiAutoCompletion: true
-        };
-        appendAdminNote(claimed, `[تعذر اعتماد نجاح API بسبب الرصيد أو القيد المالي: ${error.message}]`);
-        await claimed.save();
-        logger.error('Delayed API completion balance update failed', {
-            txId: claimed.customId,
+        logger.error('Delayed API completion transaction aborted', {
+            txId: tx.customId,
             executorGroupId: String(executorGroup._id),
             error: error.message
         });
-        return { completed: false, reason: 'balance_update_failed' };
+        if (error && error.message === 'INSUFFICIENT_BALANCE') {
+            const fresh = await Transaction.findById(tx._id);
+            if (fresh && fresh.status === 'processing' && fresh.apiResultData?.waitingApiAutoCompletion === true) {
+                appendAdminNote(fresh, `[تعذر اعتماد نجاح API بسبب الرصيد أو القيد المالي: ${error.message}]`);
+                await fresh.save();
+            }
+            return { completed: false, reason: 'balance_update_failed' };
+        }
+        return { completed: false, reason: 'completion_aborted' };
+    } finally {
+        session.endSession();
     }
 
-    const completedAt = new Date();
-    claimed.status = 'completed';
-    claimed.executorName = 'تنفيذ آلي (API)';
-    claimed.completedAt = completedAt;
-    let systemReceiptProof = null;
-    try {
-        systemReceiptProof = createApiExecutorReceiptProof({
-            tx: claimed,
-            apiResult: {
-                reference_number: claimed.apiResultData?.referenceNumber,
-                external_transaction_id: claimed.apiResultData?.externalTransactionId,
-                provider_transaction_id: claimed.apiResultData?.providerTransactionId
-            },
-            completedAt
-        });
-        attachApiReceiptProofs({
-            tx: claimed,
-            systemReceiptProof,
-            providerReceiptProof: claimed.apiResultData?.apiProviderReceiptProof
-        });
-    } catch (receiptError) {
-        appendAdminNote(claimed, `[تعذر توليد الإيصال النظامي لتنفيذ API: ${receiptError.message}]`);
-        logger.error('Delayed API executor receipt generation failed', {
-            txId: claimed.customId,
-            executorGroupId: String(executorGroup._id),
-            error: receiptError.message
-        });
+    if (outcome !== 'completed' || !completedTx) {
+        return { completed: false, reason: 'completion_already_claimed' };
     }
-    claimed.apiResultData = {
-        ...(claimed.apiResultData || {}),
-        waitingApiAutoCompletion: false,
-        completedAt,
-        executorReceiptProof: systemReceiptProof || claimed.apiResultData?.executorReceiptProof || null
-    };
-    appendAdminNote(claimed, `[تم اعتماد نجاح API بعد انتظار ${Math.round(getApiCompletionDelayMs() / 1000)} ثانية]`);
-    await claimed.save();
 
     eventBus.publish('transfer:completed', {
-        tx: claimed,
+        tx: completedTx,
         emp: { name: executorGroup.name || 'تنفيذ آلي (API)' }
     });
 
     logger.info('Delayed API completion succeeded', {
-        txId: claimed.customId,
+        txId: completedTx.customId,
         executorGroupId: String(executorGroup._id)
     });
 

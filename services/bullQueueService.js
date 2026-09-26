@@ -176,19 +176,24 @@ const addTransferJob = async (txId, apiGroupId) => {
 /**
  * إضافة إشعار للمعالجة الخلفية
  */
-const notificationDedupeKey = ({ userId, title, message, type, dedupeKey }) => {
-    if (dedupeKey) return String(dedupeKey);
-    return require('crypto').createHash('sha256').update([
-        String(userId || ''),
-        String(type || 'system_alert'),
-        String(title || ''),
-        String(message || '')
-    ].join('\n')).digest('hex');
+const explicitNotificationKey = (dedupeKey) => {
+    const key = String(dedupeKey || '').trim();
+    return key || '';
 };
 
 const recordInAppNotification = async ({ userId, title, message, type, dedupeKey }) => {
     const Notification = require('../models/Notification');
-    const key = notificationDedupeKey({ userId, title, message, type, dedupeKey });
+    const key = explicitNotificationKey(dedupeKey);
+    // No explicit key: same insert as main. Identical text is a new row.
+    if (!key) {
+        await Notification.create({
+            userId,
+            title,
+            message,
+            type: type || 'system_alert'
+        });
+        return;
+    }
     try {
         await Notification.updateOne(
             { dedupeKey: key },
@@ -211,17 +216,19 @@ const recordInAppNotification = async ({ userId, title, message, type, dedupeKey
 };
 
 const addNotificationJob = async (userId, title, message, type, dedupeKey) => {
+    const key = explicitNotificationKey(dedupeKey);
     const payload = {
         userId,
         title,
         message,
-        type: type || 'system_alert',
-        dedupeKey: notificationDedupeKey({ userId, title, message, type, dedupeKey })
+        type: type || 'system_alert'
     };
-    // In-app notifications are not dropped when workers are off. The same
-    // dedupe key is used by a queued job, so a later worker start does not
-    // insert a second row. External WhatsApp, SMTP, and push sends stay on
-    // their own existing paths. Queued jobs are not deleted.
+    if (key) payload.dedupeKey = key;
+    // In-app notifications are not dropped when workers are off. An explicit
+    // event key is what a later worker shares with that direct write. Jobs
+    // without a key are plain inserts and are not given a dedupe jobId.
+    // Queued jobs are not deleted. WhatsApp, SMTP, and push stay on their
+    // existing paths.
     if (bullWorkersDisabled()) {
         await recordInAppNotification(payload).catch(() => {});
         return;
@@ -229,9 +236,11 @@ const addNotificationJob = async (userId, title, message, type, dedupeKey) => {
     initBullMQ();
     if (isRedis() && notificationQueue) {
         try {
-            await notificationQueue.add(`notify_${payload.dedupeKey}`, payload, {
-                jobId: payload.dedupeKey
-            });
+            if (key) {
+                await notificationQueue.add(`notify_${key}`, payload, { jobId: key });
+            } else {
+                await notificationQueue.add(`notify_${userId}_${Date.now()}`, payload);
+            }
             return;
         } catch (err) {
             logger.warn('Failed to add notification to BullMQ', { error: err.message });
@@ -294,7 +303,7 @@ const addReconciliationJob = async (date) => {
 module.exports = {
     addTransferJob,
     addNotificationJob,
-    notificationDedupeKey,
+    explicitNotificationKey,
     recordInAppNotification,
     addReportJob,
     addBackupJob,

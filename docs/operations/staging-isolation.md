@@ -29,7 +29,7 @@ Startup logs one warning that lists whichever switches are off.
 | --- | --- |
 | `MERCHANT_WEBHOOK_WORKER_ENABLED` | `startMerchantWebhookWorker` does not start. `deliverWebhook` returns before it claims a delivery or calls HTTP. Pending delivery rows stay pending. |
 | `EXTERNAL_API_ENABLED` | No outbound call to ZaynPay or another financial provider. New API routing, API auto-route, and web/mobile ZaynPay execution are refused before any provider send and before any new executor ledger debit. |
-| `BULLMQ_WORKERS_ENABLED` | `initBullMQ` does not create queues or workers. Transfer, report, backup, and reconciliation jobs do not run, including their in-process fallbacks. In-app notifications still persist through an upsert on `Notification.dedupeKey`. New queue-based API routing is refused up front. Queued jobs are not deleted. |
+| `BULLMQ_WORKERS_ENABLED` | `initBullMQ` does not create queues or workers. Transfer, report, backup, and reconciliation jobs do not run, including their in-process fallbacks. In-app notifications still persist. A notification with no explicit event key is a plain insert, the same as before. Transfer notifications pass an explicit key and upsert on that key. New queue-based API routing is refused up front. Queued jobs are not deleted. |
 | `FINANCIAL_SCHEDULERS_ENABLED` | Startup does not run daily settlement or its 15-minute cron, the API completion monitor, the provider-return monitor, or rate-activation timers. Provider-paid rows that are already waiting for local completion stay as they are and are counted in the startup warning. |
 
 ## New commitments vs already-sent transactions
@@ -63,7 +63,7 @@ Executor ledger debit happens only after a successful provider result, or when a
 
 What the switches prevent: a new API assignment, the provider HTTP call, and therefore the executor ledger debit that only follows that call. While `FINANCIAL_SCHEDULERS_ENABLED` is off they also prevent the delayed completion debit of an already provider-paid row. What they do not change: the customer-wallet debit at request creation (same account, same amount, same moment, before routing). Nothing in this change refunds that debit.
 
-The delayed executor debit is claimed atomically. `Transaction.findOneAndUpdate` matches `status: 'processing'` and `apiResultData.waitingApiAutoCompletion: true` and sets the flag false before `updateBalanceWithLedger`. A second concurrent call no longer matches, so it does not post a second ledger row and does not call the provider. If the debit throws, the flag is put back on the claimed document so a later attempt can post that same debit once. A hard crash after the claim and before the debit, or after the debit and before `claimed.save()`, leaves `waitingApiAutoCompletion` false. A later pass does not debit again and does not refund. That row stays `processing` until someone looks at it. The amount, account, type, and description of a debit that does post are unchanged.
+The delayed executor debit, the waiting-flag update, and the completion save commit in one MongoDB transaction (`completeApiTransaction`, `session.withTransaction`). `updateBalanceWithLedger` receives that same session, so the debit amount, account, type, and description are unchanged. A second concurrent call does not match the waiting row, so it does not post a second ledger row and does not call the provider. If the debit throws, or the process stops before commit, the transaction rolls back: `waitingApiAutoCompletion` stays true, no executor ledger row remains, and a later pass can post that same debit once. There is no automatic refund.
 
 An **already-sent** transaction is a `processing` row with `apiResultData.waitingApiAutoCompletion: true`. The provider reference is already stored. While `FINANCIAL_SCHEDULERS_ENABLED` is off:
 
@@ -91,15 +91,19 @@ The HTTP headers are `content-type`, `user-agent`, `x-ahrampay-event` (the event
 Honest limit: delivery is at-least-once when a failure is recorded, and at-most-once for a hard crash that never records the result.
 
 - If the success write throws after the merchant returned HTTP 2xx, the catch marks the row `failed`. The next poll does not send it again until `nextAttemptAt`. After that delay it sends the same body again with the same `x-ahrampay-event-id`. The merchant must dedupe on that header.
-- If the process dies after the merchant received the request and before the success write, the row stays `sending` with a fresh `lockedAt`. The next poll does not select `sending`, so it does not redeliver. `claimDelivery` would reclaim that row only when `deliverWebhook` is called after `lockedAt` is older than 2 minutes. The poller never does that. Those rows stay `sending` until a direct `deliverWebhook` call or a manual status change. This change does not add that reclaim to the poller.
+- If the process dies after the merchant received the request and before the success write, the row stays `sending` with a fresh `lockedAt`. The next poll does not select `sending`, so it does not redeliver. `claimDelivery` would reclaim that row only when `deliverWebhook` is called after `lockedAt` is older than 2 minutes. The poller never does that.
+
+This exclusion is already on main (`dd152b76`). `processPendingWebhooks` there selects only `pending` and `failed` at `services/merchantWebhookService.js` lines 201-206. `claimDelivery` on that commit (lines 96-106) can match a stale `sending` row, but the poller never loads those rows, so it never calls `deliverWebhook` for them. This PR does not change that query. `node scripts/countIsolationBacklog.js` reports `webhookSending` and, separately, `webhookSendingStale` (`status: 'sending'` and `lockedAt` older than 2 minutes).
 
 While the worker is off, `deliverWebhook` returns before `claimDelivery`, so pending rows are not marked `sending` and are not posted. Re-enabling the worker drains `pending` and due `failed` rows gradually, 50 per 30 seconds, not as one burst.
 
 ## In-app notifications
 
-`transfer:created`, `transfer:completed`, and `transfer:cancelled` still call `addNotificationJob`. The dedupe key is sha256 of `userId`, `type`, `title`, and `message`, or an explicit `dedupeKey` when the caller passes one (`notificationDedupeKey` in `services/bullQueueService.js`). `recordInAppNotification` upserts with `$setOnInsert` on `Notification.dedupeKey`. The schema index is unique and sparse, so older notifications without the field are left alone.
+`transfer:created`, `transfer:completed`, and `transfer:cancelled` still call `addNotificationJob`. Those three call sites pass an explicit key `` `${transactionId}:${recipientId}:${type}` ``, using `customId` or `_id` as the transaction id. `recordInAppNotification` upserts on that key only. `Notification.dedupeKey` has a unique sparse index, so documents without the field are not part of it.
 
-If BullMQ workers are off, `addNotificationJob` writes that in-app row directly and does not enqueue. It does not delete jobs already in Redis. A new enqueue, when workers are on, uses `jobId` equal to the dedupe key. When a worker later runs an older job for the same user, type, title, and message, it calls the same upsert, so the direct row and the queued job do not create two notifications. A different message is a different key. This does not start a new WhatsApp, SMTP, or push send. Those channels keep their existing callers and flags.
+A caller that does not pass a key gets the previous behavior: `Notification.create`, and a BullMQ job with no `jobId`. Two identical texts for the same user stay two rows and two jobs. BullMQ does not drop the second job.
+
+If workers are off, `addNotificationJob` writes the in-app row directly and does not enqueue. It does not delete jobs already in Redis. A later worker run of a transfer job carries the same explicit key, so the direct row and that queued job do not create two notifications. This does not start a new WhatsApp, SMTP, or push send.
 
 ## ZaynPay URL fallback
 
@@ -130,6 +134,7 @@ Read-only Mongo counts (`node scripts/countIsolationBacklog.js`, or the same fil
 
 - `providerPaidAwaitingCompletion`: `transactions` where `status` is `processing` and `apiResultData.waitingApiAutoCompletion` is true
 - `webhookPending`, `webhookFailed`, `webhookSending`: `merchantwebhookdeliveries` by `status`
+- `webhookSendingStale`: `sending` rows whose `lockedAt` is older than 2 minutes. The poller does not select them. That is the same limit as main.
 
 Read-only BullMQ counts, one queue at a time, with no worker and no `obliterate`, `drain`, or `remove`: `api-transfers-queue`, `notifications-queue`, `reports-queue`, `backups-queue`, `reconciliations-queue`. Use `Queue.getJobCounts()` and then `queue.close()`.
 
@@ -138,7 +143,7 @@ Also count processing API transfers that are not yet provider-paid (an upper bou
 What each re-enable does to that backlog:
 
 - `EXTERNAL_API_ENABLED`: does not by itself walk the backlog. It allows provider calls. Turn this on before BullMQ workers if queued transfer jobs must succeed. If workers start while this is still off, `executeTransferViaApi` fails closed and `queueService` moves those processing rows back to `pending` and clears the executor. That is a status change, not a customer refund.
-- `BULLMQ_WORKERS_ENABLED`: workers start and process queued jobs immediately. `api-transfers-queue` jobs call the provider when external API is on, and a successful reference posts the executor ledger debit. Notification jobs upsert the in-app row and do not insert a second one for the same dedupe key. Report, backup, and reconciliation jobs run their existing work.
+- `BULLMQ_WORKERS_ENABLED`: workers start and process queued jobs immediately. `api-transfers-queue` jobs call the provider when external API is on, and a successful reference posts the executor ledger debit. Transfer notification jobs upsert on their explicit event key. Jobs with no key insert a new in-app row. Report, backup, and reconciliation jobs run their existing work.
 - `FINANCIAL_SCHEDULERS_ENABLED`: the API completion monitor completes due provider-paid waiting rows and posts each executor ledger debit once. It does not re-send the provider call and does not refund. Rows that are not `waitingApiAutoCompletion` are not completed.
 - `MERCHANT_WEBHOOK_WORKER_ENABLED`: each 30 seconds, up to 50 due `pending` or `failed` deliveries are claimed and posted. `sending` rows left by a crash are not selected. Merchants must dedupe on `x-ahrampay-event-id`.
 

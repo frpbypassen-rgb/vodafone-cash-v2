@@ -42,9 +42,9 @@ const {
 } = require('../services/merchantWebhookService');
 const {
     addNotificationJob,
-    notificationDedupeKey,
     recordInAppNotification
 } = require('../services/bullQueueService');
+const walletService = require('../services/walletService');
 const { countIsolationBacklog } = require('../scripts/countIsolationBacklog');
 
 jest.setTimeout(180000);
@@ -132,6 +132,90 @@ describe('concurrent provider-paid completion', () => {
         const updatedTx = await Transaction.findById(tx._id).lean();
         expect(updatedTx.status).toBe('completed');
         expect(updatedTx.apiResultData.waitingApiAutoCompletion).toBe(false);
+        expect(axios.post).not.toHaveBeenCalled();
+    });
+
+    const waitingTransaction = async (customId) => {
+        const group = await ExecutorGroup.create({ name: `API ${customId}`, balance: 5000, isApiBot: true });
+        const tx = await Transaction.create({
+            customId,
+            amount: 1600,
+            status: 'processing',
+            executorGroupId: group._id,
+            vodafoneNumber: '01000000000',
+            apiResultData: {
+                waitingApiAutoCompletion: true,
+                autoCompleteAt: new Date(Date.now() - 1000),
+                referenceNumber: `REF-${customId}`,
+                externalTransactionId: `PROV-${customId}`
+            }
+        });
+        return { group, tx };
+    };
+
+    test('a throw between claim and debit rolls the row back to waiting and a later pass debits once', async () => {
+        const { group, tx } = await waitingTransaction('ATT-ABORT-CLAIM');
+        const debit = jest.spyOn(walletService, 'updateBalanceWithLedger')
+            .mockRejectedValueOnce(new Error('crash between claim and debit'));
+
+        await expect(completeApiTransaction(tx._id, group._id)).resolves.toEqual({
+            completed: false,
+            reason: 'completion_aborted'
+        });
+        debit.mockRestore();
+
+        const aborted = await Transaction.findById(tx._id).lean();
+        expect(aborted.status).toBe('processing');
+        expect(aborted.apiResultData.waitingApiAutoCompletion).toBe(true);
+        expect(await Ledger.countDocuments({ transactionId: 'ATT-ABORT-CLAIM' })).toBe(0);
+        expect((await ExecutorGroup.findById(group._id).lean()).balance).toBe(5000);
+
+        await expect(completeApiTransaction(tx._id, group._id)).resolves.toEqual({ completed: true });
+        await expect(completeApiTransaction(tx._id, group._id)).resolves.toEqual({
+            completed: false,
+            reason: 'invalid_status:completed'
+        });
+        expect(await Ledger.countDocuments({ transactionId: 'ATT-ABORT-CLAIM' })).toBe(1);
+        expect((await ExecutorGroup.findById(group._id).lean()).balance).toBe(3400);
+        expect(axios.post).not.toHaveBeenCalled();
+    });
+
+    test('a throw between debit and save rolls the debit back and a later pass debits once', async () => {
+        const { group, tx } = await waitingTransaction('ATT-ABORT-SAVE');
+        const save = Transaction.prototype.save;
+        const saveSpy = jest.spyOn(Transaction.prototype, 'save').mockImplementation(function mockedSave(options) {
+            if (this.status === 'completed') {
+                saveSpy.mockRestore();
+                throw new Error('crash between debit and save');
+            }
+            return save.call(this, options);
+        });
+
+        try {
+            await expect(completeApiTransaction(tx._id, group._id)).resolves.toEqual({
+                completed: false,
+                reason: 'completion_aborted'
+            });
+        } finally {
+            saveSpy.mockRestore();
+        }
+
+        const aborted = await Transaction.findById(tx._id).lean();
+        expect(aborted.status).toBe('processing');
+        expect(aborted.apiResultData.waitingApiAutoCompletion).toBe(true);
+        expect(await Ledger.countDocuments({ transactionId: 'ATT-ABORT-SAVE' })).toBe(0);
+        expect((await ExecutorGroup.findById(group._id).lean()).balance).toBe(5000);
+
+        await expect(completeApiTransaction(tx._id, group._id)).resolves.toEqual({ completed: true });
+        expect(await Ledger.countDocuments({ transactionId: 'ATT-ABORT-SAVE' })).toBe(1);
+        expect((await ExecutorGroup.findById(group._id).lean()).balance).toBe(3400);
+        const entries = await Ledger.find({ transactionId: 'ATT-ABORT-SAVE' }).lean();
+        expect(entries[0]).toEqual(expect.objectContaining({
+            entityModel: 'ExecutorGroup',
+            type: 'TRANSFER',
+            amount: -1600,
+            description: 'تنفيذ API آلي'
+        }));
         expect(axios.post).not.toHaveBeenCalled();
     });
 });
@@ -272,31 +356,20 @@ describe('in-app notification dedupe across a BullMQ restart', () => {
         else process.env.BULLMQ_WORKERS_ENABLED = saved.BULLMQ_WORKERS_ENABLED;
     });
 
-    test('a direct write and a later worker pass for the same event create one row', async () => {
+    test('a direct write and a later worker pass for the same explicit key create one row', async () => {
         process.env.BULLMQ_WORKERS_ENABLED = 'false';
         const userId = `user-${new mongoose.Types.ObjectId()}`;
         const title = 'طلب تحويل جديد';
         const message = 'تم استلام ATT-DEDUPE-1';
         const type = 'transfer';
+        const dedupeKey = `ATT-DEDUPE-1:${userId}:transfer`;
 
-        await addNotificationJob(userId, title, message, type);
+        await addNotificationJob(userId, title, message, type, dedupeKey);
         expect(await Notification.countDocuments({ userId })).toBe(1);
 
-        const queuedJobData = { userId, title, message, type };
-        await recordInAppNotification(queuedJobData);
-        await recordInAppNotification({
-            ...queuedJobData,
-            dedupeKey: notificationDedupeKey(queuedJobData)
-        });
+        await recordInAppNotification({ userId, title, message, type, dedupeKey });
         expect(await Notification.countDocuments({ userId })).toBe(1);
-
-        await recordInAppNotification({
-            userId,
-            title,
-            message: 'رسالة مختلفة',
-            type
-        });
-        expect(await Notification.countDocuments({ userId })).toBe(2);
+        expect(await Notification.countDocuments({ dedupeKey })).toBe(1);
     });
 });
 
@@ -348,7 +421,18 @@ describe('isolation backlog counts are read-only', () => {
                 eventId: `count-sending-${Date.now()}`,
                 eventType: 'transfer.created',
                 payload: { id: 's' },
-                status: 'sending'
+                status: 'sending',
+                lockedAt: new Date()
+            },
+            {
+                endpointId: endpoint._id,
+                ownerModel: 'User',
+                ownerId: endpoint.ownerId,
+                eventId: `count-sending-stale-${Date.now()}`,
+                eventType: 'transfer.created',
+                payload: { id: 'stale' },
+                status: 'sending',
+                lockedAt: new Date(Date.now() - (3 * 60 * 1000))
             }
         ]);
         const after = await countIsolationBacklog(mongoose.connection.db);
@@ -356,6 +440,7 @@ describe('isolation backlog counts are read-only', () => {
         expect(after.providerPaidAwaitingCompletion).toBe(before.providerPaidAwaitingCompletion + 1);
         expect(after.webhookPending).toBe(before.webhookPending + 1);
         expect(after.webhookFailed).toBe(before.webhookFailed + 1);
-        expect(after.webhookSending).toBe(before.webhookSending + 1);
+        expect(after.webhookSending).toBe(before.webhookSending + 2);
+        expect(after.webhookSendingStale).toBe(before.webhookSendingStale + 1);
     });
 });

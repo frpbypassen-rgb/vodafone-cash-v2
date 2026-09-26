@@ -500,19 +500,13 @@ describe('runtime isolation kill switches', () => {
         expect(reconciliationService.reconcileDaily).not.toHaveBeenCalled();
         expect(axios.post).not.toHaveBeenCalled();
         await addNotificationJob('user-1', 'طلب تحويل جديد', 'نص', 'transfer');
-        expect(Notification.updateOne).toHaveBeenCalledWith(
-            { dedupeKey: expect.any(String) },
-            expect.objectContaining({
-                $setOnInsert: expect.objectContaining({
-                    userId: 'user-1',
-                    title: 'طلب تحويل جديد',
-                    message: 'نص',
-                    type: 'transfer'
-                })
-            }),
-            { upsert: true }
-        );
-        expect(Notification.create).not.toHaveBeenCalled();
+        expect(Notification.create).toHaveBeenCalledWith({
+            userId: 'user-1',
+            title: 'طلب تحويل جديد',
+            message: 'نص',
+            type: 'transfer'
+        });
+        expect(Notification.updateOne).not.toHaveBeenCalled();
         expect(Queue).not.toHaveBeenCalled();
     });
 

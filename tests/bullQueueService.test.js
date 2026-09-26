@@ -62,18 +62,13 @@ describe('BullMQ Queue Service Tests (Local / Memory Fallback)', () => {
         const { addNotificationJob, addReportJob, addReconciliationJob, addBackupJob } = require('../services/bullQueueService');
 
         await addNotificationJob('user123', 'Title', 'Msg', 'alert');
-        expect(Notification.updateOne).toHaveBeenCalledWith(
-            { dedupeKey: expect.any(String) },
-            expect.objectContaining({
-                $setOnInsert: expect.objectContaining({
-                    userId: 'user123',
-                    title: 'Title',
-                    message: 'Msg',
-                    type: 'alert'
-                })
-            }),
-            { upsert: true }
-        );
+        expect(Notification.create).toHaveBeenCalledWith({
+            userId: 'user123',
+            title: 'Title',
+            message: 'Msg',
+            type: 'alert'
+        });
+        expect(Notification.updateOne).not.toHaveBeenCalled();
 
         await addReportJob('daily_settlement', new Date());
         expect(settlementService.generateDailySettlement).toHaveBeenCalled();
@@ -173,17 +168,44 @@ describe('BullMQ Queue Service Tests (Redis / Distributed Queue)', () => {
         const handler = mockWorkerCallbacks['notifications-queue'];
         await handler({ id: 'job-notify', data: { userId: 'u1', title: 'T', message: 'M', type: 'system' } });
         
-        expect(Notification.updateOne).toHaveBeenCalledWith(
-            { dedupeKey: expect.any(String) },
-            expect.objectContaining({
-                $setOnInsert: expect.objectContaining({
-                    userId: 'u1',
-                    title: 'T',
-                    message: 'M'
-                })
-            }),
-            { upsert: true }
-        );
+        expect(Notification.create).toHaveBeenCalledWith({
+            userId: 'u1',
+            title: 'T',
+            message: 'M',
+            type: 'system'
+        });
+        expect(Notification.updateOne).not.toHaveBeenCalled();
+    });
+
+    test('two identical notifications without a key enqueue two jobs and insert two rows', async () => {
+        delete process.env.APP_ENV;
+        delete process.env.ENVIRONMENT;
+        process.env.NODE_ENV = 'production';
+        process.env.BULLMQ_WORKERS_ENABLED = 'true';
+        const { initBullMQ, addNotificationJob } = require('../services/bullQueueService');
+        expect(initBullMQ()).toBe(true);
+        mockAdd.mockResolvedValue({ id: 'job-ok' });
+
+        await addNotificationJob('u1', 'إيداع', 'تم إيداع 100', 'deposit');
+        await addNotificationJob('u1', 'إيداع', 'تم إيداع 100', 'deposit');
+
+        const notificationAdds = mockAdd.mock.calls.filter((call) => String(call[0]).startsWith('notify_'));
+        expect(notificationAdds).toHaveLength(2);
+        notificationAdds.forEach((call) => {
+            expect(call[1]).toEqual({
+                userId: 'u1',
+                title: 'إيداع',
+                message: 'تم إيداع 100',
+                type: 'deposit'
+            });
+            expect(call[2]).toBeUndefined();
+        });
+
+        const handler = mockWorkerCallbacks['notifications-queue'];
+        await handler({ id: 'job-a', data: notificationAdds[0][1] });
+        await handler({ id: 'job-b', data: notificationAdds[1][1] });
+        expect(Notification.create).toHaveBeenCalledTimes(2);
+        expect(Notification.updateOne).not.toHaveBeenCalled();
     });
 
     test('يجب تشغيل معالج الـ Worker الخاص بالتقارير وتوليد تسوية يومية', async () => {
