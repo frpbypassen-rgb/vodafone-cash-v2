@@ -98,9 +98,11 @@ as they were (`otp_verified`). The request is not left in `completing`,
 because that status is written only inside the transaction. The caller
 receives a failure, not success. A retry is allowed until the window ends.
 
-`completing` is not a state operators should see after a request finishes.
-If a document is ever found in `completing` outside a transaction, set it
-to `expired` by hand and ask the customer to start again. Do not add an
+`completing` is written only inside the completion transaction. Operators
+must not edit that status. On any unexpected state, turn the feature off
+(`PASSWORD_RESET_EMAIL_ENABLED=false` and restart with `--update-env` on
+the correct process), preserve evidence (logs, request ids, and timestamps;
+read only), and investigate. Do not modify the data directly. Do not add an
 index for this flow. Claims filter on `_id`. Creating indexes in
 production is a separate approved step and is not part of this change.
 

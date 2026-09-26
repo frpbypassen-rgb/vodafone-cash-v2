@@ -33,8 +33,19 @@ const DEFAULT_DENIED_DATABASES = Object.freeze([
 ]);
 const PRODUCTION_VALUE_KEYS = ['NODE_ENV', 'APP_ENV', 'ENVIRONMENT'];
 
+const PRODUCTION_PM2_NAME = 'ahram_core_api';
+const PM2_NAME_PLACEHOLDER = '<staging_pm2_name>';
+const PM2_ENV_KEYS = ['PM2_NAME', 'PM2_APP_NAME', 'name'];
+
 const parseArgs = (argv) => {
-    const args = { envFile: '', appDir: '', appDirProvided: false, denyDb: [] };
+    const args = {
+        envFile: '',
+        appDir: '',
+        appDirProvided: false,
+        denyDb: [],
+        pm2Name: '',
+        pm2NameProvided: false
+    };
     for (let index = 0; index < argv.length; index += 1) {
         const token = argv[index];
         if (token === '--') continue;
@@ -44,7 +55,11 @@ const parseArgs = (argv) => {
             args.appDir = argv[index + 1] || '';
         }
         if (token === '--deny-db') args.denyDb.push(argv[index + 1] || '');
-        if (token === '--env-file' || token === '--app-dir' || token === '--deny-db') index += 1;
+        if (token === '--pm2-name') {
+            args.pm2NameProvided = true;
+            args.pm2Name = argv[index + 1] == null ? '' : String(argv[index + 1]);
+        }
+        if (token === '--env-file' || token === '--app-dir' || token === '--deny-db' || token === '--pm2-name') index += 1;
     }
     return args;
 };
@@ -102,6 +117,26 @@ const isProductionAppDir = (value) => {
 };
 
 const isPlaceholderAppDir = (value) => String(value || '').trim().toLowerCase() === '<staging_path>';
+
+const normalizePm2Name = (value) => String(value == null ? '' : value).trim().toLowerCase();
+
+const isProductionPm2Name = (value) => normalizePm2Name(value) === PRODUCTION_PM2_NAME;
+
+const isPlaceholderPm2Name = (value) => normalizePm2Name(value) === PM2_NAME_PLACEHOLDER;
+
+const pm2CliRefusal = (pm2Name, pm2NameProvided) => {
+    if (!pm2NameProvided || !String(pm2Name || '').trim()) return 'missing; pass --pm2-name';
+    if (isPlaceholderPm2Name(pm2Name)) return 'placeholder; replace <STAGING_PM2_NAME>';
+    if (isProductionPm2Name(pm2Name)) return 'production process; never use Ahram_Core_API on Staging';
+    return '';
+};
+
+const pm2EnvRefusal = (env = {}) => {
+    for (const key of PM2_ENV_KEYS) {
+        if (isProductionPm2Name(env[key])) return `env ${key} is the production process`;
+    }
+    return '';
+};
 
 const isProductionEnvironment = (env = {}) => (
     PRODUCTION_VALUE_KEYS.some((key) => String(env[key] || '').trim().toLowerCase() === 'production')
@@ -395,11 +430,23 @@ const executeStagingCheck = async ({
     appDirProvided = false,
     envFile = '',
     denyDb = [],
+    pm2Name = '',
+    pm2NameProvided = false,
     processEnv = process.env,
     productionEnvFiles = PRODUCTION_ENV_FILES
 } = {}) => {
     const lines = [];
     const add = (level, name, detail = '') => lines.push({ level, name, detail: sanitize(detail) });
+    const cliPm2 = pm2CliRefusal(pm2Name, pm2NameProvided);
+    if (cliPm2) {
+        add('FAIL', 'pm2-name', cliPm2);
+        return blockedResult(lines);
+    }
+    const processPm2 = pm2EnvRefusal(processEnv);
+    if (processPm2) {
+        add('FAIL', 'pm2-name', processPm2);
+        return blockedResult(lines);
+    }
     const rawDir = String(appDir || '').trim();
     if (!appDirProvided || !rawDir) {
         add('FAIL', 'app-dir', 'missing');
@@ -428,6 +475,11 @@ const executeStagingCheck = async ({
         return blockedResult(lines);
     }
     const env = parseEnvText(text);
+    const filePm2 = pm2EnvRefusal(env);
+    if (filePm2) {
+        add('FAIL', 'pm2-name', filePm2);
+        return blockedResult(lines);
+    }
     if (isProductionEnvironment(env) || isProductionEnvironment(processEnv)) {
         add('INFO', 'NODE_ENV', envLabel(env.NODE_ENV || processEnv.NODE_ENV));
         add('INFO', 'APP_ENV', envLabel(env.APP_ENV || processEnv.APP_ENV));
@@ -459,7 +511,9 @@ const main = async (argv) => {
         appDir: args.appDir,
         appDirProvided: args.appDirProvided,
         envFile: args.envFile,
-        denyDb: args.denyDb
+        denyDb: args.denyDb,
+        pm2Name: args.pm2Name,
+        pm2NameProvided: args.pm2NameProvided
     });
     result.lines.forEach((line) => console.log(formatLine(line)));
     return result.ok ? 0 : 1;
@@ -486,6 +540,7 @@ module.exports = {
     formatLine,
     isProductionAppDir,
     isProductionEnvironment,
+    isProductionPm2Name,
     main,
     parseArgs,
     parseEnvText,

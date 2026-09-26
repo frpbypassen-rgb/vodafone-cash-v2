@@ -76,6 +76,8 @@ const baseEnv = (extra = '') => [
     extra
 ].filter(Boolean).join('\n');
 
+const SAFE_PM2 = 'staging-pm2';
+
 const run = async (appDir, envBody, extra = {}) => {
     writeEnv(appDir, envBody);
     const result = await executeStagingCheck({
@@ -83,6 +85,8 @@ const run = async (appDir, envBody, extra = {}) => {
         appDirProvided: extra.appDirProvided !== false,
         envFile: extra.envFile === undefined ? 'staging.env' : extra.envFile,
         denyDb: extra.denyDb || [],
+        pm2Name: extra.pm2Name === undefined ? SAFE_PM2 : extra.pm2Name,
+        pm2NameProvided: extra.pm2NameProvided !== false,
         processEnv: extra.processEnv || { NODE_ENV: 'test' },
         productionEnvFiles: extra.productionEnvFiles || [absentProductionEnv]
     });
@@ -92,13 +96,23 @@ const run = async (appDir, envBody, extra = {}) => {
 describe('staging readiness refusals make no connections', () => {
     let appDir;
 
+    const savedPm2Env = {};
+
     beforeEach(() => {
         jest.clearAllMocks();
         appDir = fs.mkdtempSync(path.join(os.tmpdir(), 'staging-refusal-'));
+        ['PM2_NAME', 'PM2_APP_NAME', 'name'].forEach((key) => {
+            savedPm2Env[key] = process.env[key];
+            delete process.env[key];
+        });
     });
 
     afterEach(() => {
         fs.rmSync(appDir, { recursive: true, force: true });
+        ['PM2_NAME', 'PM2_APP_NAME', 'name'].forEach((key) => {
+            if (savedPm2Env[key] === undefined) delete process.env[key];
+            else process.env[key] = savedPm2Env[key];
+        });
     });
 
     const expectNoConnection = (text) => {
@@ -117,6 +131,8 @@ describe('staging readiness refusals make no connections', () => {
             appDir: '',
             appDirProvided: false,
             envFile: 'staging.env',
+            pm2Name: SAFE_PM2,
+            pm2NameProvided: true,
             processEnv: { NODE_ENV: 'test' },
             productionEnvFiles: [absentProductionEnv]
         });
@@ -131,13 +147,17 @@ describe('staging readiness refusals make no connections', () => {
             '--app-dir',
             '<STAGING_PATH>',
             '--env-file',
-            path.join(appDir, 'staging.env')
+            path.join(appDir, 'staging.env'),
+            '--pm2-name',
+            SAFE_PM2
         ]);
         writeEnv(appDir, baseEnv());
         const direct = await executeStagingCheck({
             appDir: '<STAGING_PATH>',
             appDirProvided: true,
             envFile: path.join(appDir, 'staging.env'),
+            pm2Name: SAFE_PM2,
+            pm2NameProvided: true,
             processEnv: { NODE_ENV: 'test' },
             productionEnvFiles: [absentProductionEnv]
         });
@@ -158,6 +178,8 @@ describe('staging readiness refusals make no connections', () => {
             appDir: dir,
             appDirProvided: true,
             envFile: path.join(appDir, 'staging.env'),
+            pm2Name: SAFE_PM2,
+            pm2NameProvided: true,
             processEnv: { NODE_ENV: 'test' },
             productionEnvFiles: [absentProductionEnv]
         });
@@ -181,6 +203,8 @@ describe('staging readiness refusals make no connections', () => {
                 appDir,
                 appDirProvided: true,
                 envFile: 'staging.env',
+                pm2Name: SAFE_PM2,
+                pm2NameProvided: true,
                 productionEnvFiles: [absentProductionEnv]
             });
             const text = result.lines.map(formatLine).join('\n');
@@ -206,6 +230,8 @@ describe('staging readiness refusals make no connections', () => {
             appDir,
             appDirProvided: true,
             envFile: 'missing.env',
+            pm2Name: SAFE_PM2,
+            pm2NameProvided: true,
             processEnv: { NODE_ENV: 'test' },
             productionEnvFiles: [absentProductionEnv]
         });
@@ -217,6 +243,8 @@ describe('staging readiness refusals make no connections', () => {
             appDir,
             appDirProvided: true,
             envFile: appDir,
+            pm2Name: SAFE_PM2,
+            pm2NameProvided: true,
             processEnv: { NODE_ENV: 'test' },
             productionEnvFiles: [absentProductionEnv]
         });
@@ -294,5 +322,95 @@ describe('staging readiness refusals make no connections', () => {
         const tenant = await run(appDir, `${baseEnv()}\nTENANT_ENV=production`);
         expect(tenant.text).toContain('FAIL environment marker');
         expectNoConnection(tenant.text);
+    });
+
+    test.each([
+        [{ pm2Name: '', pm2NameProvided: false }, 'FAIL pm2-name missing'],
+        [{ pm2Name: '', pm2NameProvided: true }, 'FAIL pm2-name missing'],
+        [{ pm2Name: '   ', pm2NameProvided: true }, 'FAIL pm2-name missing'],
+        [{ pm2Name: '<STAGING_PM2_NAME>', pm2NameProvided: true }, 'FAIL pm2-name placeholder'],
+        [{ pm2Name: '  <STAGING_PM2_NAME>  ', pm2NameProvided: true }, 'FAIL pm2-name placeholder'],
+        [{ pm2Name: '<staging_pm2_name>', pm2NameProvided: true }, 'FAIL pm2-name placeholder'],
+        [{ pm2Name: 'Ahram_Core_API', pm2NameProvided: true }, 'FAIL pm2-name production process'],
+        [{ pm2Name: 'ahram_core_api', pm2NameProvided: true }, 'FAIL pm2-name production process'],
+        [{ pm2Name: 'AHRAM_CORE_API', pm2NameProvided: true }, 'FAIL pm2-name production process'],
+        [{ pm2Name: '  Ahram_Core_API  ', pm2NameProvided: true }, 'FAIL pm2-name production process'],
+        [{ pm2Name: '\tAhRaM_cOrE_aPi\n', pm2NameProvided: true }, 'FAIL pm2-name production process']
+    ])('refuses --pm2-name %j before any env read or connection', async (fields, expected) => {
+        writeEnv(appDir, baseEnv());
+        const readSpy = jest.spyOn(fs, 'readFileSync');
+        const beforeReads = readSpy.mock.calls.length;
+        const result = await executeStagingCheck({
+            appDir,
+            appDirProvided: true,
+            envFile: 'staging.env',
+            processEnv: { NODE_ENV: 'test' },
+            productionEnvFiles: [absentProductionEnv],
+            ...fields
+        });
+        const text = result.lines.map(formatLine).join('\n');
+        expect(readSpy.mock.calls.length).toBe(beforeReads);
+        readSpy.mockRestore();
+        expect(text).toContain(expected);
+        expect(text).not.toContain(SAFE_URI);
+        expectNoConnection(text);
+    });
+
+    test.each([
+        [['--app-dir', '<STAGING_PATH>', '--env-file', '.env'], 'FAIL pm2-name missing'],
+        [['--', '--pm2-name', '<STAGING_PM2_NAME>', '--app-dir', '<STAGING_PATH>', '--env-file', '.env'], 'FAIL pm2-name placeholder'],
+        [['--pm2-name', '  Ahram_Core_API  ', '--app-dir', '<STAGING_PATH>', '--env-file', '.env'], 'FAIL pm2-name production process'],
+        [['--pm2-name', 'ahram_core_api', '--app-dir', '<STAGING_PATH>', '--env-file', '.env'], 'FAIL pm2-name production process']
+    ])('main refuses argv %j before any env read or connection', async (argv, expected) => {
+        writeEnv(appDir, baseEnv());
+        const readSpy = jest.spyOn(fs, 'readFileSync');
+        const beforeReads = readSpy.mock.calls.length;
+        const logs = [];
+        const logSpy = jest.spyOn(console, 'log').mockImplementation((line) => logs.push(String(line)));
+        try {
+            const code = await main(argv);
+            const text = logs.join('\n');
+            expect(code).toBe(1);
+            expect(text).toContain(expected);
+            expect(readSpy.mock.calls.length).toBe(beforeReads);
+            expectNoConnection(text);
+        } finally {
+            logSpy.mockRestore();
+            readSpy.mockRestore();
+        }
+    });
+
+    test.each([
+        ['PM2_NAME=Ahram_Core_API', 'PM2_NAME'],
+        ['PM2_APP_NAME=  ahram_core_api  ', 'PM2_APP_NAME'],
+        ['name="Ahram_Core_API"', 'name']
+    ])('refuses env file %s before connecting', async (line, key) => {
+        const { text } = await run(appDir, `${baseEnv()}\n${line}`);
+        expect(text).toContain(`FAIL pm2-name env ${key} is the production process`);
+        expectNoConnection(text);
+    });
+
+    test.each([
+        ['PM2_NAME', 'Ahram_Core_API'],
+        ['PM2_APP_NAME', '  AHRAM_CORE_API  '],
+        ['name', 'ahram_core_api']
+    ])('refuses process env %s before reading the env file or connecting', async (key, value) => {
+        writeEnv(appDir, baseEnv());
+        const readSpy = jest.spyOn(fs, 'readFileSync');
+        const beforeReads = readSpy.mock.calls.length;
+        const result = await executeStagingCheck({
+            appDir,
+            appDirProvided: true,
+            envFile: 'staging.env',
+            pm2Name: SAFE_PM2,
+            pm2NameProvided: true,
+            processEnv: { NODE_ENV: 'test', [key]: value },
+            productionEnvFiles: [absentProductionEnv]
+        });
+        const text = result.lines.map(formatLine).join('\n');
+        expect(readSpy.mock.calls.length).toBe(beforeReads);
+        readSpy.mockRestore();
+        expect(text).toContain(`FAIL pm2-name env ${key} is the production process`);
+        expectNoConnection(text);
     });
 });

@@ -40,17 +40,31 @@ const expectCountsMatchResolver = (docs, include) => {
 
 describe('staging readiness parsing', () => {
     test('parseArgs requires the env file and app dir and has no production default', () => {
-        expect(parseArgs(['--', '--env-file', '.env', '--app-dir', '<STAGING_PATH>', '--deny-db', 'extra_db'])).toEqual({
+        expect(parseArgs([
+            '--',
+            '--env-file',
+            '.env',
+            '--app-dir',
+            '<STAGING_PATH>',
+            '--deny-db',
+            'extra_db',
+            '--pm2-name',
+            '<STAGING_PM2_NAME>'
+        ])).toEqual({
             envFile: '.env',
             appDir: '<STAGING_PATH>',
             appDirProvided: true,
-            denyDb: ['extra_db']
+            denyDb: ['extra_db'],
+            pm2Name: '<STAGING_PM2_NAME>',
+            pm2NameProvided: true
         });
         expect(parseArgs([])).toEqual({
             envFile: '',
             appDir: '',
             appDirProvided: false,
-            denyDb: []
+            denyDb: [],
+            pm2Name: '',
+            pm2NameProvided: false
         });
     });
 
@@ -313,7 +327,9 @@ describe('staging readiness makes no writes', () => {
             '--app-dir',
             appDir,
             '--env-file',
-            'staging.env'
+            'staging.env',
+            '--pm2-name',
+            'staging-pm2'
         ], { encoding: 'utf8', cwd: appDir });
         fs.rmSync(appDir, { recursive: true, force: true });
         const after = await snapshot();

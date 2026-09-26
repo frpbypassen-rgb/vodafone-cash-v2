@@ -10,9 +10,13 @@ in the staging step below.
 `on` enable `POST /api/password-reset/start`, verify, and complete. Login
 OTP does not read the flag. `WHATSAPP_OTP_ENABLED` stays `false`.
 
-Windows host folder: `C:\Users\Administrator\Desktop\vodafone-cash-v2`.
-PM2 process: `Ahram_Core_API`, port 3000. In PowerShell, do not use `$pid`
-as a variable name. PowerShell already defines it.
+Production Windows host folder: `C:\Users\Administrator\Desktop\vodafone-cash-v2`.
+The production PM2 process name appears only in section 8 and in the
+production rollback. Staging steps use the placeholder `<STAGING_PM2_NAME>`.
+In PowerShell, do not use `$pid` as a variable name. PowerShell already
+defines it.
+
+**Warning:** `Ahram_Core_API` is the production process name and must never be used in Staging steps. `<STAGING_PM2_NAME>` is not a real process name. Replace it with the real Staging process name before running anything. The readiness script and the restart guard both refuse a missing name, the placeholder, and the production process name.
 
 ## 1. Verifiable backup
 
@@ -49,7 +53,9 @@ or `false`. Restart so Node re-reads the file:
 
 ```powershell
 Set-Location <STAGING_PATH>
-pm2 restart Ahram_Core_API --update-env
+$stagingPm2 = '<STAGING_PM2_NAME>'
+if ($stagingPm2 -ieq 'Ahram_Core_API' -or $stagingPm2 -eq '<STAGING_PM2_NAME>') { throw 'Refusing: set the Staging PM2 name; never use Ahram_Core_API' }
+pm2 restart $stagingPm2 --update-env
 ```
 
 Confirm the login page shows the support sentence (`0913731533` and
@@ -69,9 +75,17 @@ rejects the placeholder itself, and it rejects
 and slashes. `--app-dir` and `--env-file` are both required. There is no
 default path.
 
+`--pm2-name` is required. The script exits non-zero before it reads the env
+file and before it connects to MongoDB, Redis, or SMTP when `--pm2-name` is
+missing, still the literal `<STAGING_PM2_NAME>`, or equal to the production
+process name after trimming (any casing). It also refuses, still before any
+connection, when the env file or the process environment sets `PM2_NAME`,
+`PM2_APP_NAME`, or `name` to that production process name.
+
 The script exits non-zero and does not connect to MongoDB, Redis, or SMTP
-when any of these is true: `--app-dir` is missing or still
-`<STAGING_PATH>`; the path is the production folder above; `NODE_ENV`,
+when any of these is true: `--pm2-name` fails the check above; `--app-dir`
+is missing or still `<STAGING_PATH>`; the path is the production folder
+above; `NODE_ENV`,
 `APP_ENV`, or `ENVIRONMENT` is `production` in the process or in the env
 file; the env file is missing or unreadable; `PRODUCTION` is true;
 `DEPLOY_*` or `TENANT_*` is set to `production`; the URI has no database
@@ -95,7 +109,7 @@ transactions work. A replica set is reported only as
 
 ```powershell
 Set-Location <STAGING_PATH>
-node .\scripts\checkStagingReadiness.js -- --app-dir <STAGING_PATH> --env-file .\.env
+node .\scripts\checkStagingReadiness.js -- --app-dir <STAGING_PATH> --env-file .\.env --pm2-name <STAGING_PM2_NAME>
 ```
 
 The `--` is required. Node treats `--env-file` as its own option and exits
@@ -131,7 +145,15 @@ env file only. It checks:
 ## 4. Enable on staging only
 
 Set `PASSWORD_RESET_EMAIL_ENABLED=true` on the staging env file and restart
-`Ahram_Core_API` with `--update-env`. Do not change production.
+the Staging process with `--update-env`. Do not change production, and do
+not restart the production process.
+
+```powershell
+Set-Location <STAGING_PATH>
+$stagingPm2 = '<STAGING_PM2_NAME>'
+if ($stagingPm2 -ieq 'Ahram_Core_API' -or $stagingPm2 -eq '<STAGING_PM2_NAME>') { throw 'Refusing: set the Staging PM2 name; never use Ahram_Core_API' }
+pm2 restart $stagingPm2 --update-env
+```
 
 Use one dedicated test account. Its admin-saved address must be
 `support@ahrampay.com` and its `otpDeliveryChannel` must already be
@@ -164,8 +186,10 @@ A login with the new password still works and receives a new session.
 OTP codes and passwords must not appear in logs. From the host:
 
 ```powershell
+$stagingPm2 = '<STAGING_PM2_NAME>'
+if ($stagingPm2 -ieq 'Ahram_Core_API' -or $stagingPm2 -eq '<STAGING_PM2_NAME>') { throw 'Refusing: set the Staging PM2 name; never use Ahram_Core_API' }
 $logDir = Join-Path $env:USERPROFILE '.pm2\logs'
-Get-ChildItem -Path $logDir -Filter 'Ahram*Core*API*.log' -ErrorAction SilentlyContinue |
+Get-ChildItem -Path $logDir -Filter ($stagingPm2 + '*.log') -ErrorAction SilentlyContinue |
   Select-String -Pattern '(?i)(otp|code).{0,80}\d{6}|\bpassword\b\s*[:=]\s*\S+' |
   Select-Object -First 40 Path, LineNumber, Line
 ```
@@ -221,9 +245,16 @@ path; reverting it alone would put that path back.
 
 In both levels, `WHATSAPP_OTP_ENABLED` stays `false`. In-flight
 `PasswordResetRequest` documents are not completed. They expire on the
-existing code TTL and completion window. A document left in `completing`
-should be set to `expired` by hand. That status is written only inside the
-completion transaction, so it should not be visible after an abort.
+existing code TTL and completion window.
+
+On any unexpected state, including a request still in `completing`, do not
+edit the document. That status is written only inside the completion
+transaction. The action is:
+
+1. Turn the feature off: set `PASSWORD_RESET_EMAIL_ENABLED=false` and
+   `pm2 restart Ahram_Core_API --update-env` on the production process.
+2. Preserve evidence: logs, request ids, and timestamps. Read only.
+3. Investigate. Do not modify the data directly.
 
 ## Deploy workflow
 
@@ -241,3 +272,5 @@ The workflow does not run `migrateTenantIsolation.js`. It runs
 `repairProductionEnv.js` as a preview unless the dispatch input
 `apply_repair` is true. Keep `PASSWORD_RESET_EMAIL_ENABLED` false in the
 server env file until section 8 is explicitly approved.
+
+GitHub deploys stay blocked until the pre-existing npm audit vulnerabilities and the two pre-existing failing tests (mobileConsolidation 'Executor login signs executorGroupId…' and mobileAuthContract 'T014 & T015…') are fixed in a separate PR; do not fix them in PR #77.
