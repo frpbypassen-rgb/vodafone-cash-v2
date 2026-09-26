@@ -3,7 +3,8 @@
 
 // محاكاة النماذج والخدمات والعمليات الخارجية بشكل عالمي في أعلى الملف لمنع الـ Hoisting والاتصال الفعلي
 jest.mock('../models/Notification', () => ({
-    create: jest.fn().mockResolvedValue({})
+    create: jest.fn().mockResolvedValue({}),
+    updateOne: jest.fn().mockResolvedValue({})
 }));
 
 jest.mock('../services/settlementService', () => ({
@@ -61,7 +62,18 @@ describe('BullMQ Queue Service Tests (Local / Memory Fallback)', () => {
         const { addNotificationJob, addReportJob, addReconciliationJob, addBackupJob } = require('../services/bullQueueService');
 
         await addNotificationJob('user123', 'Title', 'Msg', 'alert');
-        expect(Notification.create).toHaveBeenCalled();
+        expect(Notification.updateOne).toHaveBeenCalledWith(
+            { dedupeKey: expect.any(String) },
+            expect.objectContaining({
+                $setOnInsert: expect.objectContaining({
+                    userId: 'user123',
+                    title: 'Title',
+                    message: 'Msg',
+                    type: 'alert'
+                })
+            }),
+            { upsert: true }
+        );
 
         await addReportJob('daily_settlement', new Date());
         expect(settlementService.generateDailySettlement).toHaveBeenCalled();
@@ -161,11 +173,17 @@ describe('BullMQ Queue Service Tests (Redis / Distributed Queue)', () => {
         const handler = mockWorkerCallbacks['notifications-queue'];
         await handler({ id: 'job-notify', data: { userId: 'u1', title: 'T', message: 'M', type: 'system' } });
         
-        expect(Notification.create).toHaveBeenCalledWith(expect.objectContaining({
-            userId: 'u1',
-            title: 'T',
-            message: 'M'
-        }));
+        expect(Notification.updateOne).toHaveBeenCalledWith(
+            { dedupeKey: expect.any(String) },
+            expect.objectContaining({
+                $setOnInsert: expect.objectContaining({
+                    userId: 'u1',
+                    title: 'T',
+                    message: 'M'
+                })
+            }),
+            { upsert: true }
+        );
     });
 
     test('يجب تشغيل معالج الـ Worker الخاص بالتقارير وتوليد تسوية يومية', async () => {

@@ -57,9 +57,22 @@ const logDisabledRuntimeSubsystems = (logger, env = process.env) => {
     return disabled;
 };
 
-const isStagingRuntime = (env = process.env) => STAGING_KEYS.some(
-    (key) => String(env[key] || '').trim().toLowerCase() === 'staging'
-);
+const configuredRuntimeModes = (env = process.env) => STAGING_KEYS
+    .map((key) => ({ key, value: String(env[key] ?? '').trim().toLowerCase() }))
+    .filter((item) => item.value);
+
+// Any explicit `staging` value selects staging behavior, including a conflict.
+// A conflict also refuses startup so a production process cannot keep serving
+// with the switches silently off, and a staging process cannot be treated as production.
+const stagingEnvConflict = (env = process.env) => {
+    const modes = configuredRuntimeModes(env);
+    const staging = modes.some((item) => item.value === 'staging');
+    const other = modes.some((item) => item.value !== 'staging');
+    return staging && other;
+};
+
+const isStagingRuntime = (env = process.env) => configuredRuntimeModes(env)
+    .some((item) => item.value === 'staging');
 
 const normalizeHost = (value) => String(value || '').trim().toLowerCase().replace(/^\[|\]$/g, '');
 
@@ -133,6 +146,13 @@ const collectStagingEnvViolations = (env = process.env) => {
             violations.push({ code: 'PM2_PRODUCTION_NAME', name: 'pm2-name', detail: `env ${key} is the production process` });
         }
     });
+    if (stagingEnvConflict(env)) {
+        violations.push({
+            code: 'STAGING_ENV_CONFLICT',
+            name: 'runtime-env',
+            detail: 'NODE_ENV, APP_ENV, and ENVIRONMENT disagree about staging'
+        });
+    }
     return violations;
 };
 
@@ -203,6 +223,7 @@ module.exports = {
     isMerchantWebhookWorkerEnabled,
     isSandboxProviderUrl,
     isStagingRuntime,
+    stagingEnvConflict,
     logDisabledRuntimeSubsystems,
     resolveProviderBaseUrl,
     sandboxHostAllowlist

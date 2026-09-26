@@ -76,10 +76,9 @@ const initBullMQ = () => {
 
         notificationQueue = new Queue('notifications-queue', { connection: queueConnection });
         notificationWorker = new Worker('notifications-queue', async (job) => {
-            const { userId, title, message, type } = job.data;
+            const { userId, title, message, type, dedupeKey } = job.data || {};
             logger.info(`[BullMQ Worker] Sending notification to ${userId}`);
-            const Notification = require('../models/Notification');
-            await Notification.create({ userId, title, message, type: type || 'system_alert' });
+            await recordInAppNotification({ userId, title, message, type, dedupeKey });
         }, {
             connection: workerConnection,
             concurrency: 10
@@ -177,28 +176,68 @@ const addTransferJob = async (txId, apiGroupId) => {
 /**
  * إضافة إشعار للمعالجة الخلفية
  */
-const persistInAppNotification = async (userId, title, message, type) => {
-    const Notification = require('../models/Notification');
-    await Notification.create({ userId, title, message, type: type || 'system_alert' }).catch(() => {});
+const notificationDedupeKey = ({ userId, title, message, type, dedupeKey }) => {
+    if (dedupeKey) return String(dedupeKey);
+    return require('crypto').createHash('sha256').update([
+        String(userId || ''),
+        String(type || 'system_alert'),
+        String(title || ''),
+        String(message || '')
+    ].join('\n')).digest('hex');
 };
 
-const addNotificationJob = async (userId, title, message, type) => {
-    // In-app notifications are not dropped when workers are off. External
-    // WhatsApp, SMTP, and push sends stay on their own existing paths.
+const recordInAppNotification = async ({ userId, title, message, type, dedupeKey }) => {
+    const Notification = require('../models/Notification');
+    const key = notificationDedupeKey({ userId, title, message, type, dedupeKey });
+    try {
+        await Notification.updateOne(
+            { dedupeKey: key },
+            {
+                $setOnInsert: {
+                    userId,
+                    title,
+                    message,
+                    type: type || 'system_alert',
+                    dedupeKey: key,
+                    isRead: false
+                }
+            },
+            { upsert: true }
+        );
+    } catch (error) {
+        if (error && (error.code === 11000 || error.code === 11001)) return;
+        throw error;
+    }
+};
+
+const addNotificationJob = async (userId, title, message, type, dedupeKey) => {
+    const payload = {
+        userId,
+        title,
+        message,
+        type: type || 'system_alert',
+        dedupeKey: notificationDedupeKey({ userId, title, message, type, dedupeKey })
+    };
+    // In-app notifications are not dropped when workers are off. The same
+    // dedupe key is used by a queued job, so a later worker start does not
+    // insert a second row. External WhatsApp, SMTP, and push sends stay on
+    // their own existing paths. Queued jobs are not deleted.
     if (bullWorkersDisabled()) {
-        await persistInAppNotification(userId, title, message, type);
+        await recordInAppNotification(payload).catch(() => {});
         return;
     }
     initBullMQ();
     if (isRedis() && notificationQueue) {
         try {
-            await notificationQueue.add(`notify_${userId}_${Date.now()}`, { userId, title, message, type });
+            await notificationQueue.add(`notify_${payload.dedupeKey}`, payload, {
+                jobId: payload.dedupeKey
+            });
             return;
         } catch (err) {
             logger.warn('Failed to add notification to BullMQ', { error: err.message });
         }
     }
-    await persistInAppNotification(userId, title, message, type);
+    await recordInAppNotification(payload).catch(() => {});
 };
 
 /**
@@ -255,9 +294,12 @@ const addReconciliationJob = async (date) => {
 module.exports = {
     addTransferJob,
     addNotificationJob,
+    notificationDedupeKey,
+    recordInAppNotification,
     addReportJob,
     addBackupJob,
     addReconciliationJob,
     initBullMQ,
-    isApiTransferWorkerReady
+    isApiTransferWorkerReady,
+    resetBullMQState
 };

@@ -129,6 +129,7 @@ const deliverWebhook = async (deliveryId) => {
                 'content-type': 'application/json',
                 'user-agent': 'AhramPay-Webhooks/1.0',
                 'x-ahrampay-event': delivery.eventType,
+                'x-ahrampay-event-id': String(delivery.eventId || ''),
                 'x-ahrampay-delivery': String(delivery._id),
                 'x-ahrampay-timestamp': timestamp,
                 'x-ahrampay-signature': `sha256=${signature}`

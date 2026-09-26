@@ -2,7 +2,9 @@
 
 jest.mock('../models/Transaction', () => ({
     findById: jest.fn(),
-    countDocuments: jest.fn()
+    countDocuments: jest.fn(),
+    findOneAndUpdate: jest.fn(),
+    updateOne: jest.fn()
 }));
 jest.mock('axios', () => ({ post: jest.fn(), get: jest.fn() }));
 jest.mock('../models/ExecutorGroup', () => ({ findById: jest.fn() }));
@@ -49,6 +51,20 @@ describe('API executor receipt lifecycle', () => {
         jest.clearAllMocks();
         delete process.env.FINANCIAL_SCHEDULERS_ENABLED;
         updateBalanceWithLedger.mockResolvedValue({ balanceAfter: 4000 });
+        Transaction.findOneAndUpdate.mockImplementation(async () => {
+            const results = Transaction.findById.mock.results;
+            if (!results.length) return null;
+            const tx = await results[results.length - 1].value;
+            if (!tx || tx.status !== 'processing' || tx.apiResultData?.waitingApiAutoCompletion !== true) {
+                return null;
+            }
+            tx.apiResultData = {
+                ...tx.apiResultData,
+                waitingApiAutoCompletion: false,
+                completionClaimedAt: new Date()
+            };
+            return tx;
+        });
     });
 
     test('stores the system receipt first and preserves the provider receipt', async () => {

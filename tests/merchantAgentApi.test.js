@@ -180,6 +180,114 @@ describe('Merchant API agent authentication', () => {
         expect(session.endSession).toHaveBeenCalledTimes(1);
     });
 
+    test('customer wallet debit amount, account, and timing match with switches off and unset', async () => {
+        const switchNames = [
+            'MERCHANT_WEBHOOK_WORKER_ENABLED',
+            'EXTERNAL_API_ENABLED',
+            'BULLMQ_WORKERS_ENABLED',
+            'FINANCIAL_SCHEDULERS_ENABLED'
+        ];
+        const saved = {
+            NODE_ENV: process.env.NODE_ENV,
+            APP_ENV: process.env.APP_ENV,
+            ENVIRONMENT: process.env.ENVIRONMENT
+        };
+        switchNames.forEach((key) => {
+            saved[key] = process.env[key];
+        });
+        const agent = {
+            _id: '66a112233445566778899002',
+            name: 'وكالة الاختبار',
+            phone: '0912345678',
+            webUsername: 'test-agent@ahram.com',
+            role: 'agent',
+            status: 'active',
+            balance: 850,
+            tier: 3,
+            creditLimit: 100
+        };
+        const postTransfer = async () => {
+            const session = {
+                startTransaction: jest.fn(),
+                commitTransaction: jest.fn(),
+                abortTransaction: jest.fn(),
+                endSession: jest.fn()
+            };
+            mongoose.startSession.mockResolvedValue(session);
+            ClientBot.findOne.mockReturnValue(leanResult(null));
+            User.findOne.mockReturnValue(leanResult(agent));
+            Settings.findOne.mockReturnValue(sessionLeanResult({ rateLevel3: 5.95 }));
+            User.findOneAndUpdate.mockResolvedValue({ ...agent, balance: 681.933 });
+            Counter.findOneAndUpdate.mockResolvedValue({ value: 77 });
+            Transaction.create.mockImplementation(async ([transaction]) => [{ ...transaction, _id: 'tx-agent-api-1' }]);
+            resolveAutoRouteExecutor.mockResolvedValue(null);
+            const response = await request(app)
+                .post('/api/v1/merchant/transfer')
+                .set('x-api-key', 'agent-private-api-key')
+                .send({ target_number: '01012345678', amount: 1000, transfer_type: 'vodafone' });
+            return {
+                status: response.status,
+                balance: response.body.data.balance,
+                debitFilter: User.findOneAndUpdate.mock.calls[0][0],
+                debitUpdate: User.findOneAndUpdate.mock.calls[0][1],
+                ledger: Ledger.mock.calls[0][0],
+                debitOrder: User.findOneAndUpdate.mock.invocationCallOrder[0],
+                ledgerOrder: Ledger.mock.invocationCallOrder[0],
+                createOrder: Transaction.create.mock.invocationCallOrder[0]
+            };
+        };
+        try {
+            process.env.NODE_ENV = 'production';
+            delete process.env.APP_ENV;
+            delete process.env.ENVIRONMENT;
+            switchNames.forEach((key) => {
+                delete process.env[key];
+            });
+            const unset = await postTransfer();
+            jest.clearAllMocks();
+            acquireTransferCooldown.mockResolvedValue({
+                lock: {},
+                guardFields: {
+                    requestOwnerKey: 'wallet:User:66a112233445566778899002',
+                    canonicalServiceKey: 'vodafone',
+                    canonicalRecipient: '01012345678'
+                }
+            });
+            switchNames.forEach((key) => {
+                process.env[key] = 'false';
+            });
+            const disabled = await postTransfer();
+
+            expect(unset.status).toBe(200);
+            expect(disabled.status).toBe(200);
+            expect(disabled.balance).toBe(unset.balance);
+            expect(disabled.debitFilter).toEqual(unset.debitFilter);
+            expect(disabled.debitUpdate).toEqual(unset.debitUpdate);
+            expect(disabled.debitUpdate).toEqual({ $inc: { balance: -168.067 } });
+            expect(disabled.debitFilter).toEqual(expect.objectContaining({
+                _id: agent._id,
+                role: 'agent'
+            }));
+            expect(disabled.ledger).toEqual(expect.objectContaining({
+                entityId: unset.ledger.entityId,
+                entityModel: 'User',
+                amount: unset.ledger.amount,
+                type: 'TRANSFER'
+            }));
+            expect(disabled.ledger.amount).toBe(-168.067);
+            expect(disabled.ledger.entityId).toBe(agent._id);
+            expect(unset.debitOrder).toBeLessThan(unset.createOrder);
+            expect(unset.createOrder).toBeLessThan(unset.ledgerOrder);
+            expect(disabled.debitOrder).toBeLessThan(disabled.createOrder);
+            expect(disabled.createOrder).toBeLessThan(disabled.ledgerOrder);
+        } finally {
+            Object.keys(saved).forEach((key) => {
+                if (saved[key] === undefined) delete process.env[key];
+                else process.env[key] = saved[key];
+            });
+        }
+    });
+
     test('fails closed before debiting when Mongo transactions are unavailable in production', async () => {
         const originalNodeEnv = process.env.NODE_ENV;
         const originalRequirement = process.env.MONGO_TRANSACTIONS_REQUIRED;

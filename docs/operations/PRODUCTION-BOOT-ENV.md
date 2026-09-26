@@ -45,8 +45,10 @@ Host-specific (must exist in `.env`, never commit real values):
 production when they are unset. A production deploy does not need four `=true`
 lines. Only `false`, `0`, `no`, or `off` disables a switch. Staging
 (`NODE_ENV`, `APP_ENV`, or `ENVIRONMENT` = `staging`) fails closed: an unset
-switch is off, and `.env.staging.example` sets all four to `false`. Startup
-logs one warning naming every switch that is off. Details:
+switch is off, and `.env.staging.example` sets all four to `false`. If one of
+those three variables is `staging` and another is a different non-empty mode,
+startup is refused (`STAGING_ENV_CONFLICT`) instead of serving in a mixed mode.
+Startup logs one warning naming every switch that is off. Details:
 `docs/operations/staging-isolation.md`.
 
 ## Repair then reload

@@ -46,7 +46,8 @@ jest.mock('../models/Settings', () => ({
 }));
 
 jest.mock('../models/Notification', () => ({
-    create: jest.fn(async () => ({}))
+    create: jest.fn(async () => ({})),
+    updateOne: jest.fn(async () => ({}))
 }));
 
 jest.mock('../models/ApiBalanceAudit', () => ({
@@ -103,6 +104,7 @@ const { encrypt } = require('../utils/encryption');
 const { Queue, Worker } = require('bullmq');
 const {
     deliverWebhook,
+    processPendingWebhooks,
     startMerchantWebhookWorker
 } = require('../services/merchantWebhookService');
 const {
@@ -118,7 +120,8 @@ const {
     addNotificationJob,
     addReportJob,
     addReconciliationJob,
-    addBackupJob
+    addBackupJob,
+    resetBullMQState
 } = require('../services/bullQueueService');
 const Notification = require('../models/Notification');
 const { startApiCompletionMonitor, scheduleApiCompletion } = require('../services/apiExecutionLifecycleService');
@@ -135,7 +138,9 @@ const {
     isExternalApiEnabled,
     isFinancialSchedulersEnabled,
     isMerchantWebhookWorkerEnabled,
-    resolveProviderBaseUrl
+    isStagingRuntime,
+    resolveProviderBaseUrl,
+    stagingEnvConflict
 } = require('../utils/runtimeControls');
 
 const FLAG_KEYS = [
@@ -195,6 +200,7 @@ describe('runtime isolation kill switches', () => {
             delete process.env[key];
         });
         if (process.env.NODE_ENV === 'staging') process.env.NODE_ENV = 'test';
+        resetBullMQState();
         httpRequest = jest.spyOn(http, 'request').mockImplementation(() => {
             throw new Error('unexpected http.request');
         });
@@ -272,13 +278,6 @@ describe('runtime isolation kill switches', () => {
 
     test('merchant webhook delivery calls axios when the flag is on', async () => {
         process.env.MERCHANT_WEBHOOK_WORKER_ENABLED = 'true';
-        MerchantWebhookDelivery.findOneAndUpdate.mockResolvedValue({
-            _id: 'delivery-1',
-            endpointId: 'endpoint-1',
-            payload: { id: 'evt-1' },
-            eventType: 'transfer.created',
-            attemptCount: 1
-        });
         MerchantWebhookEndpoint.findOne.mockReturnValue({
             select: () => Promise.resolve({
                 _id: 'endpoint-1',
@@ -288,6 +287,14 @@ describe('runtime isolation kill switches', () => {
             })
         });
         axios.post.mockResolvedValue({ status: 204, data: '' });
+        MerchantWebhookDelivery.findOneAndUpdate.mockResolvedValue({
+            _id: 'delivery-1',
+            endpointId: 'endpoint-1',
+            eventId: 'tx-1:transfer.created:completed',
+            payload: { id: 'evt-1', type: 'transfer.created' },
+            eventType: 'transfer.created',
+            attemptCount: 1
+        });
         const timer = startMerchantWebhookWorker();
         expect(timer).toBeTruthy();
         clearInterval(timer);
@@ -295,9 +302,51 @@ describe('runtime isolation kill switches', () => {
         expect(result).toEqual({ delivered: true });
         expect(axios.post).toHaveBeenCalledWith(
             'https://hooks.example.test/pay',
-            expect.any(String),
-            expect.objectContaining({ timeout: 10000 })
+            JSON.stringify({ id: 'evt-1', type: 'transfer.created' }),
+            expect.objectContaining({
+                timeout: 10000,
+                headers: expect.objectContaining({
+                    'x-ahrampay-event-id': 'tx-1:transfer.created:completed',
+                    'x-ahrampay-delivery': 'delivery-1'
+                })
+            })
         );
+    });
+
+    test('a crash after HTTP leaves sending, and the next poll does not redeliver it', async () => {
+        process.env.MERCHANT_WEBHOOK_WORKER_ENABLED = 'true';
+        const crashed = {
+            _id: 'delivery-crashed',
+            endpointId: 'endpoint-1',
+            eventId: 'tx-9:transfer.completed:completed',
+            payload: { id: 'evt-9' },
+            eventType: 'transfer.completed',
+            status: 'sending',
+            lockedAt: new Date(),
+            attemptCount: 1
+        };
+        MerchantWebhookDelivery.find.mockReturnValue({
+            sort: () => ({
+                limit: () => ({
+                    select: () => ({
+                        lean: async () => []
+                    })
+                })
+            })
+        });
+        const selected = await processPendingWebhooks();
+        expect(selected).toBe(0);
+        expect(MerchantWebhookDelivery.find).toHaveBeenCalledWith(expect.objectContaining({
+            status: { $in: ['pending', 'failed'] }
+        }));
+        const findArg = MerchantWebhookDelivery.find.mock.calls[0][0];
+        expect(JSON.stringify(findArg)).not.toContain('sending');
+        expect(axios.post).not.toHaveBeenCalled();
+
+        MerchantWebhookDelivery.findOneAndUpdate.mockResolvedValue(null);
+        await expect(deliverWebhook(crashed._id)).resolves.toBeNull();
+        expect(axios.post).not.toHaveBeenCalled();
+        expect(crashed.status).toBe('sending');
     });
 
     test('re-enabling merchant webhooks delivers a pending row once', async () => {
@@ -451,13 +500,71 @@ describe('runtime isolation kill switches', () => {
         expect(reconciliationService.reconcileDaily).not.toHaveBeenCalled();
         expect(axios.post).not.toHaveBeenCalled();
         await addNotificationJob('user-1', 'طلب تحويل جديد', 'نص', 'transfer');
-        expect(Notification.create).toHaveBeenCalledWith({
-            userId: 'user-1',
-            title: 'طلب تحويل جديد',
-            message: 'نص',
-            type: 'transfer'
-        });
+        expect(Notification.updateOne).toHaveBeenCalledWith(
+            { dedupeKey: expect.any(String) },
+            expect.objectContaining({
+                $setOnInsert: expect.objectContaining({
+                    userId: 'user-1',
+                    title: 'طلب تحويل جديد',
+                    message: 'نص',
+                    type: 'transfer'
+                })
+            }),
+            { upsert: true }
+        );
+        expect(Notification.create).not.toHaveBeenCalled();
         expect(Queue).not.toHaveBeenCalled();
+    });
+
+    test('unset switches with NODE_ENV=production keep webhook, BullMQ, schedulers, and provider calls on', async () => {
+        process.env.NODE_ENV = 'production';
+        delete process.env.APP_ENV;
+        delete process.env.ENVIRONMENT;
+        expect(isStagingRuntime()).toBe(false);
+        expect(stagingEnvConflict()).toBe(false);
+        expect(isMerchantWebhookWorkerEnabled()).toBe(true);
+        expect(isExternalApiEnabled()).toBe(true);
+        expect(isBullmqWorkersEnabled()).toBe(true);
+        expect(isFinancialSchedulersEnabled()).toBe(true);
+
+        const timer = startMerchantWebhookWorker();
+        expect(timer).toBeTruthy();
+        clearInterval(timer);
+
+        redis.isRedis.mockReturnValue(true);
+        redis.createBullMQConnection.mockReturnValue({ ok: true });
+        expect(initBullMQ()).toBe(true);
+        expect(Worker).toHaveBeenCalled();
+        expect(Queue).toHaveBeenCalled();
+
+        jest.useFakeTimers();
+        expect(startApiCompletionMonitor()).toBeTruthy();
+        expect(startApiProviderReturnMonitor()).toBeTruthy();
+        expect(startRateChangeActivationMonitor({ app: {} })).toBeTruthy();
+        expect(scheduleApiCompletion({ txId: 'tx', executorGroupId: 'group', delayMs: 1000 })).toBeTruthy();
+        jest.clearAllTimers();
+
+        axios.post
+            .mockResolvedValueOnce({ data: { Code: 200, Data: { Access_Token: 'token-1' } } })
+            .mockResolvedValueOnce({ data: { Code: 200, Data: { PaymentBillInfo: 'bill-1' } } })
+            .mockResolvedValueOnce({
+                data: {
+                    Code: 200,
+                    Data: {
+                        TransactionNumber: '5001',
+                        RefTransactionNumber: '2805',
+                        Amount: 5,
+                        Status: 'عمليه ناجحه'
+                    }
+                }
+            });
+        const result = await executeTransferViaApi(
+            { vodafoneNumber: '01271870153', amount: 5, customId: 'ATT-UNSET' },
+            { apiUrl: 'https://zayn.example', apiUsername: 'api-user', apiPassword: 'api-pass' }
+        );
+        expect(result.success).toBe(true);
+        expect(axios.post).toHaveBeenCalled();
+        expect(String(axios.post.mock.calls[0][0])).toBe('https://zayn.example/api/Account/GetToken');
     });
 
     test('BullMQ init still creates workers when the flag is on', () => {
@@ -600,5 +707,73 @@ describe('staging startup guard', () => {
             db: fakeDb(),
             processTitle: 'Ahram_Core_API'
         })).rejects.toThrow(/PM2_PRODUCTION_NAME/);
+    });
+
+    test.each([
+        ['NODE_ENV=production with APP_ENV=staging', { NODE_ENV: 'production', APP_ENV: 'staging' }],
+        ['NODE_ENV=staging with APP_ENV=production', { NODE_ENV: 'staging', APP_ENV: 'production' }]
+    ])('refuses startup when %s', async (_label, modes) => {
+        apply({
+            ...safeStagingEnv,
+            ...modes
+        });
+        delete process.env.ENVIRONMENT;
+        delete process.env.MERCHANT_WEBHOOK_WORKER_ENABLED;
+        delete process.env.EXTERNAL_API_ENABLED;
+        delete process.env.BULLMQ_WORKERS_ENABLED;
+        delete process.env.FINANCIAL_SCHEDULERS_ENABLED;
+        expect(isStagingRuntime()).toBe(true);
+        expect(stagingEnvConflict()).toBe(true);
+        expect(isExternalApiEnabled()).toBe(false);
+        expect(isBullmqWorkersEnabled()).toBe(false);
+        expect(isMerchantWebhookWorkerEnabled()).toBe(false);
+        expect(isFinancialSchedulersEnabled()).toBe(false);
+        await expect(assertStagingStartupSafe({
+            env: process.env,
+            db: fakeDb(),
+            processTitle: 'node'
+        })).rejects.toMatchObject({
+            code: 'STAGING_STARTUP_REFUSED',
+            violations: expect.arrayContaining([
+                expect.objectContaining({ code: 'STAGING_ENV_CONFLICT' })
+            ])
+        });
+    });
+
+    test('consistent production stays enabled and consistent staging does not report a conflict', async () => {
+        apply({
+            NODE_ENV: 'production',
+            PORT: '3000',
+            SMTP_HOST: 'smtp.gmail.com',
+            ZAYN_AGGREGATOR_URL: 'https://zaynpay.com',
+            MONGO_URI: 'mongodb://127.0.0.1:27017/vodafone_cash_system'
+        });
+        delete process.env.APP_ENV;
+        delete process.env.ENVIRONMENT;
+        expect(isStagingRuntime()).toBe(false);
+        expect(stagingEnvConflict()).toBe(false);
+        expect(isExternalApiEnabled()).toBe(true);
+        await expect(assertStagingStartupSafe({
+            env: process.env,
+            db: fakeDb(),
+            processTitle: 'Ahram_Core_API'
+        })).resolves.toEqual({ ok: true, violations: [] });
+
+        apply(safeStagingEnv);
+        delete process.env.ENVIRONMENT;
+        delete process.env.EXTERNAL_API_ENABLED;
+        delete process.env.ZAYN_AGGREGATOR_URL;
+        delete process.env.ZAYNPAY_URL;
+        delete process.env.ZAYN_EXECUTOR_API_URL;
+        delete process.env.name;
+        delete process.env.PM2_NAME;
+        expect(isStagingRuntime()).toBe(true);
+        expect(stagingEnvConflict()).toBe(false);
+        expect(isExternalApiEnabled()).toBe(false);
+        await expect(assertStagingStartupSafe({
+            env: process.env,
+            db: fakeDb(),
+            processTitle: 'node'
+        })).resolves.toMatchObject({ ok: true });
     });
 });
