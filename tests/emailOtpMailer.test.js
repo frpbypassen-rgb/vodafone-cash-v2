@@ -126,13 +126,13 @@ describe('email OTP mailer', () => {
         expect(message.text).toContain('482913');
         expect(message.text).toContain('ينتهي خلال 5 دقائق');
         expect(message.text).toContain('تفاصيل المحاولة');
-        expect(message.text).toContain('وقت المحاولة: الثلاثاء، 22 سبتمبر 2026 في 14:22');
-        expect(message.text).toContain('الجهاز: Chrome على Windows');
-        expect(message.text).toContain('الحساب: tiz***@ahram.com');
+        expect(message.text).toContain('وقت المحاولة: \u200E\u202Aالثلاثاء، 22 سبتمبر 2026 في 14:22\u202C');
+        expect(message.text).toContain('الجهاز: \u200E\u202AChrome على Windows\u202C');
+        expect(message.text).toContain('الحساب: \u200E\u202Atiz***@ahram.com\u202C');
         expect(message.text).toContain('ليبيا / مصراتة، سوق الاستثمار / أمام المسجد العالي');
-        expect(message.text).toContain('هاتف +218 940719000');
-        expect(message.text).toContain('support@ahrampay.com');
-        expect(message.text).toContain('https://ahrampay.com');
+        expect(message.text).toContain('هاتف \u200E\u202A+218 940719000\u202C');
+        expect(message.text).toContain('\u200E\u202Asupport@ahrampay.com\u202C');
+        expect(message.text).toContain('\u200E\u202Ahttps://ahrampay.com\u202C');
         expect(message.text).not.toContain('tizari@ahram.com');
         expect(message.text).not.toContain('120.0.0.0');
         expect(message.html).toContain('dir="rtl"');
@@ -233,7 +233,7 @@ describe('email OTP mailer', () => {
         expect(withDetails).toContain('tiz***@ahram.com');
         expect(withDetails).not.toContain('tizari@ahram.com');
         expect(withDetails).not.toContain('120.0.0.0');
-        expect(text).toContain('الحساب: tiz***@ahram.com');
+        expect(text).toContain('الحساب: \u200E\u202Atiz***@ahram.com\u202C');
 
         const withoutDetails = buildLoginOtpHtml({
             otp: '482913',
@@ -289,10 +289,23 @@ describe('email OTP mailer', () => {
         expect(html).toContain('alt="أهرام باي"');
         expect(html).not.toContain('>AP</td>');
         expect(html).toContain('تواصل مع أهرام باي');
-        expect(html).toContain('© 2026 أهرام باي. جميع الحقوق محفوظة.');
+        expect(html).toContain('<span dir="ltr" style="direction:ltr;unicode-bidi:embed;white-space:nowrap;">© 2026</span> أهرام باي. جميع الحقوق محفوظة.');
+        expect(html.match(/جميع الحقوق محفوظة/g)).toHaveLength(1);
         expect(html).toContain('ليبيا / مصراتة، سوق الاستثمار / أمام المسجد العالي');
-        expect(html).toContain('+218 940719000');
-        expect(html).toContain('support@ahrampay.com');
+        expect(html).toContain('<span dir="ltr" style="direction:ltr;unicode-bidi:embed;">+218 940719000</span>');
+        expect(html).toContain('href="tel:+218940719000"');
+        expect(html).toContain('<span dir="ltr" style="direction:ltr;unicode-bidi:embed;">support@ahrampay.com</span>');
+        expect(html).toContain('<span dir="ltr" style="direction:ltr;unicode-bidi:embed;">https://ahrampay.com</span>');
+        expect(html).toContain('<span dir="ltr" style="direction:ltr;unicode-bidi:embed;white-space:nowrap;">tiz***@ahram.com</span>');
+        expect(html).toContain('<span dir="ltr" style="direction:ltr;unicode-bidi:embed;white-space:nowrap;">الثلاثاء، 22 سبتمبر 2026 في 14:22</span>');
+        const phoneMask = buildLoginOtpHtml({
+            otp: '482913',
+            expiresMinutes: 5,
+            year: 2026,
+            loginAccount: '0912345678'
+        });
+        expect(phoneMask).toContain('<span dir="ltr" style="direction:ltr;unicode-bidi:embed;white-space:nowrap;">091****678</span>');
+        expect(buildLoginOtpText({ otp: '482913', expiresMinutes: 5, loginAccount: '0912345678' })).toContain('\u200E\u202A091****678\u202C');
         expect(hrefs(html)).toEqual([
             'mailto:support@ahrampay.com',
             'tel:+218940719000',

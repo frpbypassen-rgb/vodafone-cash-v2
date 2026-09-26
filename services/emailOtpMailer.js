@@ -196,14 +196,20 @@ const resolveLoginOtpLogo = () => {
     return null;
 };
 
+const LRM = '\u200E';
+const LRE = '\u202A';
+const PDF = '\u202C';
+
+const embedPlainLtr = (value) => `${LRM}${LRE}${value}${PDF}`;
+
 const buildAttemptRows = ({ attemptAt, userAgent, loginAccount } = {}) => {
     const rows = [];
     const time = formatLoginAttemptTime(attemptAt);
     const device = summarizeLoginUserAgent(userAgent);
     const account = maskLoginAccount(loginAccount);
-    if (time) rows.push({ label: 'وقت المحاولة', value: time });
-    if (device) rows.push({ label: 'الجهاز', value: device });
-    if (account) rows.push({ label: 'الحساب', value: account });
+    if (time) rows.push({ label: 'وقت المحاولة', value: time, ltr: true });
+    if (device) rows.push({ label: 'الجهاز', value: device, ltr: true });
+    if (account) rows.push({ label: 'الحساب', value: account, ltr: true });
     return rows;
 };
 
@@ -255,7 +261,7 @@ const buildLoginOtpText = (input = {}) => {
         view.body,
         '',
         'رمز التحقق',
-        view.otp,
+        embedPlainLtr(view.otp),
         '',
         `ينتهي خلال ${view.expiresPhrase}`,
         ''
@@ -263,7 +269,8 @@ const buildLoginOtpText = (input = {}) => {
     if (view.attemptRows.length) {
         lines.push('تفاصيل المحاولة');
         view.attemptRows.forEach((row) => {
-            lines.push(`${row.label}: ${row.value}`);
+            const value = row.ltr ? embedPlainLtr(row.value) : row.value;
+            lines.push(`${row.label}: ${value}`);
         });
         lines.push('');
     }
@@ -271,9 +278,9 @@ const buildLoginOtpText = (input = {}) => {
         view.warning,
         '',
         view.contactAddress,
-        `${view.phoneLabel} ${view.contactPhone}`,
-        view.contactEmail,
-        view.websiteUrl
+        `${view.phoneLabel} ${embedPlainLtr(view.contactPhone)}`,
+        embedPlainLtr(view.contactEmail),
+        embedPlainLtr(view.websiteUrl)
     );
     return lines.join('\n');
 };
