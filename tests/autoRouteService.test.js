@@ -32,6 +32,8 @@ const {
 describe('autoRouteService', () => {
     beforeEach(() => {
         jest.clearAllMocks();
+        delete process.env.EXTERNAL_API_ENABLED;
+        delete process.env.BULLMQ_WORKERS_ENABLED;
     });
 
     test('routes transaction to selected active API executor and queues execution', async () => {
@@ -67,6 +69,62 @@ describe('autoRouteService', () => {
         expect(tx.executorReceivedAt).toBeInstanceOf(Date);
         expect(tx.executorName).toBe('Zayn API');
         expect(addTransferJob).toHaveBeenCalledWith('tx-1', 'api-group-1');
+    });
+
+    test('does not assign or queue an API executor when provider execution is off', async () => {
+        process.env.EXTERNAL_API_ENABLED = 'false';
+        const executorGroup = {
+            _id: 'api-group-1',
+            name: 'Zayn API',
+            status: 'active',
+            isApiBot: true,
+            isManagerBot: false,
+            serviceKey: 'vodafone'
+        };
+        const tx = {
+            _id: 'tx-1',
+            customId: 'ATT-2608-0002',
+            status: 'pending'
+        };
+        ExecutorGroup.findById.mockResolvedValue(executorGroup);
+        const logger = require('../utils/logger');
+
+        const resolved = await resolveAutoRouteExecutor({
+            autoRouteEnabled: true,
+            autoRouteRules: [{ serviceKey: 'vodafone', executorGroupId: 'api-group-1' }]
+        }, 'vodafone');
+        applyAutoRouteFields(tx, resolved);
+        const result = await enqueueAutoRouteIfNeeded(tx, resolved);
+        delete process.env.EXTERNAL_API_ENABLED;
+
+        expect(tx.status).toBe('pending');
+        expect(tx.executorGroupId).toBeUndefined();
+        expect(tx.executorName).toBeUndefined();
+        expect(addTransferJob).not.toHaveBeenCalled();
+        expect(result).toMatchObject({ queued: false, code: 'API_EXECUTION_UNAVAILABLE', reason: 'EXTERNAL_API_DISABLED' });
+        expect(logger.info).not.toHaveBeenCalledWith('Auto-route API job queued', expect.anything());
+    });
+
+    test('does not queue an API executor when BullMQ workers are off', async () => {
+        process.env.BULLMQ_WORKERS_ENABLED = 'false';
+        process.env.EXTERNAL_API_ENABLED = 'true';
+        const executorGroup = {
+            _id: 'api-group-1',
+            name: 'Zayn API',
+            status: 'active',
+            isApiBot: true,
+            isManagerBot: false,
+            serviceKey: 'vodafone'
+        };
+        const tx = { _id: 'tx-1', customId: 'ATT-2608-0003', status: 'pending' };
+        applyAutoRouteFields(tx, executorGroup);
+        const result = await enqueueAutoRouteIfNeeded(tx, executorGroup);
+        delete process.env.BULLMQ_WORKERS_ENABLED;
+        delete process.env.EXTERNAL_API_ENABLED;
+
+        expect(tx.status).toBe('pending');
+        expect(addTransferJob).not.toHaveBeenCalled();
+        expect(result.reason).toBe('BULLMQ_WORKERS_DISABLED');
     });
 
     test('selects the postal executor for both postal operation types', async () => {

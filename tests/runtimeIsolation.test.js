@@ -115,10 +115,12 @@ const zaynpay = require('../services/zaynpayApi');
 const {
     initBullMQ,
     addTransferJob,
+    addNotificationJob,
     addReportJob,
     addReconciliationJob,
     addBackupJob
 } = require('../services/bullQueueService');
+const Notification = require('../models/Notification');
 const { startApiCompletionMonitor, scheduleApiCompletion } = require('../services/apiExecutionLifecycleService');
 const { startApiProviderReturnMonitor } = require('../services/apiProviderReconciliationService');
 const {
@@ -128,7 +130,11 @@ const {
 const { assertStagingStartupSafe } = require('../utils/stagingStartupGuard');
 const {
     disabledSubsystemFlags,
+    isBullmqWorkersEnabled,
     isExplicitlyEnabled,
+    isExternalApiEnabled,
+    isFinancialSchedulersEnabled,
+    isMerchantWebhookWorkerEnabled,
     resolveProviderBaseUrl
 } = require('../utils/runtimeControls');
 
@@ -179,8 +185,11 @@ describe('runtime isolation kill switches', () => {
     let httpRequest;
     let httpsRequest;
 
+    let savedNodeEnv;
+
     beforeEach(() => {
         jest.clearAllMocks();
+        savedNodeEnv = process.env.NODE_ENV;
         FLAG_KEYS.forEach((key) => {
             savedEnv[key] = process.env[key];
             delete process.env[key];
@@ -206,26 +215,45 @@ describe('runtime isolation kill switches', () => {
             if (savedEnv[key] === undefined) delete process.env[key];
             else process.env[key] = savedEnv[key];
         });
+        if (savedNodeEnv === undefined) delete process.env.NODE_ENV;
+        else process.env.NODE_ENV = savedNodeEnv;
         jest.useRealTimers();
     });
 
-    test('truthy parsing matches the password-reset flag and defaults off', () => {
+    test('unset switches are enabled outside staging, disabled in staging, and explicit false disables production', () => {
         expect(isExplicitlyEnabled(undefined)).toBe(false);
-        expect(isExplicitlyEnabled('')).toBe(false);
         expect(isExplicitlyEnabled('false')).toBe(false);
-        expect(isExplicitlyEnabled('0')).toBe(false);
         ['1', 'true', 'yes', 'on', ' TRUE '].forEach((value) => {
             expect(isExplicitlyEnabled(value)).toBe(true);
         });
-        expect(disabledSubsystemFlags({})).toEqual([
+        process.env.NODE_ENV = 'production';
+        delete process.env.APP_ENV;
+        delete process.env.ENVIRONMENT;
+        expect(isMerchantWebhookWorkerEnabled()).toBe(true);
+        expect(isExternalApiEnabled()).toBe(true);
+        expect(isBullmqWorkersEnabled()).toBe(true);
+        expect(isFinancialSchedulersEnabled()).toBe(true);
+        expect(disabledSubsystemFlags()).toEqual([]);
+        ['false', '0', 'no', 'off', ' FALSE '].forEach((value) => {
+            process.env.EXTERNAL_API_ENABLED = value;
+            expect(isExternalApiEnabled()).toBe(false);
+        });
+        delete process.env.EXTERNAL_API_ENABLED;
+        process.env.NODE_ENV = 'staging';
+        expect(isExternalApiEnabled()).toBe(false);
+        expect(isBullmqWorkersEnabled()).toBe(false);
+        expect(disabledSubsystemFlags()).toEqual([
             'MERCHANT_WEBHOOK_WORKER_ENABLED',
             'EXTERNAL_API_ENABLED',
             'BULLMQ_WORKERS_ENABLED',
             'FINANCIAL_SCHEDULERS_ENABLED'
         ]);
+        process.env.EXTERNAL_API_ENABLED = 'true';
+        expect(isExternalApiEnabled()).toBe(true);
     });
 
     test('merchant webhook worker and delivery make no HTTP when the flag is off', async () => {
+        process.env.MERCHANT_WEBHOOK_WORKER_ENABLED = 'false';
         const timerSpy = jest.spyOn(global, 'setInterval');
         expect(startMerchantWebhookWorker()).toBeNull();
         await expect(deliverWebhook('delivery-1')).resolves.toEqual({
@@ -272,7 +300,40 @@ describe('runtime isolation kill switches', () => {
         );
     });
 
+    test('re-enabling merchant webhooks delivers a pending row once', async () => {
+        process.env.MERCHANT_WEBHOOK_WORKER_ENABLED = 'false';
+        await expect(deliverWebhook('delivery-1')).resolves.toEqual({
+            skipped: true,
+            reason: 'MERCHANT_WEBHOOK_DISABLED'
+        });
+        expect(MerchantWebhookDelivery.findOneAndUpdate).not.toHaveBeenCalled();
+
+        process.env.MERCHANT_WEBHOOK_WORKER_ENABLED = 'true';
+        MerchantWebhookDelivery.findOneAndUpdate
+            .mockResolvedValueOnce({
+                _id: 'delivery-1',
+                endpointId: 'endpoint-1',
+                payload: { id: 'evt-1' },
+                eventType: 'transfer.created',
+                attemptCount: 1
+            })
+            .mockResolvedValueOnce(null);
+        MerchantWebhookEndpoint.findOne.mockReturnValue({
+            select: () => Promise.resolve({
+                _id: 'endpoint-1',
+                url: 'https://hooks.example.test/pay',
+                secretEncrypted: encrypt('webhook-secret'),
+                enabled: true
+            })
+        });
+        axios.post.mockResolvedValue({ status: 204, data: '' });
+        await deliverWebhook('delivery-1');
+        await deliverWebhook('delivery-1');
+        expect(axios.post).toHaveBeenCalledTimes(1);
+    });
+
     test('external provider calls do not use HTTP when EXTERNAL_API_ENABLED is off', async () => {
+        process.env.EXTERNAL_API_ENABLED = 'false';
         const bot = {
             apiUrl: 'https://zayn.example',
             apiUsername: 'api-user',
@@ -375,6 +436,7 @@ describe('runtime isolation kill switches', () => {
     });
 
     test('BullMQ workers and in-process processors do not start when the flag is off', async () => {
+        process.env.BULLMQ_WORKERS_ENABLED = 'false';
         redis.isRedis.mockReturnValue(true);
         redis.createBullMQConnection.mockReturnValue({ ok: true });
         expect(initBullMQ()).toBe(false);
@@ -388,6 +450,14 @@ describe('runtime isolation kill switches', () => {
         expect(settlementService.generateDailySettlement).not.toHaveBeenCalled();
         expect(reconciliationService.reconcileDaily).not.toHaveBeenCalled();
         expect(axios.post).not.toHaveBeenCalled();
+        await addNotificationJob('user-1', 'طلب تحويل جديد', 'نص', 'transfer');
+        expect(Notification.create).toHaveBeenCalledWith({
+            userId: 'user-1',
+            title: 'طلب تحويل جديد',
+            message: 'نص',
+            type: 'transfer'
+        });
+        expect(Queue).not.toHaveBeenCalled();
     });
 
     test('BullMQ init still creates workers when the flag is on', () => {
@@ -400,6 +470,7 @@ describe('runtime isolation kill switches', () => {
     });
 
     test('financial schedulers do not start when the flag is off and do start when it is on', () => {
+        process.env.FINANCIAL_SCHEDULERS_ENABLED = 'false';
         jest.useFakeTimers();
         expect(startApiCompletionMonitor()).toBeNull();
         expect(startApiProviderReturnMonitor()).toBeNull();
@@ -421,6 +492,7 @@ describe('runtime isolation kill switches', () => {
     });
 
     test('restorePendingRateActivation does not read settings when schedulers are off', async () => {
+        process.env.FINANCIAL_SCHEDULERS_ENABLED = 'false';
         await expect(restorePendingRateActivation({ app: {} })).resolves.toBeNull();
         expect(Settings.findOne).not.toHaveBeenCalled();
         process.env.FINANCIAL_SCHEDULERS_ENABLED = 'true';

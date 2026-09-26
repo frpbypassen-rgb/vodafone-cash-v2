@@ -1,10 +1,11 @@
 'use strict';
 
-// Background subsystems stay off unless the operator sets an explicit truthy
-// value (1/true/yes/on), matching utils/passwordResetAvailability.js.
-// Unset, empty, false, 0, and any other value are off.
+// Switch values use the same tokens as utils/passwordResetAvailability.js.
+// Outside staging, unset stays enabled and only false/0/no/off disables.
+// In staging, unset stays disabled and only 1/true/yes/on enables.
 
 const TRUTHY = new Set(['1', 'true', 'yes', 'on']);
+const FALSY = new Set(['0', 'false', 'no', 'off']);
 const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '::1']);
 const STAGING_KEYS = ['NODE_ENV', 'APP_ENV', 'ENVIRONMENT'];
 const PROVIDER_URL_ENV_KEYS = ['ZAYN_AGGREGATOR_URL', 'ZAYNPAY_URL', 'ZAYN_EXECUTOR_API_URL'];
@@ -13,16 +14,27 @@ const PRODUCTION_PM2_NAME = 'ahram_core_api';
 
 const isExplicitlyEnabled = (value) => TRUTHY.has(String(value ?? '').trim().toLowerCase());
 
+const isExplicitlyDisabled = (value) => FALSY.has(String(value ?? '').trim().toLowerCase());
+
+// Outside staging, an unset switch stays on so a production deploy keeps today's
+// behavior. Only false/0/no/off turns it off. Staging fails closed: an unset
+// switch is off, and only an explicit truthy value turns it on.
+const isSwitchEnabled = (value, env = process.env) => {
+    if (isExplicitlyEnabled(value)) return true;
+    if (isExplicitlyDisabled(value)) return false;
+    return !isStagingRuntime(env);
+};
+
 const isMerchantWebhookWorkerEnabled = (env = process.env) => (
-    isExplicitlyEnabled(env.MERCHANT_WEBHOOK_WORKER_ENABLED)
+    isSwitchEnabled(env.MERCHANT_WEBHOOK_WORKER_ENABLED, env)
 );
 
-const isExternalApiEnabled = (env = process.env) => isExplicitlyEnabled(env.EXTERNAL_API_ENABLED);
+const isExternalApiEnabled = (env = process.env) => isSwitchEnabled(env.EXTERNAL_API_ENABLED, env);
 
-const isBullmqWorkersEnabled = (env = process.env) => isExplicitlyEnabled(env.BULLMQ_WORKERS_ENABLED);
+const isBullmqWorkersEnabled = (env = process.env) => isSwitchEnabled(env.BULLMQ_WORKERS_ENABLED, env);
 
 const isFinancialSchedulersEnabled = (env = process.env) => (
-    isExplicitlyEnabled(env.FINANCIAL_SCHEDULERS_ENABLED)
+    isSwitchEnabled(env.FINANCIAL_SCHEDULERS_ENABLED, env)
 );
 
 const disabledSubsystemFlags = (env = process.env) => {
@@ -39,9 +51,8 @@ const logDisabledRuntimeSubsystems = (logger, env = process.env) => {
     if (!disabled.length || !logger || typeof logger.warn !== 'function') return disabled;
     logger.warn(
         `Startup subsystem switches are OFF: ${disabled.join(', ')}. `
-        + 'Unset means off. Production must set MERCHANT_WEBHOOK_WORKER_ENABLED, '
-        + 'EXTERNAL_API_ENABLED, BULLMQ_WORKERS_ENABLED, and FINANCIAL_SCHEDULERS_ENABLED '
-        + 'to true or webhooks, provider calls, queues, and financial schedulers will not run.'
+        + 'Outside staging an unset switch stays on; only false/0/no/off disables it. '
+        + 'In staging an unset switch stays off.'
     );
     return disabled;
 };
@@ -126,6 +137,36 @@ const collectStagingEnvViolations = (env = process.env) => {
 };
 
 const EXTERNAL_API_DISABLED_MESSAGE = 'EXTERNAL_API_DISABLED: outbound financial provider calls are turned off';
+const API_EXECUTION_UNAVAILABLE_CODE = 'API_EXECUTION_UNAVAILABLE';
+
+const apiQueueExecutionBlock = (env = process.env) => {
+    if (!isExternalApiEnabled(env)) {
+        return {
+            code: API_EXECUTION_UNAVAILABLE_CODE,
+            reason: 'EXTERNAL_API_DISABLED',
+            message: 'تنفيذ المزود الخارجي متوقف. لم يتم توجيه العملية ولم يتغير رصيدها.'
+        };
+    }
+    if (!isBullmqWorkersEnabled(env)) {
+        return {
+            code: API_EXECUTION_UNAVAILABLE_CODE,
+            reason: 'BULLMQ_WORKERS_DISABLED',
+            message: 'طابور تنفيذ المزود متوقف. لم يتم توجيه العملية ولم يتغير رصيدها.'
+        };
+    }
+    return null;
+};
+
+const directProviderExecutionBlock = (env = process.env) => {
+    if (!isExternalApiEnabled(env)) {
+        return {
+            code: API_EXECUTION_UNAVAILABLE_CODE,
+            reason: 'EXTERNAL_API_DISABLED',
+            message: 'تنفيذ ZaynPay متوقف. لم يُرسل الطلب إلى المزود ولم يتغير الرصيد.'
+        };
+    }
+    return null;
+};
 
 const blockedProviderResult = (code, message) => ({
     success: false,
@@ -141,16 +182,21 @@ const blockedProviderResult = (code, message) => ({
 });
 
 module.exports = {
+    API_EXECUTION_UNAVAILABLE_CODE,
     EXTERNAL_API_DISABLED_MESSAGE,
     LOOPBACK_HOSTS,
     PRODUCTION_PM2_NAME,
     PROVIDER_URL_ENV_KEYS,
+    apiQueueExecutionBlock,
     blockedProviderResult,
     collectStagingEnvViolations,
+    directProviderExecutionBlock,
     disabledSubsystemFlags,
     hostnameOf,
     isBullmqWorkersEnabled,
+    isExplicitlyDisabled,
     isExplicitlyEnabled,
+    isSwitchEnabled,
     isExternalApiEnabled,
     isFinancialSchedulersEnabled,
     isLoopbackHost,

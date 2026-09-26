@@ -71,7 +71,10 @@ const {
 } = require('./middlewares/operationalAccess');
 const csrfProtection = require('./middlewares/csrfProtection');
 const logger = require('./utils/logger');
-const { startApiCompletionMonitor } = require('./services/apiExecutionLifecycleService');
+const {
+    startApiCompletionMonitor,
+    warnProviderPaidAwaitingCompletion
+} = require('./services/apiExecutionLifecycleService');
 const {
     ensureApiReconciliationIndexes,
     startApiProviderReturnMonitor
@@ -532,6 +535,8 @@ Promise.all([connectDB(), initRedis()]).then(async () => {
                 logger.error('Scheduled financial day close failed', { error: error.message });
             });
         }, { timezone: SYSTEM_TIME_ZONE });
+    } else {
+        await warnProviderPaidAwaitingCompletion(logger);
     }
     merchantWebhookService.startMerchantWebhookWorker();
     await startExecutorPushNotificationWorker().catch((error) => {

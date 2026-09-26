@@ -40,14 +40,14 @@ Host-specific (must exist in `.env`, never commit real values):
 
 ## Background subsystem switches
 
-**IMPORTANT DEPLOY PREREQUISITE.** `MERCHANT_WEBHOOK_WORKER_ENABLED`,
-`EXTERNAL_API_ENABLED`, `BULLMQ_WORKERS_ENABLED`, and
-`FINANCIAL_SCHEDULERS_ENABLED` are off unless set to `1`, `true`, `yes`, or
-`on`. Deploying this build to production without adding all four as `true`
-in the live `.env` stops merchant webhooks, ZaynPay and other financial
-provider calls, BullMQ workers, and financial schedulers (daily settlement,
-provider reconciliation, and rate monitors). Startup logs one warning naming
-every switch that is off. Details: `docs/operations/staging-isolation.md`.
+`MERCHANT_WEBHOOK_WORKER_ENABLED`, `EXTERNAL_API_ENABLED`,
+`BULLMQ_WORKERS_ENABLED`, and `FINANCIAL_SCHEDULERS_ENABLED` stay **on** in
+production when they are unset. A production deploy does not need four `=true`
+lines. Only `false`, `0`, `no`, or `off` disables a switch. Staging
+(`NODE_ENV`, `APP_ENV`, or `ENVIRONMENT` = `staging`) fails closed: an unset
+switch is off, and `.env.staging.example` sets all four to `false`. Startup
+logs one warning naming every switch that is off. Details:
+`docs/operations/staging-isolation.md`.
 
 ## Repair then reload
 

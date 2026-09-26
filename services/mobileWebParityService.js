@@ -944,6 +944,14 @@ async function executeZaynPayIdempotent({ executorId, taskId, req }) {
         throw new Error('IDEMPOTENCY_CONFLICT');
     }
 
+    const { directProviderExecutionBlock } = require('../utils/runtimeControls');
+    const blocked = directProviderExecutionBlock();
+    if (blocked) {
+        const error = new Error(blocked.message);
+        error.code = blocked.code;
+        throw error;
+    }
+
     const lockKey = `idemp:${idempotencyKey}`;
     let lock;
     try {

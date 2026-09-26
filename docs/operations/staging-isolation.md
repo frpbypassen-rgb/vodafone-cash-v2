@@ -2,38 +2,49 @@
 
 Staging is a separate host: its own MongoDB replica set, its own Redis, local Mailpit with no internet relay, PM2 app `Ahram_QA_Staging`, and a port other than 3000 (the prepared QA process uses 3200). The app treats the process as staging when `NODE_ENV`, `APP_ENV`, or `ENVIRONMENT` is `staging`. `.env.staging.example` sets `NODE_ENV=staging`.
 
-## IMPORTANT DEPLOY PREREQUISITE
+## Switch defaults
 
-These four switches are **off when unset**. Only `1`, `true`, `yes`, or `on` enable them (same parsing as `PASSWORD_RESET_EMAIL_ENABLED`).
+The four switches are `MERCHANT_WEBHOOK_WORKER_ENABLED`, `EXTERNAL_API_ENABLED`, `BULLMQ_WORKERS_ENABLED`, and `FINANCIAL_SCHEDULERS_ENABLED`.
 
-```
-MERCHANT_WEBHOOK_WORKER_ENABLED=true
-EXTERNAL_API_ENABLED=true
-BULLMQ_WORKERS_ENABLED=true
-FINANCIAL_SCHEDULERS_ENABLED=true
-```
+Outside staging, an **unset** switch is **enabled**. Production keeps today's webhooks, provider calls, queues, and financial schedulers without adding `=true` lines. Only an explicit `false`, `0`, `no`, or `off` disables a switch.
 
-Production must set all four to `true` before this build is reloaded. Leaving them unset stops:
+In staging, an **unset** switch is **disabled**. `.env.staging.example` also sets all four to `false`. Only `1`, `true`, `yes`, or `on` enables one. The staging startup guard and `scripts/checkStagingReadiness.js` still refuse real provider, webhook, and SMTP addresses.
 
-- merchant webhook delivery (the 30s worker and every direct HTTP delivery)
-- outbound calls to ZaynPay and other financial API providers
-- BullMQ workers, queue processors, and their in-process fallbacks
-- financial schedulers: daily settlement, API completion polling, provider-return reconciliation, and rate-activation timers
+Startup logs one warning that lists whichever switches are off.
 
-Startup writes one warning that lists the switches that are off.
-
-## What each switch does
+## What each switch does when it is off
 
 | Switch | Off behavior |
 | --- | --- |
-| `MERCHANT_WEBHOOK_WORKER_ENABLED` | `startMerchantWebhookWorker` does not start. `deliverWebhook` returns before it claims a delivery or calls HTTP, including the immediate dispatch from `enqueueTransactionWebhook`. |
-| `EXTERNAL_API_ENABLED` | `executeTransferViaApi`, preflight, balance, transaction review, and `zaynpayApi` login/inquiry/pay return or throw `EXTERNAL_API_DISABLED` before any provider HTTP. |
-| `BULLMQ_WORKERS_ENABLED` | `initBullMQ` does not create queues or workers. `addTransferJob`, `addNotificationJob`, `addReportJob`, `addBackupJob`, and `addReconciliationJob` do not run the in-process fallback. |
-| `FINANCIAL_SCHEDULERS_ENABLED` | Startup does not run daily settlement or its 15-minute cron, the API completion monitor, the provider-return monitor, or rate-activation timers. |
+| `MERCHANT_WEBHOOK_WORKER_ENABLED` | `startMerchantWebhookWorker` does not start. `deliverWebhook` returns before it claims a delivery or calls HTTP. Pending delivery rows stay pending. |
+| `EXTERNAL_API_ENABLED` | No outbound call to ZaynPay or another financial provider. New API routing, API auto-route, and web/mobile ZaynPay execution are refused before any provider send and before any new executor ledger debit. |
+| `BULLMQ_WORKERS_ENABLED` | `initBullMQ` does not create queues or workers. Transfer, report, backup, and reconciliation jobs do not run, including their in-process fallbacks. In-app notifications still persist through `Notification.create`. New queue-based API routing is refused up front. |
+| `FINANCIAL_SCHEDULERS_ENABLED` | Startup does not run daily settlement or its 15-minute cron, the API completion monitor, the provider-return monitor, or rate-activation timers. Provider-paid rows that are already waiting for local completion stay as they are and are counted in the startup warning. |
 
-`EXTERNAL_API_ENABLED=false` reuses the existing provider-failure result (`success: false`). The transfer queue then returns the transaction to `pending` and clears the API executor assignment. It does not post a ledger entry and does not mark the transaction completed or failed. ZaynPay web and mobile execution return an error before any balance or ledger write. Provider reconciliation gets an empty result, so it does not mark transactions returned or completed.
+## New commitments vs already-sent transactions
 
-When BullMQ workers are off, a transfer that the router already set to `processing` stays `processing` because the job is not consumed. That does not move balances. An operator can pull the task. Turning the workers back on does not by itself replay jobs that were never queued.
+A **new commitment** is routing or auto-routing a transfer onto an API executor, or starting web/mobile ZaynPay execution. When that send cannot happen (`EXTERNAL_API_ENABLED` off, or `BULLMQ_WORKERS_ENABLED` off for the queue path), the action is refused with `API_EXECUTION_UNAVAILABLE` before the transfer is assigned or moved to `processing`, before provider HTTP, and before an executor ledger debit. The admin route does not return 200. Auto-route does not log `Auto-route API job queued` and does not apply the API executor. The transfer stays in its prior state. Direct ZaynPay (web and mobile) is blocked only by `EXTERNAL_API_ENABLED`; BullMQ being off does not block that direct path.
+
+Creating a customer transfer request still debits the customer wallet the same way as a pending transfer that is not auto-routed. That debit is the existing request debit, not an executor or provider debit. This change does not refund it, does not change its amount, and does not move it to another account.
+
+An **already-sent** transaction is a `processing` row with `apiResultData.waitingApiAutoCompletion: true`. The provider reference is already stored. While `FINANCIAL_SCHEDULERS_ENABLED` is off:
+
+- the row is not sent to the provider again
+- its balance is not refunded or reversed
+- Ledger, Transaction, and AuditLog rows are not deleted or rewritten
+- startup logs the count, and `node scripts/listProviderPaidAwaitingCompletion.js` prints the same rows read-only
+
+When the switch is turned back on, `startApiCompletionMonitor` uses the existing `completeApiTransaction` path. That path posts the executor ledger debit and marks the row completed only while status is `processing` and `waitingApiAutoCompletion` is true. After that save, a second pass returns without another debit and without a provider call. A crash between the debit and the save is the pre-existing behavior of that function and is not changed here.
+
+Other in-flight provider states (for example a network-pending result that never set `waitingApiAutoCompletion`) are not completed, refunded, or re-sent by this change. Completing them would post a ledger debit the current completion path does not post.
+
+## Merchant webhook backlog
+
+`enqueueTransactionWebhook` upserts on `endpointId` + `eventId` with `$setOnInsert`, so repeating an event does not insert a second delivery row. While the worker is off, `deliverWebhook` returns before `claimDelivery`, so pending rows are not marked `sending` and are not posted. When the worker is enabled again it polls every 30 seconds and claims up to 50 due rows per pass. Delivery is gradual, not one burst of the whole backlog. `claimDelivery` is an atomic update, so a row that is already `sending` is not posted a second time by the next pass.
+
+## In-app notifications
+
+`transfer:created`, `transfer:completed`, and `transfer:cancelled` still call `addNotificationJob`. If BullMQ workers are off, that function writes the in-app `Notification` directly instead of returning without a write. It does not start a new WhatsApp, SMTP, or push send. Those channels keep their existing callers and flags.
 
 ## ZaynPay URL fallback
 
@@ -58,4 +69,4 @@ Local Mailpit (`SMTP_HOST=127.0.0.1`) with no provider URLs and no webhook URLs 
 
 ## Rollback
 
-Set the four production switches to `true` and reload the previous build. No migration is involved. While the switches are off, do not expect webhooks, provider execution, queues, or automatic settlement to run.
+Reload the previous build. No migration is involved. Outside staging, leaving the four switches unset keeps them enabled. To turn a subsystem back on after an explicit `false`, remove that value or set it to `true` and reload.

@@ -250,7 +250,42 @@ const completeApiTransactionWithReference = async ({
     };
 };
 
+const PROVIDER_PAID_AWAITING_COMPLETION_FILTER = Object.freeze({
+    status: 'processing',
+    'apiResultData.waitingApiAutoCompletion': true
+});
+
+const countProviderPaidAwaitingCompletion = () => (
+    Transaction.countDocuments(PROVIDER_PAID_AWAITING_COMPLETION_FILTER)
+);
+
+const warnProviderPaidAwaitingCompletion = async (log = logger) => {
+    let count = null;
+    try {
+        count = await countProviderPaidAwaitingCompletion();
+    } catch (error) {
+        if (log && typeof log.warn === 'function') {
+            log.warn('Could not count provider-paid transactions awaiting local completion', {
+                error: error.message
+            });
+        }
+        return null;
+    }
+    if (log && typeof log.warn === 'function') {
+        log.warn(
+            `Provider-paid transactions awaiting local completion: ${count}. `
+            + 'FINANCIAL_SCHEDULERS_ENABLED is off, so they stay unchanged: not re-sent to the provider, '
+            + 'not refunded, and Ledger, Transaction, and AuditLog rows are not rewritten. '
+            + 'Re-enabling the switch completes each due row once through the existing delayed-completion path.'
+        );
+    }
+    return count;
+};
+
 const completeApiTransaction = async (txId, executorGroupId) => {
+    if (!isFinancialSchedulersEnabled()) {
+        return { completed: false, reason: 'financial_schedulers_disabled' };
+    }
     const tx = await Transaction.findById(txId);
     if (!tx) return { completed: false, reason: 'transaction_not_found' };
 
@@ -402,5 +437,8 @@ module.exports = {
     scheduleApiCompletion,
     completeApiTransaction,
     completeDueApiTransactions,
-    startApiCompletionMonitor
+    startApiCompletionMonitor,
+    PROVIDER_PAID_AWAITING_COMPLETION_FILTER,
+    countProviderPaidAwaitingCompletion,
+    warnProviderPaidAwaitingCompletion
 };

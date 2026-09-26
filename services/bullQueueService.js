@@ -177,8 +177,18 @@ const addTransferJob = async (txId, apiGroupId) => {
 /**
  * إضافة إشعار للمعالجة الخلفية
  */
+const persistInAppNotification = async (userId, title, message, type) => {
+    const Notification = require('../models/Notification');
+    await Notification.create({ userId, title, message, type: type || 'system_alert' }).catch(() => {});
+};
+
 const addNotificationJob = async (userId, title, message, type) => {
-    if (bullWorkersDisabled()) return;
+    // In-app notifications are not dropped when workers are off. External
+    // WhatsApp, SMTP, and push sends stay on their own existing paths.
+    if (bullWorkersDisabled()) {
+        await persistInAppNotification(userId, title, message, type);
+        return;
+    }
     initBullMQ();
     if (isRedis() && notificationQueue) {
         try {
@@ -188,8 +198,7 @@ const addNotificationJob = async (userId, title, message, type) => {
             logger.warn('Failed to add notification to BullMQ', { error: err.message });
         }
     }
-    const Notification = require('../models/Notification');
-    await Notification.create({ userId, title, message, type: type || 'system_alert' }).catch(()=>{});
+    await persistInAppNotification(userId, title, message, type);
 };
 
 /**
