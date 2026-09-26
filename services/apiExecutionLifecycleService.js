@@ -5,6 +5,7 @@ const ExecutorGroup = require('../models/ExecutorGroup');
 const { updateBalanceWithLedger } = require('./walletService');
 const eventBus = require('./eventBus');
 const logger = require('../utils/logger');
+const { isFinancialSchedulersEnabled } = require('../utils/runtimeControls');
 const { generateExecutorReceiptBase64 } = require('../utils/manualExecutorReceipt');
 const { saveProofImage } = require('./proofStorageService');
 
@@ -343,6 +344,7 @@ const completeApiTransaction = async (txId, executorGroupId) => {
 };
 
 const scheduleApiCompletion = ({ txId, executorGroupId, delayMs = getApiCompletionDelayMs() }) => {
+    if (!isFinancialSchedulersEnabled()) return null;
     const timer = setTimeout(() => {
         completeApiTransaction(txId, executorGroupId).catch((error) => {
             logger.error('Delayed API completion timer failed', {
@@ -372,6 +374,7 @@ const completeDueApiTransactions = async () => {
 };
 
 const startApiCompletionMonitor = () => {
+    if (!isFinancialSchedulersEnabled()) return null;
     if (monitorTimer) return monitorTimer;
 
     completeDueApiTransactions().catch((error) => {

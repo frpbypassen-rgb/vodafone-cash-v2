@@ -9,6 +9,7 @@ const MerchantWebhookDelivery = require('../models/MerchantWebhookDelivery');
 const User = require('../models/User');
 const { decrypt } = require('../utils/encryption');
 const logger = require('../utils/logger');
+const { isMerchantWebhookWorkerEnabled } = require('../utils/runtimeControls');
 
 const EVENTS = Object.freeze(['transfer.created', 'transfer.completed', 'transfer.cancelled']);
 const MAX_ATTEMPTS = 6;
@@ -105,7 +106,10 @@ const claimDelivery = (id) => MerchantWebhookDelivery.findOneAndUpdate({
     $inc: { attemptCount: 1 }
 }, { returnDocument: 'after' });
 
+const webhookHttpDisabled = () => !isMerchantWebhookWorkerEnabled();
+
 const deliverWebhook = async (deliveryId) => {
+    if (webhookHttpDisabled()) return { skipped: true, reason: 'MERCHANT_WEBHOOK_DISABLED' };
     const delivery = await claimDelivery(deliveryId);
     if (!delivery) return null;
     const endpoint = await MerchantWebhookEndpoint.findOne({ _id: delivery.endpointId, enabled: true }).select('+secretEncrypted');
@@ -208,6 +212,7 @@ const processPendingWebhooks = async (limit = 50) => {
 
 let workerTimer = null;
 const startMerchantWebhookWorker = () => {
+    if (webhookHttpDisabled()) return null;
     if (workerTimer) return workerTimer;
     workerTimer = setInterval(() => {
         processPendingWebhooks().catch((error) => logger.error('Merchant webhook worker failed', { error: error.message }));

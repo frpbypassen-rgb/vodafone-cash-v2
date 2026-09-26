@@ -264,7 +264,7 @@ describe('admin assign-executor source contracts', () => {
 
     test('starts BullMQ workers after Redis connects', () => {
         expect(appSource).toContain("const { initBullMQ } = require('./services/bullQueueService');");
-        expect(appSource).toContain('if (!initBullMQ())');
+        expect(appSource).toContain('if (isBullmqWorkersEnabled() && !initBullMQ())');
         expect(appSource.indexOf('initRedis()')).toBeLessThan(
             appSource.indexOf("require('./services/bullQueueService')")
         );

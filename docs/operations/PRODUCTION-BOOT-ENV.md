@@ -38,6 +38,17 @@ Host-specific (must exist in `.env`, never commit real values):
 - `DEFAULT_TENANT_SLUG` or `DEFAULT_TENANT_ID`
 - `PUBLIC_APP_URL` on HTTPS
 
+## Background subsystem switches
+
+**IMPORTANT DEPLOY PREREQUISITE.** `MERCHANT_WEBHOOK_WORKER_ENABLED`,
+`EXTERNAL_API_ENABLED`, `BULLMQ_WORKERS_ENABLED`, and
+`FINANCIAL_SCHEDULERS_ENABLED` are off unless set to `1`, `true`, `yes`, or
+`on`. Deploying this build to production without adding all four as `true`
+in the live `.env` stops merchant webhooks, ZaynPay and other financial
+provider calls, BullMQ workers, and financial schedulers (daily settlement,
+provider reconciliation, and rate monitors). Startup logs one warning naming
+every switch that is off. Details: `docs/operations/staging-isolation.md`.
+
 ## Repair then reload
 
 ```powershell

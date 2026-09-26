@@ -7,6 +7,7 @@
 const { isRedis, createBullMQConnection } = require('../config/redis');
 const queueService = require('./queueService');
 const logger = require('../utils/logger');
+const { isBullmqWorkersEnabled } = require('../utils/runtimeControls');
 
 // طوابير المهام
 let apiTransferQueue = null;
@@ -37,6 +38,8 @@ const resetBullMQState = () => {
     bullmqReady = false;
 };
 
+const bullWorkersDisabled = () => !isBullmqWorkersEnabled();
+
 const isApiTransferWorkerReady = () => Boolean(
     isRedis() && bullmqReady && apiTransferQueue && apiTransferWorker
 );
@@ -47,6 +50,7 @@ const isApiTransferWorkerReady = () => Boolean(
  * عمليات API في Redis بلا عامل.
  */
 const initBullMQ = () => {
+    if (bullWorkersDisabled()) return false;
     if (isApiTransferWorkerReady()) return true;
     if (!isRedis()) return false;
 
@@ -151,6 +155,7 @@ const initBullMQ = () => {
  * في الذاكرة داخل نفس العملية حتى لا تبقى العملية في حالة «توجيه».
  */
 const addTransferJob = async (txId, apiGroupId) => {
+    if (bullWorkersDisabled()) return;
     initBullMQ();
     if (isApiTransferWorkerReady()) {
         try {
@@ -173,6 +178,7 @@ const addTransferJob = async (txId, apiGroupId) => {
  * إضافة إشعار للمعالجة الخلفية
  */
 const addNotificationJob = async (userId, title, message, type) => {
+    if (bullWorkersDisabled()) return;
     initBullMQ();
     if (isRedis() && notificationQueue) {
         try {
@@ -190,6 +196,7 @@ const addNotificationJob = async (userId, title, message, type) => {
  * إضافة مهمة توليد تسوية أو تقرير
  */
 const addReportJob = async (action, date) => {
+    if (bullWorkersDisabled()) return;
     if (isRedis() && reportQueue) {
         try {
             await reportQueue.add(`report_${action}_${Date.now()}`, { action, date });
@@ -208,6 +215,7 @@ const addReportJob = async (action, date) => {
  * إضافة مهمة نسخ احتياطي خلفية
  */
 const addBackupJob = async () => {
+    if (bullWorkersDisabled()) return;
     if (isRedis() && backupQueue) {
         try {
             await backupQueue.add(`backup_${Date.now()}`, {});
@@ -222,6 +230,7 @@ const addBackupJob = async () => {
  * إضافة مهمة مطابقة مالية
  */
 const addReconciliationJob = async (date) => {
+    if (bullWorkersDisabled()) return;
     if (isRedis() && reconciliationQueue) {
         try {
             await reconciliationQueue.add(`reconciliation_${Date.now()}`, { date });

@@ -26,6 +26,7 @@ describe('BullMQ Queue Service Tests (Local / Memory Fallback)', () => {
     beforeEach(() => {
         jest.resetModules();
         jest.restoreAllMocks();
+        process.env.BULLMQ_WORKERS_ENABLED = 'true';
         
         // إعادة التحميل بعد resetModules للحصول على النسخ المحاكاة الصحيحة من السجل
         Notification = require('../models/Notification');
@@ -87,6 +88,7 @@ describe('BullMQ Queue Service Tests (Redis / Distributed Queue)', () => {
     beforeEach(() => {
         jest.resetModules();
         jest.restoreAllMocks();
+        process.env.BULLMQ_WORKERS_ENABLED = 'true';
 
         // إعادة التحميل بعد resetModules للحصول على النسخ المحاكاة الصحيحة من السجل
         Notification = require('../models/Notification');
@@ -271,4 +273,8 @@ describe('BullMQ Queue Service Tests (Redis / Distributed Queue)', () => {
             expect.any(Object)
         );
     });
+});
+
+afterAll(() => {
+    delete process.env.BULLMQ_WORKERS_ENABLED;
 });

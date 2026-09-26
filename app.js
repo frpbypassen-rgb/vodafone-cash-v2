@@ -82,6 +82,12 @@ const { closeEligibleDailySettlement } = require('./services/settlementService')
 const systemMonitor = require('./services/systemMonitorService');
 const { restorePendingRateActivation, startRateChangeActivationMonitor } = require('./services/rateChangeService');
 const { startExecutorPushNotificationWorker } = require('./services/executorPushNotificationService');
+const {
+    isBullmqWorkersEnabled,
+    isFinancialSchedulersEnabled,
+    logDisabledRuntimeSubsystems
+} = require('./utils/runtimeControls');
+const { assertStagingStartupSafe } = require('./utils/stagingStartupGuard');
 require('./services/companyPortalEventHooks');
 const { ensureUnifiedReportInfrastructure } = require('./services/unifiedReportService');
 
@@ -495,8 +501,14 @@ app.use(errorHandler);
 
 const PORT = process.env.PORT || 3000;
 Promise.all([connectDB(), initRedis()]).then(async () => {
+    logDisabledRuntimeSubsystems(logger);
+    await assertStagingStartupSafe({
+        env: process.env,
+        db: mongoose.connection && mongoose.connection.db,
+        processTitle: process.title
+    });
     const { initBullMQ } = require('./services/bullQueueService');
-    if (!initBullMQ()) {
+    if (isBullmqWorkersEnabled() && !initBullMQ()) {
         logger.warn('BullMQ API transfer worker is not ready; API routing will use in-process queue');
     }
     const merchantWebhookService = require('./services/merchantWebhookService');
@@ -507,22 +519,24 @@ Promise.all([connectDB(), initRedis()]).then(async () => {
         ensureUnifiedReportInfrastructure(),
         merchantWebhookService.ensureMerchantWebhookIndexes()
     ]);
-    await restorePendingRateActivation({ app });
-    startRateChangeActivationMonitor({ app });
-    startApiCompletionMonitor();
-    startApiProviderReturnMonitor();
+    if (isFinancialSchedulersEnabled()) {
+        await restorePendingRateActivation({ app });
+        startRateChangeActivationMonitor({ app });
+        startApiCompletionMonitor();
+        startApiProviderReturnMonitor();
+        closeEligibleDailySettlement().catch((error) => {
+            logger.error('Initial financial day close failed', { error: error.message });
+        });
+        cron.schedule('*/15 * * * *', () => {
+            closeEligibleDailySettlement().catch((error) => {
+                logger.error('Scheduled financial day close failed', { error: error.message });
+            });
+        }, { timezone: SYSTEM_TIME_ZONE });
+    }
     merchantWebhookService.startMerchantWebhookWorker();
     await startExecutorPushNotificationWorker().catch((error) => {
         logger.error('Executor push notification worker failed to start', { error: error.message });
     });
-    closeEligibleDailySettlement().catch((error) => {
-        logger.error('Initial financial day close failed', { error: error.message });
-    });
-    cron.schedule('*/15 * * * *', () => {
-        closeEligibleDailySettlement().catch((error) => {
-            logger.error('Scheduled financial day close failed', { error: error.message });
-        });
-    }, { timezone: SYSTEM_TIME_ZONE });
     // 🟢 التأكد من وجود الإعدادات الافتراضية في قاعدة البيانات لتفادي أخطاء null pointer
     server.listen(PORT, () => {
         logger.info(`🟢 Al-Ahram Pay v2.0 running on port ${PORT}`, { port: PORT, env: process.env.NODE_ENV || 'development' });
