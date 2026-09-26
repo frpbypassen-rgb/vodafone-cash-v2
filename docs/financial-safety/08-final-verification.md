@@ -76,4 +76,4 @@ Remove-Item Env:ALLOW_ACCOUNT_CODE_TENANT_INDEX
 
 `main` `527c7821`: 183 مجموعة (181 ناجحة، 2 فاشلة)، 1123 اختبارًا (1121 ناجحة، 2 فاشلة).
 
-الفرق 25 اختبارًا ناجحًا عن `main` (1123 اختبارًا). الفشلان نفسهما: `tests/mobileConsolidation.test.js` و`tests/mobileAuthContract.test.js`. `npm run lint` و`npm run typecheck` و`npm run check:architecture` ناجحة. التقرير الجامع: `FINAL_REPORT.md`.
+الفرق 32 اختبارًا ناجحًا عن `main` (1123 اختبارًا). الفشلان نفسهما: `tests/mobileConsolidation.test.js` و`tests/mobileAuthContract.test.js`. `npm run lint` و`npm run typecheck` و`npm run check:architecture` ناجحة. التقرير الجامع: `FINAL_REPORT.md`.
