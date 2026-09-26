@@ -5,10 +5,12 @@ const path = require('path');
 const ejs = require('ejs');
 const nodemailer = require('nodemailer');
 const logger = require('../utils/logger');
+const { getBrandContact, isLoginOtpEmailTemplateV2Enabled } = require('../utils/brandContact');
 const { normalizeSubmittedOtp } = require('../utils/otp');
 const { isValidOtpEmail, normalizeOtpEmail } = require('../utils/otpDeliveryChannel');
+const legacyTemplate = require('./emailOtpTemplateLegacy');
 
-const DEFAULT_FROM = 'أهرام باي <noreply@ahrampay.com>';
+const DEFAULT_FROM = legacyTemplate.DEFAULT_FROM;
 const LOGIN_OTP_LOGO_URL = 'https://ahrampay.com/images/login-otp-logo.jpg';
 const LOGIN_OTP_LOGO_PATH = path.join(__dirname, '../public/images/login-otp-logo.jpg');
 const LOGIN_OTP_TEMPLATE_PATH = path.join(__dirname, '../views/emails/login-otp.ejs');
@@ -30,7 +32,10 @@ const getSmtpConfig = (env = process.env) => {
     const secure = rawSecure === '' ? port === 465 : isEnabledFlag(rawSecure);
     const user = String(env.SMTP_USER || '').trim();
     const pass = env.SMTP_PASS == null ? '' : String(env.SMTP_PASS);
-    const from = String(env.SMTP_FROM || '').trim() || DEFAULT_FROM;
+    const fromOverride = String(env.SMTP_FROM || '').trim();
+    const from = fromOverride || (
+        isLoginOtpEmailTemplateV2Enabled(env) ? getBrandContact(env).from : DEFAULT_FROM
+    );
     return { host, port, secure, user, pass, from };
 };
 
@@ -68,14 +73,8 @@ const getTransport = (config) => {
 const LOGIN_OTP_SUBJECT = 'رمز التحقق لتسجيل الدخول — أهرام باي';
 
 const COPY = Object.freeze({
-    brand: 'أهرام باي',
     body: 'تلقينا محاولة تسجيل دخول إلى حسابك. استخدم رمز التحقق التالي لإكمال العملية بأمان.',
-    address: 'ليبيا / مصراتة، سوق الاستثمار / أمام المسجد العالي',
     phoneLabel: 'هاتف',
-    phone: '+218 940719000',
-    phoneHref: 'tel:+218940719000',
-    email: 'support@ahrampay.com',
-    site: 'https://ahrampay.com',
     warning: 'لا تشارك الرمز مع أي شخص، حتى لو ادعى أنه من فريق الدعم.'
 });
 
@@ -185,10 +184,10 @@ const maskLoginAccount = (value) => {
     return `${cleaned.slice(0, keep)}***`;
 };
 
-const resolveLoginOtpLogo = () => {
+const resolveLoginOtpLogo = (brand) => {
     try {
         if (fs.existsSync(LOGIN_OTP_LOGO_PATH)) {
-            return { src: LOGIN_OTP_LOGO_URL, alt: COPY.brand };
+            return { src: brand.logoUrl, alt: brand.name };
         }
     } catch {
         return null;
@@ -197,10 +196,10 @@ const resolveLoginOtpLogo = () => {
 };
 
 const LRM = '\u200E';
-const LRE = '\u202A';
-const PDF = '\u202C';
+const LRI = '\u2066';
+const PDI = '\u2069';
 
-const embedPlainLtr = (value) => `${LRM}${LRE}${value}${PDF}`;
+const embedPlainLtr = (value) => `${LRM}${LRI}${value}${PDI}`;
 
 const buildAttemptRows = ({ attemptAt, userAgent, loginAccount } = {}) => {
     const rows = [];
@@ -214,14 +213,15 @@ const buildAttemptRows = ({ attemptAt, userAgent, loginAccount } = {}) => {
 };
 
 const buildLoginOtpView = (input = {}) => {
+    const brand = getBrandContact();
     const accountName = cleanInline(input.accountName);
     const otp = normalizeSubmittedOtp(input.otp);
     const expiresMinutes = resolveExpiresMinutes(input.expiresMinutes);
     const expiresPhrase = formatArabicMinutes(expiresMinutes);
-    const logo = Object.prototype.hasOwnProperty.call(input, 'logo') ? input.logo : resolveLoginOtpLogo();
+    const logo = Object.prototype.hasOwnProperty.call(input, 'logo') ? input.logo : resolveLoginOtpLogo(brand);
     const year = input.year == null || input.year === '' ? new Date().getFullYear() : input.year;
     return {
-        brand: COPY.brand,
+        brand: brand.name,
         accountName,
         greeting: accountName ? `مرحبًا ${accountName}،` : 'مرحبًا بك،',
         body: COPY.body,
@@ -230,17 +230,18 @@ const buildLoginOtpView = (input = {}) => {
         expiresPhrase,
         otpDigitsPhrase: describeOtpDigits(otp),
         attemptRows: buildAttemptRows(input),
-        contactEmail: COPY.email,
-        contactPhone: COPY.phone,
-        contactPhoneLink: COPY.phoneHref,
-        websiteUrl: COPY.site,
-        websiteLabel: '',
-        contactAddress: COPY.address,
+        contactEmail: brand.supportEmail,
+        contactPhone: brand.phoneDisplay,
+        contactPhoneLink: brand.phoneHref,
+        websiteUrl: brand.website,
+        websiteHost: brand.websiteHost,
+        websiteLabel: brand.website,
+        contactAddress: brand.address,
         warning: COPY.warning,
         phoneLabel: COPY.phoneLabel,
         year,
         logoSrc: logo && logo.src ? logo.src : '',
-        logoAlt: logo && logo.alt ? logo.alt : COPY.brand
+        logoAlt: logo && logo.alt ? logo.alt : brand.name
     };
 };
 
@@ -249,9 +250,9 @@ const renderLoginOtpTemplate = (view) => {
     return ejs.render(templateCache, view, { filename: LOGIN_OTP_TEMPLATE_PATH });
 };
 
-const buildLoginOtpHtml = (input = {}) => renderLoginOtpTemplate(buildLoginOtpView(input));
+const buildLoginOtpHtmlV2 = (input = {}) => renderLoginOtpTemplate(buildLoginOtpView(input));
 
-const buildLoginOtpText = (input = {}) => {
+const buildLoginOtpTextV2 = (input = {}) => {
     const view = buildLoginOtpView(input);
     const lines = [
         view.brand,
@@ -275,15 +276,36 @@ const buildLoginOtpText = (input = {}) => {
         lines.push('');
     }
     lines.push(
+        'طريقة استخدام الرمز',
+        `1. ارجع إلى شاشة تسجيل الدخول المفتوحة في موقع أو تطبيق ${view.brand}.`,
+        `2. أدخل ${view.otpDigitsPhrase} في خانة «رمز التحقق» بنفس الترتيب الظاهر أعلاه.`,
+        '3. اضغط «تأكيد الدخول». لا يمكن استخدام الرمز مرة أخرى بعد نجاح التحقق.',
+        '',
+        'نصائح لحماية حسابك',
         view.warning,
+        'لن نطلب منك الرمز عبر الهاتف أو الرسائل أو روابط خارجية.',
+        `تأكد أن عنوان الموقع يبدأ بـ ${embedPlainLtr(view.websiteHost)} قبل إدخال الرمز.`,
+        'إذا لم تبدأ محاولة الدخول، غيّر كلمة المرور وتواصل معنا فورًا.',
         '',
         view.contactAddress,
         `${view.phoneLabel} ${embedPlainLtr(view.contactPhone)}`,
         embedPlainLtr(view.contactEmail),
-        embedPlainLtr(view.websiteUrl)
+        embedPlainLtr(view.websiteUrl),
+        '',
+        `${embedPlainLtr(`© ${view.year}`)} ${view.brand}. جميع الحقوق محفوظة.`
     );
     return lines.join('\n');
 };
+
+const useLoginOtpTemplateV2 = () => isLoginOtpEmailTemplateV2Enabled();
+
+const buildLoginOtpHtml = (input = {}) => (
+    useLoginOtpTemplateV2() ? buildLoginOtpHtmlV2(input) : legacyTemplate.buildLoginOtpHtml(input)
+);
+
+const buildLoginOtpText = (input = {}) => (
+    useLoginOtpTemplateV2() ? buildLoginOtpTextV2(input) : legacyTemplate.buildLoginOtpText(input)
+);
 
 const failure = (code) => ({
     success: false,
@@ -296,6 +318,7 @@ const sendLoginOtpEmail = async ({
     to,
     otp,
     expiresMinutes = 5,
+    expiresAt,
     accountName = '',
     attemptAt,
     userAgent,
@@ -318,6 +341,7 @@ const sendLoginOtpEmail = async ({
     const content = {
         otp,
         expiresMinutes,
+        expiresAt,
         accountName,
         attemptAt,
         userAgent,
@@ -330,7 +354,9 @@ const sendLoginOtpEmail = async ({
         const info = await transport.sendMail({
             from: config.from,
             to: email,
-            subject: LOGIN_OTP_SUBJECT,
+            subject: useLoginOtpTemplateV2()
+                ? `رمز التحقق لتسجيل الدخول — ${getBrandContact().name}`
+                : LOGIN_OTP_SUBJECT,
             text: buildLoginOtpText(content),
             html: buildLoginOtpHtml(content)
         });
@@ -353,7 +379,9 @@ module.exports = {
     LOGIN_OTP_LOGO_URL,
     LOGIN_OTP_SUBJECT,
     buildLoginOtpHtml,
+    buildLoginOtpHtmlV2,
     buildLoginOtpText,
+    buildLoginOtpTextV2,
     formatArabicMinutes,
     formatLoginAttemptTime,
     getMissingSmtpSettings,

@@ -62,4 +62,43 @@ describe('OTP security', () => {
         expect(executor).toContain('normalizeSubmittedOtp(req.body.otp)');
         expect(auth).toContain('normalizeSubmittedOtp(req.body.otp)');
     });
+
+    test('stores only the HMAC, and mail failure does not open a session or log the code', () => {
+        const { sanitizeLogValue } = require('../utils/logSanitizer');
+        const service = fs.readFileSync(path.join(__dirname, '../services/loginOtpService.js'), 'utf8');
+        const mailer = fs.readFileSync(path.join(__dirname, '../services/emailOtpMailer.js'), 'utf8');
+        const auth = fs.readFileSync(path.join(__dirname, '../routes/auth.js'), 'utf8');
+        const channel = fs.readFileSync(path.join(__dirname, '../utils/otpDeliveryChannel.js'), 'utf8');
+        const defaults = fs.readFileSync(path.join(__dirname, '../config/productionSecurityDefaults.js'), 'utf8');
+        expect(service).toContain('otpCode: hashOtp(otp)');
+        expect(service).not.toMatch(/otpCode:\s*otp\b/);
+        expect(service).toContain('new Date(Date.now() + 5 * 60 * 1000)');
+        expect(service).toContain('OTP_RESEND_COOLDOWN_SECONDS');
+        expect(service).toContain('clearStoredOtp');
+        expect(mailer).not.toContain('Sentry');
+        expect(mailer).not.toContain('error.message');
+        expect(mailer).toContain("logger.security('login email otp failed', { code, smtpCode })");
+        expect(channel).not.toContain('LOGIN_OTP_EMAIL_TEMPLATE_V2');
+        expect(defaults).not.toContain('LOGIN_OTP_EMAIL_TEMPLATE_V2');
+        expect(sanitizeLogValue('482913', 'otp')).toBe('[REDACTED]');
+        expect(sanitizeLogValue('482913', 'otpCode')).toBe('[REDACTED]');
+
+        const executor = fs.readFileSync(path.join(__dirname, '../controllers/executorAuthController.js'), 'utf8');
+        const startClient = auth.slice(auth.indexOf('const startClientOtp'), auth.indexOf('const continueVerifiedPortalLogin'));
+        const startAdmin = auth.slice(auth.indexOf('const startAdminOtp'), auth.indexOf('router.post(\'/admin/verify\''));
+        const startExecutor = executor.slice(executor.indexOf('const startExecutorOtp'), executor.indexOf('const continueExecutorAfterPassword'));
+        [startClient, startAdmin, startExecutor].forEach((block) => {
+            const guard = block.indexOf("if (issued.status !== 'sent')");
+            const session = block.indexOf('establishAuthenticatedSession');
+            expect(guard).toBeGreaterThan(-1);
+            expect(session).toBeGreaterThan(guard);
+        });
+        expect(auth).toContain("return renderLogin(res, 'بيانات الدخول غير صحيحة.'");
+        expect(auth).not.toContain('البريد غير مسجل');
+
+        const client = fs.readFileSync(path.join(__dirname, '../controllers/clientAuthController.js'), 'utf8');
+        expect(client).toContain('otpAttempts');
+        expect(client).toContain('>= 5');
+        expect(client).toContain('otpCode: 1');
+    });
 });

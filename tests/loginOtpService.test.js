@@ -601,8 +601,55 @@ describe('login OTP service', () => {
         });
         expect(failedSend.status).toBe('failed');
         expect(failedSend.code).toBe('EMAIL_OTP_SEND_FAILED');
+        expect(failedSend.status).not.toBe('sent');
         expect(failedSend.status).not.toBe('skip_no_email');
+        expect(failedSend.message).toBe(publicDeliveryMessage('EMAIL_OTP_SEND_FAILED'));
+        expect(failedSend.message).not.toContain('owner@example.com');
+        expect(failedSend.message).not.toContain('0911111111');
         expect(sendOtp).not.toHaveBeenCalled();
         expect(sendLoginOtpEmail).toHaveBeenCalledTimes(1);
+        const cleared = User.updateOne.mock.calls.some((call) => call[1] && call[1].$unset && call[1].$unset.otpCode === 1);
+        expect(cleared).toBe(true);
+    });
+
+    test('the new email template flag does not change WhatsApp or skip-without-email', async () => {
+        const previous = {
+            template: process.env.LOGIN_OTP_EMAIL_TEMPLATE_V2,
+            whatsapp: process.env.WHATSAPP_LOGIN_OTP_ENABLED,
+            skip: process.env.LOGIN_OTP_SKIP_WITHOUT_EMAIL
+        };
+        process.env.LOGIN_OTP_EMAIL_TEMPLATE_V2 = 'true';
+        process.env.WHATSAPP_LOGIN_OTP_ENABLED = 'true';
+        process.env.LOGIN_OTP_SKIP_WITHOUT_EMAIL = 'false';
+        try {
+            const whatsapp = await issueLoginOtp({
+                account: { _id: 'user-flag', phone: '0910000099', name: 'عميل' },
+                accountType: 'user',
+                session: {}
+            });
+            expect(whatsapp.status).toBe('sent');
+            expect(whatsapp.delivery.channel).toBe('whatsapp');
+            expect(sendLoginOtpEmail).not.toHaveBeenCalled();
+            expect(sendOtp).toHaveBeenCalledWith(expect.objectContaining({ phone: '0910000099' }));
+
+            process.env.LOGIN_OTP_SKIP_WITHOUT_EMAIL = 'true';
+            process.env.WHATSAPP_LOGIN_OTP_ENABLED = 'false';
+            sendOtp.mockClear();
+            const skipped = await issueLoginOtp({
+                account: { _id: 'user-flag-skip', phone: '0910000098', name: 'عميل' },
+                accountType: 'user',
+                session: {}
+            });
+            expect(skipped.status).toBe('skip_no_email');
+            expect(sendOtp).not.toHaveBeenCalled();
+            expect(sendLoginOtpEmail).not.toHaveBeenCalled();
+        } finally {
+            if (previous.template === undefined) delete process.env.LOGIN_OTP_EMAIL_TEMPLATE_V2;
+            else process.env.LOGIN_OTP_EMAIL_TEMPLATE_V2 = previous.template;
+            if (previous.whatsapp === undefined) delete process.env.WHATSAPP_LOGIN_OTP_ENABLED;
+            else process.env.WHATSAPP_LOGIN_OTP_ENABLED = previous.whatsapp;
+            if (previous.skip === undefined) delete process.env.LOGIN_OTP_SKIP_WITHOUT_EMAIL;
+            else process.env.LOGIN_OTP_SKIP_WITHOUT_EMAIL = previous.skip;
+        }
     });
 });
