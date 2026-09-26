@@ -60,6 +60,13 @@ text; the mailer does not fetch it. If the new template throws while
 rendering, the current template is sent instead and the error is logged
 with the code redacted.
 
+`public/images/login-otp-logo.jpg` is a JPEG (`FFD8FF`, about 15 KB). The
+app serves `public/` with `express.static` before session checks, and that
+file is `Content-Type: image/jpeg`. Checked on 2026-09-26,
+`https://ahrampay.com/images/login-otp-logo.jpg` is not on production yet:
+the host answers `302` to `/login` with `text/plain`, because the file is
+absent. After this deploy the same URL is the static JPEG.
+
 The confirmed phone is `0913731533`, shown inside an isolated LTR element
 and linked as `tel:0913731533`.
 
@@ -104,21 +111,23 @@ is the text shown in the message. Both default to `0913731533`.
 
 ## One test message, without a restart
 
-From the application directory on the production host. This starts a
-separate Node process, loads `.env`, then forces the new template for that
-process only. It does not edit `.env` and does not reload PM2. The
-recipient is fixed to `support@ahrampay.com`.
+One command, from any directory. It changes into the app directory, starts
+a separate Node process, loads `.env`, then forces the new template because
+`--template v2` is present. A `LOGIN_OTP_EMAIL_TEMPLATE_V2=false` line in
+`.env` does not win. The process does not edit `.env` and does not reload
+PM2. The recipient is fixed to `support@ahrampay.com`. Any other address,
+including `--to`, is refused with `RECIPIENT_REFUSED` and nothing is sent.
+The sample code stays inside the message. The console prints success, a
+status code, and the SMTP message id only.
 
 ```powershell
-node .\scripts\sendLoginOtpTemplateV2Sample.js
+cd C:\Users\Administrator\Desktop\vodafone-cash-v2; node .\scripts\sendLoginOtpTemplateV2Sample.js --template v2
 ```
-
-Do not point this at a customer address.
 
 ## DNS for ahrampay.com
 
-Looked up on 2026-09-26 against 1.1.1.1 and 8.8.8.8. Nameservers:
-`ns1.ns.ly` through `ns5.ns.ly`.
+Looked up again on 2026-09-26 against 1.1.1.1 and 8.8.8.8. Both resolvers
+agree. Nameservers: `ns1.ns.ly` through `ns5.ns.ly`.
 
 SPF at `ahrampay.com`:
 

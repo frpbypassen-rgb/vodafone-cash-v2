@@ -6,6 +6,7 @@ const http = require('http');
 const path = require('path');
 const express = require('express');
 const { buildLoginOtpHtmlV2 } = require('../services/emailOtpMailer');
+const { buildLoginOtpHtml, buildLoginOtpText } = require('../services/emailOtpTemplateLegacy');
 
 const LOGO_URL = 'https://ahrampay.com/images/login-otp-logo.jpg';
 const SAMPLE = {
@@ -58,12 +59,71 @@ test('documents the template flag, brand env, and the single support recipient',
     ].forEach((line) => expect(example).toContain(line));
     expect(script).toContain("const RECIPIENT = 'support@ahrampay.com'");
     expect(script).toContain("process.env.LOGIN_OTP_EMAIL_TEMPLATE_V2 = 'true'");
+    expect(script).toContain("error.code = 'RECIPIENT_REFUSED'");
+    expect(script).toContain("value.toLowerCase() !== 'v2'");
     expect(script.indexOf("require('dotenv').config()")).toBeLessThan(script.indexOf("process.env.LOGIN_OTP_EMAIL_TEMPLATE_V2 = 'true'"));
+    expect(script.indexOf('assertRecipientAllowed')).toBeLessThan(script.indexOf("require('dotenv').config()"));
     expect(script).not.toContain('customer@');
     expect(doc).toContain('NXDOMAIN');
     expect(doc).toContain('v=spf1');
     expect(doc).toContain('default._domainkey.ahrampay.com');
-    expect(doc).toContain('node .\\scripts\\sendLoginOtpTemplateV2Sample.js');
+    expect(doc).toContain('node .\\scripts\\sendLoginOtpTemplateV2Sample.js --template v2');
+    expect(doc).toContain('not on production yet');
+});
+
+test('refuses every recipient except support@ahrampay.com and requires the template parameter', async () => {
+    const { sendSample, RECIPIENT } = require('../scripts/sendLoginOtpTemplateV2Sample');
+    expect(RECIPIENT).toBe('support@ahrampay.com');
+    await expect(sendSample({ argv: ['--to', 'customer@example.com'] })).rejects.toMatchObject({
+        code: 'TEMPLATE_PARAMETER_REQUIRED'
+    });
+    await expect(sendSample({
+        argv: ['--template', 'v2', '--to', 'customer@example.com']
+    })).rejects.toMatchObject({ code: 'RECIPIENT_REFUSED' });
+    await expect(sendSample({
+        argv: ['--template', 'v2', 'person@example.com']
+    })).rejects.toMatchObject({ code: 'RECIPIENT_REFUSED' });
+    await expect(sendSample({
+        argv: ['--template', 'v2'],
+        to: 'other@example.com'
+    })).rejects.toMatchObject({ code: 'RECIPIENT_REFUSED' });
+});
+
+test('both templates keep valid href and src values and the cream text matches the HTML facts', () => {
+    const validHref = /^(mailto:[^\s@]+@[^\s@]+|tel:\+?\d{8,15}|https:\/\/[^\s]+)$/;
+    const dark = buildLoginOtpHtmlV2(SAMPLE);
+    const cream = buildLoginOtpHtml({ ...SAMPLE, expiresAt: SAMPLE.attemptAt });
+    const creamText = buildLoginOtpText({ ...SAMPLE, expiresAt: SAMPLE.attemptAt });
+    const collect = (html) => ({
+        hrefs: [...html.matchAll(/href="([^"]*)"/g)].map((match) => match[1]),
+        srcs: [...html.matchAll(/\ssrc="([^"]*)"/g)].map((match) => match[1])
+    });
+    const darkLinks = collect(dark);
+    const creamLinks = collect(cream);
+    expect(darkLinks.hrefs).toEqual([
+        'mailto:support@ahrampay.com',
+        'tel:0913731533',
+        'https://ahrampay.com'
+    ]);
+    expect(darkLinks.srcs).toEqual([LOGO_URL]);
+    expect(creamLinks.hrefs).toEqual([
+        'tel:0913731533',
+        'mailto:support@ahrampay.com',
+        'https://ahrampay.com'
+    ]);
+    expect(creamLinks.srcs).toEqual([]);
+    [...darkLinks.hrefs, ...creamLinks.hrefs].forEach((href) => expect(href).toMatch(validHref));
+    darkLinks.srcs.forEach((src) => expect(src).toMatch(/^https:\/\/[^\s]+$/));
+    expect(cream).toContain('>0913731533</a>');
+    expect(creamText).toContain('0913731533');
+    expect(creamText).toContain('support@ahrampay.com');
+    expect(creamText).toContain('https://ahrampay.com');
+    expect(creamText).toContain('482913');
+    expect(creamText).toContain('مرحباً عميل تجريبي،');
+    expect(cream).not.toContain('120.0.0.0');
+    expect(creamText).not.toContain('120.0.0.0');
+    expect(dark).not.toContain('120.0.0.0');
+    expect(dark).toContain('tiz***@ahram.com');
 });
 
 test('the dark template fits 320px and 600px and every image loads', async () => {
