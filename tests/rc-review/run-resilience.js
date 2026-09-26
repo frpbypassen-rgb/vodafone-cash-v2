@@ -623,37 +623,45 @@ const main = async () => {
     });
 
     await record('ambiguous_provider_result_no_automatic_resend', async () => {
-        const created = await createTransfer(ctx, { amount: 153, phone: '01055551123' });
-        const tx = await models.Transaction.findOne({ customId: created.customId });
-        tx.status = 'processing';
-        tx.executorGroupId = ids.apiGroup;
-        await tx.save();
-        httpMock.clearPaymentScript();
-        httpMock.queuePaymentResult('timeout');
-        const paymentsBefore = httpMock.snapshotCounters().providerPayment;
-        const before = await balances(models, ids);
+        const modes = [
+            ['timeout', 153, '01055551123'],
+            ['reset', 154, '01055551124'],
+            ['5xx', 155, '01055551125']
+        ];
         const queue = load('services/queueService');
-        await queue.processSingleJob(tx._id, ids.apiGroup);
-        const afterFailure = await txView(models, created.customId);
-        const ledgerAfterFailure = await ledgerSummary(models, created.customId);
-        await lifecycle.completeDueApiTransactions();
         const bull = load('services/bullQueueService');
-        if (typeof bull.addTransferJob === 'function') {
-            await bull.addTransferJob(String(tx._id), String(ids.apiGroup));
+        const rows = [];
+        for (const [mode, amount, phone] of modes) {
+            const created = await createTransfer(ctx, { amount, phone });
+            const tx = await models.Transaction.findOne({ customId: created.customId });
+            tx.status = 'processing';
+            tx.executorGroupId = ids.apiGroup;
+            await tx.save();
+            const clientBefore = (await balances(models, ids)).client;
+            httpMock.clearPaymentScript();
+            httpMock.queuePaymentResult(mode);
+            const paymentsBefore = httpMock.snapshotCounters().providerPayment;
+            await queue.processSingleJob(tx._id, ids.apiGroup);
+            const afterAttempt = await txView(models, created.customId);
+            await lifecycle.completeDueApiTransactions();
+            if (typeof bull.addTransferJob === 'function') {
+                await bull.addTransferJob(String(tx._id), String(ids.apiGroup));
+            }
+            await queue.processSingleJob(tx._id, ids.apiGroup);
+            await sleep(200);
+            const clientAfter = (await balances(models, ids)).client;
+            rows.push({
+                mode,
+                customId: created.customId,
+                afterAttempt,
+                finalTx: await txView(models, created.customId),
+                ledger: await ledgerSummary(models, created.customId),
+                providerPayments: httpMock.snapshotCounters().providerPayment - paymentsBefore,
+                clientDelta: round(clientAfter - clientBefore),
+                refundLedgerRows: (await models.Ledger.find({ transactionId: created.customId, type: 'REFUND' }).lean()).length
+            });
         }
-        await sleep(400);
-        const after = await balances(models, ids);
-        return {
-            customId: created.customId,
-            afterFailure,
-            ledgerAfterFailure,
-            finalTx: await txView(models, created.customId),
-            finalLedger: await ledgerSummary(models, created.customId),
-            providerPayments: httpMock.snapshotCounters().providerPayment - paymentsBefore,
-            apiExecutorDelta: round(after.apiExecutor - before.apiExecutor),
-            clientDelta: round(after.client - before.client),
-            refundLedgerRows: (await models.Ledger.find({ transactionId: created.customId, type: 'REFUND' }).lean()).length
-        };
+        return { rows };
     });
 
     if (profile === 'rc') {

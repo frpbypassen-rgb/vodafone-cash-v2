@@ -90,9 +90,9 @@ const mockPost = async (url, data, config) => {
             error.code = 'ECONNABORTED';
             throw error;
         }
-        if (scripted === 'connection') {
-            const error = new Error('connect ECONNREFUSED 127.0.0.1:1');
-            error.code = 'ECONNREFUSED';
+        if (scripted === 'connection' || scripted === 'reset') {
+            const error = new Error(scripted === 'reset' ? 'socket hang up' : 'connect ECONNREFUSED 127.0.0.1:1');
+            error.code = scripted === 'reset' ? 'ECONNRESET' : 'ECONNREFUSED';
             throw error;
         }
         if (scripted === '5xx') {
