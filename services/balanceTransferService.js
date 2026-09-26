@@ -11,6 +11,15 @@ const SubAccount = require('../models/SubAccount');
 const Notification = require('../models/Notification');
 const { resolveAccountByCode } = require('./accountCodeService');
 const { createBalanceTransferReceiptProof } = require('./balanceTransferReceiptService');
+const { logAction } = require('./auditService');
+const {
+    resolveStampTenant,
+    assertAccountsSameTenant,
+    beginIdempotentFinancialRequest,
+    acquireWalletLock,
+    tenantStamp,
+    auditInTransactionEnabled
+} = require('./financialSafety');
 const {
     isMongoTransactionFallbackError,
     requiresMongoTransactions,
@@ -109,8 +118,9 @@ const buildEntityTransactionFields = async (account, customId, status, amount, n
     };
 };
 
-const createLedgerEntries = (source, target, transferId, amount, sourceAfter, targetAfter) => ([
+const createLedgerEntries = (source, target, transferId, amount, sourceAfter, targetAfter, tenantId) => ([
     {
+        ...tenantStamp(tenantId),
         entityId: source.doc._id,
         entityModel: source.modelName,
         transactionId: transferId,
@@ -121,6 +131,7 @@ const createLedgerEntries = (source, target, transferId, amount, sourceAfter, ta
         description: `تحويل رصيد إلى ${accountName(target)} (${target.doc.accountCode})`
     },
     {
+        ...tenantStamp(tenantId),
         entityId: target.doc._id,
         entityModel: target.modelName,
         transactionId: transferId,
@@ -150,17 +161,60 @@ const notifyAccount = async (account, title, message, type = 'transfer') => {
     } catch (_) {}
 };
 
-const executeBalanceTransfer = async ({ source, targetCode, amount, notes = '', idempotencyKey = null, idempotencyFingerprint = null, session: externalSession = null }) => {
+const executeBalanceTransfer = async ({
+    source,
+    targetCode,
+    amount,
+    notes = '',
+    idempotencyKey = null,
+    idempotencyFingerprint = null,
+    idempotencyLockHeld = false,
+    idempotencyChannel = 'balance-transfer',
+    idempotencyPayload = null,
+    tenantContext = null,
+    req = null,
+    session: externalSession = null
+}) => {
     const normalizedAmount = Number(amount);
     if (!Number.isFinite(normalizedAmount) || normalizedAmount <= 0) {
         throw new Error('INVALID_AMOUNT');
     }
 
-    const target = await resolveAccountByCode(targetCode);
+    const request = tenantContext || req;
+    const tenantId = resolveStampTenant({ req: request, account: source && source.doc });
+    const target = await resolveAccountByCode(targetCode, request);
     if (!target) throw new Error('TARGET_NOT_FOUND');
     if (!isActiveAccount(source)) throw new Error('SOURCE_INACTIVE');
     if (!isActiveAccount(target)) throw new Error('TARGET_INACTIVE');
     assertDifferentAccounts(source, target);
+    assertAccountsSameTenant(source.doc.tenantId, target.doc.tenantId);
+
+    let idempotency = { active: false, release: async () => {}, key: null, fingerprint: null, replay: null };
+    if (!idempotencyLockHeld) {
+        idempotency = await beginIdempotentFinancialRequest({
+            key: idempotencyKey,
+            accountId: source.doc._id,
+            tenantId,
+            channel: idempotencyChannel,
+            payload: idempotencyPayload || {
+                targetAccountCode: String(targetCode || ''),
+                amount: normalizedAmount,
+                notes: String(notes || '')
+            },
+            fingerprint: idempotencyFingerprint
+        });
+        if (idempotency.replay) {
+            return { replayed: true, ...idempotency.replay, clientResponse: idempotency.replay };
+        }
+    }
+
+    let walletLock = { release: async () => {} };
+    try {
+        walletLock = await acquireWalletLock(source.doc._id);
+    } catch (error) {
+        await idempotency.release();
+        throw error;
+    }
 
     const SourceModel = modelByName[source.modelName];
     const TargetModel = modelByName[target.modelName];
@@ -173,6 +227,7 @@ const executeBalanceTransfer = async ({ source, targetCode, amount, notes = '', 
     let sourceAfter;
     let targetAfter;
     let transferId;
+    let auditRelease = null;
 
     try {
         if (!externalSession) {
@@ -197,7 +252,7 @@ const executeBalanceTransfer = async ({ source, targetCode, amount, notes = '', 
         }
 
         transferId = await nextBalanceTransferId(session);
-        const options = session ? { session } : {};
+        const options = session ? { session, ordered: true } : {};
         sourceAfter = await SourceModel.findOneAndUpdate(
             { _id: source.doc._id, balance: { $gte: normalizedAmount } },
             { $inc: { balance: -normalizedAmount } },
@@ -227,40 +282,74 @@ const executeBalanceTransfer = async ({ source, targetCode, amount, notes = '', 
             createdAt: new Date()
         });
 
+        const storedKey = idempotency.active
+            ? idempotency.key
+            : (idempotencyLockHeld ? (idempotencyKey || null) : null);
+        const storedFingerprint = idempotency.active
+            ? idempotency.fingerprint
+            : (idempotencyLockHeld ? (idempotencyFingerprint || null) : null);
+        const clientResponse = {
+            success: true,
+            message: `تم تحويل ${normalizedAmount.toFixed(2)} LYD إلى ${accountName(target)} بنجاح.`,
+            transferId,
+            newBalance: sourceAfter.balance.toFixed(2),
+            amount: normalizedAmount,
+            sourceBalance: sourceAfter.balance,
+            targetName: accountName(target),
+            targetCode: target.doc.accountCode,
+            targetType: target.label
+        };
         const sourceTx = await buildEntityTransactionFields(source, `${transferId}-D`, 'deduction', normalizedAmount, description, sourceAdminNotes, session);
         sourceTx.proofImage = receiptProofId;
         sourceTx.proofImages = [receiptProofId];
-        if (idempotencyKey) {
-            sourceTx.idempotencyKey = idempotencyKey;
-            sourceTx.idempotencyFingerprint = idempotencyFingerprint;
-            sourceTx.idempotencyResponse = {
-                success: true,
-                transferId,
-                amount: normalizedAmount,
-                sourceBalance: sourceAfter.balance,
-                targetName: accountName(target),
-                targetCode: target.doc.accountCode,
-                targetType: target.label
-            };
+        Object.assign(sourceTx, tenantStamp(tenantId));
+        if (storedKey) {
+            sourceTx.idempotencyKey = storedKey;
+            sourceTx.idempotencyFingerprint = storedFingerprint;
+            sourceTx.idempotencyResponse = clientResponse;
         }
         const targetTx = await buildEntityTransactionFields(target, `${transferId}-C`, 'deposit', normalizedAmount, description, targetAdminNotes, session);
         targetTx.proofImage = receiptProofId;
         targetTx.proofImages = [receiptProofId];
+        Object.assign(targetTx, tenantStamp(tenantId));
         await Transaction.create([sourceTx, targetTx], options);
 
-        const ledgerEntries = createLedgerEntries(source, target, transferId, normalizedAmount, sourceAfter, targetAfter);
+        const ledgerEntries = createLedgerEntries(source, target, transferId, normalizedAmount, sourceAfter, targetAfter, tenantId);
         await Ledger.create(ledgerEntries, options);
+
+        const auditInTxn = auditInTransactionEnabled() && Boolean(session && !externalSession);
+        const auditHold = await logAction({
+            action: 'TRANSFER_CREATED',
+            req: request,
+            performedById: source.doc._id,
+            performedByModel: source.modelName,
+            performedByName: source.doc.name,
+            newData: { customId: transferId, amount: normalizedAmount, transferType: 'balance_transfer' },
+            metadata: { targetName: accountName(target), targetCode: target.doc.accountCode },
+            tenantId,
+            session: auditInTxn ? session : null,
+            holdLock: auditInTxn,
+            required: auditInTxn
+        });
+        auditRelease = auditHold && auditHold.release;
 
         if (session && !externalSession) {
             await session.commitTransaction();
             session.endSession();
+            session = null;
+        }
+        if (auditRelease) {
+            await auditRelease();
+            auditRelease = null;
         }
 
         notifyAccount(source, 'تحويل رصيد صادر', `تم تحويل ${normalizedAmount.toFixed(2)} LYD إلى ${accountName(target)}. رقم العملية: ${transferId}`, 'deduction').catch(() => {});
         notifyAccount(target, 'تحويل رصيد وارد', `تم استلام ${normalizedAmount.toFixed(2)} LYD من ${accountName(source)}. رقم العملية: ${transferId}`, 'deposit').catch(() => {});
 
         return {
+            replayed: false,
             success: true,
+            clientResponse,
             transferId,
             amount: normalizedAmount,
             sourceBalance: sourceAfter.balance,
@@ -269,12 +358,16 @@ const executeBalanceTransfer = async ({ source, targetCode, amount, notes = '', 
             targetType: target.label
         };
     } catch (error) {
+        if (auditRelease) {
+            await auditRelease().catch(() => {});
+            auditRelease = null;
+        }
         if (session && !externalSession) {
             try {
                 await session.abortTransaction();
                 session.endSession();
             } catch (_) {}
-        } else if (!session && sourceAfter) {
+        } else if (!session && sourceAfter && !requiresMongoTransactions()) {
             await SourceModel.findByIdAndUpdate(source.doc._id, { $inc: { balance: normalizedAmount } }).catch(() => {});
             if (targetAfter) {
                 await TargetModel.findByIdAndUpdate(target.doc._id, { $inc: { balance: -normalizedAmount } }).catch(() => {});
@@ -282,10 +375,13 @@ const executeBalanceTransfer = async ({ source, targetCode, amount, notes = '', 
             await Transaction.deleteMany({ customId: { $in: [`${transferId}-D`, `${transferId}-C`] } }).catch(() => {});
             await Ledger.deleteMany({ transactionId: transferId }).catch(() => {});
         }
-        if (requiresMongoTransactions() && isMongoTransactionFallbackError(error)) {
+        if (requiresMongoTransactions() && (isMongoTransactionFallbackError(error) || (!session && sourceAfter))) {
             throw financialTransactionsUnavailableError(error);
         }
         throw error;
+    } finally {
+        await walletLock.release();
+        await idempotency.release();
     }
 };
 

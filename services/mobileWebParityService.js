@@ -498,7 +498,7 @@ async function getBalanceTransferSource(userId, accountType) {
     return { modelName: 'User', doc: account };
 }
 
-async function lookupBalanceTransfer({ userId, accountType, targetAccountCode }) {
+async function lookupBalanceTransfer({ userId, accountType, targetAccountCode, req = null }) {
     const source = await getBalanceTransferSource(userId, accountType);
     const targetCode = normalizeAccountCode(targetAccountCode);
 
@@ -506,7 +506,7 @@ async function lookupBalanceTransfer({ userId, accountType, targetAccountCode })
         throw new Error('INVALID_ACCOUNT_CODE');
     }
 
-    const target = await resolveAccountByCode(targetCode);
+    const target = await resolveAccountByCode(targetCode, req);
     if (!target) throw new Error('TARGET_NOT_FOUND');
     if (source.doc.status !== 'active') throw new Error('SOURCE_INACTIVE');
     if (target.doc.status !== 'active') throw new Error('TARGET_INACTIVE');
@@ -562,7 +562,10 @@ async function executeBalanceTransferIdempotent({ userId, accountType, targetAcc
             amount,
             notes,
             idempotencyKey,
-            idempotencyFingerprint: fingerprint
+            idempotencyFingerprint: fingerprint,
+            idempotencyLockHeld: true,
+            tenantContext: req,
+            req
         });
 
         return { replayed: false, response: result };

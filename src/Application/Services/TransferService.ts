@@ -32,6 +32,7 @@ const { minimumBalanceForDebit } = require('../../../services/agencyCreditLimitS
 const { requiresMongoTransactions } = require('../../../services/walletService');
 const { resolveAutoRouteExecutor, applyAutoRouteFields, enqueueAutoRouteIfNeeded } = require('../../../services/autoRouteService');
 const { normalizeStoredBank } = require('../../../utils/egyptianBanks');
+const financialSafety = require('../../../services/financialSafety');
 const eventBus = require('../../../services/eventBus');
 import logger from '../../../utils/logger';
 
@@ -105,6 +106,7 @@ export class TransferService {
 
     private buildTransferFingerprint(userId: string, accountType: string, input: ITransferInput): string {
         const clientPhone = input.clientPhone?.trim() || '';
+        const strictBinding = financialSafety.strictIdempotencyBinding();
         const payload = {
             userId: String(userId),
             accountType,
@@ -118,7 +120,9 @@ export class TransferService {
             recipientPhone: input.recipientPhone?.trim() || null,
             governorate: input.governorate?.trim() || null,
             bankName: input.bankName?.trim() || null,
-            ...(clientPhone ? { clientPhone } : {})
+            ...(clientPhone ? { clientPhone } : {}),
+            ...(strictBinding && (input as any).tenantId !== undefined ? { tenantId: String((input as any).tenantId) } : {}),
+            ...(strictBinding && (input as any).accountId !== undefined ? { accountId: String((input as any).accountId) } : {})
         };
         return crypto.createHash('sha256').update(JSON.stringify(payload)).digest('hex');
     }
@@ -309,13 +313,13 @@ export class TransferService {
                 }
             }
 
-            const idempotencyFingerprint = this.buildTransferFingerprint(userId, accountType, {
+            let idempotencyFingerprint = this.buildTransferFingerprint(userId, accountType, {
                 ...transferData,
                 clientPhone
             });
 
             // 1. التحقق من منع التكرار (Idempotency)
-            if (idempotencyKey) {
+            if (!financialSafety.strictIdempotencyBinding() && idempotencyKey) {
                 const existingTx = await Transaction.findOne({ idempotencyKey }).session(session);
                 if (existingTx) {
                     if (existingTx.idempotencyFingerprint === idempotencyFingerprint) {
@@ -347,6 +351,45 @@ export class TransferService {
             }
 
             const { clientDoc, currentRate, companyName, employeeName, TargetModel, targetId, creditLimit, userIdForTx, companyIdForTx } = clientInfo;
+            let transferTenantId: any = undefined;
+            try {
+                transferTenantId = financialSafety.resolveStampTenant({
+                    req,
+                    account: clientInfo.subAccount || clientDoc
+                });
+                if (financialSafety.strictIdempotencyBinding()) {
+                    idempotencyFingerprint = this.buildTransferFingerprint(userId, accountType, {
+                        ...transferData,
+                        clientPhone,
+                        tenantId: transferTenantId ? String(transferTenantId) : '',
+                        accountId: String(targetId)
+                    } as ITransferInput);
+                    if (idempotencyKey) {
+                        const strictExisting = await Transaction.findOne({ idempotencyKey }).session(session);
+                        if (strictExisting) {
+                            if (strictExisting.idempotencyFingerprint === idempotencyFingerprint) {
+                                await abortSession(session);
+                                return this.toReplayResponse(strictExisting);
+                            }
+                            await abortSession(session);
+                            return {
+                                success: false,
+                                statusCode: 409,
+                                code: 'IDEMPOTENCY_CONFLICT',
+                                message: 'مفتاح منع التكرار مستخدم لطلب مختلف'
+                            };
+                        }
+                    }
+                }
+            } catch (tenantError: any) {
+                await abortSession(session);
+                return {
+                    success: false,
+                    statusCode: tenantError.statusCode || 503,
+                    code: tenantError.code || 'TENANT_UNRESOLVED',
+                    message: tenantError.publicMessage || 'تعذر تحديد المنظمة بأمان. لم يتم خصم أي مبلغ.'
+                };
+            }
 
             // 3. محرك الاحتيال وفحص موثوقية الجهاز (Fraud & Device Trust)
             const isTrustedDevice = req.isDeviceTrusted !== undefined ? req.isDeviceTrusted : true;
@@ -436,6 +479,7 @@ export class TransferService {
                 amount
             });
             cooldownLock = cooldown.lock;
+            financialSafety.assertMasterSubPolicy(clientInfo.subAccount, clientInfo.masterObj);
 
             // 6. التحقق من الرصيد والخصم (Multi-Currency Wallet)
             let updatedClient: any;
@@ -587,7 +631,7 @@ export class TransferService {
                 idCardImage: savedIdCardPath,
                 oldReceiptImage: savedOldReceiptPath,
                 executorGroupId: undefined,
-                tenantId: (req && req.tenant) ? req.tenant._id : undefined
+                tenantId: transferTenantId || ((req && req.tenant) ? req.tenant._id : undefined)
             });
             if (autoRouteExecutor) applyAutoRouteFields(newTx, autoRouteExecutor);
 
@@ -608,6 +652,7 @@ export class TransferService {
             if (isSubAccountTx) {
                 // Ledger لنقطة البيع
                 const ledgerSub = new Ledger({
+                    ...(transferTenantId ? { tenantId: transferTenantId } : {}),
                     entityId: clientInfo.subAccount._id,
                     entityModel: 'SubAccount',
                     transactionId: customId,
@@ -623,6 +668,7 @@ export class TransferService {
 
                 // Ledger للرئيسي
                 const ledgerMaster = new Ledger({
+                    ...(transferTenantId ? { tenantId: transferTenantId } : {}),
                     entityId: clientInfo.masterObj._id,
                     entityModel: clientInfo.MasterModel.modelName,
                     transactionId: customId,
@@ -641,6 +687,7 @@ export class TransferService {
                 await ledgerMaster.save({ session });
             } else {
                 const ledgerEntry = new Ledger({
+                    ...(transferTenantId ? { tenantId: transferTenantId } : {}),
                     entityId: targetId, entityModel: TargetModel.modelName, transactionId: customId,
                     type: 'TRANSFER', amount: -costLYD,
                     debitAccount: 'Liabilities:ClientDeposits',
@@ -659,6 +706,7 @@ export class TransferService {
             const lastEvent = await JournalEvent.findOne({ entityId: targetId }).sort({ sequenceNumber: -1 }).session(session);
             const sequenceNumber = lastEvent ? lastEvent.sequenceNumber + 1 : 1;
             const journalEvent = new JournalEvent({
+                ...(transferTenantId ? { tenantId: transferTenantId } : {}),
                 eventType: 'MoneyWithdrawn',
                 entityId: targetId,
                 entityModel: TargetModel.modelName,
@@ -819,6 +867,7 @@ export class TransferService {
 
                 // Ledger لنقاط البيع التابعة
                 const ledgerSub = new Ledger({
+...(tx.tenantId ? { tenantId: tx.tenantId } : {}),
                     entityId: tx.subAccountId,
                     entityModel: 'SubAccount',
                     transactionId: tx.customId,
@@ -836,6 +885,7 @@ export class TransferService {
                 const lastSubEvent = await JournalEvent.findOne({ entityId: tx.subAccountId }).sort({ sequenceNumber: -1 }).session(session);
                 const subSeqNum = lastSubEvent ? lastSubEvent.sequenceNumber + 1 : 1;
                 const subEvent = new JournalEvent({
+...(tx.tenantId ? { tenantId: tx.tenantId } : {}),
                     eventType: 'TransferReversed',
                     entityId: tx.subAccountId,
                     entityModel: 'SubAccount',
@@ -863,6 +913,7 @@ export class TransferService {
 
                 // Ledger للوكيل الرئيسي
                 const ledgerMaster = new Ledger({
+...(tx.tenantId ? { tenantId: tx.tenantId } : {}),
                     entityId: targetId,
                     entityModel: TargetModel.modelName,
                     transactionId: tx.customId,
@@ -880,6 +931,7 @@ export class TransferService {
                 const lastMasterEvent = await JournalEvent.findOne({ entityId: targetId }).sort({ sequenceNumber: -1 }).session(session);
                 const masterSeqNum = lastMasterEvent ? lastMasterEvent.sequenceNumber + 1 : 1;
                 const masterEvent = new JournalEvent({
+...(tx.tenantId ? { tenantId: tx.tenantId } : {}),
                     eventType: 'TransferReversed',
                     entityId: targetId,
                     entityModel: TargetModel.modelName,
@@ -907,6 +959,7 @@ export class TransferService {
 
                 // تسجيل المرتجع في دفتر الأستاذ
                 const ledgerEntry = new Ledger({
+...(tx.tenantId ? { tenantId: tx.tenantId } : {}),
                     entityId: targetId, entityModel: TargetModel.modelName, transactionId: tx.customId,
                     type: 'REFUND', amount: tx.costLYD,
                     debitAccount: 'Assets:Receivables',
@@ -920,6 +973,7 @@ export class TransferService {
                 const lastEvent = await JournalEvent.findOne({ entityId: targetId }).sort({ sequenceNumber: -1 }).session(session);
                 const sequenceNumber = lastEvent ? lastEvent.sequenceNumber + 1 : 1;
                 const journalEvent = new JournalEvent({
+...(tx.tenantId ? { tenantId: tx.tenantId } : {}),
                     eventType: 'TransferReversed',
                     entityId: targetId,
                     entityModel: TargetModel.modelName,

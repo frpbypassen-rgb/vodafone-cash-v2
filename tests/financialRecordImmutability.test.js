@@ -6,6 +6,7 @@ const {
 } = require('../utils/financialRecordImmutability');
 const Ledger = require('../models/Ledger');
 const AgencyJournal = require('../models/AgencyJournal');
+const AuditLog = require('../models/AuditLog');
 
 describe('append-only financial record policy', () => {
     const originalNodeEnv = process.env.NODE_ENV;
@@ -40,6 +41,10 @@ describe('append-only financial record policy', () => {
         await expect(Ledger.deleteMany({ transactionId: 'ATT-TEST' }))
             .rejects.toMatchObject({ code: 'FINANCIAL_RECORD_IMMUTABLE' });
         await expect(AgencyJournal.deleteMany({ transactionId: 'ATT-TEST' }))
+            .rejects.toMatchObject({ code: 'FINANCIAL_RECORD_IMMUTABLE' });
+        await expect(AuditLog.deleteMany({ action: 'TEST' }))
+            .rejects.toMatchObject({ code: 'FINANCIAL_RECORD_IMMUTABLE' });
+        await expect(AuditLog.updateMany({ action: 'TEST' }, { $set: { action: 'CHANGED' } }))
             .rejects.toMatchObject({ code: 'FINANCIAL_RECORD_IMMUTABLE' });
     });
 

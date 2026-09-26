@@ -224,6 +224,7 @@ export class ReversalService {
             }
 
             const subLedger = new Ledger({
+...(tx.tenantId ? { tenantId: tx.tenantId } : {}),
                 entityId: tx.subAccountId,
                 entityModel: 'SubAccount',
                 transactionId: tx.customId,
@@ -241,6 +242,7 @@ export class ReversalService {
             }
 
             const subEvent = new JournalEvent({
+...(tx.tenantId ? { tenantId: tx.tenantId } : {}),
                 eventType: 'TransferReversed',
                 entityId: tx.subAccountId,
                 entityModel: 'SubAccount',
@@ -268,6 +270,7 @@ export class ReversalService {
             }
 
             const masterLedger = new Ledger({
+...(tx.tenantId ? { tenantId: tx.tenantId } : {}),
                 entityId: targetId,
                 entityModel: TargetModel.modelName,
                 transactionId: tx.customId,
@@ -285,6 +288,7 @@ export class ReversalService {
             }
 
             const masterEvent = new JournalEvent({
+...(tx.tenantId ? { tenantId: tx.tenantId } : {}),
                 eventType: 'TransferReversed',
                 entityId: targetId,
                 entityModel: TargetModel.modelName,
@@ -315,6 +319,7 @@ export class ReversalService {
         }
 
         const ledgerEntry = new Ledger({
+...(tx.tenantId ? { tenantId: tx.tenantId } : {}),
             entityId: targetId,
             entityModel: tx.companyId ? 'ClientCompany' : 'User',
             transactionId: tx.customId,
@@ -332,6 +337,7 @@ export class ReversalService {
         }
 
         const refundEvent = new JournalEvent({
+...(tx.tenantId ? { tenantId: tx.tenantId } : {}),
             eventType: 'TransferReversed',
             entityId: targetId,
             entityModel: tx.companyId ? 'ClientCompany' : 'User',
@@ -558,6 +564,7 @@ export class ReversalService {
 
                 // Ledger لنقاط البيع التابعة
                 const ledgerSub = new Ledger({
+...(tx.tenantId ? { tenantId: tx.tenantId } : {}),
                     entityId: tx.subAccountId,
                     entityModel: 'SubAccount',
                     transactionId: tx.customId,
@@ -575,6 +582,7 @@ export class ReversalService {
                 const lastSubEvent = await JournalEvent.findOne({ entityId: tx.subAccountId }).sort({ sequenceNumber: -1 }).session(session);
                 const subSeqNum = lastSubEvent ? lastSubEvent.sequenceNumber + 1 : 1;
                 const subEvent = new JournalEvent({
+...(tx.tenantId ? { tenantId: tx.tenantId } : {}),
                     eventType: 'TransferReversed',
                     entityId: tx.subAccountId,
                     entityModel: 'SubAccount',
@@ -606,6 +614,7 @@ export class ReversalService {
 
                 // Ledger للوكيل الرئيسي
                 const ledgerMaster = new Ledger({
+...(tx.tenantId ? { tenantId: tx.tenantId } : {}),
                     entityId: targetId,
                     entityModel: TargetModel.modelName,
                     transactionId: tx.customId,
@@ -623,6 +632,7 @@ export class ReversalService {
                 const lastMasterEvent = await JournalEvent.findOne({ entityId: targetId }).sort({ sequenceNumber: -1 }).session(session);
                 const masterSeqNum = lastMasterEvent ? lastMasterEvent.sequenceNumber + 1 : 1;
                 const masterEvent = new JournalEvent({
+...(tx.tenantId ? { tenantId: tx.tenantId } : {}),
                     eventType: 'TransferReversed',
                     entityId: targetId,
                     entityModel: TargetModel.modelName,
@@ -658,6 +668,7 @@ export class ReversalService {
 
                 // 3. كتابة قيد عكسي في دفتر الأستاذ (Double-Entry Debit/Credit)
                 const ledgerEntry = new Ledger({
+...(tx.tenantId ? { tenantId: tx.tenantId } : {}),
                     entityId: targetId,
                     entityModel: tx.companyId ? 'ClientCompany' : 'User',
                     transactionId: tx.customId,
@@ -676,6 +687,7 @@ export class ReversalService {
                 const sequenceNumber = lastEvent ? lastEvent.sequenceNumber + 1 : 1;
 
                 const refundEvent = new JournalEvent({
+...(tx.tenantId ? { tenantId: tx.tenantId } : {}),
                     eventType: 'TransferReversed',
                     entityId: targetId,
                     entityModel: tx.companyId ? 'ClientCompany' : 'User',

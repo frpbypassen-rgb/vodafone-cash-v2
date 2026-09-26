@@ -101,14 +101,14 @@ const acquireLock = async (key, ttlMs = 5000, options = {}) => {
                 return lock;
             }
         } catch (err) {
-            if (isRedisRequired()) {
+            if (isRedisRequired() && !options.allowMemoryFallback) {
                 logger.error('CRITICAL: Redlock acquisition failed in production!', { key, error: err.message });
                 throw new Error('REDIS_LOCK_FAILED: Failed to acquire distributed lock in production');
             }
             warnAboutMemoryFallback('Redlock acquisition failed, using in-memory locks', { key, error: err.message });
         }
     } else {
-        if (isRedisRequired()) {
+        if (isRedisRequired() && !options.allowMemoryFallback) {
             logger.error('CRITICAL: Redis is not configured but running in production!');
             throw new Error('REDIS_NOT_CONFIGURED: Redis is mandatory in production mode');
         }

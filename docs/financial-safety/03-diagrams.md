@@ -1,0 +1,44 @@
+# مخطط حركة المال
+
+## قبل التعديل
+
+```mermaid
+flowchart TD
+  web["نموذج الويب /client/transfer أو /balance-transfer"] --> ctrl["المتحكم"]
+  mobile["تطبيق الموبايل"] --> ts["TransferService"]
+  ctrl --> lookup["resolveAccountByCode بلا منظمة"]
+  lookup --> any["أي حساب بنفس الكود في كل المنظمات"]
+  ctrl --> debit["خصم الرصيد"]
+  debit --> tx["Transaction و Ledger"]
+  tx --> audit["AuditLog خارج الجلسة ثم commit"]
+  ts --> debit2["خصم"]
+  debit2 --> books["Transaction و Ledger و JournalEvent"]
+  books --> audit2["AuditLog بعد commit"]
+```
+
+إعادة إرسال نموذج الويب بلا مفتاح يمكن أن تخصم مرة ثانية. بحث الكود لا يتوقف عند حد المنظمة.
+
+## بعد التعديل والأعلام مطفأة
+
+مع كل الأعلام مطفأة لا يُفرض منع التكرار ولا قفل المحفظة الجديد ولا إدخال التدقيق في الجلسة. المخطط التالي هو السلوك بعد تشغيل `FINANCIAL_IDEMPOTENCY_ENABLED` و`FINANCIAL_AUDIT_IN_TRANSACTION` و`FINANCIAL_REDIS_FAIL_CLOSED`. جدول ما يبقى فعالًا بلا أعلام في `07-active-without-flags.md`.
+
+## بعد تشغيل أعلام المنع والقفل والتدقيق
+
+```mermaid
+flowchart TD
+  form["النموذج يولد Idempotency-Key ويبقيه حتى النتيجة"] --> guard["resolveStampTenant من req.tenantId فقط"]
+  guard --> key{"المفتاح موجود؟"}
+  key -->|لا| current["السلوك الحالي: لا رفض"]
+  key -->|نعم ونفس البصمة| replay["إرجاع النتيجة المخزنة بلا خصم"]
+  key -->|نعم وبصمة مختلفة| conflict["409 بلا خصم"]
+  key -->|جديد| lock["قفل Redis إن كان مطلوبًا وإلا ذاكرة العملية"]
+  lock --> mongo{"جلسة Mongo متاحة أو غير مطلوبة؟"}
+  mongo -->|مطلوبة وغير متاحة| stop["503 قبل الخصم"]
+  lock -->|فشل Redis في الإنتاج| stop2["503 قبل الخصم"]
+  mongo -->|نعم| txn["معاملة واحدة: خصم وإضافة وTransaction وLedger وتدقيق"]
+  txn --> commit["commit ثم فك قفل سلسلة التدقيق"]
+```
+
+بوابة المنظمة لا تُضاف في `TENANT_MODE=single` حتى لو كان `FINANCIAL_TENANT_GUARD=true`. شركة↔وكيل يبقى مسموحًا. البوابة مستقبلًا لوضع `multi` فقط: عندها يجب أن تطابق منظمة الطلب حساب الخصم بعد معاملة `tenantId` الفارغ كـ `DEFAULT_TENANT_ID`.
+
+إلغاء العملية ينشئ قيد `REFUND` أو `REVERSAL` ولا يعدّل القيد الأصلي. الإلغاء الثاني لا يضيف رصيدًا مرة أخرى.
