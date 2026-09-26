@@ -60,11 +60,32 @@ jest.mock('../models/SubAccount', () => {
     return M;
 });
 
-jest.mock('../models/MobileDeviceSession', () => ({
-    create: jest.fn().mockResolvedValue({ _id: 'device-session-id' }),
-    findOne: jest.fn(),
-    updateOne: jest.fn().mockResolvedValue({ modifiedCount: 1 }),
-    updateMany: jest.fn().mockResolvedValue({ modifiedCount: 1 })
+jest.mock('../models/MobileDeviceSession', () => {
+    const activeSessionsQuery = () => {
+        const query = {
+            sort: jest.fn(() => query),
+            select: jest.fn(() => query),
+            lean: jest.fn().mockResolvedValue([])
+        };
+        return query;
+    };
+    return {
+        create: jest.fn().mockResolvedValue({ _id: 'device-session-id' }),
+        find: jest.fn(() => activeSessionsQuery()),
+        findOne: jest.fn(),
+        updateOne: jest.fn().mockResolvedValue({ modifiedCount: 1 }),
+        updateMany: jest.fn().mockResolvedValue({ modifiedCount: 1 })
+    };
+});
+
+// Executor login loads the group policy before issuing a token (c929de06).
+// This contract fixture is a legacy botId-only employee, so the lookup misses
+// and the existing botId fallback still builds the context DTO.
+jest.mock('../models/ExecutorGroup', () => ({
+    findById: jest.fn(() => ({
+        lean: jest.fn().mockResolvedValue(null)
+    })),
+    modelName: 'ExecutorGroup'
 }));
 
 jest.mock('../models/Settings', () => ({

@@ -182,7 +182,7 @@ const clientDocumentUpload = multer({
             callback(null, `client-document-${crypto.randomUUID()}${extension}`);
         }
     }),
-    limits: { fileSize: 5 * 1024 * 1024, files: 1 },
+    limits: { fileSize: 5 * 1024 * 1024, files: 1, fieldArrayIndexLimit: 16 },
     fileFilter: (_req, file, callback) => {
         const allowed = new Set(['image/jpeg', 'image/jpg', 'image/png', 'image/webp']);
         if (!allowed.has(file.mimetype)) return callback(new Error('INVALID_DOCUMENT_TYPE'));

@@ -55,7 +55,7 @@ const { loadAllocatedByGroupIds } = require('../services/executorBalancePoolServ
 
 const adminDepositUpload = multer({
     storage: multer.memoryStorage(),
-    limits: { files: 5, fileSize: 5 * 1024 * 1024 },
+    limits: { files: 5, fileSize: 5 * 1024 * 1024, fieldArrayIndexLimit: 16 },
     fileFilter: (_req, file, callback) => callback(null, /^image\/(jpeg|png|webp)$/i.test(file.mimetype || ''))
 });
 
