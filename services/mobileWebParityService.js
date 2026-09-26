@@ -89,6 +89,7 @@ const presentClientReportTransaction = (transaction = {}) => {
         ...sanitized,
         receiptUrl: receipts.receiptImages[0]?.url || null,
         receiptImages: receipts.receiptImages,
+        ...(receipts.partProofs ? { partProofs: receipts.partProofs } : {}),
         hasProof: receipts.hasProof,
         // تعرض أرقام التنفيذ فقط عند تعددها؛ لا تعرض أي اسم أو رصيد أو بيانات
         // داخلية تخص شركة التنفيذ.
@@ -942,6 +943,14 @@ async function executeZaynPayIdempotent({ executorId, taskId, req }) {
             return { replayed: true, response: existingTx.zaynpayIdempotencyResponse };
         }
         throw new Error('IDEMPOTENCY_CONFLICT');
+    }
+
+    const { directProviderExecutionBlock } = require('../utils/runtimeControls');
+    const blocked = directProviderExecutionBlock();
+    if (blocked) {
+        const error = new Error(blocked.message);
+        error.code = blocked.code;
+        throw error;
     }
 
     const lockKey = `idemp:${idempotencyKey}`;

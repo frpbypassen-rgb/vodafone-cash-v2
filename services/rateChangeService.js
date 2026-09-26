@@ -15,6 +15,7 @@ const {
     formatDelay,
     buildRateAlertAudience
 } = require('./rateAlerts/rateAlertAudienceService');
+const { isFinancialSchedulersEnabled } = require('../utils/runtimeControls');
 
 const RATE_CHANGE_MONITOR_INTERVAL_MS = 5 * 1000;
 let activationTimer = null;
@@ -80,6 +81,7 @@ const activatePendingRateUpdate = async ({ app } = {}) => {
 };
 
 const armPendingRateActivation = ({ app, effectiveAt }) => {
+    if (!isFinancialSchedulersEnabled()) return null;
     if (activationTimer) clearTimeout(activationTimer);
     const delay = Math.max(0, new Date(effectiveAt).getTime() - Date.now());
     activationTimer = setTimeout(() => {
@@ -158,6 +160,7 @@ const scheduleRateUpdate = async ({ settings, changes, actor, app, delaySeconds 
 };
 
 const restorePendingRateActivation = async ({ app } = {}) => {
+    if (!isFinancialSchedulersEnabled()) return null;
     const settings = await Settings.findOne({}).lean();
     const effectiveAt = settings?.pendingRateUpdate?.effectiveAt;
     if (!effectiveAt) return null;
@@ -171,6 +174,7 @@ const restorePendingRateActivation = async ({ app } = {}) => {
 };
 
 const startRateChangeActivationMonitor = ({ app } = {}) => {
+    if (!isFinancialSchedulersEnabled()) return null;
     if (activationMonitor) return activationMonitor;
     activationMonitor = setInterval(() => {
         activatePendingRateUpdate({ app }).catch((error) => {

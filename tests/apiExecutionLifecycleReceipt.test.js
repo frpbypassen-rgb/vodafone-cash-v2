@@ -1,6 +1,12 @@
 'use strict';
 
-jest.mock('../models/Transaction', () => ({ findById: jest.fn() }));
+jest.mock('../models/Transaction', () => ({
+    findById: jest.fn(),
+    countDocuments: jest.fn(),
+    findOneAndUpdate: jest.fn(),
+    updateOne: jest.fn()
+}));
+jest.mock('axios', () => ({ post: jest.fn(), get: jest.fn() }));
 jest.mock('../models/ExecutorGroup', () => ({ findById: jest.fn() }));
 jest.mock('../services/walletService', () => ({ updateBalanceWithLedger: jest.fn() }));
 jest.mock('../services/eventBus', () => ({ publish: jest.fn() }));
@@ -12,15 +18,18 @@ jest.mock('../services/proofStorageService', () => ({
     saveProofImage: jest.fn(() => 'proofs/system-api-receipt.jpg')
 }));
 
+const mongoose = require('mongoose');
 const Transaction = require('../models/Transaction');
 const ExecutorGroup = require('../models/ExecutorGroup');
 const { updateBalanceWithLedger } = require('../services/walletService');
 const eventBus = require('../services/eventBus');
 const { generateExecutorReceiptBase64 } = require('../utils/manualExecutorReceipt');
 const { saveProofImage } = require('../services/proofStorageService');
+const axios = require('axios');
 const {
     completeApiTransactionWithReference,
-    completeApiTransaction
+    completeApiTransaction,
+    warnProviderPaidAwaitingCompletion
 } = require('../services/apiExecutionLifecycleService');
 
 const createTransaction = (overrides = {}) => ({
@@ -39,9 +48,32 @@ const createTransaction = (overrides = {}) => ({
 const executorGroup = { _id: 'group-1', name: 'API Executor', parentGroupId: 'manager-1' };
 
 describe('API executor receipt lifecycle', () => {
+    afterEach(() => {
+        jest.restoreAllMocks();
+    });
+
     beforeEach(() => {
         jest.clearAllMocks();
+        delete process.env.FINANCIAL_SCHEDULERS_ENABLED;
         updateBalanceWithLedger.mockResolvedValue({ balanceAfter: 4000 });
+        jest.spyOn(mongoose, 'startSession').mockResolvedValue({
+            withTransaction: async (work) => work(),
+            endSession: jest.fn()
+        });
+        Transaction.findOneAndUpdate.mockImplementation(async () => {
+            const results = Transaction.findById.mock.results;
+            if (!results.length) return null;
+            const tx = await results[results.length - 1].value;
+            if (!tx || tx.status !== 'processing' || tx.apiResultData?.waitingApiAutoCompletion !== true) {
+                return null;
+            }
+            tx.apiResultData = {
+                ...tx.apiResultData,
+                waitingApiAutoCompletion: false,
+                completionClaimedAt: new Date()
+            };
+            return tx;
+        });
     });
 
     test('stores the system receipt first and preserves the provider receipt', async () => {
@@ -94,6 +126,63 @@ describe('API executor receipt lifecycle', () => {
             'proofs/provider-delayed.jpg'
         ]);
         expect(eventBus.publish).toHaveBeenCalledWith('transfer:completed', expect.any(Object));
+    });
+
+    test('leaves a provider-paid row unchanged while schedulers are off and completes it once when they are on', async () => {
+        process.env.FINANCIAL_SCHEDULERS_ENABLED = 'false';
+        const tx = createTransaction({
+            executorGroupId: 'group-1',
+            apiResultData: {
+                waitingApiAutoCompletion: true,
+                referenceNumber: 'REF-9900',
+                externalTransactionId: 'PROV-9900'
+            }
+        });
+        Transaction.findById.mockResolvedValue(tx);
+        ExecutorGroup.findById.mockResolvedValue(executorGroup);
+        Transaction.countDocuments.mockResolvedValue(1);
+        const log = { warn: jest.fn() };
+
+        await expect(warnProviderPaidAwaitingCompletion(log)).resolves.toBe(1);
+        expect(log.warn).toHaveBeenCalledWith(expect.stringContaining('Provider-paid transactions awaiting local completion: 1'));
+        await expect(completeApiTransaction('tx-1', 'group-1')).resolves.toEqual({
+            completed: false,
+            reason: 'financial_schedulers_disabled'
+        });
+        expect(updateBalanceWithLedger).not.toHaveBeenCalled();
+        expect(tx.save).not.toHaveBeenCalled();
+        expect(tx.status).toBe('processing');
+        expect(axios.post).not.toHaveBeenCalled();
+
+        process.env.FINANCIAL_SCHEDULERS_ENABLED = 'true';
+        await expect(completeApiTransaction('tx-1', 'group-1')).resolves.toEqual({ completed: true });
+        await expect(completeApiTransaction('tx-1', 'group-1')).resolves.toEqual({
+            completed: false,
+            reason: 'invalid_status:completed'
+        });
+        expect(updateBalanceWithLedger).toHaveBeenCalledTimes(1);
+        expect(axios.post).not.toHaveBeenCalled();
+        delete process.env.FINANCIAL_SCHEDULERS_ENABLED;
+    });
+
+    test('the provider-paid listing is a read', async () => {
+        const { listProviderPaidAwaitingCompletion } = require('../scripts/listProviderPaidAwaitingCompletion');
+        const query = {
+            select: jest.fn().mockReturnThis(),
+            lean: jest.fn().mockResolvedValue([{ customId: 'ATT-1' }])
+        };
+        const model = {
+            find: jest.fn(() => query),
+            updateOne: jest.fn(),
+            deleteMany: jest.fn()
+        };
+        await expect(listProviderPaidAwaitingCompletion(model)).resolves.toEqual([{ customId: 'ATT-1' }]);
+        expect(model.find).toHaveBeenCalledWith(expect.objectContaining({
+            status: 'processing',
+            'apiResultData.waitingApiAutoCompletion': true
+        }));
+        expect(model.updateOne).not.toHaveBeenCalled();
+        expect(model.deleteMany).not.toHaveBeenCalled();
     });
 
     test('uses the Sefa service and currency labels for an API Sefa receipt', async () => {

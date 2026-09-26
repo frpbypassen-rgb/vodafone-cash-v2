@@ -6,7 +6,9 @@ jest.mock('../models/Employee', () => ({
 }));
 
 jest.mock('../models/Transaction', () => ({
-    find: jest.fn()
+    find: jest.fn(),
+    findOne: jest.fn(),
+    findById: jest.fn()
 }));
 
 jest.mock('../models/MobilePushDevice', () => ({
@@ -34,7 +36,8 @@ const ExecutorBalancePool = require('../models/ExecutorBalancePool');
 const ExecutorGroup = require('../models/ExecutorGroup');
 const {
     getEmployeesWorkspace,
-    deleteEmployee
+    deleteEmployee,
+    executeZaynPayIdempotent
 } = require('../services/mobileWebParityService');
 
 const sortedLean = (value) => ({
@@ -46,6 +49,7 @@ const sortedLean = (value) => ({
 describe('executor employee workspace', () => {
     beforeEach(() => {
         jest.clearAllMocks();
+        delete process.env.EXTERNAL_API_ENABLED;
         mockLogAction.mockResolvedValue(undefined);
         ExecutorBalancePool.find.mockReturnValue({
             select: jest.fn().mockReturnValue({
@@ -239,5 +243,31 @@ describe('executor employee workspace', () => {
             action: 'USER_ARCHIVED',
             targetId: 'operator-1'
         }));
+    });
+
+    test('refuses a new mobile ZaynPay execution before a provider call or a save', async () => {
+        process.env.EXTERNAL_API_ENABLED = 'false';
+        const tx = {
+            status: 'accepted',
+            operatorId: 'emp-1',
+            executorGroupId: 'group-1',
+            amount: 25,
+            vodafoneNumber: '01000000000',
+            save: jest.fn()
+        };
+        Transaction.findOne.mockResolvedValue(null);
+        Transaction.findById.mockResolvedValue(tx);
+
+        await expect(executeZaynPayIdempotent({
+            executorId: 'emp-1',
+            taskId: 'tx-1',
+            req: { headers: { 'idempotency-key': 'new-pay' }, body: {}, method: 'POST', path: '/execute' }
+        })).rejects.toMatchObject({ code: 'API_EXECUTION_UNAVAILABLE' });
+
+        delete process.env.EXTERNAL_API_ENABLED;
+        expect(Transaction.findById).not.toHaveBeenCalled();
+        expect(tx.save).not.toHaveBeenCalled();
+        expect(tx.status).toBe('accepted');
+        expect(mockLogAction).not.toHaveBeenCalled();
     });
 });

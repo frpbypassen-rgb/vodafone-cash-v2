@@ -424,6 +424,155 @@ const sendTransactionReceipt = async (transactionInput, {
     }
 };
 
+const safePartSendError = (error) => {
+    const message = String(error?.message || 'تعذر إرسال إثبات الجزء.');
+    if (/bearer|token|secret|authorization|cookie|api[_-]?key/i.test(message)) return 'تعذر إرسال إثبات الجزء.';
+    return message.slice(0, 300);
+};
+
+const sendSplitPartReceipt = async ({
+    transactionId,
+    partId,
+    partKey,
+    amount,
+    confirmedAt,
+    reference
+} = {}) => {
+    const id = String(transactionId || '').trim();
+    const key = String(partKey || '').trim();
+    const safePartId = String(partId || '').trim();
+    if (!id || !key || !safePartId) {
+        return { success: false, code: 'PART_PROOF_IDENTITY_REQUIRED', message: 'تعذر تحديد جزء الإثبات.' };
+    }
+
+    let lock;
+    try {
+        lock = await acquireLock(`whatsapp-part-receipt:${key}`, 30000, { retryCount: 1, retryDelay: 25 });
+    } catch (_error) {
+        return { success: false, code: 'RECEIPT_DELIVERY_BUSY', message: 'إرسال إثبات الجزء قيد المعالجة بالفعل.' };
+    }
+
+    try {
+        const transaction = await Transaction.findById(id);
+        if (!transaction || transaction.status !== 'completed') {
+            return { success: false, code: 'RECEIPT_NOT_AVAILABLE', message: 'إثبات الجزء متاح بعد حفظ نجاح الجزء فقط.' };
+        }
+
+        const entry = (transaction.executorSenderEntries || []).find((item) => String(item?.partId || '') === safePartId);
+        const resolvedIndex = getClientReceiptProofIds(transaction).indexOf(String(entry?.customerProof?.imageId || ''));
+        if (!entry || entry.status !== 'success' || resolvedIndex < 0) {
+            return { success: false, code: 'RECEIPT_PROOF_MISSING', message: 'لم يتم حفظ صورة إثبات هذا الجزء.' };
+        }
+
+        const configuration = getWhatChimpConfigurationStatus();
+        if (!configuration.receiptReady) {
+            return {
+                success: false,
+                code: 'WHATCHIMP_RECEIPT_NOT_READY',
+                message: 'إعداد قالب إيصال WhatChimp غير مكتمل.',
+                missing: configuration.missing
+            };
+        }
+
+        const recipient = await resolveReceiptRecipient(transaction);
+        if (!recipient?.phone) {
+            return { success: false, code: 'RECEIPT_RECIPIENT_MISSING', message: 'لا يوجد رقم واتساب صالح لصاحب العملية.' };
+        }
+
+        let normalizedPhone;
+        try {
+            normalizedPhone = normalizeWhatsAppPhone(recipient.phone);
+        } catch (error) {
+            return { success: false, code: error.code || 'WHATSAPP_PHONE_INVALID', message: error.message };
+        }
+
+        const existing = await WhatsAppDelivery.findOne({
+            kind: 'part_receipt',
+            transactionId: transaction._id,
+            'metadata.partKey': key
+        });
+        if (existing && RECEIPT_DELIVERY_STATUSES.has(existing.status)) {
+            return {
+                success: true,
+                duplicate: true,
+                code: 'PART_PROOF_ALREADY_SENT',
+                messageId: existing.messageId || null
+            };
+        }
+
+        const receiptUrl = createReceiptImageUrl({ transactionId: transaction._id, index: resolvedIndex });
+        if (!receiptUrl) {
+            return {
+                success: false,
+                code: 'RECEIPT_PUBLIC_URL_UNAVAILABLE',
+                message: 'أضف PUBLIC_APP_URL و RECEIPT_SHARE_SECRET لإرسال إيصالات واتساب.'
+            };
+        }
+
+        const delivery = existing || new WhatsAppDelivery({
+            kind: 'part_receipt',
+            transactionId: transaction._id,
+            recipientPhone: normalizedPhone,
+            metadata: { partKey: key }
+        });
+        applyReceiptDeliveryIdentity(delivery, transaction, recipient);
+        delivery.templateName = configuration.receiptTemplate || '';
+        delivery.templateId = configuration.receiptMediaTemplateId || '';
+        delivery.status = 'sending';
+        delivery.failureCode = '';
+        delivery.failureReason = '';
+        delivery.reference = reference || `${transaction.customId || ''}:${safePartId}`;
+        delivery.metadata = {
+            ...(delivery.metadata || {}),
+            partKey: key,
+            partId: safePartId,
+            receiptUrl,
+            proofIndex: resolvedIndex,
+            recipientSource: recipient.source || 'account'
+        };
+        await saveDelivery(delivery);
+
+        const stored = await WhatsAppDelivery.findOne({
+            kind: 'part_receipt',
+            transactionId: transaction._id,
+            'metadata.partKey': key
+        });
+        if (stored && String(stored._id) !== String(delivery._id) && RECEIPT_DELIVERY_STATUSES.has(stored.status)) {
+            return { success: true, duplicate: true, code: 'PART_PROOF_ALREADY_SENT', messageId: stored.messageId || null };
+        }
+
+        const result = await sendReceipt({
+            phone: normalizedPhone,
+            accountName: formatClientReceiptAccountName(
+                transaction,
+                recipient.name || transaction.employeeName || transaction.companyName || ''
+            ),
+            reference: reference || `${transaction.customId || transaction._id}:${safePartId}`,
+            amount: formatReceiptAmount(amount),
+            currency: receiptCurrency(transaction),
+            completedAt: confirmedAt || transaction.completedAt || new Date(),
+            receiptUrl
+        });
+
+        delivery.status = result.success ? 'sent' : 'failed';
+        delivery.messageId = result.messageId || '';
+        delivery.failureCode = result.success ? '' : (result.code || 'WHATCHIMP_REQUEST_FAILED');
+        delivery.failureReason = result.success ? '' : String(result.message || 'تعذر إرسال إثبات الجزء.').slice(0, 1000);
+        delivery.sentAt = result.success ? new Date() : undefined;
+        await saveDelivery(delivery);
+        await logReceiptDelivery({ success: result.success, transaction, recipient, result });
+        return { ...result, duplicate: false, partId: safePartId };
+    } catch (error) {
+        return {
+            success: false,
+            code: 'PART_PROOF_SEND_FAILED',
+            message: safePartSendError(error)
+        };
+    } finally {
+        await releaseLock(lock);
+    }
+};
+
 const sendCompletedTransactionReceipt = (transactionInput) => sendTransactionReceipt(transactionInput, {
     allowedStatuses: new Set(['completed']),
     unavailableMessage: 'الإيصال متاح للعمليات الناجحة فقط.',
@@ -531,6 +680,7 @@ module.exports = {
     findCompanyTransferSender,
     findCompanyManager,
     sendCompletedTransactionReceipt,
+    sendSplitPartReceipt,
     sendCancelledTransactionReceipt,
     updateReceiptDeliveryProviderStatus,
     recordWhatsAppDeliveryAttempt,

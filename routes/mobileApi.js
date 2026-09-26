@@ -92,6 +92,7 @@ const {
     ExecutorSenderEntriesError,
     normalizeExecutorSenderEntries
 } = require('../utils/executorSenderEntries');
+const { describeSplitPartProofs, preparePersistedSenderEntries } = require('../utils/splitPartProofs');
 const {
     ManualExecutionNumberError,
     maskManualExecutionNumber,
@@ -2456,11 +2457,12 @@ router.post('/executor/complete-task/:id', authenticateJWT, completeTaskValidato
         if (!bankTransfer && manualPolicy.proofRequired && uploadedImages.length === 0 && senderEntries.every((entry) => !entry.proofImage)) {
             return sendMobileError(res, 400, 'PROOF_REQUIRED', 'إرفاق صورة الإثبات إجباري لهذا المنفذ.', req.correlationId);
         }
-        const executorReceipt = bankTransfer
+        const splitCompletion = !bankTransfer && senderEntries.length > 1;
+        const executorReceipt = bankTransfer || splitCompletion
             ? null
             : await reserveManualExecutorReceiptReference({ group: emp.groupId });
         const completedAt = new Date();
-        const systemReceiptId = bankTransfer
+        const systemReceiptId = bankTransfer || splitCompletion
             ? null
             : saveProofImage(await generateManualExecutorReceiptBase64({
                 amount: tx.amount,
@@ -2485,8 +2487,16 @@ router.post('/executor/complete-task/:id', authenticateJWT, completeTaskValidato
         const savedFileIds = uploadedImages.map((image, index) => (
             saveProofImage(image, `${tx.customId || tx._id}_${bankTransfer ? 'bank_proof' : 'executor'}_${index + 1}`)
         ));
-        const clientProofId = bankTransfer ? savedFileIds[0] : systemReceiptId;
+        const clientProofId = bankTransfer ? savedFileIds[0] : (splitCompletion ? null : systemReceiptId);
         const privateProofIds = bankTransfer ? savedFileIds.slice(1) : savedFileIds;
+        const persistedSenderEntries = bankTransfer
+            ? []
+            : preparePersistedSenderEntries({
+                transactionId: tx._id,
+                entries: senderEntries,
+                completedAt,
+                requestedEntries: Array.isArray(requestedSenderEntries) ? requestedSenderEntries : []
+            });
 
         tx.status = 'completed';
         tx.proofImages = clientProofId ? [clientProofId] : [];
@@ -2494,15 +2504,17 @@ router.post('/executor/complete-task/:id', authenticateJWT, completeTaskValidato
         tx.executorProofImages = privateProofIds;
         tx.executorExecutionNumber = bankTransfer ? undefined : (executionNumber || undefined);
         tx.executorSenderPhone = bankTransfer ? undefined : (senderEntries[0]?.phone || undefined);
-        tx.executorSenderEntries = bankTransfer ? [] : senderEntries;
+        tx.executorSenderEntries = persistedSenderEntries;
         tx.executorExecutionNumberMasked = bankTransfer ? undefined : (maskedExecutionNumber || undefined);
-        tx.manualExecutorReceiptReference = bankTransfer ? undefined : executorReceipt.reference;
+        tx.manualExecutorReceiptReference = bankTransfer || splitCompletion ? undefined : executorReceipt.reference;
         tx.completedAt = completedAt;
         tx.adminNotes = appendAdminNoteText(
             tx.adminNotes,
             bankTransfer
                 ? BANK_TRANSFER_PROOF_NOTE
-                : `[تم توليد إيصال تنفيذ يدوي | مرجع المنفذ: ${executorReceipt.reference}]`
+                : (splitCompletion
+                    ? '[تم تسجيل أجزاء التنفيذ لإصدار إثبات مستقل لكل جزء ناجح]'
+                    : `[تم توليد إيصال تنفيذ يدوي | مرجع المنفذ: ${executorReceipt.reference}]`)
         );
         await tx.save();
 
@@ -2520,8 +2532,8 @@ router.post('/executor/complete-task/:id', authenticateJWT, completeTaskValidato
                 hasProofImage: bankTransfer ? Boolean(clientProofId) : savedFileIds.length > 0,
                 proofCount: tx.proofImages.length,
                 executorProofCount: privateProofIds.length,
-                proofSource: bankTransfer ? 'bank-transfer-executor-upload' : 'system-generated',
-                manualExecutorReceiptReference: bankTransfer ? null : executorReceipt.reference,
+                proofSource: bankTransfer ? 'bank-transfer-executor-upload' : (splitCompletion ? 'split-part-proofs' : 'system-generated'),
+                manualExecutorReceiptReference: bankTransfer || splitCompletion ? null : executorReceipt.reference,
                 executorExecutionNumberMasked: bankTransfer ? null : (maskedExecutionNumber || null)
             },
             metadata: { customId: tx.customId, amount: tx.amount, transferType: tx.transferType }
@@ -2535,10 +2547,46 @@ router.post('/executor/complete-task/:id', authenticateJWT, completeTaskValidato
             success: true,
             message: bankTransfer
                 ? 'تم إرسال إثبات التحويل البنكي للعميل.'
-                : 'تم إرسال الإثبات بنجاح'
+                : (splitCompletion ? 'تم حفظ التنفيذ وسيصل إثبات كل جزء ناجح بشكل مستقل.' : 'تم إرسال الإثبات بنجاح')
         });
     } catch (e) {
         return sendServerError(res, req, 'خطأ في السيرفر');
+    }
+});
+
+router.post('/executor/retry-part-proof/:id/:partId', authenticateJWT, async (req, res) => {
+    try {
+        const { userId, accountType } = req.user;
+        if (accountType !== 'executor') {
+            return sendMobileError(res, 403, 'FORBIDDEN', 'صلاحيات غير كافية', req.correlationId);
+        }
+        const empQuery = { _id: userId };
+        if (req.tenant) empQuery.tenantId = req.tenant._id;
+        const employeeRecord = await Employee.findOne(empQuery);
+        const emp = executorWithSessionGroup(employeeRecord, req.user.executorGroupId);
+        if (!emp) {
+            return sendMobileError(res, 404, 'EMPLOYEE_NOT_FOUND', 'لم يتم العثور على حساب المنفذ', req.correlationId);
+        }
+        const txQuery = { _id: req.params.id };
+        if (req.tenant) txQuery.tenantId = req.tenant._id;
+        const tx = await Transaction.findOne(txQuery);
+        if (!tx) return sendMobileError(res, 404, 'NOT_FOUND', 'العملية غير موجودة', req.correlationId);
+        const employeeGroupId = String(emp.groupId?._id || emp.groupId || '');
+        const ownsTask = String(tx.executorGroupId || '') === employeeGroupId
+            || String(tx.managerGroupId || '') === employeeGroupId;
+        if (!ownsTask) return sendMobileError(res, 403, 'FORBIDDEN', 'صلاحيات غير كافية', req.correlationId);
+
+        const { retrySplitPartProof } = require('../services/splitPartProofService');
+        const result = await retrySplitPartProof(tx._id, req.params.partId);
+        return res.status(result.ok ? 200 : 409).json({
+            success: Boolean(result.ok),
+            code: result.code,
+            partId: result.partId,
+            proofStatus: result.proofStatus || null,
+            duplicate: Boolean(result.duplicate)
+        });
+    } catch (e) {
+        return sendServerError(res, req, 'تعذر إعادة إرسال إثبات الجزء');
     }
 });
 
@@ -3144,13 +3192,31 @@ router.get('/client/transactions/:id', authenticateJWT, async (req, res) => {
                 notes: customerFacingNotes(customerNoteFromTransaction(tx)),
                 cancellationNumber: tx.cancellationNumber || null,
                 cancellationReason: tx.cancellationReason || null,
-                hasProofImage: !!(tx.proofImage || (tx.proofImages && tx.proofImages.length > 0)),
+                hasProofImage: getClientReceiptProofIds(tx).length > 0,
                 // Keep the detail response consistent with the transaction list.
                 // This is also the official cancellation receipt when the operation
                 // was rejected or cancelled by the administration.
-                receiptUrl: (tx.proofImage || (tx.proofImages && tx.proofImages.length > 0))
+                receiptUrl: getClientReceiptProofIds(tx).length
                     ? createReceiptImageUrl({ transactionId: tx._id, index: 0 })
-                    : null
+                    : null,
+                ...(describeSplitPartProofs(tx).length ? {
+                    partProofs: describeSplitPartProofs(tx).map((part) => ({
+                        partId: part.partId,
+                        amount: part.amount,
+                        senderWallet: part.senderWallet,
+                        recipient: part.recipient,
+                        reference: part.reference,
+                        partReference: part.partReference,
+                        status: part.status,
+                        confirmedAt: part.confirmedAt,
+                        proofStatus: part.proofStatus,
+                        proofAvailable: part.proofAvailable,
+                        receiptIndex: part.receiptIndex,
+                        receiptUrl: part.proofAvailable
+                            ? createReceiptImageUrl({ transactionId: tx._id, index: part.receiptIndex })
+                            : null
+                    }))
+                } : {})
             }
         });
     } catch (e) {

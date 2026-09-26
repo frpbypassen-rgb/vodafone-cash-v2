@@ -359,6 +359,20 @@
             const theme = localStorage.getItem('ahram_theme') || 'light';
             document.getElementById('themeIcon').className = theme === 'dark' ? 'fa-solid fa-sun text-warning' : 'fa-solid fa-moon text-dark';
         });
+        document.addEventListener('click', async (event) => {
+            const button = event.target.closest('.retry-part-proof');
+            if (!button) return;
+            button.disabled = true;
+            try {
+                const response = await executorApiFetch(`/executor-portal/api/retry-part-proof/${button.dataset.tx}/${encodeURIComponent(button.dataset.part)}`, { method: 'POST' });
+                const data = await response.json().catch(() => ({}));
+                if (!response.ok || data.success === false) throw new Error(data.error || 'تعذر إعادة إرسال الإثبات.');
+                button.textContent = data.duplicate ? 'الإثبات مُرسل مسبقاً' : 'تمت إعادة الإرسال';
+            } catch (error) {
+                button.disabled = false;
+                button.textContent = error.message || 'تعذر إعادة الإرسال';
+            }
+        });
 
         const TRIPOLI_TZ = 'Africa/Tripoli';
 
@@ -735,6 +749,11 @@
                                 <div class="fw-bold mb-1">مرسل #${index + 1}</div>
                                 <div><label>رقم الهاتف</label><span dir="ltr">${entry.phone || '---'}</span></div>
                                 <div><label>المبلغ</label><span>${formatEgp(entry.amount || 0)}</span></div>
+                                ${entry.partId ? `<div><label>مرجع الجزء</label><span dir="ltr">${entry.reference || entry.partId}</span></div>` : ''}
+                                ${entry.status ? `<div><label>حالة الجزء</label><span>${entry.status}</span></div>` : ''}
+                                ${entry.customerProofStatus ? `<div><label>حالة الإثبات</label><span>${entry.customerProofStatus}</span></div>` : ''}
+                                ${entry.customerProofUrl ? `<div class="mt-2"><a href="${entry.customerProofUrl}" target="_blank"><img src="${entry.customerProofUrl}" alt="إثبات الجزء" style="max-height:120px;border-radius:10px;border:1px solid var(--x-border)"></a></div>` : ''}
+                                ${entry.partId && entry.customerProofStatus && entry.customerProofStatus !== 'sent' ? `<button type="button" class="btn btn-sm btn-outline-warning mt-2 retry-part-proof" data-tx="${tx.id}" data-part="${entry.partId}">إعادة إرسال إثبات الجزء</button>` : ''}
                                 ${entry.proofImageUrl ? `<div class="mt-2"><a href="${entry.proofImageUrl}" target="_blank"><img src="${entry.proofImageUrl}" alt="إثبات المرسل" style="max-height:120px;border-radius:10px;border:1px solid var(--x-border)"></a></div>` : ''}
                             </div>
                         `).join('')}

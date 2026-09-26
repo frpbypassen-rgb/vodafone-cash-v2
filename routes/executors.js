@@ -12,6 +12,7 @@ const { requireAuth, requireMaster } = require('../middlewares/auth');
 const { systemDateRange } = require('../config/systemTime');
 const { syncBotBalance, escapeRegex } = require('../utils/helpers');
 const { DEFAULT_API_PROVIDER_KEY, getApiProviderPreset, getApiProviderPresets } = require('../utils/apiProviderPresets');
+const { isStagingRuntime } = require('../utils/runtimeControls');
 const { getApiProviderBalance, runApiTransferPreflight } = require('../services/externalApiService');
 const { syncProviderReturnedOperations } = require('../services/apiProviderReconciliationService');
 const { createExecutorAccount, ExecutorAccountError } = require('../services/executorAccountService');
@@ -223,7 +224,7 @@ router.post('/executors/add', requireAuth, requireMaster, async (req, res) => {
                 parentGroupId: parentId && parentId !== 'none' ? parentId : null,
                 parentBotId: parentId && parentId !== 'none' ? parentId : null,
                 apiProviderKey: isApiBot ? apiPreset.key : '',
-                apiUrl: isApiBot ? (normalizeText(body.apiUrl) || apiPreset.apiUrl) : '',
+                apiUrl: isApiBot ? (normalizeText(body.apiUrl) || (isStagingRuntime() ? '' : apiPreset.apiUrl)) : '',
                 apiToken: isApiBot ? normalizeText(body.apiToken) : '',
                 apiUsername: isApiBot ? normalizeText(body.apiUsername) : '',
                 apiPassword: isApiBot ? normalizeText(body.apiPassword) : '',

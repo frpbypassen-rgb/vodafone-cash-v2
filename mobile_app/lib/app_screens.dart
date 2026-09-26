@@ -23764,6 +23764,17 @@ class CustomerReceiptSheet extends StatelessWidget {
   bool get _canLoadReceipt =>
       _receiptUrl.isNotEmpty || (api != null && _transactionId.isNotEmpty);
 
+  List<Map<String, dynamic>> get _partProofs {
+    final raw = transaction['partProofs'];
+    if (raw is! List) return const [];
+    return raw
+        .whereType<Map>()
+        .map((item) => Map<String, dynamic>.from(item))
+        .toList();
+  }
+
+  bool get _hasSplitProofs => _partProofs.length >= 2;
+
   Future<Uint8List?> _loadReceiptBytes() async {
     if (_receiptUrl.isNotEmpty) {
       try {
@@ -23839,9 +23850,31 @@ class CustomerReceiptSheet extends StatelessWidget {
     }
   }
 
-  void _openReceipt(BuildContext context) {
-    if (!_canLoadReceipt) return;
-    final receiptFuture = _loadReceiptBytes();
+  Future<Uint8List?> _loadPartReceiptBytes({int index = 0, String receiptUrl = ''}) async {
+    final url = receiptUrl.trim();
+    if (url.isNotEmpty) {
+      try {
+        final response = await Dio().get<List<int>>(
+          url,
+          options: Options(responseType: ResponseType.bytes),
+        );
+        final bytes = response.data;
+        if (bytes != null && bytes.isNotEmpty) return Uint8List.fromList(bytes);
+      } catch (_) {}
+    } else if (index == 0) {
+      return _loadReceiptBytes();
+    }
+    if (api == null || _transactionId.isEmpty) return null;
+    try {
+      return await api!.clientReceiptImageBytes(_transactionId, index: index);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  void _openReceipt(BuildContext context, {int index = 0, String receiptUrl = '', String title = 'الإيصال الرسمي'}) {
+    if (index == 0 && receiptUrl.isEmpty && !_canLoadReceipt) return;
+    final receiptFuture = _loadPartReceiptBytes(index: index, receiptUrl: receiptUrl);
     showDialog<void>(
       context: context,
       builder: (_) => Dialog.fullscreen(
@@ -23858,17 +23891,17 @@ class CustomerReceiptSheet extends StatelessWidget {
                       icon: const Icon(Icons.close_rounded),
                     ),
                     const SizedBox(width: 8),
-                    const Expanded(
+                    Expanded(
                       child: Text(
-                        'الإيصال الرسمي',
-                        style: TextStyle(fontWeight: FontWeight.w900),
+                        title,
+                        style: const TextStyle(fontWeight: FontWeight.w900),
                       ),
                     ),
                     IconButton(
                       tooltip: 'نسخ رابط الإيصال',
-                      onPressed: _receiptUrl.isEmpty
+                      onPressed: (receiptUrl.isEmpty ? _receiptUrl : receiptUrl).isEmpty
                           ? null
-                          : () => _copy(context, _receiptUrl, 'رابط الإيصال'),
+                          : () => _copy(context, receiptUrl.isEmpty ? _receiptUrl : receiptUrl, 'رابط الإيصال'),
                       icon: const Icon(Icons.link_rounded),
                     ),
                   ],
@@ -23905,6 +23938,50 @@ class CustomerReceiptSheet extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  List<Widget> _splitProofCards(BuildContext context, ColorScheme colors) {
+    return _partProofs.map((part) {
+      final partId = '${part['partId'] ?? ''}'.trim();
+      final amount = formatEgpAmount(numberValue(part['amount']));
+      final wallet = '${part['senderWallet'] ?? '-'}'.trim();
+      final recipient = '${part['recipient'] ?? '-'}'.trim();
+      final reference = '${part['partReference'] ?? part['reference'] ?? '-'}'.trim();
+      final available = part['proofAvailable'] == true;
+      final index = part['receiptIndex'] is int ? part['receiptIndex'] as int : int.tryParse('${part['receiptIndex']}') ?? 0;
+      final receiptUrl = '${part['receiptUrl'] ?? ''}'.trim();
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 10),
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: colors.surface,
+            border: Border.all(color: colors.outlineVariant),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('إثبات الجزء $partId — $amount ج.م', style: const TextStyle(fontWeight: FontWeight.w900)),
+              const SizedBox(height: 6),
+              Text('من المحفظة $wallet إلى $recipient', style: TextStyle(color: colors.onSurfaceVariant, fontSize: 12)),
+              Text('المرجع $reference', style: TextStyle(color: colors.onSurfaceVariant, fontSize: 12)),
+              const SizedBox(height: 8),
+              Align(
+                alignment: AlignmentDirectional.centerStart,
+                child: OutlinedButton.icon(
+                  onPressed: available
+                      ? () => _openReceipt(context, index: index, receiptUrl: receiptUrl, title: 'إثبات الجزء $partId')
+                      : null,
+                  icon: const Icon(Icons.receipt_long_outlined),
+                  label: Text(available ? 'عرض إثبات الجزء' : 'الإثبات غير متاح'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }).toList();
   }
 
   @override
@@ -24108,7 +24185,8 @@ class CustomerReceiptSheet extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 14),
-                Container(
+                if (_hasSplitProofs) ..._splitProofCards(context, colors),
+                if (!_hasSplitProofs) Container(
                   padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
                     color: colors.surface,
@@ -24165,8 +24243,8 @@ class CustomerReceiptSheet extends StatelessWidget {
                     ],
                   ),
                 ),
-                const SizedBox(height: 16),
-                Row(
+                if (!_hasSplitProofs) const SizedBox(height: 16),
+                if (!_hasSplitProofs) Row(
                   children: [
                     Expanded(
                       child: OutlinedButton.icon(

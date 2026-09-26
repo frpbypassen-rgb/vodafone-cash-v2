@@ -16,6 +16,7 @@ const {
     runStagingCheck,
     sanitize
 } = require('../scripts/checkStagingReadiness');
+const { scanStagingDatabase } = require('../utils/stagingStartupGuard');
 
 const SECRET = 'smtp-pass-not-real';
 const MONGO_SECRET_URI = 'mongodb://owner:s3cret-pass@10.1.1.8:27017/ahrampay?replicaSet=rs0&authSource=admin';
@@ -144,6 +145,14 @@ NOT A LINE
         expect(lines.find((line) => line.name === 'SESSION_STORE').level).toBe('PASS');
         expect(lines.find((line) => line.name === 'redis').level).toBe('INFO');
         expect(lines.find((line) => line.name === 'EMAIL_OTP_ENABLED').level).toBe('PASS');
+        expect(lines.find((line) => line.name === 'smtp-relay')).toMatchObject({
+            level: 'FAIL',
+            detail: 'external smtp relay'
+        });
+        expect(lines.find((line) => line.name === 'listen-port')).toMatchObject({
+            level: 'FAIL',
+            detail: '3000 or unset'
+        });
     });
 
     test('a truthy reset flag warns and a truthy WhatsApp OTP flag fails', () => {
@@ -306,7 +315,8 @@ describe('staging readiness makes no writes', () => {
             'SESSION_STORE=mongo',
             `SESSION_SECRET=${sessionSecret}`,
             'SECURE_COOKIE=true',
-            'SMTP_HOST=smtp.example.net',
+            'PORT=3200',
+            'SMTP_HOST=127.0.0.1',
             'SMTP_PORT=587',
             'SMTP_USER=mailer',
             `SMTP_PASS=${SECRET}`,
@@ -350,5 +360,27 @@ describe('staging readiness makes no writes', () => {
         expect(combined).not.toContain('mongodb://');
         expect(combined).not.toContain(SECRET);
         expect(combined).not.toContain(sessionSecret);
+    });
+
+    test('read-only database scan rejects external provider and webhook URLs and accepts loopback', async () => {
+        const db = mongoose.connection.db;
+        await db.collection('executorgroups').insertOne({ apiUrl: 'https://zaynpay.com' });
+        await db.collection('merchantwebhookendpoints').insertOne({ url: 'https://hooks.merchant.example/pay' });
+        try {
+            const external = await scanStagingDatabase(db, { NODE_ENV: 'staging', PORT: '3200' });
+            expect(external.map((item) => item.code)).toEqual(expect.arrayContaining([
+                'PROVIDER_URL_EXTERNAL',
+                'WEBHOOK_URL_EXTERNAL'
+            ]));
+            await db.collection('executorgroups').deleteMany({});
+            await db.collection('merchantwebhookendpoints').deleteMany({});
+            await db.collection('executorgroups').insertOne({ apiUrl: 'http://127.0.0.1:4010' });
+            await db.collection('merchantwebhookendpoints').insertOne({ url: 'http://localhost:8080/hook' });
+            const local = await scanStagingDatabase(db, { NODE_ENV: 'staging', PORT: '3200' });
+            expect(local).toEqual([]);
+        } finally {
+            await db.collection('executorgroups').deleteMany({});
+            await db.collection('merchantwebhookendpoints').deleteMany({});
+        }
     });
 });
