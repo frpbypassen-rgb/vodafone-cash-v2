@@ -3,8 +3,8 @@
 const DEFAULT_BRAND = Object.freeze({
     name: 'أهرام باي',
     supportEmail: 'support@ahrampay.com',
-    phone: '+218940719000',
-    phoneDisplay: '+218 94 071 9000',
+    phoneTel: '0913731533',
+    phoneDisplay: '0913731533',
     address: 'ليبيا / مصراتة، سوق الاستثمار / أمام المسجد العالي',
     website: 'https://ahrampay.com'
 });
@@ -19,7 +19,7 @@ const clean = (value, fallback) => {
 
 const compactPhone = (phone) => {
     const compact = String(phone || '').replace(/[^\d+]/g, '');
-    if (!compact) return DEFAULT_BRAND.phone;
+    if (!compact) return DEFAULT_BRAND.phoneTel;
     if (compact.startsWith('+')) return `+${compact.slice(1).replace(/\D/g, '')}`;
     return compact.replace(/\D/g, '');
 };
@@ -43,7 +43,7 @@ const websiteHost = (website) => {
 const getBrandContact = (env = process.env) => {
     const name = clean(env.BRAND_NAME, DEFAULT_BRAND.name);
     const supportEmail = clean(env.BRAND_SUPPORT_EMAIL, DEFAULT_BRAND.supportEmail);
-    const phone = compactPhone(clean(env.BRAND_PHONE, DEFAULT_BRAND.phone));
+    const phoneTel = compactPhone(clean(env.BRAND_PHONE_TEL, DEFAULT_BRAND.phoneTel));
     const phoneDisplay = clean(env.BRAND_PHONE_DISPLAY, DEFAULT_BRAND.phoneDisplay);
     const address = clean(env.BRAND_ADDRESS, DEFAULT_BRAND.address);
     const website = clean(env.BRAND_WEBSITE, DEFAULT_BRAND.website);
@@ -51,9 +51,9 @@ const getBrandContact = (env = process.env) => {
     return {
         name,
         supportEmail,
-        phone,
+        phoneTel,
         phoneDisplay,
-        phoneHref: `tel:${phone}`,
+        phoneHref: `tel:${phoneTel}`,
         address,
         website,
         websiteHost: websiteHost(website),

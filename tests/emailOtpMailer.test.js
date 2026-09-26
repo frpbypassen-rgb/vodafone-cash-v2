@@ -42,7 +42,7 @@ const ENV_KEYS = [
     'LOGIN_OTP_EMAIL_TEMPLATE_V2',
     'BRAND_NAME',
     'BRAND_SUPPORT_EMAIL',
-    'BRAND_PHONE',
+    'BRAND_PHONE_TEL',
     'BRAND_PHONE_DISPLAY',
     'BRAND_ADDRESS',
     'BRAND_WEBSITE'
@@ -143,8 +143,11 @@ describe('email OTP mailer', () => {
         expect(message.html).toContain('#F7F1E8');
         expect(message.html).toContain('#C9A227');
         expect(message.html).not.toContain('#0c3433');
-        expect(message.html).toContain('+218 940719000');
-        expect(message.html).not.toContain('+218 94 071 9000');
+        expect(message.html).toContain('href="tel:0913731533"');
+        expect(message.html).toContain('>0913731533</a>');
+        expect(message.text).toContain('هاتف 0913731533');
+        expect(message.html).not.toContain('+218');
+        expect(message.text).not.toContain('+218');
         expect(message.html).not.toContain('تفاصيل المحاولة');
         expect(message.text).toContain('مرحباً عميل تجريبي،');
         expect(message.text).toContain('482913');
@@ -194,7 +197,7 @@ describe('email OTP mailer', () => {
         expect(message.text).toContain(`الجهاز: ${LTR('Chrome على Windows')}`);
         expect(message.text).toContain(`الحساب: ${LTR('tiz***@ahram.com')}`);
         expect(message.text).toContain('ليبيا / مصراتة، سوق الاستثمار / أمام المسجد العالي');
-        expect(message.text).toContain(`هاتف ${LTR('+218 94 071 9000')}`);
+        expect(message.text).toContain(`هاتف ${LTR('0913731533')}`);
         expect(message.text).toContain(LTR('support@ahrampay.com'));
         expect(message.text).toContain(LTR('https://ahrampay.com'));
         expect(message.text).toContain('طريقة استخدام الرمز');
@@ -363,8 +366,8 @@ describe('email OTP mailer', () => {
         enableV2();
         process.env.BRAND_NAME = 'اسم طويل للتجربة المالية';
         process.env.BRAND_SUPPORT_EMAIL = 'help@example.com';
-        process.env.BRAND_PHONE = '+218911112222';
-        process.env.BRAND_PHONE_DISPLAY = '+218 91 111 2222';
+        process.env.BRAND_PHONE_TEL = '0910000000';
+        process.env.BRAND_PHONE_DISPLAY = '0910000000';
         process.env.BRAND_ADDRESS = 'عنوان تجريبي قصير';
         process.env.BRAND_WEBSITE = 'https://example.com/app';
         const html = buildLoginOtpHtml(SAMPLE);
@@ -376,13 +379,13 @@ describe('email OTP mailer', () => {
         expect(source).not.toContain('+218');
         expect(html).toContain('اسم طويل للتجربة المالية');
         expect(html).toContain('عنوان تجريبي قصير');
-        expect(html).toContain(`${BDO}+218 91 111 2222</bdo>`);
-        expect(html).toContain('href="tel:+218911112222"');
+        expect(html).toContain(`${BDO}0910000000</bdo>`);
+        expect(html).toContain('href="tel:0910000000"');
         expect(html).toContain(`${BDO}help@example.com</bdo>`);
         expect(html).toContain(`${BDO}https://example.com/app</bdo>`);
         expect(html).toContain(`${BDO}example.com</bdo>`);
         expect(html).toContain('src="https://example.com/images/login-otp-logo.jpg"');
-        expect(text).toContain(LTR('+218 91 111 2222'));
+        expect(text).toContain(LTR('0910000000'));
         expect(text).toContain('اسم طويل للتجربة المالية');
     });
 
@@ -407,18 +410,18 @@ describe('email OTP mailer', () => {
         expect(html).toContain(`${BDO}© 2026</bdo> أهرام باي. جميع الحقوق محفوظة.`);
         expect(html.match(/جميع الحقوق محفوظة/g)).toHaveLength(1);
         expect(html).toContain('ليبيا / مصراتة، سوق الاستثمار / أمام المسجد العالي');
-        expect(html).toMatch(/<a href="tel:\+218940719000" style="color:#f0d687;text-decoration:none;font-size:13px;"><bdo dir="ltr" style="unicode-bidi:isolate;">\+218 94 071 9000<\/bdo><\/a>/);
+        expect(html).toMatch(/<a href="tel:0913731533" style="color:#f0d687;text-decoration:none;font-size:13px;"><bdo dir="ltr" style="unicode-bidi:isolate;">0913731533<\/bdo><\/a>/);
         expect(html).toContain(`${BDO}support@ahrampay.com</bdo>`);
         expect(html).toContain(`${BDO}https://ahrampay.com</bdo>`);
         expect(html).toContain(`${BDO}tiz***@ahram.com</bdo>`);
         expect(hrefs(html)).toEqual([
             'mailto:support@ahrampay.com',
-            'tel:+218940719000',
+            'tel:0913731533',
             'https://ahrampay.com'
         ]);
         expect(srcs(html)).toEqual([LOGIN_OTP_LOGO_URL]);
         hrefs(html).forEach((href) => {
-            expect(href).toMatch(/^(mailto:[^\s@]+@[^\s@]+|tel:\+\d{8,15}|https:\/\/[^\s]+)$/);
+            expect(href).toMatch(/^(mailto:[^\s@]+@[^\s@]+|tel:\+?\d{8,15}|https:\/\/[^\s]+)$/);
         });
         srcs(html).forEach((src) => {
             expect(src).toMatch(/^https:\/\/[^\s]+$/);

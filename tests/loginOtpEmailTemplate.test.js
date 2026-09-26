@@ -51,8 +51,8 @@ test('documents the template flag, brand env, and the single support recipient',
         'LOGIN_OTP_EMAIL_TEMPLATE_V2=false',
         'BRAND_NAME=أهرام باي',
         'BRAND_SUPPORT_EMAIL=support@ahrampay.com',
-        'BRAND_PHONE=+218940719000',
-        'BRAND_PHONE_DISPLAY=+218 94 071 9000',
+        'BRAND_PHONE_TEL=0913731533',
+        'BRAND_PHONE_DISPLAY=0913731533',
         'BRAND_ADDRESS=',
         'BRAND_WEBSITE=https://ahrampay.com'
     ].forEach((line) => expect(example).toContain(line));
@@ -78,7 +78,7 @@ test('the dark template fits 320px and 600px and every image loads', async () =>
     expect(hrefs.length).toBeGreaterThan(0);
     expect(srcs).toEqual([LOGO_URL]);
     hrefs.forEach((href) => {
-        expect(href).toMatch(/^(mailto:[^\s@]+@[^\s@]+|tel:\+\d{8,15}|https:\/\/[^\s]+)$/);
+        expect(href).toMatch(/^(mailto:[^\s@]+@[^\s@]+|tel:\+?\d{8,15}|https:\/\/[^\s]+)$/);
     });
 
     const result = spawnSync(process.execPath, [path.join(__dirname, '../scripts/checkLoginOtpEmailLayout.js')], {
@@ -94,7 +94,7 @@ test('the dark template fits 320px and 600px and every image loads', async () =>
         expect(box.cardWidth).toBeLessThanOrEqual(width);
         expect(box.scrollWidth).toBeLessThanOrEqual(box.clientWidth + 1);
         expect(box.longScrollWidth).toBeLessThanOrEqual(box.longClientWidth + 1);
-        expect(box.phone).toBe('+218 94 071 9000');
+        expect(box.phone).toBe('0913731533');
         expect(box.plus).toBeLessThan(box.digits);
         expect(box.images).toEqual([
             expect.objectContaining({ complete: true })

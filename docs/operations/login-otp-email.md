@@ -11,11 +11,12 @@ off. Unset, `false`, `0`, `off`, or `no` keeps sending the current cream
 template and `From: Ahram Pay <noreply@ahrampay.com>` (unless `SMTP_FROM`
 is set). `true`, `1`, `yes`, or `on` sends the dark template. The visible
 brand, support email, phone, address, and website on that template come
-from the `BRAND_*` variables below. `SMTP_FROM` still overrides the From
-header for both templates.
+from the `BRAND_*` variables below. The confirmed phone is also used by the
+current cream template, in both its HTML and plain-text parts. `SMTP_FROM`
+still overrides the From header for both templates.
 
-The phone display `+218 94 071 9000` (`tel:+218940719000`) is the default
-until the operator confirms the final number.
+The confirmed phone is `0913731533`, shown inside an isolated LTR element
+and linked as `tel:0913731533`.
 
 ## SMTP (no secrets)
 
@@ -46,15 +47,15 @@ do not commit a production `.env`.
 ```
 BRAND_NAME=أهرام باي
 BRAND_SUPPORT_EMAIL=support@ahrampay.com
-BRAND_PHONE=+218940719000
-BRAND_PHONE_DISPLAY=+218 94 071 9000
+BRAND_PHONE_TEL=0913731533
+BRAND_PHONE_DISPLAY=0913731533
 BRAND_ADDRESS=ليبيا / مصراتة، سوق الاستثمار / أمام المسجد العالي
 BRAND_WEBSITE=https://ahrampay.com
 LOGIN_OTP_EMAIL_TEMPLATE_V2=false
 ```
 
-`BRAND_PHONE` is the dialable number used in `tel:`. `BRAND_PHONE_DISPLAY`
-is the text shown in the message.
+`BRAND_PHONE_TEL` is the dialable number used in `tel:`. `BRAND_PHONE_DISPLAY`
+is the text shown in the message. Both default to `0913731533`.
 
 ## One test message, without a restart
 

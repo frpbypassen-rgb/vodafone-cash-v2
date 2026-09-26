@@ -1,5 +1,7 @@
 'use strict';
 
+const { getBrandContact } = require('../utils/brandContact');
+
 const DEFAULT_FROM = 'Ahram Pay <noreply@ahrampay.com>';
 
 const LOGIN_OTP_SUBJECT = 'رمز التحقق لتسجيل الدخول — أهرام باي';
@@ -16,8 +18,6 @@ const COPY = Object.freeze({
     ignore: 'إذا لم تحاول تسجيل الدخول، تجاهل هذه الرسالة.',
     address: 'ليبيا / مصراتة، سوق الاستثمار / أمام المسجد العالي',
     phoneLabel: 'هاتف',
-    phone: '+218 940719000',
-    phoneHref: 'tel:+218940719000',
     email: 'support@ahrampay.com',
     site: 'https://ahrampay.com',
     signOff: 'مع أطيب التحيات ، فريق أهرام باي',
@@ -67,8 +67,11 @@ const buildLoginOtpContent = ({ otp, expiresMinutes, expiresAt, accountName, now
     const name = cleanInline(accountName);
     const code = String(otp == null ? '' : otp).replace(/[\r\n]+/g, '');
     const expiresText = formatLoginOtpExpiresAt(resolveExpiresDate({ expiresAt, expiresMinutes, now }));
+    const brand = getBrandContact();
     return {
         ...COPY,
+        phone: brand.phoneDisplay,
+        phoneHref: brand.phoneHref,
         greeting: name ? `مرحباً ${name}،` : 'مرحباً،',
         otp: code,
         expiresText,

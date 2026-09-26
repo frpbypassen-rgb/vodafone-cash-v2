@@ -105,7 +105,7 @@ const main = async () => {
                 const img = doc.querySelector('img');
                 return { phone: phone.textContent, plus, digits, naturalWidth: img.naturalWidth };
             });
-            if (order.phone !== '+218 94 071 9000' || !(order.plus < order.digits) || !(order.naturalWidth > 0)) {
+            if (order.phone !== '0913731533' || !(order.plus < order.digits) || !(order.naturalWidth > 0)) {
                 throw new Error(`${name} bidi/logo check failed ${JSON.stringify(order)}`);
             }
             await page.screenshot({ path: path.join(OUT, name), fullPage: true });
