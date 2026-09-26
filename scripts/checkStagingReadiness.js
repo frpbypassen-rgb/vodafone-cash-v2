@@ -19,14 +19,32 @@ const sanitize = (value) => String(value == null ? '' : value)
     .replace(/\bENOTFOUND\s+\S+/gi, 'ENOTFOUND [redacted]')
     .replace(/\b(?:[A-Za-z0-9-]+\.)+[A-Za-z]{2,}(?::\d{1,5})?\b/g, '[redacted]');
 
+const PRODUCTION_APP_DIR = 'c:/users/administrator/desktop/vodafone-cash-v2';
+const PRODUCTION_ENV_FILES = [
+    'C:\\Users\\Administrator\\Desktop\\vodafone-cash-v2\\.env',
+    'C:/Users/Administrator/Desktop/vodafone-cash-v2/.env'
+];
+// Names the app uses by default and in production deploy docs:
+// .env.example, docker-compose.prod.yml, docs/operations/mongodb-production.md,
+// docs/Deployment.md, docs/Backup-Recovery.md, docs/Disaster-Recovery.md.
+const DEFAULT_DENIED_DATABASES = Object.freeze([
+    'vodafone_cash_system',
+    'vodafone_cash'
+]);
+const PRODUCTION_VALUE_KEYS = ['NODE_ENV', 'APP_ENV', 'ENVIRONMENT'];
+
 const parseArgs = (argv) => {
-    const args = { envFile: '', appDir: '' };
+    const args = { envFile: '', appDir: '', appDirProvided: false, denyDb: [] };
     for (let index = 0; index < argv.length; index += 1) {
         const token = argv[index];
         if (token === '--') continue;
         if (token === '--env-file') args.envFile = argv[index + 1] || '';
-        if (token === '--app-dir') args.appDir = argv[index + 1] || '';
-        if (token === '--env-file' || token === '--app-dir') index += 1;
+        if (token === '--app-dir') {
+            args.appDirProvided = true;
+            args.appDir = argv[index + 1] || '';
+        }
+        if (token === '--deny-db') args.denyDb.push(argv[index + 1] || '');
+        if (token === '--env-file' || token === '--app-dir' || token === '--deny-db') index += 1;
     }
     return args;
 };
@@ -70,9 +88,89 @@ const envLabel = (value) => {
     return 'set';
 };
 
+const canonicalPath = (value) => String(value || '')
+    .trim()
+    .replace(/[\\/]+/g, '/')
+    .replace(/\/+$/, '')
+    .toLowerCase();
+
+const isProductionAppDir = (value) => {
+    const raw = canonicalPath(value);
+    if (!raw) return false;
+    if (raw === PRODUCTION_APP_DIR) return true;
+    return canonicalPath(path.resolve(String(value))) === PRODUCTION_APP_DIR;
+};
+
+const isPlaceholderAppDir = (value) => String(value || '').trim().toLowerCase() === '<staging_path>';
+
 const isProductionEnvironment = (env = {}) => (
-    envLabel(env.NODE_ENV) === 'production' || envLabel(env.APP_ENV) === 'production'
+    PRODUCTION_VALUE_KEYS.some((key) => String(env[key] || '').trim().toLowerCase() === 'production')
 );
+
+const isProductionMarker = (env = {}) => {
+    if (isOn(env.PRODUCTION)) return true;
+    return Object.entries(env).some(([key, value]) => (
+        /^(DEPLOY|TENANT)(_|$)/i.test(key)
+        && String(value || '').trim().toLowerCase() === 'production'
+    ));
+};
+
+const databaseNameFromUri = (uri) => {
+    const text = String(uri || '').trim();
+    if (!text) return { name: '', explicit: false };
+    const match = text.match(/^(?:mongodb(?:\+srv)?:\/\/)(?:[^/?#\s]*@)?[^/?#\s]*\/([^/?#\s]+)/i);
+    if (!match || !match[1]) return { name: '', explicit: false };
+    try {
+        const name = decodeURIComponent(match[1]).trim();
+        return name ? { name, explicit: true } : { name: '', explicit: false };
+    } catch (_error) {
+        return { name: '', explicit: false };
+    }
+};
+
+const splitDatabaseList = (value) => String(value || '')
+    .split(/[,;\s]+/)
+    .map((item) => item.trim().toLowerCase())
+    .filter(Boolean);
+
+const deniedDatabaseNames = ({ env = {}, processEnv = {}, denyDb = [] } = {}) => {
+    const names = new Set(DEFAULT_DENIED_DATABASES.map((name) => name.toLowerCase()));
+    denyDb.forEach((item) => splitDatabaseList(item).forEach((name) => names.add(name)));
+    splitDatabaseList(env.STAGING_CHECK_DENY_DBS).forEach((name) => names.add(name));
+    splitDatabaseList(processEnv.STAGING_CHECK_DENY_DBS).forEach((name) => names.add(name));
+    return names;
+};
+
+const mongoUriFromEnvText = (text) => {
+    let found = '';
+    String(text || '').split(/\r?\n/).forEach((line) => {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith('#')) return;
+        const body = trimmed.startsWith('export ') ? trimmed.slice(7).trim() : trimmed;
+        const separator = body.indexOf('=');
+        if (separator <= 0) return;
+        if (body.slice(0, separator).trim() !== 'MONGO_URI') return;
+        let value = body.slice(separator + 1).trim();
+        if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+            value = value.slice(1, -1);
+        }
+        found = value;
+    });
+    return found;
+};
+
+const readProductionDatabaseName = (filePaths = PRODUCTION_ENV_FILES) => {
+    for (const filePath of filePaths) {
+        try {
+            if (!filePath || !fs.existsSync(filePath)) continue;
+            const parsed = databaseNameFromUri(mongoUriFromEnvText(fs.readFileSync(filePath, 'utf8')));
+            if (parsed.explicit) return parsed.name;
+        } catch (_error) {
+            // The production env file is optional. Skip it when it cannot be read.
+        }
+    }
+    return '';
+};
 
 const resetFlagLevel = (value) => {
     const word = flagWord(value);
@@ -193,7 +291,22 @@ const pingRedis = async (env) => {
     }
 };
 
-const runStagingCheck = async (env, { appDir } = {}) => {
+const databaseRefusal = (env, { processEnv = process.env, denyDb = [], productionDatabaseName = '' } = {}) => {
+    const parsed = databaseNameFromUri(env.MONGO_URI || '');
+    if (!parsed.explicit) return 'name missing';
+    if (deniedDatabaseNames({ env, processEnv, denyDb }).has(parsed.name.toLowerCase())) return 'denied';
+    if (productionDatabaseName && parsed.name.toLowerCase() === productionDatabaseName.toLowerCase()) {
+        return 'matches production env';
+    }
+    return '';
+};
+
+const blockedResult = (lines) => {
+    lines.push({ level: 'FAIL', name: 'OVERALL', detail: 'FAIL' });
+    return { ok: false, lines };
+};
+
+const runStagingCheck = async (env, { appDir, processEnv = process.env, denyDb = [], productionDatabaseName = '' } = {}) => {
     const lines = [];
     const add = (level, name, detail = '', extra = {}) => lines.push({
         level,
@@ -203,21 +316,29 @@ const runStagingCheck = async (env, { appDir } = {}) => {
     });
     const resolvedDir = path.resolve(String(appDir || ''));
     add('INFO', 'app-dir', resolvedDir);
-    add('INFO', 'NODE_ENV', envLabel(env.NODE_ENV));
-    add('INFO', 'APP_ENV', envLabel(env.APP_ENV));
-    const production = isProductionEnvironment(env) || isProductionEnvironment(process.env);
+    add('INFO', 'NODE_ENV', envLabel(env.NODE_ENV || processEnv.NODE_ENV));
+    add('INFO', 'APP_ENV', envLabel(env.APP_ENV || processEnv.APP_ENV));
+    add('INFO', 'ENVIRONMENT', envLabel(env.ENVIRONMENT || processEnv.ENVIRONMENT));
+    const production = isProductionEnvironment(env) || isProductionEnvironment(processEnv)
+        || isProductionMarker(env) || isProductionMarker(processEnv);
     if (production) {
-        add('FAIL', 'environment', 'production');
+        add('FAIL', 'environment', isProductionEnvironment(env) || isProductionEnvironment(processEnv)
+            ? 'production'
+            : 'marker');
     }
     evaluateStaticChecks(env).forEach((line) => lines.push(line));
-    if (production) {
-        lines.push({ level: 'FAIL', name: 'OVERALL', detail: 'FAIL' });
-        return { ok: false, lines };
+    if (production) return blockedResult(lines);
+
+    const databaseDetail = databaseRefusal(env, { processEnv, denyDb, productionDatabaseName });
+    if (databaseDetail) {
+        add('FAIL', 'database', databaseDetail);
+        return blockedResult(lines);
     }
 
     const uri = String(env.MONGO_URI || '').trim();
     if (!uri) {
-        add('FAIL', 'mongodb', 'MONGO_URI missing');
+        add('FAIL', 'database', 'name missing');
+        return blockedResult(lines);
     } else {
         mongoose.set('autoIndex', false);
         mongoose.set('autoCreate', false);
@@ -269,26 +390,77 @@ const formatLine = (line) => {
     return `${line.level} ${line.name}${detail ? ` ${detail}` : ''}`;
 };
 
-const main = async (argv) => {
-    const args = parseArgs(argv);
-    if (!args.appDir || !args.envFile) {
-        if (!args.appDir) console.log('FAIL app-dir missing');
-        if (!args.envFile) console.log('FAIL env-file missing');
-        console.log('OVERALL FAIL');
-        return 1;
+const executeStagingCheck = async ({
+    appDir = '',
+    appDirProvided = false,
+    envFile = '',
+    denyDb = [],
+    processEnv = process.env,
+    productionEnvFiles = PRODUCTION_ENV_FILES
+} = {}) => {
+    const lines = [];
+    const add = (level, name, detail = '') => lines.push({ level, name, detail: sanitize(detail) });
+    const rawDir = String(appDir || '').trim();
+    if (!appDirProvided || !rawDir) {
+        add('FAIL', 'app-dir', 'missing');
+        return blockedResult(lines);
     }
-    const appDir = path.resolve(args.appDir);
-    const envPath = path.resolve(appDir, args.envFile);
+    if (isPlaceholderAppDir(rawDir)) {
+        add('INFO', 'app-dir', '<STAGING_PATH>');
+        add('FAIL', 'app-dir', 'placeholder');
+        return blockedResult(lines);
+    }
+    if (isProductionAppDir(rawDir)) {
+        add('FAIL', 'app-dir', 'production path');
+        return blockedResult(lines);
+    }
+    if (!String(envFile || '').trim()) {
+        add('FAIL', 'env-file', 'missing');
+        return blockedResult(lines);
+    }
+    const resolvedDir = path.resolve(rawDir);
+    const envPath = path.resolve(resolvedDir, envFile);
     let text = '';
     try {
         text = fs.readFileSync(envPath, 'utf8');
-    } catch (error) {
-        console.log(`INFO app-dir ${sanitize(appDir)}`);
-        console.log(`FAIL env-file ${sanitize(error.message)}`);
-        console.log('OVERALL FAIL');
-        return 1;
+    } catch (_error) {
+        add('FAIL', 'env-file', 'unreadable');
+        return blockedResult(lines);
     }
-    const result = await runStagingCheck(parseEnvText(text), { appDir });
+    const env = parseEnvText(text);
+    if (isProductionEnvironment(env) || isProductionEnvironment(processEnv)) {
+        add('INFO', 'NODE_ENV', envLabel(env.NODE_ENV || processEnv.NODE_ENV));
+        add('INFO', 'APP_ENV', envLabel(env.APP_ENV || processEnv.APP_ENV));
+        add('INFO', 'ENVIRONMENT', envLabel(env.ENVIRONMENT || processEnv.ENVIRONMENT));
+        add('FAIL', 'environment', 'production');
+        return blockedResult(lines);
+    }
+    if (isProductionMarker(env) || isProductionMarker(processEnv)) {
+        add('FAIL', 'environment', 'marker');
+        return blockedResult(lines);
+    }
+    const productionDatabaseName = readProductionDatabaseName(productionEnvFiles);
+    const databaseDetail = databaseRefusal(env, { processEnv, denyDb, productionDatabaseName });
+    if (databaseDetail) {
+        add('FAIL', 'database', databaseDetail);
+        return blockedResult(lines);
+    }
+    return runStagingCheck(env, {
+        appDir: resolvedDir,
+        processEnv,
+        denyDb,
+        productionDatabaseName
+    });
+};
+
+const main = async (argv) => {
+    const args = parseArgs(argv);
+    const result = await executeStagingCheck({
+        appDir: args.appDir,
+        appDirProvided: args.appDirProvided,
+        envFile: args.envFile,
+        denyDb: args.denyDb
+    });
     result.lines.forEach((line) => console.log(formatLine(line)));
     return result.ok ? 0 : 1;
 };
@@ -304,13 +476,20 @@ if (require.main === module) {
 }
 
 module.exports = {
+    DEFAULT_DENIED_DATABASES,
+    databaseNameFromUri,
+    deniedDatabaseNames,
     emailChannelCounts,
     envLabel,
     evaluateStaticChecks,
+    executeStagingCheck,
     formatLine,
+    isProductionAppDir,
     isProductionEnvironment,
+    main,
     parseArgs,
     parseEnvText,
+    readProductionDatabaseName,
     runStagingCheck,
     sanitize
 };

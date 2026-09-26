@@ -61,14 +61,26 @@ and does not send mail. Verify and complete return
 ## 3. Staging check
 
 `scripts/checkStagingReadiness.js` is a staging check. It is not a
-production check. Do not point it at
-`C:\Users\Administrator\Desktop\vodafone-cash-v2`. `--app-dir` and
-`--env-file` are both required. There is no default path.
+production check. There is no confirmed staging directory, so this document
+does not name one. `<STAGING_PATH>` is a required placeholder. Replace it
+with the real staging directory before running the command. The script
+rejects the placeholder itself, and it rejects
+`C:\Users\Administrator\Desktop\vodafone-cash-v2` after normalizing case
+and slashes. `--app-dir` and `--env-file` are both required. There is no
+default path.
 
-The staging env file must not set `NODE_ENV` or `APP_ENV` to `production`.
-Use `staging`, or leave them unset. If either value says production, in the
-file or in the process environment, the script prints the resolved app
-directory and those labels, then exits non-zero without connecting.
+The script exits non-zero and does not connect to MongoDB, Redis, or SMTP
+when any of these is true: `--app-dir` is missing or still
+`<STAGING_PATH>`; the path is the production folder above; `NODE_ENV`,
+`APP_ENV`, or `ENVIRONMENT` is `production` in the process or in the env
+file; the env file is missing or unreadable; `PRODUCTION` is true;
+`DEPLOY_*` or `TENANT_*` is set to `production`; the URI has no database
+name; the database name is `vodafone_cash_system` or `vodafone_cash` (the
+names in `.env.example`, `docker-compose.prod.yml`, and the deploy docs);
+the name is listed in repeatable `--deny-db` or in `STAGING_CHECK_DENY_DBS`;
+or the name equals `MONGO_URI`'s database in the production `.env` when
+that file is readable. A missing production `.env` is skipped. URIs and
+secret values are not printed.
 
 It prints one `PASS`, `FAIL`, `WARN`, or `INFO` line per check and a final
 `OVERALL PASS` or `OVERALL FAIL`. The process exit code is 0 only for
@@ -94,7 +106,7 @@ Stop if the overall line is not `OVERALL PASS`. A `WARN` on
 this run is after the approved staging enable step. The script reads that
 env file only. It checks:
 
-- Resolved app directory, `NODE_ENV`, and `APP_ENV`, then refuses production.
+- The refusals above, before any connection. `NODE_ENV`, `APP_ENV`, and `ENVIRONMENT` are printed only as short labels.
 - Replica-set topology only. No transaction is started.
 - Redis `PING` when Redis is in use. If `REDIS_ENABLED` is false, the Redis
   line is `INFO` unless `REDIS_REQUIRED=true`, which is `FAIL`.

@@ -40,11 +40,18 @@ const expectCountsMatchResolver = (docs, include) => {
 
 describe('staging readiness parsing', () => {
     test('parseArgs requires the env file and app dir and has no production default', () => {
-        expect(parseArgs(['--', '--env-file', '.env', '--app-dir', '<STAGING_PATH>'])).toEqual({
+        expect(parseArgs(['--', '--env-file', '.env', '--app-dir', '<STAGING_PATH>', '--deny-db', 'extra_db'])).toEqual({
             envFile: '.env',
-            appDir: '<STAGING_PATH>'
+            appDir: '<STAGING_PATH>',
+            appDirProvided: true,
+            denyDb: ['extra_db']
         });
-        expect(parseArgs([])).toEqual({ envFile: '', appDir: '' });
+        expect(parseArgs([])).toEqual({
+            envFile: '',
+            appDir: '',
+            appDirProvided: false,
+            denyDb: []
+        });
     });
 
     test('parseEnvText keeps quoted values and ignores comments', () => {
@@ -221,10 +228,12 @@ describe('staging readiness email counts match resolveAccountOtpEmail', () => {
 
 describe('staging readiness makes no writes', () => {
     let replSet;
+    let mongoUri;
 
     beforeAll(async () => {
         replSet = await MongoMemoryReplSet.create({ replSet: { count: 1, storageEngine: 'wiredTiger' } });
-        await mongoose.connect(replSet.getUri(), { autoIndex: false, autoCreate: false });
+        mongoUri = replSet.getUri('staging_readiness');
+        await mongoose.connect(mongoUri, { autoIndex: false, autoCreate: false });
         const db = mongoose.connection.db;
         await db.collection('users').insertMany([
             { role: 'user', email: 'only@example.com', otpDeliveryChannel: 'email' },
@@ -275,7 +284,7 @@ describe('staging readiness makes no writes', () => {
         const envPath = path.join(appDir, 'staging.env');
         const sessionSecret = 'session-secret-0123456789-abcdefghijklmnopqrstuvwxyz';
         fs.writeFileSync(envPath, [
-            `MONGO_URI=${replSet.getUri()}`,
+            `MONGO_URI=${mongoUri}`,
             'NODE_ENV=staging',
             'APP_ENV=staging',
             'REDIS_ENABLED=false',
@@ -321,7 +330,7 @@ describe('staging readiness makes no writes', () => {
         expect(result.stdout).toContain('INFO subaccounts-email-channel eligible=2 unapproved=1');
         expect(result.stdout).toContain('PASS PASSWORD_RESET_EMAIL_ENABLED false');
         expect(result.stdout).toContain('INFO redis REDIS_ENABLED is false; ping skipped');
-        expect(combined).not.toContain(replSet.getUri());
+        expect(combined).not.toContain(mongoUri);
         expect(combined).not.toContain('mongodb://');
         expect(combined).not.toContain(SECRET);
         expect(combined).not.toContain(sessionSecret);
