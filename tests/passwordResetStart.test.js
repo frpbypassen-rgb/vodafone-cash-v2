@@ -30,12 +30,16 @@ describe('password reset start response', () => {
             auth.indexOf("router.post('/api/password-reset/start'"),
             auth.indexOf("router.post('/api/password-reset/verify-otp'")
         );
+        expect(start).toContain('isPasswordResetEmailEnabled');
         expect(start).toContain('startPasswordReset');
         expect(start).not.toContain('sendOtp');
         expect(start).not.toContain('req.session');
         const page = fs.readFileSync(path.join(__dirname, '../views/unified_login.ejs'), 'utf8');
         expect(page).toContain("details.code === 'PASSWORD_RESET_UNAVAILABLE' || details.code === 'PASSWORD_RESET_STARTED'");
         expect(page).toContain("node.style.unicodeBidi = 'isolate'");
+        expect(page).toContain('passwordResetEmailEnabled === true');
+        expect(page).toContain('id="resetSupportOnly"');
+        expect(page).toContain('0913731533');
         const doc = fs.readFileSync(path.join(__dirname, '../docs/operations/password-reset.md'), 'utf8');
         expect(doc).toContain('0913731533');
         expect(doc).toContain('support@ahrampay.com');

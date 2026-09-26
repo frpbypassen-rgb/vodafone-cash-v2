@@ -23,7 +23,12 @@ const PasswordResetRequest = require('../models/PasswordResetRequest');
 const { logAction } = require('../services/auditService');
 const { sendPasswordResetEmail } = require('../services/emailOtpMailer');
 const { sendOtp } = require('../services/whatsappService');
-const { startPasswordReset } = require('../services/passwordResetService');
+const { selectLoginOtpChannel } = require('../utils/otpDeliveryChannel');
+const {
+    completePasswordReset,
+    startPasswordReset,
+    verifyPasswordReset
+} = require('../services/passwordResetService');
 
 const lean = (value) => ({ lean: () => Promise.resolve(value) });
 
@@ -55,8 +60,54 @@ const savedRequest = (overrides = {}) => ({
 });
 
 describe('email password reset', () => {
+    test.each(['', 'false', '0', 'off', 'no'])('stays closed when PASSWORD_RESET_EMAIL_ENABLED=%j', async (value) => {
+        if (value === '') delete process.env.PASSWORD_RESET_EMAIL_ENABLED;
+        else process.env.PASSWORD_RESET_EMAIL_ENABLED = value;
+        User.findOne.mockReturnValue(lean(account));
+        const started = await startPasswordReset({
+            username: account.webUsername,
+            phone: account.phone,
+            req: { headers: {}, method: 'POST', originalUrl: '/api/password-reset/start', ip: '127.0.0.1' }
+        });
+        expect(started.code).toBe('PASSWORD_RESET_STARTED');
+        expect(started.success).toBe(true);
+        expect(started.message).toContain('0913731533');
+        expect(started.message).toContain('support@ahrampay.com');
+        expect(User.findOne).not.toHaveBeenCalled();
+        expect(PasswordResetRequest.create).not.toHaveBeenCalled();
+        expect(sendPasswordResetEmail).not.toHaveBeenCalled();
+        expect(User.updateOne).not.toHaveBeenCalled();
+        const verified = await verifyPasswordReset({
+            requestId: '507f1f77bcf86cd799439011',
+            otp: '482913',
+            req: { headers: {}, method: 'POST', originalUrl: '/api/password-reset/verify-otp', ip: '127.0.0.1' }
+        });
+        const completed = await completePasswordReset({
+            requestId: '507f1f77bcf86cd799439011',
+            newPassword: 'new-password-1',
+            req: { headers: {}, method: 'POST', originalUrl: '/api/password-reset/submit', ip: '127.0.0.1' }
+        });
+        expect(verified.code).toBe('PASSWORD_RESET_UNAVAILABLE');
+        expect(completed.code).toBe('PASSWORD_RESET_UNAVAILABLE');
+        expect(verified.success).toBe(false);
+        expect(PasswordResetRequest.findOneAndUpdate).not.toHaveBeenCalled();
+        expect(sendOtp).not.toHaveBeenCalled();
+    });
+
+    test('login email OTP does not read PASSWORD_RESET_EMAIL_ENABLED', () => {
+        delete process.env.PASSWORD_RESET_EMAIL_ENABLED;
+        const channel = selectLoginOtpChannel({
+            otpDeliveryChannel: 'email',
+            businessProfile: { email: 'owner@example.com' }
+        });
+        expect(channel).toEqual({ channel: 'email', email: 'owner@example.com' });
+        const login = require('fs').readFileSync(require('path').join(__dirname, '../services/loginOtpService.js'), 'utf8');
+        expect(login).not.toContain('PASSWORD_RESET_EMAIL_ENABLED');
+    });
+
     beforeEach(() => {
         jest.clearAllMocks();
+        process.env.PASSWORD_RESET_EMAIL_ENABLED = 'true';
         User.findOne.mockReturnValue(lean(null));
         SubAccount.findOne.mockReturnValue(lean(null));
         User.updateOne.mockResolvedValue({});

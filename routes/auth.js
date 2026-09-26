@@ -77,7 +77,12 @@ const loginLimiter = rateLimit({
     skipSuccessfulRequests: true,
 });
 
-const { createPasswordResetIpLimiter } = require('../utils/passwordResetAvailability');
+const {
+    createPasswordResetIpLimiter,
+    isPasswordResetEmailEnabled,
+    passwordResetUnavailableBody
+} = require('../utils/passwordResetAvailability');
+const { getBrandContact } = require('../utils/brandContact');
 const passwordResetLimiter = createPasswordResetIpLimiter(8);
 
 const adminOtpVerifyLimiter = rateLimit({
@@ -109,7 +114,10 @@ const renderLogin = (res, error = null, data = {}) => {
         passkeyLoginRequired: false,
         submittedUsername: '',
         ...data,
-        clientPortal
+        clientPortal,
+        passwordResetEmailEnabled: isPasswordResetEmailEnabled(),
+        passwordResetSupportPhone: getBrandContact().phoneDisplay,
+        passwordResetSupportEmail: getBrandContact().supportEmail
     });
 };
 
@@ -1459,6 +1467,9 @@ router.post('/admin/verify', adminOtpVerifyLimiter, async (req, res) => {
 
 router.post('/api/password-reset/start', passwordResetLimiter, async (req, res) => {
     const { startPasswordReset } = require('../services/passwordResetService');
+    if (!isPasswordResetEmailEnabled()) {
+        return res.status(200).json(await startPasswordReset({ req }));
+    }
     const body = await startPasswordReset({
         username: req.body.username,
         phone: req.body.phone,
@@ -1468,6 +1479,9 @@ router.post('/api/password-reset/start', passwordResetLimiter, async (req, res) 
 });
 
 router.post('/api/password-reset/verify-otp', passwordResetLimiter, async (req, res) => {
+    if (!isPasswordResetEmailEnabled()) {
+        return res.status(400).json(passwordResetUnavailableBody());
+    }
     const requestId = req.body.requestId?.trim();
     const otp = req.body.otp?.trim();
     if (!requestId || !otp) {
@@ -1479,6 +1493,9 @@ router.post('/api/password-reset/verify-otp', passwordResetLimiter, async (req, 
 });
 
 router.post('/api/password-reset/submit', passwordResetLimiter, async (req, res) => {
+    if (!isPasswordResetEmailEnabled()) {
+        return res.status(400).json(passwordResetUnavailableBody());
+    }
     const requestId = req.body.requestId?.trim();
     const newPassword = req.body.newPassword?.trim();
     const confirmPassword = req.body.confirmPassword?.trim();

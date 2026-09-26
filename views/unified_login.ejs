@@ -397,6 +397,7 @@
                     <button type="button" class="btn-close ms-0 me-auto" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body pt-3">
+                    <% if (passwordResetEmailEnabled === true) { %>
                     <div id="resetStatus" class="reset-status"></div>
 
                     <div class="reset-step active" id="resetStepAccount">
@@ -439,6 +440,14 @@
                             بعد نجاح التغيير تُغلق جلسات الحساب على الموقع والتطبيق.
                         </div>
                     </div>
+                    <% } else { %>
+                    <p class="fw-bold text-dark mb-0" id="resetSupportOnly">
+                        استعادة كلمة المرور غير متاحة حالياً. تواصل مع الدعم على
+                        <bdo dir="ltr" style="unicode-bidi:isolate;"><%= passwordResetSupportPhone || '0913731533' %></bdo>
+                        أو
+                        <bdo dir="ltr" style="unicode-bidi:isolate;"><%= passwordResetSupportEmail || 'support@ahrampay.com' %></bdo>
+                    </p>
+                    <% } %>
                 </div>
                 <div class="modal-footer border-0 pt-0">
                     <button type="button" class="btn btn-light fw-bold rounded-3 px-4" data-bs-dismiss="modal">إغلاق</button>
@@ -640,14 +649,18 @@
             });
         }
 
-        document.getElementById('forgotPasswordModal').addEventListener('hidden.bs.modal', () => {
-            resetFlow.requestId = null;
-            clearResetStatus();
-            showResetStep('resetStepAccount');
-            ['resetUsername', 'resetPhone', 'resetOtp', 'resetNewPassword', 'resetConfirmPassword'].forEach((id) => {
-                document.getElementById(id).value = '';
+        const forgotPasswordModal = document.getElementById('forgotPasswordModal');
+        if (forgotPasswordModal && document.getElementById('resetStepAccount')) {
+            forgotPasswordModal.addEventListener('hidden.bs.modal', () => {
+                resetFlow.requestId = null;
+                clearResetStatus();
+                showResetStep('resetStepAccount');
+                ['resetUsername', 'resetPhone', 'resetOtp', 'resetNewPassword', 'resetConfirmPassword'].forEach((id) => {
+                    const field = document.getElementById(id);
+                    if (field) field.value = '';
+                });
             });
-        });
+        }
 
         const b64urlToBytes = (value) => Uint8Array.from(
             atob(value.replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(value.length / 4) * 4, '=')),

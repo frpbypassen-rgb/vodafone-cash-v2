@@ -5,6 +5,22 @@ does not say whether the username exists or whether an approved address is
 stored. WhatsApp is not used. `WHATSAPP_OTP_ENABLED` stays off and is not a
 fallback.
 
+## Kill switch
+
+`PASSWORD_RESET_EMAIL_ENABLED` defaults to off. Only `1`, `true`, `yes`, or
+`on` turns self-service reset on. Unset, `false`, `0`, `off`, and `no` leave
+it off. Login OTP does not read this flag.
+
+While it is off, start still returns the public `PASSWORD_RESET_STARTED`
+body and the support contact from `getBrandContact`. It does not look up an
+account, create a `PasswordResetRequest`, or send mail. Verify and complete
+return `PASSWORD_RESET_UNAVAILABLE` with the same support sentence and do
+not change an account. The login modal shows that support sentence instead
+of the reset form.
+
+The safe rollback is this flag. Do not revert only the atomic-completion
+commit. The staged steps are in `docs/operations/password-reset-rollout.md`.
+
 ## Which address can receive a reset code
 
 No model stores `emailVerified` or `emailVerifiedAt`. A well-formed address
@@ -117,10 +133,11 @@ Support contact, from the same brand config: `0913731533` and
 
 ## Rollback
 
-Revert the application commit. Documents in `otp_sent`, `otp_verified`,
-`expired`, or `completed` remain readable by the previous code. No account
-field was added, and no migration runs on boot. In-flight `otp_verified`
-requests keep `otpVerifiedAt`. After a revert, the previous completion path
-does not apply this window. A request stuck in `completing` (it should not
-be, because that write commits only together with `completed`) should be
-set to `expired` manually before relying on it.
+Level 1 is the kill switch: set `PASSWORD_RESET_EMAIL_ENABLED=false` and
+restart the process. That disables start, verify, and complete and keeps
+the session and OTP fixes. Level 2, only if the whole change must leave the
+tree, is reverting the entire PR #77 squash. Reverting only the
+atomic-completion commit would restore the earlier reset path and is not a
+rollback. In-flight `PasswordResetRequest` documents are not completed
+while the flag is off, and they expire on their existing TTL. Details are
+in `docs/operations/password-reset-rollout.md`.

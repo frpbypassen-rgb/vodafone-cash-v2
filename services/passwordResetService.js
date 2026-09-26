@@ -6,7 +6,11 @@ const { escapeRegex } = require('../utils/helpers');
 const { generateOtp, hashOtp, verifyOtp } = require('../utils/otp');
 const { resolveAccountOtpEmail } = require('../utils/otpDeliveryChannel');
 const { isAdminApprovedResetEmail } = require('../utils/trustedResetEmail');
-const { passwordResetStartBody } = require('../utils/passwordResetAvailability');
+const {
+    isPasswordResetEmailEnabled,
+    passwordResetStartBody,
+    passwordResetUnavailableBody
+} = require('../utils/passwordResetAvailability');
 const { logAction } = require('./auditService');
 const User = require('../models/User');
 const SubAccount = require('../models/SubAccount');
@@ -152,6 +156,7 @@ const deleteWebSessions = async (accountId, dbSession) => {
 };
 
 const startPasswordReset = async ({ username, phone, req } = {}) => {
+    if (!isPasswordResetEmailEnabled()) return publicStart();
     const account = await findResetAccount(username, phone);
     if (!account || !isAdminApprovedResetEmail(account)) {
         await auditReset({
@@ -248,6 +253,7 @@ const startPasswordReset = async ({ username, phone, req } = {}) => {
 };
 
 const verifyPasswordReset = async ({ requestId, otp, req } = {}) => {
+    if (!isPasswordResetEmailEnabled()) return passwordResetUnavailableBody();
     const id = asObjectId(requestId);
     const fail = async (errorCode, doc) => {
         await auditReset({
@@ -343,6 +349,7 @@ const verifyPasswordReset = async ({ requestId, otp, req } = {}) => {
 };
 
 const completePasswordReset = async ({ requestId, newPassword, req } = {}) => {
+    if (!isPasswordResetEmailEnabled()) return passwordResetUnavailableBody();
     const id = asObjectId(requestId);
     const fail = async (errorCode, account) => {
         await auditReset({

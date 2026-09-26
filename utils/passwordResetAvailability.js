@@ -9,6 +9,10 @@ const PDI = '\u2069';
 
 const isolateLtr = (value) => `${LRM}${LRI}${value}${PDI}`;
 
+const isPasswordResetEmailEnabled = (env = process.env) => (
+    ['1', 'true', 'yes', 'on'].includes(String(env.PASSWORD_RESET_EMAIL_ENABLED || '').trim().toLowerCase())
+);
+
 const passwordResetSupportSentence = (env = process.env) => {
     const brand = getBrandContact(env);
     return `استعادة كلمة المرور غير متاحة حالياً. تواصل مع الدعم على ${isolateLtr(brand.phoneDisplay)} أو ${isolateLtr(brand.supportEmail)}`;
@@ -22,6 +26,19 @@ const passwordResetStartBody = (requestId, env = process.env) => {
         requestId: String(requestId || ''),
         error: '',
         message: `إذا كان للحساب بريد مفعّل لاستقبال رمز الاستعادة فسيصلك الرمز. إذا لم يكن له بريد مفعّل، ${passwordResetSupportSentence(env)}`,
+        supportPhone: brand.phoneDisplay,
+        supportEmail: brand.supportEmail
+    };
+};
+
+const passwordResetUnavailableBody = (env = process.env) => {
+    const brand = getBrandContact(env);
+    const message = passwordResetSupportSentence(env);
+    return {
+        success: false,
+        code: 'PASSWORD_RESET_UNAVAILABLE',
+        error: message,
+        message,
         supportPhone: brand.phoneDisplay,
         supportEmail: brand.supportEmail
     };
@@ -42,6 +59,8 @@ const createPasswordResetIpLimiter = (max = 8) => rateLimit({
 module.exports = {
     createPasswordResetIpLimiter,
     isolateLtr,
+    isPasswordResetEmailEnabled,
     passwordResetStartBody,
-    passwordResetSupportSentence
+    passwordResetSupportSentence,
+    passwordResetUnavailableBody
 };

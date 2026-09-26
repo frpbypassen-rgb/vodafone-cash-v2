@@ -122,6 +122,7 @@ const addSessions = async (user) => {
 };
 
 beforeAll(async () => {
+    process.env.PASSWORD_RESET_EMAIL_ENABLED = 'true';
     replSet = await MongoMemoryReplSet.create({
         replSet: { count: 1, storageEngine: 'wiredTiger' }
     });
@@ -369,5 +370,39 @@ describe('password reset on a replica set', () => {
         expect(device.active).toBe(true);
         expect(webSession).toBeTruthy();
         expect(await bcrypt.compare('should-not-stick', after.webPassword)).toBe(false);
+    });
+
+    test('does not write or send mail when the reset flag is unset', async () => {
+        delete process.env.PASSWORD_RESET_EMAIL_ENABLED;
+        try {
+            const user = await createUser({ channel: 'email' });
+            const before = await User.findById(user._id).lean();
+            const beforeCount = await PasswordResetRequest.countDocuments();
+            const started = await startPasswordReset({
+                username: user.webUsername,
+                phone: user.phone,
+                req: requestStub
+            });
+            const verified = await verifyPasswordReset({
+                requestId: '507f1f77bcf86cd799439011',
+                otp: CODE,
+                req: requestStub
+            });
+            const completed = await completePasswordReset({
+                requestId: '507f1f77bcf86cd799439011',
+                newPassword: 'new-password-1',
+                req: requestStub
+            });
+            const after = await User.findById(user._id).lean();
+            expect(started.code).toBe('PASSWORD_RESET_STARTED');
+            expect(verified.code).toBe('PASSWORD_RESET_UNAVAILABLE');
+            expect(completed.code).toBe('PASSWORD_RESET_UNAVAILABLE');
+            expect(sendPasswordResetEmail).not.toHaveBeenCalled();
+            expect(await PasswordResetRequest.countDocuments()).toBe(beforeCount);
+            expect(after.webPassword).toBe(before.webPassword);
+            expect(after.sessionVersion).toBe(0);
+        } finally {
+            process.env.PASSWORD_RESET_EMAIL_ENABLED = 'true';
+        }
     });
 });
