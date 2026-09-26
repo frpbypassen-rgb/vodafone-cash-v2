@@ -1,7 +1,22 @@
-# Auto Deploy
+# Deploy
 
-The repository deploys automatically on every push to `main` through
-`.github/workflows/deploy.yml`.
+`.github/workflows/deploy.yml` does not deploy on push or on a successful
+CI run. Start "Deploy to Server" with `workflow_dispatch` from `main`, and
+type the full 40-character commit SHA into `confirm_sha`.
+
+The deploy job uses the GitHub Environment named `production`. Create that
+environment and add required reviewers:
+
+`Settings -> Environments -> New environment -> production -> Required reviewers`
+
+Until those reviewers are saved, the environment does not block the job.
+Do not delete the `DEPLOY_*` secrets in place of that setting.
+
+`apply_repair` defaults to false. The workflow then runs
+`node scripts/repairProductionEnv.js .env` and does not write the env file.
+`node scripts/migrateTenantIsolation.js --apply` is not in the workflow.
+Preview it with `node scripts/migrateTenantIsolation.js`, then apply it only
+as a separate manual step after a backup and an explicit approval.
 
 ## Required GitHub Secrets
 

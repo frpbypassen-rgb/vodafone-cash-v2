@@ -48,7 +48,7 @@ Deploy this revision to staging with `PASSWORD_RESET_EMAIL_ENABLED` unset
 or `false`. Restart so Node re-reads the file:
 
 ```powershell
-Set-Location C:\Users\Administrator\Desktop\vodafone-cash-v2
+Set-Location <STAGING_PATH>
 pm2 restart Ahram_Core_API --update-env
 ```
 
@@ -58,37 +58,63 @@ Confirm the login page shows the support sentence (`0913731533` and
 and does not send mail. Verify and complete return
 `PASSWORD_RESET_UNAVAILABLE`.
 
-## 3. Readiness script
+## 3. Staging check
 
-The script is read-only. It prints one `PASS`, `FAIL`, or `INFO` line per
-check and a final `OVERALL PASS` or `OVERALL FAIL`. The process exit code
-is 0 only for `OVERALL PASS`. It redacts URIs and secrets, does not restart
-anything, does not send mail or WhatsApp, and does not insert, update, or
-create collections or indexes (`autoIndex` and `autoCreate` are off).
+`scripts/checkStagingReadiness.js` is a staging check. It is not a
+production check. Do not point it at
+`C:\Users\Administrator\Desktop\vodafone-cash-v2`. `--app-dir` and
+`--env-file` are both required. There is no default path.
+
+The staging env file must not set `NODE_ENV` or `APP_ENV` to `production`.
+Use `staging`, or leave them unset. If either value says production, in the
+file or in the process environment, the script prints the resolved app
+directory and those labels, then exits non-zero without connecting.
+
+It prints one `PASS`, `FAIL`, `WARN`, or `INFO` line per check and a final
+`OVERALL PASS` or `OVERALL FAIL`. The process exit code is 0 only for
+`OVERALL PASS`. Error text is sanitized: connection URIs, user:pass@host,
+query strings, and hosts or IPs from those strings are not printed. It does
+not restart anything, does not send mail or WhatsApp, and does not insert,
+update, or create collections or indexes (`autoIndex` and `autoCreate` are
+off). It does not start a transaction and it does not claim that
+transactions work. A replica set is reported only as
+`PASS replica-set topology detected` or
+`FAIL replica-set topology not detected`.
 
 ```powershell
-Set-Location C:\Users\Administrator\Desktop\vodafone-cash-v2
-node .\scripts\checkPasswordResetReadiness.js --env-file .\.env
+Set-Location <STAGING_PATH>
+node .\scripts\checkStagingReadiness.js -- --app-dir <STAGING_PATH> --env-file .\.env
 ```
 
-Stop if the overall line is not `OVERALL PASS`. An optional `--app-dir`
-sets the directory used to resolve a relative `--env-file`. The script
-reads that file only. It checks:
+The `--` is required. Node treats `--env-file` as its own option and exits
+before this script when that separator is missing.
 
-- MongoDB is a replica set with a writable primary, then a transaction that
-  only reads `users` and aborts.
+Stop if the overall line is not `OVERALL PASS`. A `WARN` on
+`PASSWORD_RESET_EMAIL_ENABLED` means the flag is already on. Stop unless
+this run is after the approved staging enable step. The script reads that
+env file only. It checks:
+
+- Resolved app directory, `NODE_ENV`, and `APP_ENV`, then refuses production.
+- Replica-set topology only. No transaction is started.
 - Redis `PING` when Redis is in use. If `REDIS_ENABLED` is false, the Redis
   line is `INFO` unless `REDIS_REQUIRED=true`, which is `FAIL`.
-- `SESSION_STORE`, `SESSION_SECRET` present with length at least 32 (the
-  value is not printed), `SECURE_COOKIE`, and that the configured session
-  store answers (mongo: `sessions` exists and is countable; redis: ping).
+- `SESSION_STORE` is `mongo` or `redis`. `SESSION_SECRET` is present with
+  length at least 32 (the value is not printed). `SECURE_COOKIE` is reported
+  as a label. The configured session store answers (mongo: `sessions` exists
+  and is countable; redis: ping).
 - `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, and `SMTP_FROM` are
-  present. `EMAIL_OTP_ENABLED=true`. `OTP_DELIVERY_CHANNEL=email`.
-- `WHATSAPP_OTP_ENABLED` and `WHATSAPP_LOGIN_OTP_ENABLED` are not truthy.
-- Info only: `PASSWORD_RESET_EMAIL_ENABLED` and the effective
-  `PASSWORD_RESET_COMPLETE_WINDOW_SECONDS` (default 600, clamped to 60–600).
+  present. Values are not printed. `EMAIL_OTP_ENABLED=true`.
+  `OTP_DELIVERY_CHANNEL=email`.
+- `WHATSAPP_OTP_ENABLED` and `WHATSAPP_LOGIN_OTP_ENABLED` are unset or false.
+- `PASSWORD_RESET_EMAIL_ENABLED` passes when unset or false, and warns when
+  it is already true. The effective
+  `PASSWORD_RESET_COMPLETE_WINDOW_SECONDS` is info (default 600, clamped to
+  60–600).
 - Read-only counts of eligible retail users and user-owned sub-accounts
-  (`users`, `subaccounts`).
+  (`users`, `subaccounts`). The address is the same one
+  `resolveAccountOtpEmail` returns: the direct `email` field when it is
+  non-empty, otherwise `businessProfile.email`. Agents and sub-accounts
+  whose `masterType` is not `user` are outside the count.
 
 ## 4. Enable on staging only
 
@@ -142,13 +168,18 @@ production change. Do not enable the flag on production in the same step.
 
 ## 8. Production, after that approval
 
-Repeat the same order on production:
+Do not run `scripts/checkStagingReadiness.js` against production. It is a
+staging check and it stops when `NODE_ENV` or `APP_ENV` is `production`.
 
 1. Backup, as in section 1, if the staging backup is not already the
    production snapshot taken immediately before this window.
-2. Deploy with `PASSWORD_RESET_EMAIL_ENABLED=false` (or unset) and
-   `pm2 restart Ahram_Core_API --update-env`.
-3. Run the same readiness command. Continue only on `OVERALL PASS`.
+2. Deploy from `main` only by starting "Deploy to Server" with
+   `workflow_dispatch`. Type the full 40-character commit SHA into
+   `confirm_sha`. Leave `apply_repair` false so
+   `repairProductionEnv.js` previews and does not write. A required reviewer
+   on the `production` GitHub Environment must approve the deploy job.
+3. On the server, keep `PASSWORD_RESET_EMAIL_ENABLED` false or unset and
+   run `pm2 restart Ahram_Core_API --update-env`.
 4. Enable `PASSWORD_RESET_EMAIL_ENABLED=true` only after the approval that
    covers production, then restart with `--update-env`.
 5. One reset for a dedicated test account whose approved address is
@@ -156,6 +187,12 @@ Repeat the same order on production:
 6. Repeat the session checks and the log search.
 
 `WHATSAPP_OTP_ENABLED` remains `false`.
+
+`node scripts/migrateTenantIsolation.js --apply --create-default` is not
+part of the deploy workflow. Run the script without `--apply` first. Apply
+it only as its own manual step, after a backup and a separate owner
+approval. `repairProductionEnv.js --apply` is the same kind of manual write:
+the workflow runs the preview unless `apply_repair` is explicitly true.
 
 ## Rollback
 
@@ -176,18 +213,19 @@ existing code TTL and completion window. A document left in `completing`
 should be set to `expired` by hand. That status is written only inside the
 completion transaction, so it should not be visible after an abort.
 
-## Deploy workflow risk
+## Deploy workflow
 
-`.github/workflows/deploy.yml` (workflow name "Deploy to Server") listens
-to a successful run of "Ahram Enterprise CI/CD Pipeline" (`.github/workflows/ci-cd.yml`)
-on `main`, and it can also be started with `workflow_dispatch`. On a
-successful CI conclusion it deploys that commit and runs
-`node scripts/migrateTenantIsolation.js --apply --create-default`, then
-reloads PM2. This pull request does not change that workflow.
+`.github/workflows/deploy.yml` (workflow name "Deploy to Server") starts
+only from `workflow_dispatch` on `main`. A green CI run does not deploy.
+The operator types the full commit SHA. The deploy job uses the GitHub
+Environment `production`, so it waits for required reviewers.
 
-Today CI on `main` fails (the security audit, plus the two known test
-failures), so a push to `main` does not take that path. The risk remains:
-a later green CI run on `main` deploys and applies that migration without
-a separate production approval in this checklist. Keep
-`PASSWORD_RESET_EMAIL_ENABLED` false in the server env file until section 8
-is explicitly approved, including across any automatic deploy.
+The owner configures that gate in the repository:
+Settings → Environments → New environment → name `production` → Required
+reviewers. This pull request cannot create that protection rule. Do not
+remove the `DEPLOY_*` secrets as a substitute for the reviewers.
+
+The workflow does not run `migrateTenantIsolation.js`. It runs
+`repairProductionEnv.js` as a preview unless the dispatch input
+`apply_repair` is true. Keep `PASSWORD_RESET_EMAIL_ENABLED` false in the
+server env file until section 8 is explicitly approved.
