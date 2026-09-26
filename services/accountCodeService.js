@@ -4,6 +4,11 @@ const User = require('../models/User');
 const ClientCompany = require('../models/ClientCompany');
 const SubAccount = require('../models/SubAccount');
 const AccountCode = require('../models/AccountCode');
+const {
+    tenantGuardEnabled,
+    trustedRequestTenantId,
+    codedError
+} = require('./financialSafety');
 
 const CODE_LENGTHS = {
     user: 6,
@@ -72,12 +77,20 @@ const duplicateReservationError = () => {
     return error;
 };
 
-const reserveAccountCode = async (code, current) => {
+const reserveAccountCode = async (code, current, options = {}) => {
     const normalized = normalizeAccountCode(code);
+    const tenantId = options.tenantId || null;
     try {
         return await AccountCode.findOneAndUpdate(
             { ownerModel: current.modelName, ownerId: current.id },
-            { $set: { code: normalized, ownerModel: current.modelName, ownerId: current.id } },
+            {
+                $set: {
+                    code: normalized,
+                    ownerModel: current.modelName,
+                    ownerId: current.id,
+                    ...(tenantId ? { tenantId } : {})
+                }
+            },
             { upsert: true, new: true, runValidators: true, setDefaultsOnInsert: true }
         );
     } catch (error) {
@@ -131,15 +144,30 @@ const resolveFromReservation = async (reservation, normalized) => {
     return { modelName: reservation.ownerModel, doc, label: accountLabel(reservation.ownerModel, doc) };
 };
 
-const resolveAccountByCode = async (code) => {
+const findForeignAccount = async (normalized, tenantId) => {
+    const foreignFilter = { accountCode: normalized, tenantId: { $ne: tenantId } };
+    const [user, company, subAccount] = await Promise.all([
+        User.findOne(foreignFilter).select('_id tenantId').lean(),
+        ClientCompany.findOne(foreignFilter).select('_id tenantId').lean(),
+        SubAccount.findOne(foreignFilter).select('_id tenantId').lean()
+    ]);
+    return [user, company, subAccount].find(Boolean) || null;
+};
+
+const resolveAccountByCode = async (code, context = null) => {
     const normalized = normalizeAccountCode(code);
     if (!/^\d{4,6}$/.test(normalized)) return null;
 
+    const enforce = tenantGuardEnabled();
+    const tenantId = enforce ? trustedRequestTenantId(context) : null;
+    if (enforce && !tenantId) throw codedError('TENANT_UNRESOLVED', 503);
+    const scope = enforce ? { tenantId } : {};
+
     const [user, company, subAccount, reservation] = await Promise.all([
-        User.findOne({ accountCode: normalized }),
-        ClientCompany.findOne({ accountCode: normalized }),
-        SubAccount.findOne({ accountCode: normalized }),
-        AccountCode.findOne({ code: normalized }).lean()
+        User.findOne({ accountCode: normalized, ...scope }),
+        ClientCompany.findOne({ accountCode: normalized, ...scope }),
+        SubAccount.findOne({ accountCode: normalized, ...scope }),
+        AccountCode.findOne({ code: normalized, ...scope }).lean()
     ]);
 
     const matches = [
@@ -152,6 +180,13 @@ const resolveAccountByCode = async (code) => {
         throw new Error('ACCOUNT_CODE_AMBIGUOUS');
     }
     if (matches.length === 1) return matches[0];
+
+    if (enforce) {
+        const foreign = await findForeignAccount(normalized, tenantId);
+        if (foreign && foreign.tenantId) throw codedError('CROSS_TENANT_ACCOUNT', 403);
+        if (foreign) throw codedError('TENANT_UNRESOLVED', 503);
+    }
+
     if (reservation) return resolveFromReservation(reservation, normalized);
     return null;
 };

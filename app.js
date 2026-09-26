@@ -280,13 +280,17 @@ app.get('/health/ready', async (req, res) => {
         const redisRequired = ['1', 'true', 'yes', 'on'].includes(String(process.env.REDIS_REQUIRED || '').trim().toLowerCase());
         const redisReady = !redisRequired || isRedis();
         const ready = dbState === 1 && app.locals.sessionStoreHealthy && redisReady && !app.locals.isShuttingDown;
+        const flagOn = (name) => ['1', 'true', 'yes', 'on'].includes(String(process.env[name] || '').trim().toLowerCase());
         res.status(ready ? 200 : 503).json({
             status: ready ? 'ok' : 'degraded',
             db: dbStatus,
             sessionStore: app.locals.sessionStoreHealthy ? 'connected' : 'degraded',
             redis: redisReady ? 'connected' : 'degraded',
             shuttingDown: Boolean(app.locals.isShuttingDown),
-            uptime: process.uptime()
+            uptime: process.uptime(),
+            financialTenantGuard: flagOn('FINANCIAL_TENANT_GUARD'),
+            financialIdempotencyRequired: flagOn('FINANCIAL_IDEMPOTENCY_REQUIRED'),
+            mongoTransactionsRequired: process.env.NODE_ENV === 'production' || flagOn('MONGO_TRANSACTIONS_REQUIRED')
         });
     } catch (e) {
         res.status(503).json({ status: 'error', db: 'unreachable' });

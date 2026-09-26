@@ -3332,7 +3332,8 @@ router.post('/client/balance-transfer/lookup', authenticateJWT, lookupValidator,
         const target = await mobileWebParityService.lookupBalanceTransfer({
             userId,
             accountType,
-            targetAccountCode
+            targetAccountCode,
+            req
         });
         
         return res.json({
@@ -3346,16 +3347,22 @@ router.post('/client/balance-transfer/lookup', authenticateJWT, lookupValidator,
             TARGET_INACTIVE: 'الحساب المستلم غير نشط.',
             SAME_ACCOUNT: 'لا يمكن تحويل الرصيد إلى نفس الحساب.',
             INVALID_ACCOUNT_CODE: 'كود المستلم غير صالح.',
-            TARGET_NOT_FOUND: 'لم يتم العثور على حساب بهذا الكود.'
+            TARGET_NOT_FOUND: 'لم يتم العثور على حساب بهذا الكود.',
+            CROSS_TENANT_ACCOUNT: 'لا يمكن الوصول إلى حساب خارج المنظمة.',
+            TENANT_UNRESOLVED: 'تعذر تحديد المنظمة بأمان.'
         };
         Object.assign(knownMsg, {
             INVALID_RATE: 'سعر الصرف المسجل على العملية غير صالح.',
             ACCOUNT_NOT_FOUND: 'الحساب المرتبط بالعملية غير موجود.',
             LOCK_TIMEOUT: 'تعذر قفل العملية حالياً، يرجى المحاولة لاحقاً.'
         });
-        if (knownMsg[e.message]) {
-            const status = e.message === 'TARGET_NOT_FOUND' ? 404 : (e.message === 'SESSION_EXPIRED' ? 401 : 400);
-            return sendMobileError(res, status, e.message, knownMsg[e.message], req.correlationId);
+        if (knownMsg[e.message] || knownMsg[e.code]) {
+            const code = knownMsg[e.message] ? e.message : e.code;
+            const status = code === 'TARGET_NOT_FOUND' ? 404
+                : (code === 'SESSION_EXPIRED' ? 401
+                    : (code === 'CROSS_TENANT_ACCOUNT' ? 403
+                        : (code === 'TENANT_UNRESOLVED' ? 503 : 400)));
+            return sendMobileError(res, status, code, knownMsg[code], req.correlationId);
         }
         return sendServerError(res, req, 'تعذر التحقق من حساب المستلم');
     }
@@ -3392,11 +3399,20 @@ router.post('/client/balance-transfer', authenticateJWT, requireIdempotencyKey, 
             INSUFFICIENT_BALANCE: 'الرصيد غير كافٍ لإتمام العملية.',
             INVALID_AMOUNT: 'المبلغ المدخل غير صالح.',
             IDEMPOTENCY_CONFLICT: 'مفتاح العملية مستخدم لطلب مختلف.',
-            LOCK_TIMEOUT: 'الرجاء المحاولة مرة أخرى لاحقاً.'
+            LOCK_TIMEOUT: 'الرجاء المحاولة مرة أخرى لاحقاً.',
+            CROSS_TENANT_ACCOUNT: 'لا يمكن الوصول إلى حساب خارج المنظمة.',
+            CROSS_TENANT_TRANSFER: 'لا يمكن التحويل إلى حساب خارج المنظمة. لم يتم خصم أي مبلغ.',
+            TENANT_UNRESOLVED: 'تعذر تحديد المنظمة بأمان. لم يتم خصم أي مبلغ.',
+            REDIS_LOCK_FAILED: 'تعذر قفل العملية بأمان. لم يتم خصم أي مبلغ.'
         };
-        if (knownMsg[e.message]) {
-            const status = e.message === 'TARGET_NOT_FOUND' ? 404 : (e.message === 'SESSION_EXPIRED' ? 401 : (e.message === 'IDEMPOTENCY_CONFLICT' ? 409 : 400));
-            return sendMobileError(res, status, e.message, knownMsg[e.message], req.correlationId);
+        if (knownMsg[e.message] || knownMsg[e.code]) {
+            const code = knownMsg[e.message] ? e.message : e.code;
+            const status = code === 'TARGET_NOT_FOUND' ? 404
+                : (code === 'SESSION_EXPIRED' ? 401
+                    : (code === 'IDEMPOTENCY_CONFLICT' ? 409
+                        : (code === 'CROSS_TENANT_ACCOUNT' || code === 'CROSS_TENANT_TRANSFER' ? 403
+                            : (code === 'TENANT_UNRESOLVED' || code === 'REDIS_LOCK_FAILED' ? 503 : 400))));
+            return sendMobileError(res, status, code, knownMsg[code], req.correlationId);
         }
         return sendServerError(res, req, 'تعذر تنفيذ تحويل الرصيد');
     }

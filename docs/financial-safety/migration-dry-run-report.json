@@ -1,0 +1,94 @@
+{
+  "mode": "dry-run",
+  "startedAt": "2026-09-26T13:36:05.941Z",
+  "finishedAt": "2026-09-26T13:36:05.948Z",
+  "note": "Dry-run does not write. Ambiguous rows are never updated. Balances, amounts, and statuses are not fields this script sets.",
+  "unchangedFields": [
+    "balance",
+    "amount",
+    "status"
+  ],
+  "collections": {
+    "Transaction": {
+      "summary": {
+        "confident": 1,
+        "ambiguous": 1,
+        "unresolvable": 1,
+        "already": 0,
+        "modified": 0,
+        "batches": 1
+      },
+      "samples": {
+        "ambiguous": [
+          {
+            "_id": "6ab7ca452b0a5fc318692e45",
+            "reason": "company+subAccount"
+          }
+        ],
+        "unresolvable": [
+          {
+            "_id": "6ab7ca452b0a5fc318692e46",
+            "reason": "no-linked-tenant"
+          }
+        ]
+      }
+    },
+    "Ledger": {
+      "summary": {
+        "confident": 1,
+        "ambiguous": 1,
+        "unresolvable": 0,
+        "already": 0,
+        "modified": 0,
+        "batches": 1
+      },
+      "samples": {
+        "ambiguous": [
+          {
+            "_id": "6ab7ca452b0a5fc318692e47",
+            "reason": "transaction+entity"
+          }
+        ],
+        "unresolvable": []
+      }
+    },
+    "JournalEvent": {
+      "summary": {
+        "confident": 0,
+        "ambiguous": 0,
+        "unresolvable": 1,
+        "already": 0,
+        "modified": 0,
+        "batches": 1
+      },
+      "samples": {
+        "ambiguous": [],
+        "unresolvable": [
+          {
+            "_id": "6ab7ca452b0a5fc318692e4a",
+            "reason": "no-linked-tenant"
+          }
+        ]
+      }
+    },
+    "AuditLog": {
+      "summary": {
+        "confident": 1,
+        "ambiguous": 0,
+        "unresolvable": 1,
+        "already": 0,
+        "modified": 0,
+        "batches": 1
+      },
+      "samples": {
+        "ambiguous": [],
+        "unresolvable": [
+          {
+            "_id": "6ab7ca452b0a5fc318692e4c",
+            "reason": "no-linked-tenant"
+          }
+        ]
+      }
+    }
+  }
+}

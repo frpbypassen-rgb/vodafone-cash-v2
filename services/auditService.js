@@ -48,6 +48,7 @@ const calculateHash = (entry, previousHash) => {
  */
 const logAction = async (params) => {
     let auditLock;
+    let keepLock = false;
     try {
         const {
             action,
@@ -69,7 +70,9 @@ const logAction = async (params) => {
             severity,
             required = false,
             session = null,
-            companyId = null
+            companyId = null,
+            tenantId = null,
+            holdLock = false
         } = params;
 
         const ipAddress = req
@@ -162,15 +165,28 @@ const logAction = async (params) => {
             previousHash,
             severity: ['info', 'warning', 'critical'].includes(severity) ? severity : 'info'
         };
+        const resolvedTenantId = tenantId || (req && (req.tenantId || (req.tenant && req.tenant._id))) || null;
+        if (resolvedTenantId) entryData.tenantId = resolvedTenantId;
+        // tenantId is stored but intentionally excluded from calculateHash.
         entryData.hash = calculateHash(entryData, previousHash);
 
         const entry = new AuditLog(entryData);
         await entry.save(session ? { session } : {});
+        if (holdLock) {
+            keepLock = true;
+            return {
+                release: async () => {
+                    await releaseLock(auditLock);
+                }
+            };
+        }
+        return undefined;
     } catch (err) {
         console.error('⚠️ [AuditService] فشل في تسجيل التدقيق:', err.message);
         if (params?.required) throw err;
+        return undefined;
     } finally {
-        await releaseLock(auditLock);
+        if (!keepLock) await releaseLock(auditLock);
     }
 };
 
@@ -182,7 +198,7 @@ const sanitizeData = (data) => {
     if (data instanceof Date) return data;
     if (Buffer.isBuffer(data)) return `[BUFFER:${data.length}]`;
     if (Array.isArray(data)) return data.map(sanitizeData);
-    const sensitive = /(?:password|passphrase|token|authorization|cookie|secret|otp|pin)$/i;
+    const sensitive = /password|passphrase|token|authorization|cookie|secret|otp|pin/i;
     return Object.fromEntries(Object.entries(data).map(([key, value]) => [
         key,
         sensitive.test(key) ? '[REDACTED]' : sanitizeData(value)

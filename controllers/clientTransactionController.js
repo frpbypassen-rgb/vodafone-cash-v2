@@ -14,6 +14,15 @@ const AgencyJournal = require('../models/AgencyJournal');
 const Admin = require('../models/Admin');
 const { executeBalanceTransfer } = require('../services/balanceTransferService');
 const {
+    resolveStampTenant,
+    assertAccountsSameTenant,
+    assertMasterSubPolicy,
+    beginIdempotentFinancialRequest,
+    acquireWalletLock,
+    tenantStamp,
+    PUBLIC_MESSAGES
+} = require('../services/financialSafety');
+const {
     resolveAutoRouteExecutor,
     applyAutoRouteFields,
     enqueueAutoRouteIfNeeded
@@ -164,7 +173,14 @@ const balanceTransferMessages = {
     TARGET_INACTIVE: 'الحساب المستلم غير نشط.',
     SOURCE_INACTIVE: 'حسابك غير نشط.',
     SAME_ACCOUNT: 'لا يمكن تحويل الرصيد إلى نفس الحساب.',
-    INSUFFICIENT_BALANCE: 'الرصيد غير كافٍ لإتمام التحويل.'
+    INSUFFICIENT_BALANCE: 'الرصيد غير كافٍ لإتمام التحويل.',
+    TENANT_UNRESOLVED: PUBLIC_MESSAGES.TENANT_UNRESOLVED,
+    CROSS_TENANT_TRANSFER: PUBLIC_MESSAGES.CROSS_TENANT_TRANSFER,
+    CROSS_TENANT_ACCOUNT: PUBLIC_MESSAGES.CROSS_TENANT_ACCOUNT,
+    IDEMPOTENCY_CONFLICT: PUBLIC_MESSAGES.IDEMPOTENCY_CONFLICT,
+    IDEMPOTENCY_KEY_REQUIRED: PUBLIC_MESSAGES.IDEMPOTENCY_KEY_REQUIRED,
+    IDEMPOTENCY_KEY_INVALID: PUBLIC_MESSAGES.IDEMPOTENCY_KEY_INVALID,
+    REDIS_LOCK_FAILED: PUBLIC_MESSAGES.REDIS_LOCK_FAILED
 };
 
 const balanceTransferStatus = {
@@ -178,7 +194,14 @@ const balanceTransferStatus = {
     SOURCE_INACTIVE: 403,
     SAME_ACCOUNT: 400,
     INSUFFICIENT_BALANCE: 400,
-    INVALID_AMOUNT: 400
+    INVALID_AMOUNT: 400,
+    TENANT_UNRESOLVED: 503,
+    CROSS_TENANT_TRANSFER: 403,
+    CROSS_TENANT_ACCOUNT: 403,
+    IDEMPOTENCY_CONFLICT: 409,
+    IDEMPOTENCY_KEY_REQUIRED: 400,
+    IDEMPOTENCY_KEY_INVALID: 400,
+    REDIS_LOCK_FAILED: 503
 };
 
 exports.postTransfer = async (req, res) => {
@@ -191,6 +214,10 @@ exports.postTransfer = async (req, res) => {
     
     let session = null;
     let useTransaction = false;
+    let transferTenantId = null;
+    let idempotencyState = { release: async () => {} };
+    let walletLock = { release: async () => {} };
+    let auditRelease = null;
 
     try {
         try {
@@ -307,6 +334,40 @@ exports.postTransfer = async (req, res) => {
         let masterObj, telegramId = null;
         let finalCustomId = '';
 
+        let walletDoc = account;
+        if (!isSubAccount && req.session.accountType === 'company') {
+            walletDoc = await withSess(ClientCompany.findById(account.companyId));
+            if (!walletDoc) throw new Error('COMPANY_NOT_FOUND');
+        } else if (isAgentStaff) {
+            walletDoc = await withSess(User.findById(account.agentId));
+            if (!walletDoc || walletDoc.status !== 'active' || walletDoc.role !== 'agent') throw new Error('AGENT_NOT_FOUND');
+        }
+        transferTenantId = resolveStampTenant({ req, account: walletDoc });
+        idempotencyState = await beginIdempotentFinancialRequest({
+            key: req.headers['idempotency-key'],
+            accountId: walletDoc._id,
+            tenantId: transferTenantId,
+            channel: 'web-transfer',
+            payload: {
+                type: transferType,
+                serviceKey,
+                amount,
+                phone,
+                accountNumber,
+                accountName,
+                notes
+            }
+        });
+        if (idempotencyState.replay) {
+            if (useTransaction) {
+                await session.abortTransaction();
+                session.endSession();
+                useTransaction = false;
+            }
+            return res.json(idempotencyState.replay);
+        }
+        walletLock = await acquireWalletLock(walletDoc._id);
+
         // 🟢 إعداد الـ ID الخاص بالفاتورة مبكراً لتوثيقه في الدفتر
         const counter = await Counter.findOneAndUpdate(
             { name: 'transaction' },
@@ -353,6 +414,8 @@ exports.postTransfer = async (req, res) => {
             cooldownLock = cooldown.lock;
             cooldownGuardFields = cooldown.guardFields;
 
+            assertMasterSubPolicy(account, masterObj);
+
             // 🟢 الخصم الذري لنقطة البيع + القيد المالي
             const updatedSub = await SubAccount.findOneAndUpdate(
                 { _id: account._id, balance: { $gte: minSubBalance } },
@@ -368,6 +431,7 @@ exports.postTransfer = async (req, res) => {
             }
             
             await new Ledger({
+                ...tenantStamp(transferTenantId),
                 entityId: account._id, entityModel: 'SubAccount', transactionId: finalCustomId,
                 type: 'TRANSFER', amount: -subCostLYD, balanceBefore: updatedSub.balance + subCostLYD,
                 balanceAfter: updatedSub.balance, description: `تحويل ${amount} ${pricingDefinition.amountCurrencyLabel} إلى ${phone}`
@@ -390,6 +454,7 @@ exports.postTransfer = async (req, res) => {
             }
             
             await new Ledger({
+                ...tenantStamp(transferTenantId),
                 entityId: masterObj._id, entityModel: MasterModel.modelName, transactionId: finalCustomId,
                 type: 'TRANSFER', amount: -masterCostLYD, balanceBefore: updatedMaster.balance + masterCostLYD,
                 balanceAfter: updatedMaster.balance, description: `تحويل من نقطة بيع (${account.name}): ${amount} ${pricingDefinition.amountCurrencyLabel} إلى ${phone}`
@@ -447,6 +512,7 @@ exports.postTransfer = async (req, res) => {
             }
 
             await new Ledger({
+                ...tenantStamp(transferTenantId),
                 entityId: balanceModel._id, entityModel: BModel.modelName, transactionId: finalCustomId,
                 type: 'TRANSFER', amount: -masterCostLYD, balanceBefore: balanceModel.balance + masterCostLYD,
                 balanceAfter: balanceModel.balance, description: `تحويل ${amount} ${pricingDefinition.amountCurrencyLabel} إلى ${phone}`
@@ -454,7 +520,14 @@ exports.postTransfer = async (req, res) => {
         }
 
         // 🟢 تسجيل المعاملة النهائية
+        const webTransferResponse = {
+            success: true,
+            message: 'تم الإرسال بنجاح.',
+            newBalance: balanceModel.balance.toFixed(2),
+            customId: finalCustomId
+        };
         const newTx = new Transaction({
+            ...tenantStamp(transferTenantId),
             customId: finalCustomId, userId: telegramId, companyId: companyId, subAccountId: isSubAccount ? account._id : null,
             subAccountName: isSubAccount ? account.name : '', companyName: isSubAccount ? masterObj.name : companyName, 
             employeeName: isSubAccount ? account.name : account.name,
@@ -466,7 +539,12 @@ exports.postTransfer = async (req, res) => {
             subAccountCostLYD: isSubAccount ? subCostLYD : 0, commission: commission, exchangeRate: masterRate, subClientRate: isSubAccount ? actualSubRate : 0,
             agencyPricing: isSubAccount ? agencyPricing : undefined,
             notes, customerNotes: notes, status: 'pending', isSubAccountTx: isSubAccount, masterProfit: isSubAccount ? commission : 0,
-            idCardImage: req.file ? `/uploads/${req.file.filename}` : undefined
+            idCardImage: req.file ? `/uploads/${req.file.filename}` : undefined,
+            ...(idempotencyState.key ? {
+                idempotencyKey: idempotencyState.key,
+                idempotencyFingerprint: idempotencyState.fingerprint,
+                idempotencyResponse: webTransferResponse
+            } : {})
         });
         if (autoRouteExecutor) applyAutoRouteFields(newTx, autoRouteExecutor);
         if (isSubAccount) {
@@ -485,8 +563,7 @@ exports.postTransfer = async (req, res) => {
             standaloneCompensations.push(() => Transaction.deleteOne({ _id: newTx._id }));
         }
 
-        // Log successful transfer to audit log
-        await logAction({
+        const auditHold = await logAction({
             action: 'TRANSFER_CREATED',
             req,
             performedById: account._id,
@@ -495,11 +572,24 @@ exports.postTransfer = async (req, res) => {
             targetId: newTx._id,
             targetModel: 'Transaction',
             newData: { customId: finalCustomId, amount, transferType, costLYD: masterCostLYD, exchangeRate: masterRate },
-            metadata: { customId: finalCustomId, transferType }
+            metadata: { customId: finalCustomId, transferType },
+            tenantId: transferTenantId,
+            session: useTransaction ? session : null,
+            holdLock: useTransaction,
+            required: useTransaction
         });
+        auditRelease = auditHold && auditHold.release;
 
-        // ✅ تأكيد العملية بنجاح (Commit)
-        if (useTransaction) { await session.commitTransaction(); session.endSession(); }
+        // ✅ تأكيد العملية بنجاح (Commit) ثم تحرير قفل سلسلة التدقيق
+        if (useTransaction) {
+            await session.commitTransaction();
+            session.endSession();
+            useTransaction = false;
+        }
+        if (auditRelease) {
+            await auditRelease();
+            auditRelease = null;
+        }
         standaloneCompensations = [];
 
         if (autoRouteExecutor) {
@@ -510,7 +600,7 @@ exports.postTransfer = async (req, res) => {
             });
         }
 
-        if (isAjax) res.json({ success: true, message: 'تم الإرسال بنجاح.', newBalance: balanceModel.balance.toFixed(2), customId: finalCustomId });
+        if (isAjax) res.json(webTransferResponse);
 
         // 🔔 إرسال الإشعارات
         setImmediate(async () => {
@@ -596,10 +686,20 @@ exports.postTransfer = async (req, res) => {
                 error: 'الخدمة المالية غير متاحة مؤقتًا. لم يتم خصم أي مبلغ.'
             });
         }
+        if (error.code && error.statusCode) {
+            return res.status(error.statusCode).json({
+                success: false,
+                code: error.code,
+                error: error.publicMessage || PUBLIC_MESSAGES[error.code] || error.message
+            });
+        }
         if (error.statusCode) return isAjax ? res.status(error.statusCode).json({ error: error.message }) : null;
 
         return isAjax ? res.status(500).json({ error: '❌ خطأ داخلي.' }) : null;
     } finally {
+        if (auditRelease) await auditRelease().catch(() => {});
+        await walletLock.release();
+        await idempotencyState.release();
         await releaseTransferCooldown(cooldownLock);
     }
 };
@@ -613,8 +713,10 @@ exports.lookupBalanceTransferTarget = async (req, res) => {
             throw createClientError('INVALID_ACCOUNT_CODE', 400);
         }
 
-        const target = await resolveAccountByCode(targetCode);
+        const target = await resolveAccountByCode(targetCode, req);
         if (!target) throw createClientError('TARGET_NOT_FOUND', 404);
+        resolveStampTenant({ req, account: source.doc });
+        assertAccountsSameTenant(source.doc.tenantId, target.doc.tenantId);
         if (source.doc.status !== 'active') throw createClientError('SOURCE_INACTIVE', 403);
         if (target.doc.status !== 'active') throw createClientError('TARGET_INACTIVE', 400);
         if (isSameBalanceAccount(source, target)) throw createClientError('SAME_ACCOUNT', 400);
@@ -628,10 +730,11 @@ exports.lookupBalanceTransferTarget = async (req, res) => {
             }
         });
     } catch (error) {
-        const statusCode = error.statusCode || balanceTransferStatus[error.message] || 400;
+        const statusCode = error.statusCode || balanceTransferStatus[error.message] || balanceTransferStatus[error.code] || 400;
         return res.status(statusCode).json({
             success: false,
-            error: balanceTransferMessages[error.message] || 'تعذر التحقق من حساب المستلم.'
+            code: error.code || error.message,
+            error: error.publicMessage || balanceTransferMessages[error.message] || balanceTransferMessages[error.code] || 'تعذر التحقق من حساب المستلم.'
         });
     }
 };
@@ -648,25 +751,23 @@ exports.postBalanceTransfer = async (req, res) => {
             source,
             targetCode,
             amount: req.body.amount,
-            notes: normalizeCustomerNoteInput(req.body)
+            notes: normalizeCustomerNoteInput(req.body),
+            idempotencyKey: req.headers['idempotency-key'],
+            idempotencyChannel: 'web-balance-transfer',
+            idempotencyPayload: {
+                targetAccountCode: targetCode,
+                amount: Number(req.body.amount),
+                notes: normalizeCustomerNoteInput(req.body)
+            },
+            tenantContext: req,
+            req
         });
 
-        // Log successful balance transfer to audit log
-        await logAction({
-            action: 'TRANSFER_CREATED',
-            req,
-            performedById: source.doc._id,
-            performedByModel: source.modelName,
-            performedByName: source.doc.name,
-            newData: { customId: result.transferId, amount: result.amount, transferType: 'balance_transfer' },
-            metadata: { targetName: result.targetName }
-        });
-
-        return res.json({
+        return res.json(result.clientResponse || {
             success: true,
             message: `تم تحويل ${result.amount.toFixed(2)} LYD إلى ${result.targetName} بنجاح.`,
             transferId: result.transferId,
-            newBalance: result.sourceBalance.toFixed(2)
+            newBalance: Number(result.sourceBalance).toFixed(2)
         });
     } catch (error) {
         // Log failed balance transfer to audit log
@@ -684,10 +785,11 @@ exports.postBalanceTransfer = async (req, res) => {
             });
         } catch (_) {}
 
-        const statusCode = error.statusCode || balanceTransferStatus[error.message] || 400;
+        const statusCode = error.statusCode || balanceTransferStatus[error.message] || balanceTransferStatus[error.code] || 400;
         return res.status(statusCode).json({
             success: false,
-            error: balanceTransferMessages[error.message] || 'تعذر تنفيذ تحويل الرصيد.'
+            code: error.code || error.message,
+            error: error.publicMessage || balanceTransferMessages[error.message] || balanceTransferMessages[error.code] || 'تعذر تنفيذ تحويل الرصيد.'
         });
     }
 };
