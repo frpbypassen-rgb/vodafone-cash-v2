@@ -100,6 +100,72 @@ const createApiExecutorReceiptProof = ({ tx, apiResult = {}, completedAt = new D
     return saveProofImage(receiptBase64, `${tx.customId || tx._id || 'api'}_api_execution`);
 };
 
+const attachCompletionReceiptAfterCommit = async (tx) => {
+    if (!tx || tx.apiResultData?.executorReceiptProof) return;
+    const completedAt = tx.completedAt || new Date();
+    let systemReceiptProof = null;
+    try {
+        systemReceiptProof = createApiExecutorReceiptProof({
+            tx,
+            apiResult: {
+                reference_number: tx.apiResultData?.referenceNumber,
+                external_transaction_id: tx.apiResultData?.externalTransactionId,
+                provider_transaction_id: tx.apiResultData?.providerTransactionId
+            },
+            completedAt
+        });
+        attachApiReceiptProofs({
+            tx,
+            systemReceiptProof,
+            providerReceiptProof: tx.apiResultData?.apiProviderReceiptProof
+        });
+    } catch (receiptError) {
+        appendAdminNote(tx, `[تعذر توليد الإيصال النظامي لتنفيذ API: ${receiptError.message}]`);
+        logger.error('Delayed API executor receipt generation failed', {
+            txId: tx.customId,
+            error: receiptError.message
+        });
+        await Transaction.updateOne(
+            { _id: tx._id },
+            { $set: { adminNotes: tx.adminNotes } }
+        ).catch((noteError) => {
+            logger.error('Delayed API completion receipt note was not saved', {
+                txId: tx.customId,
+                error: noteError.message
+            });
+        });
+        return;
+    }
+
+    if (!systemReceiptProof && !tx.proofImage) return;
+    tx.apiResultData = {
+        ...(tx.apiResultData || {}),
+        executorReceiptProof: systemReceiptProof || null
+    };
+    const proofUpdate = {
+        proofImages: Array.isArray(tx.proofImages) ? tx.proofImages : [],
+        'apiResultData.executorReceiptProof': systemReceiptProof || null
+    };
+    if (tx.proofImage) proofUpdate.proofImage = tx.proofImage;
+    try {
+        await Transaction.updateOne(
+            {
+                _id: tx._id,
+                $or: [
+                    { 'apiResultData.executorReceiptProof': { $exists: false } },
+                    { 'apiResultData.executorReceiptProof': null }
+                ]
+            },
+            { $set: proofUpdate }
+        );
+    } catch (error) {
+        logger.error('Delayed API completion receipt was not saved', {
+            txId: tx.customId,
+            error: error.message
+        });
+    }
+};
+
 const attachApiReceiptProofs = ({ tx, systemReceiptProof, providerReceiptProof }) => {
     const existingImages = Array.isArray(tx.proofImages) ? tx.proofImages : [];
     const proofs = uniqueProofIds([
@@ -313,6 +379,8 @@ const completeApiTransaction = async (txId, executorGroupId) => {
     // before commit rolls the claim back, so the row stays waiting and a
     // later pass can post the same debit once. The amount and account are
     // unchanged. Nothing here refunds the customer or the executor.
+    // Receipt files and transfer:completed run only after this commit, so a
+    // TransientTransactionError retry cannot repeat them.
     let outcome = 'already_claimed';
     let completedTx = null;
     const session = await mongoose.startSession();
@@ -346,35 +414,11 @@ const completeApiTransaction = async (txId, executorGroupId) => {
             claimed.status = 'completed';
             claimed.executorName = 'تنفيذ آلي (API)';
             claimed.completedAt = completedAt;
-            let systemReceiptProof = null;
-            try {
-                systemReceiptProof = createApiExecutorReceiptProof({
-                    tx: claimed,
-                    apiResult: {
-                        reference_number: claimed.apiResultData?.referenceNumber,
-                        external_transaction_id: claimed.apiResultData?.externalTransactionId,
-                        provider_transaction_id: claimed.apiResultData?.providerTransactionId
-                    },
-                    completedAt
-                });
-                attachApiReceiptProofs({
-                    tx: claimed,
-                    systemReceiptProof,
-                    providerReceiptProof: claimed.apiResultData?.apiProviderReceiptProof
-                });
-            } catch (receiptError) {
-                appendAdminNote(claimed, `[تعذر توليد الإيصال النظامي لتنفيذ API: ${receiptError.message}]`);
-                logger.error('Delayed API executor receipt generation failed', {
-                    txId: claimed.customId,
-                    executorGroupId: String(executorGroup._id),
-                    error: receiptError.message
-                });
-            }
             claimed.apiResultData = {
                 ...(claimed.apiResultData || {}),
                 waitingApiAutoCompletion: false,
                 completedAt,
-                executorReceiptProof: systemReceiptProof || claimed.apiResultData?.executorReceiptProof || null
+                executorReceiptProof: claimed.apiResultData?.executorReceiptProof || null
             };
             appendAdminNote(claimed, `[تم اعتماد نجاح API بعد انتظار ${Math.round(getApiCompletionDelayMs() / 1000)} ثانية]`);
             await claimed.save({ session });
@@ -403,6 +447,8 @@ const completeApiTransaction = async (txId, executorGroupId) => {
     if (outcome !== 'completed' || !completedTx) {
         return { completed: false, reason: 'completion_already_claimed' };
     }
+
+    await attachCompletionReceiptAfterCommit(completedTx);
 
     eventBus.publish('transfer:completed', {
         tx: completedTx,
