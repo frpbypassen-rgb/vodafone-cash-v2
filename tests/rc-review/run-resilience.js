@@ -5,6 +5,8 @@ const httpMock = require('./httpMock');
 httpMock.install();
 
 global.__rcCrashCustomId = null;
+global.__rcWriteConflictCustomId = null;
+global.__rcWriteConflictAttempts = 0;
 const Module = require('module');
 const originalRequire = Module.prototype.require;
 Module.prototype.require = function requireWithCrashHook(id) {
@@ -16,6 +18,14 @@ Module.prototype.require = function requireWithCrashHook(id) {
             if (global.__rcCrashCustomId && args[4] === global.__rcCrashCustomId) {
                 global.__rcCrashCustomId = null;
                 throw new Error('crash between debit and save');
+            }
+            if (global.__rcWriteConflictCustomId && args[4] === global.__rcWriteConflictCustomId) {
+                global.__rcWriteConflictAttempts = (global.__rcWriteConflictAttempts || 0) + 1;
+                global.__rcWriteConflictCustomId = null;
+                const error = new Error('WriteConflict');
+                error.code = 112;
+                error.errorLabels = ['TransientTransactionError'];
+                throw error;
             }
             return result;
         };
@@ -530,6 +540,119 @@ const main = async () => {
             clientMidDelta: round(mid.client - before.client),
             clientFinalDelta: round(after.client - before.client),
             ledger: retried.body && retried.body.customId ? await ledgerSummary(models, retried.body.customId) : null
+        };
+    });
+
+    await record('write_conflict_completion_retry', async () => {
+        const customId = await prepareDelayed(ctx, { amount: 144, phone: '01055551121', reference: 'LOCAL-WRITE-CONFLICT' });
+        const tx = await models.Transaction.findOne({ customId });
+        const before = await balances(models, ids);
+        const paymentsBefore = httpMock.snapshotCounters().providerPayment;
+        global.__rcWriteConflictAttempts = 0;
+        global.__rcWriteConflictCustomId = customId;
+        const first = await lifecycle.completeApiTransaction(tx._id, ids.apiGroup);
+        const afterFirst = {
+            result: first,
+            attempts: global.__rcWriteConflictAttempts,
+            tx: await txView(models, customId),
+            ledger: await ledgerSummary(models, customId)
+        };
+        const second = afterFirst.tx && afterFirst.tx.status === 'completed'
+            ? { skipped: true }
+            : await lifecycle.completeApiTransaction(tx._id, ids.apiGroup);
+        const after = await balances(models, ids);
+        return {
+            customId,
+            afterFirst,
+            second,
+            finalTx: await txView(models, customId),
+            finalLedger: await ledgerSummary(models, customId),
+            apiExecutorDelta: round(after.apiExecutor - before.apiExecutor),
+            clientDelta: round(after.client - before.client),
+            providerPayments: httpMock.snapshotCounters().providerPayment - paymentsBefore
+        };
+    });
+
+    await record('immediate_crash_after_provider_accept', async () => {
+        const created = await createTransfer(ctx, { amount: 152, phone: '01055551122' });
+        const tx = await models.Transaction.findOne({ customId: created.customId });
+        tx.status = 'processing';
+        tx.executorGroupId = ids.apiGroup;
+        await tx.save();
+        const originalSave = models.Transaction.prototype.save;
+        models.Transaction.prototype.save = async function crashSave(...args) {
+            if (this.customId === created.customId) {
+                throw new Error('hard crash after provider accept before save');
+            }
+            return originalSave.apply(this, args);
+        };
+        const paymentsBefore = httpMock.snapshotCounters().providerPayment;
+        const before = await balances(models, ids);
+        const queue = load('services/queueService');
+        let firstError = null;
+        try {
+            await queue.processSingleJob(tx._id, ids.apiGroup);
+        } catch (error) {
+            firstError = error.message;
+        }
+        models.Transaction.prototype.save = originalSave;
+        const mid = {
+            tx: await txView(models, created.customId),
+            ledger: await ledgerSummary(models, created.customId),
+            providerPayments: httpMock.snapshotCounters().providerPayment - paymentsBefore,
+            firstError
+        };
+        if (mid.tx && mid.tx.status !== 'processing') {
+            const fresh = await models.Transaction.findOne({ customId: created.customId });
+            fresh.status = 'processing';
+            fresh.executorGroupId = ids.apiGroup;
+            await fresh.save();
+            mid.restoredProcessing = true;
+        }
+        await queue.processSingleJob(tx._id, ids.apiGroup);
+        const after = await balances(models, ids);
+        return {
+            customId: created.customId,
+            mid,
+            finalTx: await txView(models, created.customId),
+            finalLedger: await ledgerSummary(models, created.customId),
+            providerPayments: httpMock.snapshotCounters().providerPayment - paymentsBefore,
+            apiExecutorDelta: round(after.apiExecutor - before.apiExecutor),
+            clientDelta: round(after.client - before.client)
+        };
+    });
+
+    await record('ambiguous_provider_result_no_automatic_resend', async () => {
+        const created = await createTransfer(ctx, { amount: 153, phone: '01055551123' });
+        const tx = await models.Transaction.findOne({ customId: created.customId });
+        tx.status = 'processing';
+        tx.executorGroupId = ids.apiGroup;
+        await tx.save();
+        httpMock.clearPaymentScript();
+        httpMock.queuePaymentResult('timeout');
+        const paymentsBefore = httpMock.snapshotCounters().providerPayment;
+        const before = await balances(models, ids);
+        const queue = load('services/queueService');
+        await queue.processSingleJob(tx._id, ids.apiGroup);
+        const afterFailure = await txView(models, created.customId);
+        const ledgerAfterFailure = await ledgerSummary(models, created.customId);
+        await lifecycle.completeDueApiTransactions();
+        const bull = load('services/bullQueueService');
+        if (typeof bull.addTransferJob === 'function') {
+            await bull.addTransferJob(String(tx._id), String(ids.apiGroup));
+        }
+        await sleep(400);
+        const after = await balances(models, ids);
+        return {
+            customId: created.customId,
+            afterFailure,
+            ledgerAfterFailure,
+            finalTx: await txView(models, created.customId),
+            finalLedger: await ledgerSummary(models, created.customId),
+            providerPayments: httpMock.snapshotCounters().providerPayment - paymentsBefore,
+            apiExecutorDelta: round(after.apiExecutor - before.apiExecutor),
+            clientDelta: round(after.client - before.client),
+            refundLedgerRows: (await models.Ledger.find({ transactionId: created.customId, type: 'REFUND' }).lean()).length
         };
     });
 
