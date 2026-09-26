@@ -31,6 +31,7 @@ const {
     ExecutorSenderEntriesError,
     normalizeExecutorSenderEntries
 } = require('../utils/executorSenderEntries');
+const { preparePersistedSenderEntries } = require('../utils/splitPartProofs');
 const { readExecutorManualPolicy } = require('../utils/executorManualPolicy');
 const {
     BankTransferExecutionError,
@@ -444,7 +445,8 @@ exports.postCompleteTask = async (req, res) => {
             return res.status(400).json({ success: false, error: 'إرفاق صورة الإثبات إجباري لهذا المنفذ.' });
         }
 
-        const executorReceipt = bankTransfer
+        const splitCompletion = !bankTransfer && senderEntries.length > 1;
+        const executorReceipt = bankTransfer || splitCompletion
             ? null
             : await reserveManualExecutorReceiptReference({ group: emp.groupId });
         const completedAt = new Date();
@@ -453,7 +455,7 @@ exports.postCompleteTask = async (req, res) => {
         const localFileNames = [];
         const proofsDir = path.join(process.cwd(), 'uploads', 'proofs');
         if (!fs.existsSync(proofsDir)) { fs.mkdirSync(proofsDir, { recursive: true }); }
-        if (!bankTransfer) {
+        if (!bankTransfer && !splitCompletion) {
             localFileNames.push(await generateManualExecutorReceiptProof({
                 tx,
                 executionNumber: maskedExecutionNumber,
@@ -463,19 +465,21 @@ exports.postCompleteTask = async (req, res) => {
             }));
         }
 
-        const persistedSenderEntries = senderEntries.map((entry, index) => {
-            const proofImage = saveProofImageBase64({
-                tx,
-                proofsDir,
-                savedPaths,
-                imageBase64: entry.proofImage,
-                suffix: `sender_${index + 1}`
-            });
-            return {
+        const persistedSenderEntries = preparePersistedSenderEntries({
+            transactionId: tx._id,
+            completedAt,
+            requestedEntries: Array.isArray(req.body.senderEntries) ? req.body.senderEntries : [],
+            entries: senderEntries.map((entry, index) => ({
                 phone: entry.phone,
                 amount: entry.amount,
-                proofImage
-            };
+                proofImage: saveProofImageBase64({
+                    tx,
+                    proofsDir,
+                    savedPaths,
+                    imageBase64: entry.proofImage,
+                    suffix: `sender_${index + 1}`
+                })
+            }))
         });
 
         for (let i = 0; i < proofs.length; i++) {
@@ -491,13 +495,17 @@ exports.postCompleteTask = async (req, res) => {
 
         const proofSource = bankTransfer
             ? 'bank-transfer-executor-upload'
-            : (proofs.length || persistedSenderEntries.some((entry) => entry.proofImage)
-                ? 'system-generated-with-executor-upload'
-                : 'system-generated');
-        const systemReceiptId = localFileNames[0];
-        const executorProofImages = localFileNames.slice(1);
+            : (splitCompletion
+                ? 'split-part-proofs'
+                : (proofs.length || persistedSenderEntries.some((entry) => entry.proofImage)
+                    ? 'system-generated-with-executor-upload'
+                    : 'system-generated'));
+        const systemReceiptId = splitCompletion ? undefined : localFileNames[0];
+        const executorProofImages = splitCompletion ? localFileNames : localFileNames.slice(1);
         if (bankTransfer) {
             appendAdminNote(tx, BANK_TRANSFER_PROOF_NOTE);
+        } else if (splitCompletion) {
+            appendAdminNote(tx, '[تم تسجيل أجزاء التنفيذ لإصدار إثبات مستقل لكل جزء ناجح]');
         } else {
             appendAdminNote(tx, `[تم توليد إيصال تنفيذ يدوي | مرجع المنفذ: ${executorReceipt.reference}]`);
         }
@@ -510,7 +518,7 @@ exports.postCompleteTask = async (req, res) => {
         tx.executorSenderPhone = bankTransfer ? undefined : (maskedExecutionNumber || undefined);
         tx.executorExecutionNumberMasked = bankTransfer ? undefined : (maskedExecutionNumber || undefined);
         tx.executorSenderEntries = bankTransfer ? [] : persistedSenderEntries;
-        tx.manualExecutorReceiptReference = bankTransfer ? undefined : executorReceipt.reference;
+        tx.manualExecutorReceiptReference = bankTransfer || splitCompletion ? undefined : executorReceipt.reference;
         tx.completedAt = completedAt;
         tx.completedBy = emp._id;
         tx.broadcastMessages = [];
@@ -539,7 +547,7 @@ exports.postCompleteTask = async (req, res) => {
                 proofSource,
                 proofRequired: manualPolicy.proofRequired,
                 senderEntryCount: bankTransfer ? 0 : persistedSenderEntries.length,
-                manualExecutorReceiptReference: bankTransfer ? null : executorReceipt.reference,
+                manualExecutorReceiptReference: bankTransfer || splitCompletion ? null : executorReceipt.reference,
                 executorExecutionNumberMasked: bankTransfer ? null : (maskedExecutionNumber || null)
             },
             metadata: { customId: tx.customId, amount: tx.amount, transferType: tx.transferType }
@@ -744,6 +752,32 @@ exports.executeViaZaynPay = async (req, res) => {
     }
 };
 
+
+exports.postRetryPartProof = async (req, res) => {
+    try {
+        const tx = await Transaction.findById(req.params.id);
+        if (!tx) return res.status(404).json({ success: false, error: 'العملية غير موجودة.' });
+        const emp = req.executorEmployee || await Employee.findById(req.session.executorId);
+        if (!emp) return res.status(401).json({ success: false, error: 'Unauthorized' });
+        const employeeGroupId = objectIdString(emp.groupId);
+        const ownsExecutorTask = objectIdString(tx.executorGroupId) === employeeGroupId;
+        const ownsManagerTask = objectIdString(tx.managerGroupId) === employeeGroupId;
+        if (!ownsExecutorTask && !ownsManagerTask) return res.status(403).json({ success: false, error: 'Forbidden' });
+
+        const { retrySplitPartProof } = require('../services/splitPartProofService');
+        const result = await retrySplitPartProof(tx._id, req.params.partId);
+        return res.status(result.ok ? 200 : 409).json({
+            success: Boolean(result.ok),
+            code: result.code,
+            partId: result.partId,
+            proofStatus: result.proofStatus || null,
+            duplicate: Boolean(result.duplicate)
+        });
+    } catch (error) {
+        console.error('[executor/retry-part-proof] failed:', error.message);
+        return res.status(500).json({ success: false, error: 'تعذر إعادة إرسال إثبات الجزء.' });
+    }
+};
 
 exports.postRateExecutor = async (req, res) => {
     try {
