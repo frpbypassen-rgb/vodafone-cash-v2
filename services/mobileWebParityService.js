@@ -915,6 +915,15 @@ async function returnTask({ executorId, taskId, reason }) {
         throw new Error('INVALID_STATE');
     }
 
+    const { refundBlockedByUnresolvedProvider } = require('./providerDispatchClaimService');
+    const unresolvedBlock = refundBlockedByUnresolvedProvider(tx);
+    if (unresolvedBlock) {
+        const blocked = new Error('PROVIDER_RESULT_UNRESOLVED');
+        blocked.code = unresolvedBlock.code;
+        blocked.statusCode = 409;
+        throw blocked;
+    }
+
     tx.status = 'pending';
     tx.executorGroupId = undefined;
     tx.managerGroupId = undefined;

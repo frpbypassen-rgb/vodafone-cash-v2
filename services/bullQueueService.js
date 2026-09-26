@@ -7,6 +7,10 @@
 const { isRedis, createBullMQConnection } = require('../config/redis');
 const queueService = require('./queueService');
 const logger = require('../utils/logger');
+const {
+    UNRESOLVED_CODE,
+    guardAutomaticProviderRedispatch
+} = require('./providerDispatchClaimService');
 
 // طوابير المهام
 let apiTransferQueue = null;
@@ -64,6 +68,16 @@ const initBullMQ = () => {
         const nextApiTransferWorker = new Worker('api-transfers-queue', async (job) => {
             const { txId, apiGroupId } = job.data;
             logger.info(`[BullMQ Worker] Processing job ${job.id} for transaction ${txId}`);
+            const guard = await guardAutomaticProviderRedispatch(txId);
+            if (guard.handled) {
+                logger.warn('[BullMQ Worker] retry skipped provider Payment', {
+                    jobId: job.id,
+                    txId,
+                    reason: guard.reason,
+                    code: guard.code || UNRESOLVED_CODE
+                });
+                return { skipped: true, code: guard.code || UNRESOLVED_CODE };
+            }
             await queueService.processSingleJob(txId, apiGroupId);
         }, {
             connection: workerConnection,
@@ -151,6 +165,16 @@ const initBullMQ = () => {
  * في الذاكرة داخل نفس العملية حتى لا تبقى العملية في حالة «توجيه».
  */
 const addTransferJob = async (txId, apiGroupId) => {
+    const guard = await guardAutomaticProviderRedispatch(txId);
+    if (guard.handled) {
+        logger.warn('[BullMQ] refused to enqueue unresolved provider dispatch', {
+            txId,
+            apiGroupId,
+            reason: guard.reason,
+            code: guard.code || UNRESOLVED_CODE
+        });
+        return { queued: false, code: guard.code || UNRESOLVED_CODE };
+    }
     initBullMQ();
     if (isApiTransferWorkerReady()) {
         try {

@@ -7,6 +7,10 @@ const eventBus = require('./eventBus');
 const logger = require('../utils/logger');
 const { generateExecutorReceiptBase64 } = require('../utils/manualExecutorReceipt');
 const { saveProofImage } = require('./proofStorageService');
+const {
+    isProviderResultUnresolved,
+    needsUnresolvedHold
+} = require('./providerDispatchClaimService');
 
 const DEFAULT_API_COMPLETION_DELAY_MS = 25000;
 const MONITOR_INTERVAL_MS = 5000;
@@ -237,6 +241,8 @@ const completeApiTransactionWithReference = async ({
         completionMode: 'immediate_reference',
         ledgerPosted: Boolean(ledgerResult),
         ledgerError: ledgerError ? ledgerError.message : null,
+        providerDispatchResult: 'accepted',
+        providerResultUnresolved: false,
         executorReceiptProof: systemReceiptProof || tx.apiResultData?.executorReceiptProof || null,
         apiProviderReceiptProof: receiptProof || tx.apiResultData?.apiProviderReceiptProof || null
     };
@@ -255,6 +261,10 @@ const completeApiTransaction = async (txId, executorGroupId) => {
 
     if (tx.status !== 'processing') {
         return { completed: false, reason: `invalid_status:${tx.status}` };
+    }
+
+    if (isProviderResultUnresolved(tx) || needsUnresolvedHold(tx)) {
+        return { completed: false, reason: 'provider_result_unresolved' };
     }
 
     if (!sameId(tx.executorGroupId, executorGroupId)) {
@@ -361,7 +371,8 @@ const completeDueApiTransactions = async () => {
     const dueTransactions = await Transaction.find({
         status: 'processing',
         'apiResultData.waitingApiAutoCompletion': true,
-        'apiResultData.autoCompleteAt': { $lte: new Date() }
+        'apiResultData.autoCompleteAt': { $lte: new Date() },
+        'apiResultData.providerResultUnresolved': { $ne: true }
     }).limit(50);
 
     for (const tx of dueTransactions) {

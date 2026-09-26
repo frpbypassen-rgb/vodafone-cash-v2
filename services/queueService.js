@@ -16,6 +16,14 @@ const {
 const eventBus = require('./eventBus');
 const logger = require('../utils/logger');
 const { executorSupportsTransferType } = require('../utils/executorServiceCatalog');
+const {
+    UNRESOLVED_CODE,
+    hasDispatchMarker,
+    isProviderResultUnresolved,
+    needsUnresolvedHold,
+    markProviderResultUnresolved,
+    guardAutomaticProviderRedispatch
+} = require('./providerDispatchClaimService');
 
 const appendNoteText = (current, note) => {
     const cleanNote = String(note || '').trim();
@@ -43,11 +51,32 @@ class ApiTransferQueue {
     }
 
     async addJob(txId, apiGroupId) {
+        const guard = await guardAutomaticProviderRedispatch(txId);
+        if (guard.handled) {
+            logger.warn('In-memory API job refused for unresolved provider dispatch', {
+                txId,
+                apiGroupId,
+                reason: guard.reason,
+                code: guard.code || UNRESOLVED_CODE
+            });
+            return { queued: false, code: guard.code || UNRESOLVED_CODE };
+        }
         this.queue.push({ txId, apiGroupId });
         this.processQueue();
+        return { queued: true };
     }
 
     async processSingleJob(txId, apiGroupId) {
+        const guard = await guardAutomaticProviderRedispatch(txId);
+        if (guard.handled) {
+            logger.warn('API transfer job held before provider dispatch', {
+                txId,
+                apiGroupId,
+                reason: guard.reason,
+                code: guard.code || UNRESOLVED_CODE
+            });
+            return { skipped: true, code: guard.code || UNRESOLVED_CODE };
+        }
         return withApiExecutorSerialization(apiGroupId, () => this.processSingleJobSerialized(txId, apiGroupId));
     }
 
@@ -63,6 +92,21 @@ class ApiTransferQueue {
                     hasTx: Boolean(tx),
                     hasExecutorGroup: Boolean(executorGroup),
                     status: tx ? tx.status : null
+                });
+                return;
+            }
+
+            if (needsUnresolvedHold(tx) || isProviderResultUnresolved(tx)) {
+                if (needsUnresolvedHold(tx)) {
+                    await markProviderResultUnresolved({
+                        txId: tx._id,
+                        reason: 'queue worker found a provider dispatch without a definitive result',
+                        source: 'queue-worker'
+                    });
+                }
+                logger.warn('API transfer job held: provider result is unresolved', {
+                    txId: tx.customId,
+                    code: UNRESOLVED_CODE
                 });
                 return;
             }
@@ -108,6 +152,19 @@ class ApiTransferQueue {
                     executorGroupId: String(executorGroup._id),
                     error: auditError.message
                 });
+            }
+
+            if (apiResult && (apiResult.success === 'unresolved' || apiResult.code === UNRESOLVED_CODE)) {
+                await markProviderResultUnresolved({
+                    txId: tx._id,
+                    reason: apiResult.message || 'provider result unresolved',
+                    source: 'provider-response'
+                });
+                logger.error('API provider result unresolved; holding executor and skipping debit', {
+                    txId: tx.customId,
+                    code: UNRESOLVED_CODE
+                });
+                return;
             }
 
             const balanceLog = balanceAudit
@@ -158,9 +215,14 @@ class ApiTransferQueue {
                 appendCustomerReference(tx, 'الرقم المرجعي', exactRefNumber);
                 appendAdminNote(tx, '[في الانتظار - تم تنفيذ طلب API بدون رقم مرجعي واضح]');
                 if (detailedLog) appendAdminNote(tx, detailedLog);
+                tx.apiResultData = {
+                    ...(tx.apiResultData || {}),
+                    providerDispatchResult: hasDispatchMarker(tx) ? 'pending_reference' : tx.apiResultData?.providerDispatchResult,
+                    providerResultUnresolved: false
+                };
+                if (typeof tx.markModified === 'function') tx.markModified('apiResultData');
                 if (typeof tx.set === 'function') {
                     tx.set('isApiReview', undefined, { strict: false });
-                    tx.set('apiResultData', undefined, { strict: false });
                     tx.set('originalApiGroupId', undefined, { strict: false });
                 }
                 await tx.save();
@@ -180,9 +242,25 @@ class ApiTransferQueue {
                 if (detailedLog) appendAdminNote(tx, detailedLog);
                 tx.executorGroupId = executorGroup._id;
                 tx.executorName = executorGroup.name;
+                tx.apiResultData = {
+                    ...(tx.apiResultData || {}),
+                    providerDispatchResult: hasDispatchMarker(tx) ? 'pending_reference' : tx.apiResultData?.providerDispatchResult,
+                    providerResultUnresolved: false
+                };
+                if (typeof tx.markModified === 'function') tx.markModified('apiResultData');
                 await tx.save();
 
                 logger.info('API Execution Network Pending', { txId: tx.customId });
+            } else if (needsUnresolvedHold(tx) || isProviderResultUnresolved(tx)) {
+                await markProviderResultUnresolved({
+                    txId: tx._id,
+                    reason: apiResult && apiResult.message || 'provider dispatch has no definitive result',
+                    source: 'queue-failure-guard'
+                });
+                logger.error('API Execution held unresolved instead of returning to pending', {
+                    txId: tx.customId,
+                    code: UNRESOLVED_CODE
+                });
             } else {
                 tx.status = 'pending';
                 appendAdminNote(tx, `[فشل التنفيذ الآلي: ${apiResult.message}]`);
@@ -196,6 +274,19 @@ class ApiTransferQueue {
         } catch (error) {
             try {
                 const tx = await Transaction.findById(txId);
+                if (tx && (needsUnresolvedHold(tx) || isProviderResultUnresolved(tx))) {
+                    await markProviderResultUnresolved({
+                        txId: tx._id,
+                        reason: error.message,
+                        source: 'queue-exception'
+                    });
+                    logger.error('API Queue Processing Error held unresolved', {
+                        txId: tx.customId,
+                        code: UNRESOLVED_CODE,
+                        error: error.message
+                    });
+                    return;
+                }
                 if (tx) {
                     tx.status = 'pending';
                     tx.executorGroupId = undefined;

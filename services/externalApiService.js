@@ -6,6 +6,12 @@ const path = require('path');
 const { loadPuppeteer } = require('../utils/puppeteerLoader');
 const { SYSTEM_TIME_ZONE } = require('../config/systemTime');
 const { getApiProviderPreset } = require('../utils/apiProviderPresets');
+const {
+    UNRESOLVED_CODE,
+    claimProviderDispatch,
+    releaseProviderDispatchClaim,
+    classifyPaymentTransportError
+} = require('./providerDispatchClaimService');
 
 const SUPPORT_PHONE = '01108172258';
 
@@ -359,7 +365,19 @@ const executeTransferViaApi = async (tx, apiBot) => {
         
         addLog("INQUIRY_SUCCESS", "الرقم سليم ومتاح للتحويل.");
         addLog("PAYMENT", `جاري إرسال الدفعة النهائية بقيمة [${amount} EGP]...`);
-        
+
+        const claim = await claimProviderDispatch(tx);
+        if (!claim.claimed) {
+            addLog('PAYMENT_BLOCKED', 'لم تُرسل الدفعة: مطالبة الإرسال غير متاحة أو موجودة مسبقاً');
+            return {
+                success: 'unresolved',
+                code: UNRESOLVED_CODE,
+                message: 'نتيجة المزود غير محسومة: توجد مطالبة إرسال دون نتيجة نهائية',
+                dispatchAttemptId: claim.attemptId || null,
+                processLog: processLog.join('\n')
+            };
+        }
+
         const paymentPayload = {
             Fields: [{ Id: fieldId, Value: targetNumber }],
             CurrentServiceProviderId: providerId,
@@ -368,7 +386,36 @@ const executeTransferViaApi = async (tx, apiBot) => {
             Amount: amount,
             MachineSerial: machineSerial
         };
-        const paymentRes = await axios.post(`${baseUrl}/api/V1/Transactions/Payment`, paymentPayload, { headers, timeout: 180000 });
+        let paymentRes;
+        try {
+            paymentRes = await axios.post(`${baseUrl}/api/V1/Transactions/Payment`, paymentPayload, { headers, timeout: 180000 });
+        } catch (paymentError) {
+            const message = errorMessage(paymentError, 'خطأ في الاتصال بسيرفر الشركة');
+            addLog('SYSTEM_ERROR', message);
+            const classification = classifyPaymentTransportError(paymentError);
+            if (classification === 'before_send') {
+                try {
+                    await releaseProviderDispatchClaim(tx, claim.attemptId);
+                } catch (releaseError) {
+                    addLog('CLAIM_RELEASE_FAIL', releaseError.message);
+                    return {
+                        success: 'unresolved',
+                        code: UNRESOLVED_CODE,
+                        message,
+                        dispatchAttemptId: claim.attemptId,
+                        processLog: processLog.join('\n')
+                    };
+                }
+                return { success: false, message, processLog: processLog.join('\n'), dispatchReleased: true };
+            }
+            return {
+                success: 'unresolved',
+                code: UNRESOLVED_CODE,
+                message,
+                dispatchAttemptId: claim.attemptId,
+                processLog: processLog.join('\n')
+            };
+        }
 
         const paymentData = paymentRes.data || {};
         const pd = paymentData.Data || {};
@@ -405,7 +452,13 @@ const executeTransferViaApi = async (tx, apiBot) => {
             if (!refTxNum || refTxNum.trim() === '') {
                 addLog("PAYMENT_PENDING", `تم إرسال الدفعة ولكن لم يتم استلام المرجع من الشبكة.`);
                 addLog("API_FULL_RESPONSE", prettyLog);
-                return { success: 'pending', external_transaction_id: extRef, message: 'قيد الانتظار', processLog: processLog.join('\n') };
+                return {
+                    success: 'pending',
+                    external_transaction_id: extRef,
+                    message: 'قيد الانتظار',
+                    dispatchAttemptId: claim.attemptId,
+                    processLog: processLog.join('\n')
+                };
             }
             addLog("PAYMENT_SUCCESS", `اكتملت العملية بنجاح! رقم المرجع: ${extRef}`);
             addLog("API_FULL_RESPONSE", prettyLog);
@@ -420,18 +473,41 @@ const executeTransferViaApi = async (tx, apiBot) => {
                 balance_after: pd.BalanceAfter,
                 transaction_time: pd.TransactionTime || new Date().toLocaleString('ar-LY', { timeZone: SYSTEM_TIME_ZONE }),
                 status: pd.Status || providerMessage(paymentData, 'عمليه ناجحه'),
+                dispatchAttemptId: claim.attemptId,
                 processLog: processLog.join('\n')
             };
         } else {
             const message = providerMessage(paymentData, 'تم رفض تنفيذ الدفعة من المزود');
             addLog("PAYMENT_FAIL", message);
             addLog("API_FULL_RESPONSE", prettyLog);
-            return { success: false, message, processLog: processLog.join('\n') };
+            try {
+                await releaseProviderDispatchClaim(tx, claim.attemptId);
+            } catch (releaseError) {
+                addLog('CLAIM_RELEASE_FAIL', releaseError.message);
+                return {
+                    success: 'unresolved',
+                    code: UNRESOLVED_CODE,
+                    message,
+                    dispatchAttemptId: claim.attemptId,
+                    processLog: processLog.join('\n')
+                };
+            }
+            return { success: false, message, processLog: processLog.join('\n'), dispatchReleased: true };
         }
 
     } catch (error) {
         const message = errorMessage(error, 'خطأ في الاتصال بسيرفر الشركة');
         addLog("SYSTEM_ERROR", message);
+        const attemptId = tx && tx.apiResultData && tx.apiResultData.providerDispatchAttemptId;
+        if (attemptId) {
+            return {
+                success: 'unresolved',
+                code: UNRESOLVED_CODE,
+                message,
+                dispatchAttemptId: attemptId,
+                processLog: processLog.join('\n')
+            };
+        }
         return { success: false, message, processLog: processLog.join('\n') };
     }
 };

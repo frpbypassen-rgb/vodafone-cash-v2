@@ -679,6 +679,15 @@ router.post('/transaction/:id/pull-task', async (req, res) => {
                 message: 'هذه العملية ليست موجهة حالياً ولا يمكن سحبها.'
             });
         }
+        const { refundBlockedByUnresolvedProvider } = require('../services/providerDispatchClaimService');
+        const unresolvedBlock = refundBlockedByUnresolvedProvider(tx);
+        if (unresolvedBlock) {
+            return respondTransactionAction(req, res, 409, {
+                success: false,
+                code: unresolvedBlock.code,
+                message: unresolvedBlock.message
+            });
+        }
         const oldGroupId = tx.executorGroupId; const displayId = tx.customId || tx._id.toString();
         const previousRouter = {
             routedByAdminId: tx.routedByAdminId || '',

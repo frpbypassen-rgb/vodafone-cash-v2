@@ -786,6 +786,14 @@ export class TransferService {
                 throw new Error('INVALID_STATE');
             }
 
+            const { refundBlockedByUnresolvedProvider } = require('../../../services/providerDispatchClaimService');
+            const unresolvedBlock = refundBlockedByUnresolvedProvider(tx);
+            if (unresolvedBlock) {
+                await session.abortTransaction();
+                session.endSession();
+                return unresolvedBlock;
+            }
+
             // تحديد المحفظة ونوع العملة لإعادة شحنها
             let targetId: any;
             let TargetModel: any;

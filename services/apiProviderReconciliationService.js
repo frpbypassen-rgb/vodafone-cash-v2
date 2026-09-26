@@ -6,6 +6,10 @@ const ExecutorGroup = require('../models/ExecutorGroup');
 const Notification = require('../models/Notification');
 const Transaction = require('../models/Transaction');
 const { getApiProviderBalance, getApiProviderTransactions } = require('./externalApiService');
+const {
+    isProviderResultUnresolved,
+    needsUnresolvedHold
+} = require('./providerDispatchClaimService');
 const logger = require('../utils/logger');
 
 const DEFAULT_BALANCE_TOLERANCE = 0.01;
@@ -201,7 +205,9 @@ const finishApiBalanceAudit = async ({ audit, tx, executorGroup, apiResult }) =>
     const checkStatus = hasFailedCheck ? 'check_failed' : (alerts.length ? 'discrepancy' : 'matched');
     const executionStatus = apiResult && apiResult.success === true
         ? 'success'
-        : (apiResult && apiResult.success === 'pending' ? 'pending' : 'failed');
+        : (apiResult && apiResult.success === 'pending'
+            ? 'pending'
+            : (apiResult && apiResult.success === 'unresolved' ? 'error' : 'failed'));
 
     audit.afterCheck = afterCheck;
     audit.providerTransactionId = String(apiResult && (apiResult.provider_transaction_id || apiResult.external_transaction_id) || '');
@@ -276,6 +282,13 @@ const syncProviderReturnedOperations = async (executorGroup, options = {}) => {
         .lean();
     const byProviderId = new Map();
     for (const tx of transactions) {
+        if (isProviderResultUnresolved(tx) || needsUnresolvedHold(tx)) {
+            logger.warn('Skipping provider-return sync for unresolved provider dispatch', {
+                txId: tx.customId,
+                executorGroupId: String(executorGroup._id)
+            });
+            continue;
+        }
         const providerTransactionId = extractProviderTransactionId(tx);
         if (providerTransactionId && !byProviderId.has(providerTransactionId)) {
             byProviderId.set(providerTransactionId, tx);

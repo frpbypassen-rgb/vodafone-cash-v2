@@ -173,12 +173,24 @@ const _performIntegrityChecks = async () => {
         if (txId !== 'SYS-SYNC' && !completedSet.has(txId)) orphanedLedgerEntries++;
     }
 
+    let unresolvedProviderDispatchCount = null;
+    try {
+        if (typeof Transaction.countDocuments === 'function') {
+            const { unresolvedProviderResultFilter } = require('./providerDispatchClaimService');
+            unresolvedProviderDispatchCount = await Transaction.countDocuments(unresolvedProviderResultFilter());
+        }
+    } catch (error) {
+        logger.error('Unresolved provider dispatch count failed', { error: error.message });
+        unresolvedProviderDispatchCount = null;
+    }
+
     return {
         ledgerIntegrity: orphanedTransactions === 0,
         balanceConsistency: true, // سيتم تحديده من النتائج أعلاه
         transactionStatusConsistency: true,
         orphanedTransactions,
-        orphanedLedgerEntries
+        orphanedLedgerEntries,
+        unresolvedProviderDispatchCount
     };
 };
 
