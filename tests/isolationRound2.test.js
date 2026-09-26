@@ -766,3 +766,91 @@ describe('completion transaction boundary and immediate provider path', () => {
         await expectNoCustomerMovement(customId, customerId);
     });
 });
+
+describe('characterizes main behavior for an unresolved provider result', () => {
+    const saved = {};
+
+    beforeEach(() => {
+        saved.EXTERNAL_API_ENABLED = process.env.EXTERNAL_API_ENABLED;
+        delete process.env.EXTERNAL_API_ENABLED;
+        axios.post.mockReset();
+        eventBus.publish.mockClear();
+    });
+
+    afterEach(() => {
+        if (saved.EXTERNAL_API_ENABLED === undefined) delete process.env.EXTERNAL_API_ENABLED;
+        else process.env.EXTERNAL_API_ENABLED = saved.EXTERNAL_API_ENABLED;
+    });
+
+    const installAmbiguousPayment = (paymentError) => {
+        axios.post.mockImplementation(async (url) => {
+            const target = String(url);
+            if (target.includes('/Transactions/Print')) {
+                throw new Error('status query must not run for an ambiguous payment');
+            }
+            if (target.includes('/GetToken')) {
+                return { data: { Code: 200, Data: { Access_Token: 'sandbox-token' } } };
+            }
+            if (target.includes('/GetBalance')) {
+                return {
+                    data: {
+                        Code: 200,
+                        Data: { ServiceCredit: 1000, CashCredit: 0, AvailableBalance: 1000 }
+                    }
+                };
+            }
+            if (target.includes('/Inquiry')) {
+                return { data: { Code: 200, Data: { PaymentBillInfo: 'bill' } } };
+            }
+            if (target.includes('/Payment')) throw paymentError;
+            return { data: { Code: 200, Data: {} } };
+        });
+    };
+
+    test.each([
+        ['timeout', 'ATT-UNRES-TIMEOUT', Object.assign(new Error('timeout of 180000ms exceeded'), { code: 'ECONNABORTED' })],
+        ['connection reset', 'ATT-UNRES-RESET', Object.assign(new Error('socket hang up'), { code: 'ECONNRESET' })],
+        ['http 500', 'ATT-UNRES-500', Object.assign(new Error('Request failed with status code 500'), {
+            code: 'ERR_BAD_RESPONSE',
+            response: { status: 500, data: { Message: 'upstream failed' } }
+        })]
+    ])('main dd152b76: payment %s does not re-send or refund and returns the row to pending', async (_label, customId, paymentError) => {
+        installAmbiguousPayment(paymentError);
+        const customerId = await insertCustomer(customId);
+        const group = await ExecutorGroup.create({
+            name: `Unresolved ${customId}`,
+            balance: 5000,
+            isApiBot: true,
+            apiUrl: 'https://sandbox.example',
+            apiUsername: 'sandbox-user',
+            apiPassword: 'sandbox-pass',
+            serviceKey: 'vodafone'
+        });
+        const tx = await Transaction.create({
+            customId,
+            amount: 1600,
+            status: 'processing',
+            transferType: 'vodafone',
+            executorGroupId: group._id,
+            vodafoneNumber: '01000000000',
+            userId: String(customerId)
+        });
+
+        await queueService.processSingleJob(tx._id, group._id);
+        await queueService.processSingleJob(tx._id, group._id);
+
+        expect(paymentPosts()).toBe(1);
+        expect(axios.post.mock.calls.filter((call) => String(call[0]).includes('/Transactions/Print'))).toHaveLength(0);
+        const stored = await Transaction.findById(tx._id).lean();
+        expect(stored.status).toBe('pending');
+        expect(stored.executorGroupId).toBeFalsy();
+        expect(stored.adminNotes).toContain('فشل التنفيذ الآلي');
+        expect(stored.apiResultData?.providerResultUnresolved).not.toBe(true);
+        expect(stored.apiResultData?.waitingApiAutoCompletion).not.toBe(true);
+        expect(await Ledger.countDocuments({ transactionId: customId })).toBe(0);
+        expect((await ExecutorGroup.findById(group._id).lean()).balance).toBe(5000);
+        await expectNoCustomerMovement(customId, customerId);
+        const listed = await listProviderPaidAwaitingCompletion(Transaction);
+        expect(listed.some((row) => row.customId === customId)).toBe(false);
+    });
+});
