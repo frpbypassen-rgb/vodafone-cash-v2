@@ -621,5 +621,198 @@ describe('financial tenant safety', () => {
         });
         expect(indexReport.indexCreated).toBe(false);
         expect(indexReport.mode).toBe('scan');
+        fs.writeFileSync(path.join(reportDir, 'account-code-index-scan.json'), JSON.stringify(indexReport, null, 2));
+    });
+
+    describe('all financial flags off', () => {
+        const clearFlags = () => {
+            for (const name of [
+                'FINANCIAL_TENANT_GUARD',
+                'FINANCIAL_BLOCK_MASTER_SUB_TENANT_MISMATCH',
+                'FINANCIAL_IDEMPOTENCY_ENABLED',
+                'FINANCIAL_IDEMPOTENCY_REQUIRED',
+                'FINANCIAL_IDEMPOTENCY_STRICT_BINDING',
+                'FINANCIAL_AUDIT_IN_TRANSACTION',
+                'FINANCIAL_REDIS_FAIL_CLOSED',
+                'ALLOW_ACCOUNT_CODE_TENANT_INDEX',
+                'REDIS_REQUIRED',
+                'MONGO_TRANSACTIONS_REQUIRED',
+                'DEFAULT_TENANT_ID'
+            ]) delete process.env[name];
+            process.env.TENANT_MODE = 'single';
+            process.env.NODE_ENV = 'test';
+        };
+
+        beforeEach(clearFlags);
+
+        test('company to agent transfer still succeeds', async () => {
+            clearFlags();
+            const company = await ClientCompany.create({
+                name: 'شركة الأعلام المطفأة',
+                accountCode: '55552',
+                balance: 400,
+                status: 'active'
+            });
+            const agent = await User.create({
+                name: 'وكيل الأعلام المطفأة',
+                role: 'agent',
+                webUsername: 'safety-agent-flags-off',
+                webPassword: 'secret123',
+                phone: '01010000088',
+                accountCode: '4442',
+                balance: 20,
+                status: 'active',
+                tenantId: tenantB._id
+            });
+            const result = await executeBalanceTransfer({
+                source: { modelName: 'ClientCompany', doc: company },
+                targetCode: '4442',
+                amount: 15,
+                idempotencyKey: '55555555-5555-4555-8555-555555555555',
+                tenantContext: requestFor(tenantA)
+            });
+            expect(result.success).toBe(true);
+            expect(result.replayed).toBe(false);
+            expect((await ClientCompany.findById(company._id)).balance).toBe(385);
+            expect((await User.findById(agent._id)).balance).toBe(35);
+            const again = await executeBalanceTransfer({
+                source: { modelName: 'ClientCompany', doc: await ClientCompany.findById(company._id) },
+                targetCode: '4442',
+                amount: 15,
+                idempotencyKey: '55555555-5555-4555-8555-555555555555',
+                tenantContext: requestFor(tenantA)
+            });
+            expect(again.replayed).toBeFalsy();
+            expect((await ClientCompany.findById(company._id)).balance).toBe(370);
+        });
+
+        test('treasury deposit and deduction ignore stored tenantId', async () => {
+            clearFlags();
+            const { updateBalanceWithLedger } = require('../services/walletService');
+            const account = await User.create({
+                name: 'حساب الخزينة',
+                webUsername: 'safety-treasury',
+                webPassword: 'secret123',
+                phone: '01010000089',
+                accountCode: '4443',
+                balance: 50,
+                status: 'active',
+                tenantId: tenantB._id
+            });
+            const deposit = await updateBalanceWithLedger('User', account._id, 30, 'DEPOSIT', 'TRS-DEP-1', 'إيداع إدارة');
+            const deduction = await updateBalanceWithLedger('User', account._id, -12, 'DEDUCTION', 'TRS-DED-1', 'خصم إدارة');
+            expect(deposit.balanceAfter).toBe(80);
+            expect(deduction.balanceAfter).toBe(68);
+            expect((await User.findById(account._id)).balance).toBe(68);
+            const rows = await Ledger.find({ transactionId: { $in: ['TRS-DEP-1', 'TRS-DED-1'] } }).lean();
+            expect(rows).toHaveLength(2);
+            expect(rows.reduce((sum, row) => sum + row.amount, 0)).toBe(18);
+        });
+
+        test('sub-account and master are both debited when their tenantIds differ', async () => {
+            clearFlags();
+            const { assertMasterSubPolicy } = require('../services/financialSafety');
+            const master = await User.create({
+                name: 'وكيل نقطة البيع',
+                role: 'agent',
+                webUsername: 'safety-master-sub',
+                webPassword: 'secret123',
+                phone: '01010000090',
+                accountCode: '4444',
+                balance: 100,
+                status: 'active',
+                tenantId: tenantB._id
+            });
+            const sub = await SubAccount.create({
+                masterType: 'user',
+                masterId: master._id,
+                name: 'نقطة البيع',
+                webUsername: 'safety-pos-flags-off',
+                webPassword: 'secret123',
+                balance: 40,
+                status: 'active',
+                tenantId: null
+            });
+            expect(() => assertMasterSubPolicy(sub, master)).not.toThrow();
+            const session = await mongoose.startSession();
+            session.startTransaction();
+            const subCost = 6;
+            const masterCost = 5;
+            const updatedSub = await SubAccount.findOneAndUpdate(
+                { _id: sub._id, balance: { $gte: subCost } },
+                { $inc: { balance: -subCost } },
+                { new: true, session }
+            );
+            const updatedMaster = await User.findOneAndUpdate(
+                { _id: master._id, balance: { $gte: masterCost } },
+                { $inc: { balance: -masterCost } },
+                { new: true, session }
+            );
+            await session.commitTransaction();
+            session.endSession();
+            expect(updatedSub.balance).toBe(34);
+            expect(updatedMaster.balance).toBe(95);
+        });
+
+        test('executor funding still moves the group and the employee', async () => {
+            clearFlags();
+            const { fundExternalExecutor } = require('../services/executorBalancePoolService');
+            const ExecutorGroup = require('../models/ExecutorGroup');
+            const Employee = require('../models/Employee');
+            const group = await ExecutorGroup.create({ name: 'منفذ الاختبار', balance: 200, tenantId: tenantA._id });
+            const manager = await Employee.create({
+                name: 'مدير المنفذ',
+                role: 'manager',
+                groupId: group._id,
+                webUsername: 'safety-exec-manager',
+                webPassword: 'secret123',
+                tenantId: tenantA._id
+            });
+            const employee = await Employee.create({
+                name: 'منفذ خارجي',
+                role: 'external',
+                groupId: group._id,
+                webUsername: 'safety-exec-external',
+                webPassword: 'secret123',
+                balance: 0,
+                tenantId: tenantB._id
+            });
+            await fundExternalExecutor({
+                manager,
+                employeeId: employee._id,
+                type: 'deposit',
+                amount: 25,
+                note: 'تمويل'
+            });
+            expect((await Employee.findById(employee._id)).balance).toBe(25);
+            expect((await ExecutorGroup.findById(group._id)).balance).toBeLessThan(200);
+        });
+
+        test('cancelling a completed transfer refunds once', async () => {
+            clearFlags();
+            const account = await User.create({
+                name: 'إلغاء بلا أعلام',
+                webUsername: 'safety-cancel-flags-off',
+                webPassword: 'secret123',
+                phone: '01010000091',
+                accountCode: '4445',
+                balance: 10,
+                status: 'active'
+            });
+            const tx = await Transaction.create({
+                customId: 'ATT-CANCEL-FLAGS',
+                userId: account.phone,
+                amount: 40,
+                costLYD: 8,
+                status: 'completed',
+                transferType: 'vodafone'
+            });
+            const first = await reversalService.reverseTransaction(String(tx._id), 'إلغاء', 'مشرف');
+            const second = await reversalService.reverseTransaction(String(tx._id), 'إلغاء', 'مشرف');
+            expect(first.success).toBe(true);
+            expect(second.success).toBe(false);
+            expect((await User.findById(account._id)).balance).toBe(18);
+            expect(await Ledger.countDocuments({ transactionId: tx.customId, type: 'REFUND' })).toBe(1);
+        });
     });
 });
