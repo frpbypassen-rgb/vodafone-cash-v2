@@ -32,7 +32,7 @@ Get-Content "$appRoot\backup\previous-sha.txt"
 
 تأكد أن البيئة **لا** تعرّف هذه القيم على `true`:
 
-`FINANCIAL_TENANT_GUARD` و`FINANCIAL_IDEMPOTENCY_REQUIRED` و`FINANCIAL_IDEMPOTENCY_STRICT_BINDING` و`FINANCIAL_BLOCK_MASTER_SUB_TENANT_MISMATCH` و`ALLOW_ACCOUNT_CODE_TENANT_INDEX`.
+`FINANCIAL_TENANT_GUARD` و`FINANCIAL_IDEMPOTENCY_ENABLED` و`FINANCIAL_IDEMPOTENCY_REQUIRED` و`FINANCIAL_IDEMPOTENCY_STRICT_BINDING` و`FINANCIAL_AUDIT_IN_TRANSACTION` و`FINANCIAL_REDIS_FAIL_CLOSED` و`FINANCIAL_BLOCK_MASTER_SUB_TENANT_MISMATCH` و`ALLOW_ACCOUNT_CODE_TENANT_INDEX`.
 
 أبقِ `MONGO_TRANSACTIONS_REQUIRED=true`.
 
@@ -42,6 +42,21 @@ git checkout main
 git pull origin main
 pm2 restart Ahram_Core_API --update-env
 ```
+
+## 3ب. تحقق من Redis وMongo قبل أي علم
+
+لا تشغّل `FINANCIAL_REDIS_FAIL_CLOSED` قبل أن ينجح الفحص. غياب Redis اليوم لا يرفض تحويل الويب ولا تحويل الرصيد الداخلي. تحويل الموبايل كان يرفض أصلًا إذا فشل `acquireLock` في الإنتاج (`REDIS_NOT_CONFIGURED` / `REDIS_LOCK_FAILED` → رد 429 `LOCK_TIMEOUT`).
+
+```powershell
+Set-Location $appRoot
+Select-String -Path .env -Pattern '^(NODE_ENV|MONGO_URI|MONGO_TRANSACTIONS_REQUIRED|REDIS_URL|REDIS_URI|REDIS_REQUIRED|REDIS_ENABLED)='
+node -e "require('dotenv').config(); const url=process.env.REDIS_URL||process.env.REDIS_URI; if(!url){ console.log('REDIS_URL missing'); process.exit(2);} const Redis=require('ioredis'); const client=new Redis(url,{maxRetriesPerRequest:1,connectTimeout:3000,lazyConnect:true}); client.connect().then(()=>client.ping()).then((value)=>{ console.log('REDIS_PING', value); return client.quit(); }).catch((error)=>{ console.error(error.message); process.exit(1); });"
+mongosh $env:MONGO_URI --quiet --eval "const hello=db.adminCommand({hello:1}); const capable=Boolean(hello.setName)||hello.msg==='isdbgrid'; print('setName='+(hello.setName||'')); print('msg='+(hello.msg||'')); print('transactionsCapable='+capable);"
+```
+
+`transactionsCapable=true` يعني replica set أو mongos، وهو شرط المعاملات. رفض غياب الجلسة على تحويل الويب والرصيد الداخلي والموبايل موجود على `main` عندما `NODE_ENV=production` أو `MONGO_TRANSACTIONS_REQUIRED=true`. هذا الفرع لا يضيف رفضًا جديدًا على هذا الشرط. مسار الطوارئ `isEmergencyStandaloneFinancialWritesActive` ما زال يعطّل الشرط كما في `services/walletService.js`.
+
+`/health/ready` يفحص Redis فقط إذا كان `REDIS_REQUIRED=true`. نتيجة `PING` أعلاه هي الفحص المباشر.
 
 ## 4. الجاهزية لا الصحة فقط
 
@@ -118,8 +133,11 @@ $previous = Get-Content "$appRoot\backup\previous-sha.txt"
 git checkout $previous
 pm2 restart Ahram_Core_API --update-env
 Remove-Item Env:FINANCIAL_TENANT_GUARD -ErrorAction SilentlyContinue
+Remove-Item Env:FINANCIAL_IDEMPOTENCY_ENABLED -ErrorAction SilentlyContinue
 Remove-Item Env:FINANCIAL_IDEMPOTENCY_REQUIRED -ErrorAction SilentlyContinue
 Remove-Item Env:FINANCIAL_IDEMPOTENCY_STRICT_BINDING -ErrorAction SilentlyContinue
+Remove-Item Env:FINANCIAL_AUDIT_IN_TRANSACTION -ErrorAction SilentlyContinue
+Remove-Item Env:FINANCIAL_REDIS_FAIL_CLOSED -ErrorAction SilentlyContinue
 Remove-Item Env:FINANCIAL_BLOCK_MASTER_SUB_TENANT_MISMATCH -ErrorAction SilentlyContinue
 Invoke-RestMethod http://127.0.0.1:3000/health/ready
 ```

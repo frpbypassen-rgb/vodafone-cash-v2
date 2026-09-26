@@ -9,8 +9,11 @@
 | العلم | الافتراضي | ماذا يتغير عند تشغيله |
 | --- | --- | --- |
 | `FINANCIAL_TENANT_GUARD` | OFF | بحث `accountCode` وتحويل الرصيد الداخلي يُحصران في `tenantId` القادم من الخادم. اختلاف المنظمة أو غيابها يرفض العملية قبل الخصم. |
-| `FINANCIAL_IDEMPOTENCY_REQUIRED` | OFF | الطلب بلا `Idempotency-Key` يُرفض. إن وُجد المفتاح يُحترم حتى والعلم مطفأ. |
+| `FINANCIAL_IDEMPOTENCY_ENABLED` | OFF | الخادم يتجاهل `Idempotency-Key` على تحويل الويب وتحويل الرصيد الداخلي. النموذج يرسل المفتاح لكن بلا أثر. |
+| `FINANCIAL_IDEMPOTENCY_REQUIRED` | OFF | يتطلب المفتاح. تشغيله يفعّل المنع أيضًا. |
 | `FINANCIAL_IDEMPOTENCY_STRICT_BINDING` | OFF | بصمة تحويل تطبيق الموبايل (`TransferService`) تضم `tenantId` و`accountId`. لا تشغّله قبل انتهاء المفاتيح العالقة. |
+| `FINANCIAL_AUDIT_IN_TRANSACTION` | OFF | تدقيق تحويل الويب والرصيد الداخلي يبقى خارج جلسة Mongo، ويُفك قفل السلسلة داخل `logAction` قبل `commit` كما في `main`. |
+| `FINANCIAL_REDIS_FAIL_CLOSED` | OFF | لا قفل محفظة جديد، ولا رفض لتحويل ويب/رصيد داخلي إذا غاب Redis. قفل الموبايل القديم يبقى كما هو. |
 | `FINANCIAL_BLOCK_MASTER_SUB_TENANT_MISMATCH` | OFF | يمنع خصم نقطة البيع والوكيل معًا إذا اختلف `tenantId`. |
 
 ### 1. تحويل الرصيد بين شركة ووكيل بحسابين مختلفي المنظمة
@@ -51,7 +54,8 @@
 4. `04-deployment-rollback.md` — خطة التشغيل على Windows PowerShell.
 5. `05-monitoring.md` — استعلامات المطابقة.
 6. `06-test-results.md` — أوامر الاختبار والعدّ، والفشل السابق على `main`.
-7. `migration-dry-run-report.json` — ناتج التجربة على قاعدة اختبار مقلَّدة، وليس إنتاجًا.
+7. `07-active-without-flags.md` — ما الذي يبقى فعالًا وكل الأعلام مطفأة، وخطر كل بند.
+8. `migration-dry-run-report.json` — ناتج التجربة على قاعدة اختبار مقلَّدة، وليس إنتاجًا.
 
 التشغيل الحقيقي للتجربة الجافة يكون على Staging مستعاد من نسخة إنتاج حديثة:
 

@@ -22,8 +22,11 @@ const PUBLIC_MESSAGES = {
 
 const tenantGuardEnabled = () => truthy(process.env.FINANCIAL_TENANT_GUARD);
 const idempotencyRequired = () => truthy(process.env.FINANCIAL_IDEMPOTENCY_REQUIRED);
+const idempotencyEnabled = () => idempotencyRequired() || truthy(process.env.FINANCIAL_IDEMPOTENCY_ENABLED);
 const strictIdempotencyBinding = () => truthy(process.env.FINANCIAL_IDEMPOTENCY_STRICT_BINDING);
 const blockMasterSubTenantMismatch = () => truthy(process.env.FINANCIAL_BLOCK_MASTER_SUB_TENANT_MISMATCH);
+const auditInTransactionEnabled = () => truthy(process.env.FINANCIAL_AUDIT_IN_TRANSACTION);
+const redisFailClosed = () => truthy(process.env.FINANCIAL_REDIS_FAIL_CLOSED);
 
 const codedError = (message, statusCode) => {
     const error = new Error(message);
@@ -126,6 +129,15 @@ const beginIdempotentFinancialRequest = async ({
             release: async () => {}
         };
     }
+    if (!idempotencyEnabled()) {
+        return {
+            active: false,
+            key: null,
+            fingerprint: null,
+            replay: null,
+            release: async () => {}
+        };
+    }
     if (!UUID_RE.test(normalizedKey)) throw codedError('IDEMPOTENCY_KEY_INVALID', 400);
 
     const fingerprint = suppliedFingerprint || boundFingerprint({ accountId, tenantId, channel, payload });
@@ -139,9 +151,13 @@ const beginIdempotentFinancialRequest = async ({
 
     let lock;
     try {
-        lock = await acquireLock(`idemp:${normalizedKey}`, 20000, { retryCount: 200, retryDelay: 30 });
+        lock = await acquireLock(`idemp:${normalizedKey}`, 20000, {
+            retryCount: 200,
+            retryDelay: 30,
+            allowMemoryFallback: !redisFailClosed()
+        });
     } catch (error) {
-        if (distributedStateRequired()) {
+        if (redisFailClosed() && distributedStateRequired()) {
             const wrapped = codedError('REDIS_LOCK_FAILED', 503);
             wrapped.cause = error;
             throw wrapped;
@@ -172,7 +188,9 @@ const beginIdempotentFinancialRequest = async ({
 };
 
 const acquireWalletLock = async (accountId) => {
-    if (!distributedStateRequired()) return { release: async () => {} };
+    // Main did not lock the wallet on web or internal balance transfer.
+    // Fail closed only when the operator turns the flag on after Redis is confirmed.
+    if (!redisFailClosed() || !distributedStateRequired()) return { release: async () => {} };
     try {
         const lock = await acquireLock(`wallet:${idString(accountId)}`, 10000, { retryCount: 20, retryDelay: 50 });
         return { release: async () => releaseLock(lock) };
@@ -189,8 +207,11 @@ module.exports = {
     PUBLIC_MESSAGES,
     tenantGuardEnabled,
     idempotencyRequired,
+    idempotencyEnabled,
     strictIdempotencyBinding,
     blockMasterSubTenantMismatch,
+    auditInTransactionEnabled,
+    redisFailClosed,
     codedError,
     trustedRequestTenantId,
     resolveStampTenant,

@@ -12,12 +12,11 @@
 ## ما الذي نُفِّذ والعلم مطفأ؟
 
 - ختم `tenantId` عند معرفته على المعاملات والقيود والأحداث الجديدة. الحقل اختياري. الكود القديم يتجاهله، والكود الجديد يقبل صفوفًا قديمة بدونه.
-- إن وصل `Idempotency-Key` يُربط بهوية الحساب والمنظمة وبصمة الطلب. الإعادة تُرجع النتيجة المخزنة. اختلاف الطلب يعيد 409. غياب المفتاح يبقى مقبولًا.
-- نماذج الويب تولّد المفتاح وتبقيه حتى نتيجة ناجحة. تغيير الحمولة يغيّر المفتاح.
-- تحويل الرصيد الداخلي: الخصم والإضافة والمعاملتان والقيدان والتدقيق في جلسة واحدة. قفل سلسلة التدقيق لا يُفك قبل `commit`.
+- منع التكرار لا يعمل حتى `FINANCIAL_IDEMPOTENCY_ENABLED` (أو `FINANCIAL_IDEMPOTENCY_REQUIRED`). النموذج يرسل المفتاح مسبقًا بلا أثر.
+- تحويل الرصيد الداخلي: الخصم والإضافة والمعاملتان والقيدان في جلسة واحدة. التدقيق يدخل الجلسة وقفل السلسلة يبقى حتى بعد `commit` فقط مع `FINANCIAL_AUDIT_IN_TRANSACTION`.
 - فشل إنشاء `Transaction` أو `Ledger` يعمل `abortTransaction`.
-- تعذر جلسة Mongo مع `MONGO_TRANSACTIONS_REQUIRED` أو `NODE_ENV=production` يرفض قبل الخصم.
-- تعذر Redis/Redlock عندما `distributedStateRequired()` (إنتاج أو `REDIS_REQUIRED`) يرفض قبل الخصم.
+- تعذر جلسة Mongo مع `MONGO_TRANSACTIONS_REQUIRED` أو `NODE_ENV=production` يرفض قبل الخصم. هذا الرفض كان موجودًا على `main` في نفس المسارات.
+- رفض Redis على تحويل الويب والرصيد الداخلي لا يعمل إلا مع `FINANCIAL_REDIS_FAIL_CLOSED`. مسار الموبايل كان يقفل أصلًا عبر `acquireLock`.
 - `AuditLog` ملحق فقط في الإنتاج. `tenantId` مخزّن وخارج مدخلات `calculateHash`. كلمات السر وOTP والرموز تُحجب.
 - سكربت تجربة جافة `scripts/backfillFinancialTenantId.js`.
 - فهرس المركب الفريد لكود الحساب **لا يُنشأ عند الإقلاع**. `scripts/prepareAccountCodeTenantIndex.js` يفحص التكرار ولا ينشئ الفهرس إلا مع `--apply` و`ALLOW_ACCOUNT_CODE_TENANT_INDEX=true` وبعد فحص نظيف. الفهرس الفريد الحالي على `code` يبقى.

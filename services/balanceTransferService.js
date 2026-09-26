@@ -17,7 +17,8 @@ const {
     assertAccountsSameTenant,
     beginIdempotentFinancialRequest,
     acquireWalletLock,
-    tenantStamp
+    tenantStamp,
+    auditInTransactionEnabled
 } = require('./financialSafety');
 const {
     isMongoTransactionFallbackError,
@@ -281,8 +282,12 @@ const executeBalanceTransfer = async ({
             createdAt: new Date()
         });
 
-        const storedKey = idempotency.key || idempotencyKey || null;
-        const storedFingerprint = idempotency.fingerprint || idempotencyFingerprint || null;
+        const storedKey = idempotency.active
+            ? idempotency.key
+            : (idempotencyLockHeld ? (idempotencyKey || null) : null);
+        const storedFingerprint = idempotency.active
+            ? idempotency.fingerprint
+            : (idempotencyLockHeld ? (idempotencyFingerprint || null) : null);
         const clientResponse = {
             success: true,
             message: `تم تحويل ${normalizedAmount.toFixed(2)} LYD إلى ${accountName(target)} بنجاح.`,
@@ -312,6 +317,7 @@ const executeBalanceTransfer = async ({
         const ledgerEntries = createLedgerEntries(source, target, transferId, normalizedAmount, sourceAfter, targetAfter, tenantId);
         await Ledger.create(ledgerEntries, options);
 
+        const auditInTxn = auditInTransactionEnabled() && Boolean(session && !externalSession);
         const auditHold = await logAction({
             action: 'TRANSFER_CREATED',
             req: request,
@@ -321,9 +327,9 @@ const executeBalanceTransfer = async ({
             newData: { customId: transferId, amount: normalizedAmount, transferType: 'balance_transfer' },
             metadata: { targetName: accountName(target), targetCode: target.doc.accountCode },
             tenantId,
-            session,
-            holdLock: Boolean(session && !externalSession),
-            required: Boolean(session && !externalSession)
+            session: auditInTxn ? session : null,
+            holdLock: auditInTxn,
+            required: auditInTxn
         });
         auditRelease = auditHold && auditHold.release;
 

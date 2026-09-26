@@ -20,6 +20,10 @@ flowchart TD
 
 ## بعد التعديل والأعلام مطفأة
 
+مع كل الأعلام مطفأة لا يُفرض منع التكرار ولا قفل المحفظة الجديد ولا إدخال التدقيق في الجلسة. المخطط التالي هو السلوك بعد تشغيل `FINANCIAL_IDEMPOTENCY_ENABLED` و`FINANCIAL_AUDIT_IN_TRANSACTION` و`FINANCIAL_REDIS_FAIL_CLOSED`. جدول ما يبقى فعالًا بلا أعلام في `07-active-without-flags.md`.
+
+## بعد تشغيل أعلام المنع والقفل والتدقيق
+
 ```mermaid
 flowchart TD
   form["النموذج يولد Idempotency-Key ويبقيه حتى النتيجة"] --> guard["resolveStampTenant من req.tenantId فقط"]

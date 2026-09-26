@@ -60,14 +60,20 @@ describe('financial tenant safety', () => {
     beforeAll(async () => {
         remember('FINANCIAL_TENANT_GUARD');
         remember('FINANCIAL_IDEMPOTENCY_REQUIRED');
+        remember('FINANCIAL_IDEMPOTENCY_ENABLED');
+        remember('FINANCIAL_AUDIT_IN_TRANSACTION');
+        remember('FINANCIAL_REDIS_FAIL_CLOSED');
         remember('FINANCIAL_BLOCK_MASTER_SUB_TENANT_MISMATCH');
         remember('MONGO_TRANSACTIONS_REQUIRED');
         remember('REDIS_REQUIRED');
         remember('NODE_ENV');
         process.env.NODE_ENV = 'test';
         process.env.FINANCIAL_TENANT_GUARD = 'true';
+        process.env.FINANCIAL_IDEMPOTENCY_ENABLED = 'true';
         delete process.env.REDIS_REQUIRED;
         delete process.env.MONGO_TRANSACTIONS_REQUIRED;
+        delete process.env.FINANCIAL_REDIS_FAIL_CLOSED;
+        delete process.env.FINANCIAL_AUDIT_IN_TRANSACTION;
 
         replset = await MongoMemoryReplSet.create({
             replSet: { count: 1, storageEngine: 'wiredTiger' }
@@ -125,8 +131,11 @@ describe('financial tenant safety', () => {
 
     beforeEach(() => {
         process.env.FINANCIAL_TENANT_GUARD = 'true';
+        process.env.FINANCIAL_IDEMPOTENCY_ENABLED = 'true';
         delete process.env.REDIS_REQUIRED;
         delete process.env.MONGO_TRANSACTIONS_REQUIRED;
+        delete process.env.FINANCIAL_REDIS_FAIL_CLOSED;
+        delete process.env.FINANCIAL_AUDIT_IN_TRANSACTION;
         process.env.NODE_ENV = 'test';
     });
 
@@ -298,6 +307,7 @@ describe('financial tenant safety', () => {
 
     test('Redis lock failure in required mode blocks before debit', async () => {
         process.env.REDIS_REQUIRED = 'true';
+        process.env.FINANCIAL_REDIS_FAIL_CLOSED = 'true';
         const beforeA = (await User.findById(userA._id)).balance;
         const beforeA2 = (await User.findById(userA2._id)).balance;
         await expect(executeBalanceTransfer({
@@ -308,6 +318,42 @@ describe('financial tenant safety', () => {
         })).rejects.toMatchObject({ code: 'REDIS_LOCK_FAILED', statusCode: 503 });
         expect((await User.findById(userA._id)).balance).toBe(beforeA);
         expect((await User.findById(userA2._id)).balance).toBe(beforeA2);
+    });
+
+    test('missing Redis does not reject a transfer while the fail-closed flag is off', async () => {
+        process.env.REDIS_REQUIRED = 'true';
+        delete process.env.FINANCIAL_REDIS_FAIL_CLOSED;
+        const beforeA = (await User.findById(userA._id)).balance;
+        const beforeA2 = (await User.findById(userA2._id)).balance;
+        const result = await executeBalanceTransfer({
+            source: sourceOf(await User.findById(userA._id)),
+            targetCode: '111112',
+            amount: 2,
+            tenantContext: requestFor(tenantA)
+        });
+        expect(result.success).toBe(true);
+        expect((await User.findById(userA._id)).balance).toBe(beforeA - 2);
+        expect((await User.findById(userA2._id)).balance).toBe(beforeA2 + 2);
+    });
+
+    test('an Idempotency-Key is ignored until FINANCIAL_IDEMPOTENCY_ENABLED is set', async () => {
+        delete process.env.FINANCIAL_IDEMPOTENCY_ENABLED;
+        const key = '44444444-4444-4444-8444-444444444444';
+        const before = (await User.findById(userA._id)).balance;
+        const payload = {
+            source: sourceOf(await User.findById(userA._id)),
+            targetCode: '111112',
+            amount: 1,
+            idempotencyKey: key,
+            tenantContext: requestFor(tenantA)
+        };
+        await executeBalanceTransfer(payload);
+        await executeBalanceTransfer({
+            ...payload,
+            source: sourceOf(await User.findById(userA._id))
+        });
+        expect((await User.findById(userA._id)).balance).toBe(before - 2);
+        expect(await Transaction.countDocuments({ idempotencyKey: key })).toBe(0);
     });
 
     test('concurrent identical and conflicting requests produce one debit', async () => {

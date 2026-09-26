@@ -290,6 +290,9 @@ app.get('/health/ready', async (req, res) => {
             uptime: process.uptime(),
             financialTenantGuard: flagOn('FINANCIAL_TENANT_GUARD'),
             financialIdempotencyRequired: flagOn('FINANCIAL_IDEMPOTENCY_REQUIRED'),
+            financialIdempotencyEnabled: flagOn('FINANCIAL_IDEMPOTENCY_ENABLED') || flagOn('FINANCIAL_IDEMPOTENCY_REQUIRED'),
+            financialAuditInTransaction: flagOn('FINANCIAL_AUDIT_IN_TRANSACTION'),
+            financialRedisFailClosed: flagOn('FINANCIAL_REDIS_FAIL_CLOSED'),
             mongoTransactionsRequired: process.env.NODE_ENV === 'production' || flagOn('MONGO_TRANSACTIONS_REQUIRED')
         });
     } catch (e) {

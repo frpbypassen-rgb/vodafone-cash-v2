@@ -20,6 +20,7 @@ const {
     beginIdempotentFinancialRequest,
     acquireWalletLock,
     tenantStamp,
+    auditInTransactionEnabled,
     PUBLIC_MESSAGES
 } = require('../services/financialSafety');
 const {
@@ -574,9 +575,9 @@ exports.postTransfer = async (req, res) => {
             newData: { customId: finalCustomId, amount, transferType, costLYD: masterCostLYD, exchangeRate: masterRate },
             metadata: { customId: finalCustomId, transferType },
             tenantId: transferTenantId,
-            session: useTransaction ? session : null,
-            holdLock: useTransaction,
-            required: useTransaction
+            session: auditInTransactionEnabled() && useTransaction ? session : null,
+            holdLock: auditInTransactionEnabled() && useTransaction,
+            required: auditInTransactionEnabled() && useTransaction
         });
         auditRelease = auditHold && auditHold.release;
 
