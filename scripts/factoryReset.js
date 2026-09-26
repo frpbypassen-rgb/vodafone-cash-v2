@@ -1,18 +1,13 @@
 // scripts/factoryReset.js
 // =====================================================
-// ⚠️  ضبط المصنع الكامل — Factory Reset
-// يحذف جميع البيانات ويعيد إنشاء الإعدادات الافتراضية
+// ضبط المصنع — يرفض الإنتاج. لا يطبع كلمات المرور ولا سلسلة الاتصال.
 // =====================================================
 'use strict';
 
 require('dotenv').config();
 const mongoose = require('mongoose');
+const { assertExplicitNonProductionMongoUri, requireSecret } = require('./lib/productionDatabaseGuard');
 
-const MONGO_URI = process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/vodafone_cash_system';
-
-// ────────────────────────────────────────────────
-// الجداول المطلوب حذفها (جميع الكولكشنات)
-// ────────────────────────────────────────────────
 const COLLECTIONS_TO_DROP = [
     'users',
     'admins',
@@ -35,26 +30,39 @@ const COLLECTIONS_TO_DROP = [
     'registrationrequests',
     'auditlogs',
     'tenants',
-    'sessions'  // حذف جلسات تسجيل الدخول أيضاً
+    'sessions'
 ];
 
-async function factoryReset() {
-    console.log('');
-    console.log('╔══════════════════════════════════════════════╗');
-    console.log('║     ⚠️  ضبط المصنع — Al-Ahram Pay System    ║');
-    console.log('╚══════════════════════════════════════════════╝');
-    console.log('');
+const assertFactoryResetAllowed = (env = process.env) => {
+    assertExplicitNonProductionMongoUri(env);
+    requireSecret(env, 'PANEL_PASS', 14);
+    requireSecret(env, 'PANEL_USER', 4);
+};
+
+const safeError = (error) => {
+    const message = String(error && error.message ? error.message : 'Factory reset failed.');
+    if (/mongodb(?:\+srv)?:\/\//i.test(message)) {
+        return 'Factory reset failed. Details were omitted because they may contain a connection string.';
+    }
+    return message;
+};
+
+async function factoryReset(env = process.env) {
+    console.log('Factory reset started. The connection string and password are not printed.');
 
     try {
-        // 1️⃣ الاتصال بقاعدة البيانات
-        console.log(`🔗 الاتصال بـ: ${MONGO_URI}`);
-        await mongoose.connect(MONGO_URI);
-        console.log('✅ تم الاتصال بقاعدة البيانات بنجاح\n');
+        assertFactoryResetAllowed(env);
+        mongoose.set('autoIndex', false);
+        mongoose.set('autoCreate', false);
+        await mongoose.connect(env.MONGO_URI, {
+            serverSelectionTimeoutMS: 15000,
+            autoIndex: false,
+            autoCreate: false
+        });
+        console.log('Connected. The connection string was not printed.');
 
         const db = mongoose.connection.db;
-
-        // 2️⃣ حذف جميع الكولكشنات
-        console.log('🗑️  حذف جميع البيانات...');
+        console.log('Dropping configured collections...');
         let dropped = 0;
         let skipped = 0;
 
@@ -63,33 +71,28 @@ async function factoryReset() {
                 const exists = await db.listCollections({ name }).hasNext();
                 if (exists) {
                     await db.dropCollection(name);
-                    console.log(`   ✅ ${name}`);
-                    dropped++;
+                    console.log(`dropped ${name}`);
+                    dropped += 1;
                 } else {
-                    skipped++;
+                    skipped += 1;
                 }
             } catch (err) {
-                console.log(`   ⚠️  ${name} — ${err.message}`);
+                console.log(`skipped ${name}: ${safeError(err)}`);
             }
         }
 
-        console.log(`\n📊 النتيجة: تم حذف ${dropped} جدول | تم تخطي ${skipped} (غير موجود)\n`);
+        console.log(`Collections dropped: ${dropped}. Missing collections skipped: ${skipped}.`);
 
-        // 3️⃣ إنشاء حساب الأدمن الافتراضي
-        console.log('👤 إنشاء حساب الأدمن الافتراضي...');
         const Admin = require('../models/Admin');
         const defaultAdmin = await Admin.create({
             name: 'المدير العام',
             role: 'master',
-            webUsername: process.env.PANEL_USER || 'admin@ahram.com',
-            webPassword: process.env.PANEL_PASS || 'MyKids0124'
+            webUsername: env.PANEL_USER,
+            webPassword: env.PANEL_PASS
         });
-        console.log(`   ✅ الأدمن: ${defaultAdmin.webUsername}`);
-        console.log(`   🔑 كلمة المرور: ${process.env.PANEL_PASS || 'MyKids0124'}`);
-        console.log(`   👑 الدور: ${defaultAdmin.role}\n`);
+        console.log(`Admin username: ${defaultAdmin.webUsername}`);
+        console.log('Password was taken from PANEL_PASS and was not printed.');
 
-        // 4️⃣ إنشاء الإعدادات الافتراضية
-        console.log('⚙️  إنشاء الإعدادات الافتراضية...');
         const Settings = require('../models/Settings');
         const defaultSettings = await Settings.create({
             rateLevel1: 6.40,
@@ -107,36 +110,30 @@ async function factoryReset() {
             executorPendingMessage: '⏳ حسابك لا يزال قيد المراجعة من قبل الإدارة.',
             executorBannedMessage: '⛔️ تم حظر حسابك. يرجى مراجعة الإدارة.'
         });
-        console.log('   ✅ الإعدادات الافتراضية تم إنشاؤها');
-        console.log(`   💱 أسعار الصرف: L1=${defaultSettings.rateLevel1} | L2=${defaultSettings.rateLevel2} | L3=${defaultSettings.rateLevel3}`);
-        console.log(`   🕐 أوقات العمل: ${defaultSettings.openingTime} — ${defaultSettings.closingTime}\n`);
+        console.log('Default settings were created.');
+        console.log(`Rates: L1=${defaultSettings.rateLevel1} | L2=${defaultSettings.rateLevel2} | L3=${defaultSettings.rateLevel3}`);
 
-        // 5️⃣ إنشاء عداد الفواتير
-        console.log('🔢 إنشاء عداد التسلسل...');
         const Counter = require('../models/Counter');
         await Counter.create({ _id: 'transactionId', seq: 0 });
-        console.log('   ✅ عداد المعاملات يبدأ من 0\n');
-
-        // ────────────────────────────────────────────────
-        // ✅ تقرير الانتهاء
-        // ────────────────────────────────────────────────
-        console.log('╔══════════════════════════════════════════════╗');
-        console.log('║    ✅ تم ضبط المصنع بنجاح!                   ║');
-        console.log('╠══════════════════════════════════════════════╣');
-        console.log('║  📌 بيانات الدخول للوحة التحكم:              ║');
-        console.log(`║  👤 المستخدم: ${(process.env.PANEL_USER || 'admin@ahram.com').padEnd(30)}║`);
-        console.log(`║  🔑 كلمة المرور: ${(process.env.PANEL_PASS || 'MyKids0124').padEnd(27)}║`);
-        console.log('║  🌐 الرابط: http://localhost:3000             ║');
-        console.log('╚══════════════════════════════════════════════╝');
-        console.log('');
-
+        console.log('Transaction counter starts at 0.');
+        console.log('Factory reset finished.');
+        return 0;
     } catch (error) {
-        console.error('❌ خطأ أثناء ضبط المصنع:', error.message);
-        console.error(error.stack);
+        console.error(safeError(error));
+        return 1;
     } finally {
-        await mongoose.disconnect();
-        process.exit(0);
+        if (mongoose.connection.readyState !== 0) await mongoose.disconnect();
     }
 }
 
-factoryReset();
+if (require.main === module) {
+    factoryReset().then((code) => {
+        process.exitCode = code;
+    });
+}
+
+module.exports = {
+    COLLECTIONS_TO_DROP,
+    assertFactoryResetAllowed,
+    factoryReset
+};

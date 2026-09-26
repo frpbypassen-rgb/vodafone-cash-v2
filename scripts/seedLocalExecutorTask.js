@@ -8,18 +8,15 @@ const ExecutorGroup = require('../models/ExecutorGroup');
 const Employee = require('../models/Employee');
 const Transaction = require('../models/Transaction');
 const User = require('../models/User');
+const { assertLocalSeedTarget, requireSecret } = require('./lib/productionDatabaseGuard');
 
 const groupName = 'Flutter Local Execution';
 const taskId = 'DEMO-EXEC-MOBILE-001';
 const demoCustomerPhone = '0920001999';
 
 async function main() {
-    const uri = process.env.MONGO_URI;
-    if (!uri || !/mongodb:\/\/(?:127\.0\.0\.1|localhost|\[::1\])/i.test(uri)) {
-        throw new Error('This script only runs with a local MongoDB URI.');
-    }
-
-    await mongoose.connect(uri, { serverSelectionTimeoutMS: 10000 });
+    assertLocalSeedTarget(process.env);
+    await mongoose.connect(process.env.MONGO_URI, { serverSelectionTimeoutMS: 10000, autoIndex: false, autoCreate: false });
     const group = await ExecutorGroup.findOne({ name: groupName });
     const manager = await Employee.findOne({ webUsername: 'local_exec_manager@ahram.com' });
     if (!group || !manager) {
@@ -32,7 +29,7 @@ async function main() {
             name: 'Local Demo Customer',
             phone: demoCustomerPhone,
             webUsername: 'local_demo_customer@ahram.com',
-            webPassword: 'DemoCustomer2026!'
+            webPassword: requireSecret(process.env, 'SEED_LOCAL_CUSTOMER_PASSWORD', 8)
         });
     }
     customer.name = 'Local Demo Customer';
@@ -85,7 +82,7 @@ async function main() {
 }
 
 main().catch(async (error) => {
-    console.error(error.message);
+    console.error(String(error && error.message || 'Seed failed.').replace(/(?:mongodb(?:\+srv)?:\/\/)\S+/gi, '[redacted]'));
     try {
         await mongoose.disconnect();
     } catch (_) {

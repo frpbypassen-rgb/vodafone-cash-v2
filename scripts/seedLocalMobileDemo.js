@@ -15,11 +15,9 @@ const Settings = require('../models/Settings');
 const Transaction = require('../models/Transaction');
 const SupportTicket = require('../models/SupportTicket');
 const Counter = require('../models/Counter');
+const { assertLocalSeedTarget, requireSecret } = require('./lib/productionDatabaseGuard');
 
-const uri = process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/vodafone_cash_system?replicaSet=rs0';
-const password = '12345678';
-
-const hashPassword = () => bcrypt.hash(password, 12);
+const hashPassword = (password) => bcrypt.hash(password, 12);
 
 const upsertOne = async (Model, filter, payload) => {
     await Model.updateOne(
@@ -162,9 +160,11 @@ const seedTickets = async ({ directUser, subClient, executor }) => {
 };
 
 const main = async () => {
-    await mongoose.connect(uri, { serverSelectionTimeoutMS: 10000 });
+    assertLocalSeedTarget(process.env);
+    const password = requireSecret(process.env, 'SEED_LOCAL_PASSWORD', 8);
+    await mongoose.connect(process.env.MONGO_URI, { serverSelectionTimeoutMS: 10000, autoIndex: false, autoCreate: false });
 
-    const hp = await hashPassword();
+    const hp = await hashPassword(password);
 
     await upsertOne(Settings, {}, {
         rateLevel1: 6.4,
@@ -302,22 +302,26 @@ const main = async () => {
     await seedTransactions({ directUser, company, companyOwner, agent, subClient, executorGroup, executor });
     await seedTickets({ directUser, subClient, executor });
 
-    console.log('Local mobile demo seed completed.');
+    console.log('Local mobile demo seed completed. Passwords were not printed.');
     console.table([
-        { role: 'direct client', username: 'client.direct', phone: '01000000001', password },
-        { role: 'agent owner', username: 'agent.owner', phone: '01000000006', password },
-        { role: 'agent client', username: 'agent.client', phone: '01000000007', password },
-        { role: 'company owner', username: 'company.owner', phone: '01000000002', password },
-        { role: 'company employee', username: 'company.employee', phone: '01000000004', password },
-        { role: 'company accountant', username: 'company.accountant', phone: '01000000005', password },
-        { role: 'executor', username: 'executor.operator', phone: '01000000003', password }
+        { role: 'direct client', username: 'client.direct', phone: '01000000001' },
+        { role: 'agent owner', username: 'agent.owner', phone: '01000000006' },
+        { role: 'agent client', username: 'agent.client', phone: '01000000007' },
+        { role: 'company owner', username: 'company.owner', phone: '01000000002' },
+        { role: 'company employee', username: 'company.employee', phone: '01000000004' },
+        { role: 'company accountant', username: 'company.accountant', phone: '01000000005' },
+        { role: 'executor', username: 'executor.operator', phone: '01000000003' }
     ]);
 
     await mongoose.disconnect();
 };
 
-main().catch(async (error) => {
-    console.error(error);
+if (require.main === module) {
+    main().catch(async (error) => {
+    console.error(String(error && error.code ? `${error.code}: ${error.message}` : 'Seed failed.').replace(/(?:mongodb(?:\+srv)?:\/\/)\S+/gi, '[redacted]'));
     try { await mongoose.disconnect(); } catch (_) {}
-    process.exit(1);
-});
+        process.exit(1);
+    });
+}
+
+module.exports = { main };
