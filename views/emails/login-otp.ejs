@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="light only">
-  <title>رمز التحقق لتسجيل الدخول | <%= brand %></title>
+  <title><%= pageTitle %></title>
 </head>
 <body style="margin:0;padding:0;background:#edf1f0;color:#17211f;font-family:Tahoma,Arial,sans-serif;direction:rtl;word-break:break-word;">
   <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;mso-hide:all;font-size:1px;line-height:1px;">
@@ -25,9 +25,9 @@
           </tr></table>
         </td></tr>
         <tr><td style="padding:36px 36px 12px;text-align:right;">
-          <div style="margin-bottom:10px;color:#9b7628;font-size:12px;font-weight:700;line-height:18px;">التحقق بخطوتين</div>
-          <h1 style="margin:0 0 12px;color:#102a29;font-size:27px;font-weight:700;line-height:39px;">أكمل تسجيل الدخول إلى حسابك</h1>
-          <p style="margin:0;color:#55605d;font-size:15px;line-height:27px;">مرحبًا <strong style="color:#17211f;"><%= accountName || 'بك' %></strong>، تلقينا محاولة تسجيل دخول إلى حسابك. استخدم رمز التحقق التالي لإكمال العملية بأمان.</p>
+          <div style="margin-bottom:10px;color:#9b7628;font-size:12px;font-weight:700;line-height:18px;"><%= kicker %></div>
+          <h1 style="margin:0 0 12px;color:#102a29;font-size:27px;font-weight:700;line-height:39px;"><%= headline %></h1>
+          <p style="margin:0;color:#55605d;font-size:15px;line-height:27px;">مرحبًا <strong style="color:#17211f;"><%= accountName || 'بك' %></strong>، <%= introRest %></p>
         </td></tr>
         <tr><td style="padding:20px 36px 12px;">
           <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background:#f7f4ea;border:1px solid #dbc581;">
@@ -56,15 +56,15 @@
         <tr><td style="padding:8px 36px 26px;">
           <h2 style="margin:0 0 13px;color:#102a29;font-size:17px;font-weight:700;line-height:26px;">طريقة استخدام الرمز</h2>
           <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
-            <tr><td width="34" valign="top" style="padding-bottom:12px;"><div style="width:26px;height:26px;background:#0c3433;color:#fff;text-align:center;font-size:13px;font-weight:700;line-height:26px;">1</div></td><td valign="top" style="padding:1px 10px 12px 0;color:#4e5956;font-size:14px;line-height:24px;">ارجع إلى شاشة تسجيل الدخول المفتوحة في موقع أو تطبيق <%= brand %>.</td></tr>
-            <tr><td width="34" valign="top" style="padding-bottom:12px;"><div style="width:26px;height:26px;background:#0c3433;color:#fff;text-align:center;font-size:13px;font-weight:700;line-height:26px;">2</div></td><td valign="top" style="padding:1px 10px 12px 0;color:#4e5956;font-size:14px;line-height:24px;">أدخل <%= otpDigitsPhrase %> في خانة «رمز التحقق» بنفس الترتيب الظاهر أعلاه.</td></tr>
-            <tr><td width="34" valign="top"><div style="width:26px;height:26px;background:#0c3433;color:#fff;text-align:center;font-size:13px;font-weight:700;line-height:26px;">3</div></td><td valign="top" style="padding:1px 10px 0 0;color:#4e5956;font-size:14px;line-height:24px;">اضغط «تأكيد الدخول». لا يمكن استخدام الرمز مرة أخرى بعد نجاح التحقق.</td></tr>
+            <tr><td width="34" valign="top" style="padding-bottom:12px;"><div style="width:26px;height:26px;background:#0c3433;color:#fff;text-align:center;font-size:13px;font-weight:700;line-height:26px;">1</div></td><td valign="top" style="padding:1px 10px 12px 0;color:#4e5956;font-size:14px;line-height:24px;"><%= step1 %></td></tr>
+            <tr><td width="34" valign="top" style="padding-bottom:12px;"><div style="width:26px;height:26px;background:#0c3433;color:#fff;text-align:center;font-size:13px;font-weight:700;line-height:26px;">2</div></td><td valign="top" style="padding:1px 10px 12px 0;color:#4e5956;font-size:14px;line-height:24px;"><%= step2 %></td></tr>
+            <tr><td width="34" valign="top"><div style="width:26px;height:26px;background:#0c3433;color:#fff;text-align:center;font-size:13px;font-weight:700;line-height:26px;">3</div></td><td valign="top" style="padding:1px 10px 0 0;color:#4e5956;font-size:14px;line-height:24px;"><%= step3 %></td></tr>
           </table>
         </td></tr>
         <tr><td style="padding:0 36px 28px;">
           <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background:#f2f6f5;border-right:4px solid #18756f;"><tr><td style="padding:17px 18px;">
             <div style="margin-bottom:7px;color:#0c3433;font-size:14px;font-weight:700;line-height:22px;">نصائح لحماية حسابك</div>
-            <div style="color:#53605d;font-size:13px;line-height:23px;">• لا تشارك الرمز مع أي شخص، حتى لو ادعى أنه من فريق الدعم.<br>• لن نطلب منك الرمز عبر الهاتف أو الرسائل أو روابط خارجية.<br>• تأكد أن عنوان الموقع يبدأ بـ <bdo dir="ltr" style="unicode-bidi:isolate;"><%= websiteHost %></bdo> قبل إدخال الرمز.<br>• إذا لم تبدأ محاولة الدخول، غيّر كلمة المرور وتواصل معنا فورًا.</div>
+            <div style="color:#53605d;font-size:13px;line-height:23px;">• لا تشارك الرمز مع أي شخص، حتى لو ادعى أنه من فريق الدعم.<br>• لن نطلب منك الرمز عبر الهاتف أو الرسائل أو روابط خارجية.<br>• تأكد أن عنوان الموقع يبدأ بـ <bdo dir="ltr" style="unicode-bidi:isolate;"><%= websiteHost %></bdo> قبل إدخال الرمز.<br>• <%= closingTip %></div>
           </td></tr></table>
         </td></tr>
         <tr><td style="padding:25px 30px;background:#0c3433;text-align:right;">

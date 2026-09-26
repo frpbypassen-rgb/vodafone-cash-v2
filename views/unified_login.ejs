@@ -436,7 +436,7 @@
                             إرسال الطلب للإدارة <i class="fa-solid fa-paper-plane ms-1"></i>
                         </button>
                         <div class="small text-muted fw-bold mt-3">
-                            لن يتم تغيير كلمة المرور إلا بعد موافقة الإدارة من قسم الشكاوي.
+                            بعد نجاح التغيير تُغلق جلسات الحساب على الموقع والتطبيق.
                         </div>
                     </div>
                 </div>
@@ -527,9 +527,12 @@
             const box = document.getElementById('resetStatus');
             box.className = `reset-status show ${type}`;
             box.replaceChildren();
-            if (details && details.code === 'PASSWORD_RESET_UNAVAILABLE') {
+            if (details && (details.code === 'PASSWORD_RESET_UNAVAILABLE' || details.code === 'PASSWORD_RESET_STARTED')) {
+                const lead = details.code === 'PASSWORD_RESET_STARTED'
+                    ? 'إذا كان للحساب بريد موثّق فسيصلك رمز استعادة كلمة المرور. إذا لم يكن له بريد موثّق، استعادة كلمة المرور غير متاحة حالياً. تواصل مع الدعم على '
+                    : 'استعادة كلمة المرور غير متاحة حالياً. تواصل مع الدعم على ';
                 box.append(
-                    document.createTextNode('استعادة كلمة المرور غير متاحة حالياً. تواصل مع الدعم على '),
+                    document.createTextNode(lead),
                     isolateLtr(details.supportPhone),
                     document.createTextNode(' أو '),
                     isolateLtr(details.supportEmail)
@@ -588,7 +591,7 @@
                     const phone = document.getElementById('resetPhone').value.trim();
                     const data = await resetFetch('/api/password-reset/start', { username, phone });
                     resetFlow.requestId = data.requestId;
-                    setResetStatus(data.message || 'تم إرسال رمز التحقق على واتساب.', 'success');
+                    setResetStatus(data.message, 'success', data);
                     showResetStep('resetStepOtp');
                     document.getElementById('resetOtp').focus();
                 } catch (error) {
@@ -623,7 +626,7 @@
                         newPassword,
                         confirmPassword
                     });
-                    setResetStatus(data.message || 'تم إرسال الطلب إلى الإدارة.', 'success');
+                    setResetStatus(data.message || 'تم تغيير كلمة المرور. سجّل الدخول من جديد على كل الأجهزة.', 'success');
                     showResetStep('resetStepAccount');
                     document.getElementById('resetUsername').value = '';
                     document.getElementById('resetPhone').value = '';

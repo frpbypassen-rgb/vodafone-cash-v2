@@ -63,12 +63,12 @@ const resolveExpiresDate = ({ expiresAt, expiresMinutes, now = new Date() } = {}
     return new Date(base.getTime() + (minutes * 60 * 1000));
 };
 
-const buildLoginOtpContent = ({ otp, expiresMinutes, expiresAt, accountName, now } = {}) => {
+const buildLoginOtpContent = ({ otp, expiresMinutes, expiresAt, accountName, now, purpose } = {}) => {
     const name = cleanInline(accountName);
     const code = String(otp == null ? '' : otp).replace(/[\r\n]+/g, '');
     const expiresText = formatLoginOtpExpiresAt(resolveExpiresDate({ expiresAt, expiresMinutes, now }));
     const brand = getBrandContact();
-    return {
+    const content = {
         ...COPY,
         phone: brand.phoneDisplay,
         phoneHref: brand.phoneHref,
@@ -77,6 +77,14 @@ const buildLoginOtpContent = ({ otp, expiresMinutes, expiresAt, accountName, now
         expiresText,
         expiryLine: `تنتهي صلاحية هذا الرمز في ${expiresText}`
     };
+    if (purpose === 'password_reset') {
+        content.kicker = 'استعادة آمنة';
+        content.heading = 'استعادة كلمة المرور';
+        content.body = 'استخدم الرمز التالي لاختيار كلمة مرور جديدة. لا تشارك الرمز مع أحد.';
+        content.otpLabel = 'رمز الاستعادة';
+        content.ignore = 'إذا لم تطلب استعادة كلمة المرور، تجاهل هذه الرسالة.';
+    }
+    return content;
 };
 
 const buildLoginOtpText = (input = {}) => {

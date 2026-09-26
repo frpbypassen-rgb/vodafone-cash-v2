@@ -19,8 +19,6 @@ const User = require('../models/User');
 const ClientEmployee = require('../models/ClientEmployee');
 const AgentEmployee = require('../models/AgentEmployee');
 const SubAccount = require('../models/SubAccount');
-const SupportTicket = require('../models/SupportTicket');
-const PasswordResetRequest = require('../models/PasswordResetRequest');
 const TrustedDevice = require('../models/TrustedDevice');
 const SecurityDevice = require('../models/SecurityDevice');
 const accountMfaService = require('../services/accountMfaService');
@@ -79,13 +77,8 @@ const loginLimiter = rateLimit({
     skipSuccessfulRequests: true,
 });
 
-const passwordResetLimiter = rateLimit({
-    windowMs: 10 * 60 * 1000,
-    max: 8,
-    message: { success: false, error: 'عدد محاولات الاستعادة مرتفع. حاول بعد قليل.' },
-    standardHeaders: true,
-    legacyHeaders: false,
-});
+const { createPasswordResetIpLimiter } = require('../utils/passwordResetAvailability');
+const passwordResetLimiter = createPasswordResetIpLimiter(8);
 
 const adminOtpVerifyLimiter = rateLimit({
     windowMs: 5 * 60 * 1000,
@@ -1164,57 +1157,6 @@ router.post('/security/passkey-login/verify', async (req, res) => {
     }
 });
 
-const formatAccountCard = (snapshot) => (
-    Object.entries(snapshot)
-        .filter(([, value]) => value !== undefined && value !== null && value !== '')
-        .map(([key, value]) => {
-            if (value instanceof Date) return `- ${key}: ${value.toISOString()}`;
-            if (typeof value === 'object') return `- ${key}: ${String(value)}`;
-            return `- ${key}: ${value}`;
-        })
-        .join('\n')
-);
-
-const createPasswordResetTicket = async (resetRequest) => {
-    const typeLabel = resetRequest.accountType === 'sub_client' ? 'عميل تابع لوكيل' : 'عميل مباشر';
-    const cardText = formatAccountCard(resetRequest.accountSnapshot || {});
-    const messageText = [
-        'طلب استعادة كلمة مرور بانتظار موافقة الإدارة.',
-        '',
-        `رقم الطلب: ${resetRequest.requestId}`,
-        `نوع الحساب: ${typeLabel}`,
-        `اسم العميل: ${resetRequest.name}`,
-        `اسم المستخدم: ${resetRequest.username}`,
-        `رقم الهاتف: ${resetRequest.phone}`,
-        resetRequest.masterName ? `الوكيل/الحساب الرئيسي: ${resetRequest.masterName}` : '',
-        '',
-        'كلمة المرور الجديدة تم استلامها بأمان وسيتم تفعيلها بعد موافقة الإدارة.',
-        '',
-        'بطاقة بيانات الحساب:',
-        cardText || '- لا توجد بيانات إضافية.'
-    ].filter(Boolean).join('\n');
-
-    return SupportTicket.create({
-        entityType: resetRequest.accountType === 'sub_client' ? 'sub_client' : 'client_user',
-        entityId: resetRequest.accountId,
-        name: `استعادة كلمة مرور - ${resetRequest.name}`,
-        phone: resetRequest.phone,
-        status: 'open',
-        unreadAdmin: 1,
-        messages: [{
-            sender: 'user',
-            senderName: 'طلب استعادة كلمة المرور',
-            text: messageText,
-            createdAt: new Date()
-        }],
-        metadata: {
-            type: 'password_reset',
-            passwordResetRequestId: resetRequest._id,
-            passwordResetStatus: 'pending_admin'
-        }
-    });
-};
-
 router.get('/login', async (req, res) => {
     securityControl.ensureDeviceId(req, res);
     if (req.query?.reset === '1') return resetLoginSession(req, res);
@@ -1515,95 +1457,43 @@ router.post('/admin/verify', adminOtpVerifyLimiter, async (req, res) => {
     }
 });
 
-router.post('/api/password-reset/start', passwordResetLimiter, (req, res) => {
-    const { respondPasswordResetUnavailable } = require('../utils/passwordResetAvailability');
-    return respondPasswordResetUnavailable(req, res);
+router.post('/api/password-reset/start', passwordResetLimiter, async (req, res) => {
+    const { startPasswordReset } = require('../services/passwordResetService');
+    const body = await startPasswordReset({
+        username: req.body.username,
+        phone: req.body.phone,
+        req
+    });
+    return res.status(200).json(body);
 });
 
 router.post('/api/password-reset/verify-otp', passwordResetLimiter, async (req, res) => {
-    try {
-        const requestId = req.body.requestId?.trim();
-        const otp = req.body.otp?.trim();
-
-        if (!requestId || !otp) {
-            return res.status(400).json({ success: false, error: 'يرجى إدخال رمز التحقق.' });
-        }
-
-        const resetRequest = await PasswordResetRequest.findById(requestId);
-        if (!resetRequest || resetRequest.status !== 'otp_sent') {
-            return res.status(404).json({ success: false, error: 'طلب الاستعادة غير صالح أو منتهي.' });
-        }
-
-        if (!resetRequest.otpExpires || resetRequest.otpExpires < new Date()) {
-            resetRequest.status = 'expired';
-            await resetRequest.save();
-            return res.status(410).json({ success: false, error: 'انتهت صلاحية رمز التحقق. ابدأ الطلب من جديد.' });
-        }
-
-        if (!verifyOtp(otp, resetRequest.otpCode)) {
-            return res.status(400).json({ success: false, error: 'رمز التحقق غير صحيح.' });
-        }
-
-        resetRequest.status = 'otp_verified';
-        resetRequest.otpVerifiedAt = new Date();
-        resetRequest.otpCode = undefined;
-        await resetRequest.save();
-
-        return res.json({ success: true, message: 'تم التحقق من الرمز بنجاح.' });
-    } catch (error) {
-        console.error('[Password Reset] otp verify failed:', error.message);
-        return res.status(500).json({ success: false, error: 'حدث خطأ أثناء التحقق من الرمز.' });
+    const requestId = req.body.requestId?.trim();
+    const otp = req.body.otp?.trim();
+    if (!requestId || !otp) {
+        return res.status(400).json({ success: false, code: 'PASSWORD_RESET_CODE_INVALID', error: 'يرجى إدخال رمز التحقق.' });
     }
+    const { verifyPasswordReset } = require('../services/passwordResetService');
+    const body = await verifyPasswordReset({ requestId, otp, req });
+    return res.status(body.success ? 200 : 400).json(body);
 });
 
 router.post('/api/password-reset/submit', passwordResetLimiter, async (req, res) => {
-    try {
-        const requestId = req.body.requestId?.trim();
-        const newPassword = req.body.newPassword?.trim();
-        const confirmPassword = req.body.confirmPassword?.trim();
-
-        if (!requestId || !newPassword || !confirmPassword) {
-            return res.status(400).json({ success: false, error: 'يرجى إدخال كلمة المرور الجديدة وتأكيدها.' });
-        }
-        if (newPassword.length < 8) {
-            return res.status(400).json({ success: false, error: 'كلمة المرور يجب أن تكون 8 أحرف على الأقل.' });
-        }
-        if (newPassword !== confirmPassword) {
-            return res.status(400).json({ success: false, error: 'كلمتا المرور غير متطابقتين.' });
-        }
-
-        const resetRequest = await PasswordResetRequest.findById(requestId);
-        if (!resetRequest || resetRequest.status !== 'otp_verified') {
-            return res.status(404).json({ success: false, error: 'طلب الاستعادة غير صالح أو لم يتم التحقق منه.' });
-        }
-
-        resetRequest.pendingPasswordHash = await bcrypt.hash(newPassword, 12);
-        resetRequest.status = 'pending_admin';
-        await resetRequest.save();
-
-        const ticket = await createPasswordResetTicket(resetRequest);
-        resetRequest.ticketId = ticket._id;
-        await resetRequest.save();
-
-        try {
-            const Notification = require('../models/Notification');
-            await Notification.create({
-                title: 'طلب استعادة كلمة مرور',
-                message: `طلب جديد من ${resetRequest.name} بانتظار تأكيد الإدارة.`,
-                txId: resetRequest.requestId
-            });
-        } catch (error) {
-            console.warn('[Password Reset] notification skipped:', error.message);
-        }
-
-        return res.json({
-            success: true,
-            message: 'تم إرسال الطلب إلى الإدارة. سيتم تفعيل كلمة المرور الجديدة بعد الموافقة.'
-        });
-    } catch (error) {
-        console.error('[Password Reset] submit failed:', error.message);
-        return res.status(500).json({ success: false, error: 'حدث خطأ أثناء إرسال الطلب للإدارة.' });
+    const requestId = req.body.requestId?.trim();
+    const newPassword = req.body.newPassword?.trim();
+    const confirmPassword = req.body.confirmPassword?.trim();
+    if (!requestId || !newPassword || !confirmPassword) {
+        return res.status(400).json({ success: false, code: 'PASSWORD_RESET_CODE_INVALID', error: 'يرجى إدخال كلمة المرور الجديدة وتأكيدها.' });
     }
+    if (newPassword.length < 8) {
+        return res.status(400).json({ success: false, code: 'PASSWORD_RESET_PASSWORD_INVALID', error: 'كلمة المرور يجب أن تكون 8 أحرف على الأقل.' });
+    }
+    if (newPassword !== confirmPassword) {
+        return res.status(400).json({ success: false, code: 'PASSWORD_RESET_PASSWORD_MISMATCH', error: 'كلمتا المرور غير متطابقتين.' });
+    }
+    const { completePasswordReset } = require('../services/passwordResetService');
+    const body = await completePasswordReset({ requestId, newPassword, req });
+    return res.status(body.success ? 200 : 400).json(body);
 });
 
 router.get('/logout', async (req, res) => {

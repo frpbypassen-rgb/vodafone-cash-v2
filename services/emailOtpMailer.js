@@ -214,7 +214,9 @@ const buildLoginOtpView = (input = {}) => {
         brand: brand.name,
         accountName,
         greeting: accountName ? `مرحبًا ${accountName}،` : 'مرحبًا بك،',
-        body: COPY.body,
+        body: input.purpose === 'password_reset'
+            ? 'طلبت استعادة كلمة المرور. استخدم رمز التحقق التالي لاختيار كلمة مرور جديدة.'
+            : COPY.body,
         otp,
         expiresMinutes,
         expiresPhrase,
@@ -229,6 +231,24 @@ const buildLoginOtpView = (input = {}) => {
         contactAddress: brand.address,
         warning: COPY.warning,
         phoneLabel: COPY.phoneLabel,
+        pageTitle: input.purpose === 'password_reset'
+            ? `استعادة كلمة المرور | ${brand.name}`
+            : `رمز التحقق لتسجيل الدخول | ${brand.name}`,
+        kicker: input.purpose === 'password_reset' ? 'استعادة كلمة المرور' : 'التحقق بخطوتين',
+        headline: input.purpose === 'password_reset' ? 'اختر كلمة مرور جديدة' : 'أكمل تسجيل الدخول إلى حسابك',
+        introRest: input.purpose === 'password_reset'
+            ? 'طلبت استعادة كلمة المرور. استخدم رمز التحقق التالي لاختيار كلمة مرور جديدة.'
+            : 'تلقينا محاولة تسجيل دخول إلى حسابك. استخدم رمز التحقق التالي لإكمال العملية بأمان.',
+        step1: input.purpose === 'password_reset'
+            ? `ارجع إلى نافذة استعادة كلمة المرور في موقع أو تطبيق ${brand.name}.`
+            : `ارجع إلى شاشة تسجيل الدخول المفتوحة في موقع أو تطبيق ${brand.name}.`,
+        step2: `أدخل ${describeOtpDigits(otp)} في خانة «رمز التحقق» بنفس الترتيب الظاهر أعلاه.`,
+        step3: input.purpose === 'password_reset'
+            ? 'اختر كلمة المرور الجديدة. لا يمكن استخدام الرمز مرة أخرى بعد نجاح التغيير.'
+            : 'اضغط «تأكيد الدخول». لا يمكن استخدام الرمز مرة أخرى بعد نجاح التحقق.',
+        closingTip: input.purpose === 'password_reset'
+            ? 'إذا لم تطلب استعادة كلمة المرور، تجاهل هذه الرسالة وتواصل معنا فورًا.'
+            : 'إذا لم تبدأ محاولة الدخول، غيّر كلمة المرور وتواصل معنا فورًا.',
         year,
         logoSrc: logo && logo.src ? logo.src : '',
         logoAlt: logo && logo.alt ? logo.alt : brand.name
@@ -267,15 +287,15 @@ const buildLoginOtpTextV2 = (input = {}) => {
     }
     lines.push(
         'طريقة استخدام الرمز',
-        `1. ارجع إلى شاشة تسجيل الدخول المفتوحة في موقع أو تطبيق ${view.brand}.`,
-        `2. أدخل ${view.otpDigitsPhrase} في خانة «رمز التحقق» بنفس الترتيب الظاهر أعلاه.`,
-        '3. اضغط «تأكيد الدخول». لا يمكن استخدام الرمز مرة أخرى بعد نجاح التحقق.',
+        `1. ${view.step1}`,
+        `2. ${view.step2}`,
+        `3. ${view.step3}`,
         '',
         'نصائح لحماية حسابك',
         view.warning,
         'لن نطلب منك الرمز عبر الهاتف أو الرسائل أو روابط خارجية.',
         `تأكد أن عنوان الموقع يبدأ بـ ${embedPlainLtr(view.websiteHost)} قبل إدخال الرمز.`,
-        'إذا لم تبدأ محاولة الدخول، غيّر كلمة المرور وتواصل معنا فورًا.',
+        view.closingTip,
         '',
         view.contactAddress,
         `${view.phoneLabel} ${embedPlainLtr(view.contactPhone)}`,
@@ -308,16 +328,19 @@ const redactLoginOtp = (value, otp) => {
     return text.slice(0, 400);
 };
 
+const passwordResetSubject = () => `استعادة كلمة المرور — ${getBrandContact().name}`;
+
 const renderLoginOtpForSend = (content) => {
+    const reset = content && content.purpose === 'password_reset';
     const current = () => ({
-        subject: LOGIN_OTP_SUBJECT,
+        subject: reset ? passwordResetSubject() : LOGIN_OTP_SUBJECT,
         text: legacyTemplate.buildLoginOtpText(content),
         html: legacyTemplate.buildLoginOtpHtml(content)
     });
     if (!useLoginOtpTemplateV2()) return current();
     try {
         return {
-            subject: `رمز التحقق لتسجيل الدخول — ${getBrandContact().name}`,
+            subject: reset ? passwordResetSubject() : `رمز التحقق لتسجيل الدخول — ${getBrandContact().name}`,
             text: buildLoginOtpTextV2(content),
             html: buildLoginOtpHtmlV2(content)
         };
@@ -397,6 +420,58 @@ const sendLoginOtpEmail = async ({
     }
 };
 
+const sendPasswordResetEmail = async ({
+    to,
+    otp,
+    expiresMinutes = 10,
+    accountName = '',
+    year
+} = {}) => {
+    const email = normalizeOtpEmail(to);
+    if (!isValidOtpEmail(email)) return failure('EMAIL_OTP_ADDRESS_INVALID');
+
+    const config = getSmtpConfig();
+    const missing = getMissingSmtpSettings(config);
+    if (missing.length) {
+        logger.security('password reset email config missing', {
+            code: 'SMTP_CONFIG_MISSING',
+            missing
+        });
+        return failure('SMTP_CONFIG_MISSING');
+    }
+
+    const content = {
+        purpose: 'password_reset',
+        otp,
+        expiresMinutes,
+        accountName,
+        year
+    };
+    const rendered = renderLoginOtpForSend(content);
+
+    try {
+        const transport = getTransport(config);
+        const info = await transport.sendMail({
+            from: config.from,
+            to: email,
+            subject: rendered.subject,
+            text: rendered.text,
+            html: rendered.html
+        });
+        return {
+            success: true,
+            provider: 'smtp',
+            channel: 'email',
+            messageId: info && info.messageId ? String(info.messageId) : ''
+        };
+    } catch (error) {
+        const smtpCode = error && error.code ? String(error.code).slice(0, 40) : '';
+        const code = TIMEOUT_CODES.has(smtpCode) ? 'EMAIL_OTP_TIMEOUT' : 'EMAIL_OTP_SEND_FAILED';
+        logger.security('password reset email failed', { code, smtpCode });
+        return failure(code);
+    }
+};
+
 module.exports = {
     DEFAULT_FROM,
     LOGIN_OTP_LOGO_URL,
@@ -412,5 +487,6 @@ module.exports = {
     maskLoginAccount,
     resetEmailTransport,
     sendLoginOtpEmail,
+    sendPasswordResetEmail,
     summarizeLoginUserAgent
 };

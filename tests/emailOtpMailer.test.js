@@ -29,6 +29,7 @@ const {
     maskLoginAccount,
     resetEmailTransport,
     sendLoginOtpEmail,
+    sendPasswordResetEmail,
     summarizeLoginUserAgent
 } = require('../services/emailOtpMailer');
 const legacyTemplate = require('../services/emailOtpTemplateLegacy');
@@ -547,6 +548,57 @@ describe('email OTP mailer', () => {
         expect(preview).toContain('dir="rtl"');
         expect(preview).toContain('عميل تجريبي');
         expect(codeCell(preview)).toBe('482913');
+    });
+
+    test('sends a purpose-bound password reset message in both templates', async () => {
+        process.env.SMTP_HOST = 'smtp.example.net';
+        process.env.SMTP_PORT = '587';
+        process.env.SMTP_SECURE = 'false';
+        process.env.SMTP_USER = 'mailer';
+        process.env.SMTP_PASS = 'secret-pass';
+        const sendMail = jest.fn().mockResolvedValue({ messageId: 'reset-mail' });
+        nodemailer.createTransport.mockReturnValue({ sendMail });
+
+        const cream = await sendPasswordResetEmail({
+            to: 'Owner@Example.com',
+            otp: '482913',
+            expiresMinutes: 10,
+            accountName: 'عميل تجريبي',
+            year: 2026
+        });
+        expect(cream.success).toBe(true);
+        const creamMessage = sendMail.mock.calls[0][0];
+        expect(creamMessage.subject).toBe('استعادة كلمة المرور — أهرام باي');
+        expect(creamMessage.html).toContain('استعادة كلمة المرور');
+        expect(creamMessage.html).toContain('رمز الاستعادة');
+        expect(creamMessage.html).toContain('href="tel:0913731533"');
+        expect(creamMessage.text).toContain('482913');
+        expect(creamMessage.text).toContain('إذا لم تطلب استعادة كلمة المرور');
+        expect(creamMessage.text).toContain('0913731533');
+        expect(creamMessage.html).not.toContain('أكمل تسجيل الدخول');
+
+        enableV2();
+        resetEmailTransport();
+        const dark = await sendPasswordResetEmail({
+            to: 'owner@example.com',
+            otp: '482913',
+            expiresMinutes: 10,
+            accountName: 'عميل تجريبي',
+            year: 2026
+        });
+        expect(dark.success).toBe(true);
+        const darkMessage = sendMail.mock.calls[1][0];
+        expect(darkMessage.subject).toBe('استعادة كلمة المرور — أهرام باي');
+        expect(darkMessage.from).toBe('أهرام باي <noreply@ahrampay.com>');
+        expect(darkMessage.html).toContain('اختر كلمة مرور جديدة');
+        expect(darkMessage.html).toContain(`${BDO}0913731533</bdo>`);
+        expect(darkMessage.text).toContain('طلبت استعادة كلمة المرور');
+        expect(darkMessage.text).toContain(LTR('482913'));
+        expect(darkMessage.text).toContain(LTR('0913731533'));
+        expect(darkMessage.html).not.toContain('أكمل تسجيل الدخول إلى حسابك');
+        expect(JSON.stringify(logger.security.mock.calls)).not.toContain('482913');
+        expect(JSON.stringify(cream)).not.toContain('482913');
+        expect(JSON.stringify(dark)).not.toContain('482913');
     });
 
     test('falls back to a greeting without a name', () => {
