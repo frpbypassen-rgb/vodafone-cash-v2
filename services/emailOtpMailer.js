@@ -12,7 +12,6 @@ const legacyTemplate = require('./emailOtpTemplateLegacy');
 
 const DEFAULT_FROM = legacyTemplate.DEFAULT_FROM;
 const LOGIN_OTP_LOGO_URL = 'https://ahrampay.com/images/login-otp-logo.jpg';
-const LOGIN_OTP_LOGO_PATH = path.join(__dirname, '../public/images/login-otp-logo.jpg');
 const LOGIN_OTP_TEMPLATE_PATH = path.join(__dirname, '../views/emails/login-otp.ejs');
 const TIMEOUT_CODES = new Set(['ETIMEDOUT', 'ESOCKET', 'ECONNECTION', 'ECONNRESET', 'ECONNREFUSED']);
 const TRIPOLI_TIME_ZONE = 'Africa/Tripoli';
@@ -184,16 +183,7 @@ const maskLoginAccount = (value) => {
     return `${cleaned.slice(0, keep)}***`;
 };
 
-const resolveLoginOtpLogo = (brand) => {
-    try {
-        if (fs.existsSync(LOGIN_OTP_LOGO_PATH)) {
-            return { src: brand.logoUrl, alt: brand.name };
-        }
-    } catch {
-        return null;
-    }
-    return null;
-};
+const resolveLoginOtpLogo = (brand) => ({ src: brand.logoUrl, alt: brand.name });
 
 const LRM = '\u200E';
 const LRI = '\u2066';
@@ -307,6 +297,39 @@ const buildLoginOtpText = (input = {}) => (
     useLoginOtpTemplateV2() ? buildLoginOtpTextV2(input) : legacyTemplate.buildLoginOtpText(input)
 );
 
+const redactLoginOtp = (value, otp) => {
+    let text = String(value == null ? '' : value);
+    const secrets = [otp, normalizeSubmittedOtp(otp)]
+        .map((item) => String(item || '').trim())
+        .filter((item) => item.length > 0);
+    secrets.forEach((secret) => {
+        text = text.split(secret).join('[REDACTED]');
+    });
+    return text.slice(0, 400);
+};
+
+const renderLoginOtpForSend = (content) => {
+    const current = () => ({
+        subject: LOGIN_OTP_SUBJECT,
+        text: legacyTemplate.buildLoginOtpText(content),
+        html: legacyTemplate.buildLoginOtpHtml(content)
+    });
+    if (!useLoginOtpTemplateV2()) return current();
+    try {
+        return {
+            subject: `رمز التحقق لتسجيل الدخول — ${getBrandContact().name}`,
+            text: buildLoginOtpTextV2(content),
+            html: buildLoginOtpHtmlV2(content)
+        };
+    } catch (error) {
+        logger.security('login email otp template fallback', {
+            code: 'LOGIN_OTP_TEMPLATE_V2_RENDER_FAILED',
+            detail: redactLoginOtp(error && error.message, content && content.otp)
+        });
+        return current();
+    }
+};
+
 const failure = (code) => ({
     success: false,
     provider: 'smtp',
@@ -349,16 +372,16 @@ const sendLoginOtpEmail = async ({
         year
     };
 
+    const rendered = renderLoginOtpForSend(content);
+
     try {
         const transport = getTransport(config);
         const info = await transport.sendMail({
             from: config.from,
             to: email,
-            subject: useLoginOtpTemplateV2()
-                ? `رمز التحقق لتسجيل الدخول — ${getBrandContact().name}`
-                : LOGIN_OTP_SUBJECT,
-            text: buildLoginOtpText(content),
-            html: buildLoginOtpHtml(content)
+            subject: rendered.subject,
+            text: rendered.text,
+            html: rendered.html
         });
         return {
             success: true,

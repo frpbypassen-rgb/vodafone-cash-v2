@@ -2,6 +2,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const ejs = require('ejs');
 
 jest.mock('nodemailer', () => ({
     createTransport: jest.fn()
@@ -216,6 +217,92 @@ describe('email OTP mailer', () => {
         expect(JSON.stringify(logger.error.mock.calls)).not.toContain('482913');
         expect(JSON.stringify(logger.info.mock.calls)).not.toContain('482913');
         expect(JSON.stringify(logger.security.mock.calls)).not.toContain(message.html);
+    });
+
+    test('sends the current template when the new template fails to render', async () => {
+        enableV2();
+        process.env.SMTP_HOST = 'smtp.example.net';
+        process.env.SMTP_USER = 'mailer';
+        process.env.SMTP_PASS = 'secret-pass';
+        const sendMail = jest.fn().mockResolvedValue({ messageId: 'mail-fallback' });
+        nodemailer.createTransport.mockReturnValue({ sendMail });
+        const render = jest.spyOn(ejs, 'render').mockImplementation(() => {
+            throw new Error('template exploded 654321');
+        });
+
+        try {
+            const result = await sendLoginOtpEmail({
+                to: 'owner@example.com',
+                otp: '654321',
+                accountName: 'عميل',
+                expiresMinutes: 5,
+                expiresAt: ATTEMPT_AT,
+                year: 2026
+            });
+
+            expect(result).toEqual({
+                success: true,
+                provider: 'smtp',
+                channel: 'email',
+                messageId: 'mail-fallback'
+            });
+            const message = sendMail.mock.calls[0][0];
+            expect(message.html).toContain('#F7F1E8');
+            expect(message.html).toContain('#C9A227');
+            expect(message.html).not.toContain('#0c3433');
+            expect(message.text).toContain('654321');
+            expect(message.html).toContain('>6</td>');
+            expect(message.html).toContain('>1</td>');
+            expect(message.html).toBe(legacyTemplate.buildLoginOtpHtml({
+                otp: '654321',
+                accountName: 'عميل',
+                expiresMinutes: 5,
+                expiresAt: ATTEMPT_AT,
+                year: 2026
+            }));
+            const logged = JSON.stringify(logger.security.mock.calls);
+            expect(logged).toContain('LOGIN_OTP_TEMPLATE_V2_RENDER_FAILED');
+            expect(logged).toContain('[REDACTED]');
+            expect(logged).not.toContain('654321');
+            expect(logged).not.toContain(message.html);
+            expect(JSON.stringify(logger.error.mock.calls)).not.toContain('654321');
+            expect(JSON.stringify(logger.info.mock.calls)).not.toContain('654321');
+            expect(JSON.stringify(logger.warn.mock.calls)).not.toContain('654321');
+        } finally {
+            render.mockRestore();
+        }
+    });
+
+    test('still sends the new template when the logo file cannot be read', async () => {
+        enableV2();
+        process.env.SMTP_HOST = 'smtp.example.net';
+        process.env.SMTP_USER = 'mailer';
+        process.env.SMTP_PASS = 'secret-pass';
+        const sendMail = jest.fn().mockResolvedValue({ messageId: 'mail-logo' });
+        nodemailer.createTransport.mockReturnValue({ sendMail });
+        const realReadFileSync = fs.readFileSync.bind(fs);
+        const readFile = jest.spyOn(fs, 'readFileSync').mockImplementation((filePath, ...args) => {
+            if (String(filePath).includes('login-otp-logo')) throw new Error('logo disk 654321');
+            return realReadFileSync(filePath, ...args);
+        });
+
+        try {
+            const result = await sendLoginOtpEmail({
+                to: 'owner@example.com',
+                otp: '654321',
+                expiresMinutes: 5,
+                year: 2026
+            });
+            expect(result.success).toBe(true);
+            const message = sendMail.mock.calls[0][0];
+            expect(message.html).toContain('#0c3433');
+            expect(message.html).toContain(`src="${LOGIN_OTP_LOGO_URL}"`);
+            expect(message.html).toContain('alt="أهرام باي"');
+            expect(JSON.stringify(logger.security.mock.calls)).not.toContain('654321');
+            expect(JSON.stringify(result)).not.toContain('654321');
+        } finally {
+            readFile.mockRestore();
+        }
     });
 
     test('keeps the SMTP_FROM override and escapes the account name in html', async () => {

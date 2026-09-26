@@ -15,6 +15,11 @@ from the `BRAND_*` variables below. The confirmed phone is also used by the
 current cream template, in both its HTML and plain-text parts. `SMTP_FROM`
 still overrides the From header for both templates.
 
+The flag never blocks sending. The logo is only a remote `<img>` with alt
+text; the mailer does not fetch it. If the new template throws while
+rendering, the current template is sent instead and the error is logged
+with the code redacted.
+
 The confirmed phone is `0913731533`, shown inside an isolated LTR element
 and linked as `tel:0913731533`.
 

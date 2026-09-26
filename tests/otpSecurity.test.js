@@ -76,8 +76,9 @@ describe('OTP security', () => {
         expect(service).toContain('OTP_RESEND_COOLDOWN_SECONDS');
         expect(service).toContain('clearStoredOtp');
         expect(mailer).not.toContain('Sentry');
-        expect(mailer).not.toContain('error.message');
+        expect(mailer).toContain('redactLoginOtp');
         expect(mailer).toContain("logger.security('login email otp failed', { code, smtpCode })");
+        expect(mailer).not.toContain('error.stack');
         expect(channel).not.toContain('LOGIN_OTP_EMAIL_TEMPLATE_V2');
         expect(defaults).not.toContain('LOGIN_OTP_EMAIL_TEMPLATE_V2');
         expect(sanitizeLogValue('482913', 'otp')).toBe('[REDACTED]');
