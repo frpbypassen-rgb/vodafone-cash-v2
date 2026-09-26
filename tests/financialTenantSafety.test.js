@@ -45,7 +45,25 @@ describe('financial tenant safety', () => {
     let userA;
     let userA2;
     let userB;
+    let openingWallet = 0;
+    let openingLedger = 0;
+    let seededCapital = 0;
     const originalEnv = {};
+    const walletTotal = async () => {
+        const groups = await Promise.all([
+            User.find().select('balance').lean(),
+            ClientCompany.find().select('balance').lean(),
+            SubAccount.find().select('balance').lean()
+        ]);
+        return groups.flat().reduce((sum, row) => sum + Number(row.balance || 0), 0);
+    };
+    const ledgerTotal = async () => {
+        const rows = await Ledger.find({
+            entityModel: { $in: ['User', 'ClientCompany', 'SubAccount'] },
+            transactionId: { $nin: ['LEG-OK-1', 'MISSING-TX-SAFETY'] }
+        }).select('amount').lean();
+        return rows.reduce((sum, row) => sum + Number(row.amount || 0), 0);
+    };
 
     const remember = (name) => {
         originalEnv[name] = process.env[name];
@@ -124,9 +142,44 @@ describe('financial tenant safety', () => {
             status: 'active',
             tenantId: tenantB._id
         });
+        openingWallet = await walletTotal();
+        openingLedger = await ledgerTotal();
+        const trackSeedCapital = (Model) => {
+            const original = Model.create.bind(Model);
+            Model.create = async (...args) => {
+                const created = await original(...args);
+                const docs = Array.isArray(created) ? created : [created];
+                for (const doc of docs) seededCapital += Number(doc && doc.balance || 0);
+                return created;
+            };
+        };
+        trackSeedCapital(User);
+        trackSeedCapital(ClientCompany);
+        trackSeedCapital(SubAccount);
     });
 
     afterAll(async () => {
+        const closingWallet = await walletTotal();
+        const closingLedger = await ledgerTotal();
+        const balanceDelta = closingWallet - openingWallet;
+        const ledgerDelta = closingLedger - openingLedger;
+        const movement = balanceDelta - seededCapital;
+        const report = {
+            scope: 'User + ClientCompany + SubAccount. ExecutorGroup and Employee are a separate pool and are excluded.',
+            openingWallet,
+            closingWallet,
+            balanceDelta,
+            seededCapital,
+            movement,
+            openingLedger,
+            closingLedger,
+            ledgerDelta,
+            drift: movement - ledgerDelta,
+            excludedFixtureTransactionIds: ['LEG-OK-1', 'MISSING-TX-SAFETY']
+        };
+        fs.mkdirSync(path.join(__dirname, '..', 'docs', 'financial-safety'), { recursive: true });
+        fs.writeFileSync(path.join(__dirname, '..', 'docs', 'financial-safety', 'reconciliation-test.json'), JSON.stringify(report, null, 2));
+        expect(report.drift).toBe(0);
         restoreEnv();
         await mongoose.disconnect();
         if (replset) await replset.stop();
@@ -305,6 +358,8 @@ describe('financial tenant safety', () => {
         const beforeA2 = (await User.findById(userA2._id)).balance;
         const original = Ledger.create.bind(Ledger);
         Ledger.create = () => Promise.reject(new Error('LEDGER_WRITE_FAILED'));
+        const auditBefore = await AuditLog.countDocuments();
+        const ledgerBefore = await Ledger.countDocuments();
         try {
             await expect(executeBalanceTransfer({
                 source: sourceOf(await User.findById(userA._id)),
@@ -317,6 +372,8 @@ describe('financial tenant safety', () => {
         }
         expect((await User.findById(userA._id)).balance).toBe(beforeA);
         expect((await User.findById(userA2._id)).balance).toBe(beforeA2);
+        expect(await Ledger.countDocuments()).toBe(ledgerBefore);
+        expect(await AuditLog.countDocuments()).toBe(auditBefore);
     });
 
     test('a transaction write failure rolls the debit back', async () => {
@@ -353,6 +410,55 @@ describe('financial tenant safety', () => {
         mongoose.connection.db.admin = admin;
         expect((await User.findById(userA._id)).balance).toBe(beforeA);
         expect((await User.findById(userA2._id)).balance).toBe(beforeA2);
+    });
+
+    test('standalone MongoDB outside production still completes the transfer', async () => {
+        delete process.env.MONGO_TRANSACTIONS_REQUIRED;
+        process.env.NODE_ENV = 'test';
+        const admin = mongoose.connection.db.admin.bind(mongoose.connection.db);
+        mongoose.connection.db.admin = () => ({ command: async () => null });
+        const beforeA = (await User.findById(userA._id)).balance;
+        const beforeA2 = (await User.findById(userA2._id)).balance;
+        try {
+            const result = await executeBalanceTransfer({
+                source: sourceOf(await User.findById(userA._id)),
+                targetCode: '111112',
+                amount: 3,
+                tenantContext: requestFor(tenantA)
+            });
+            expect(result.success).toBe(true);
+            expect((await User.findById(userA._id)).balance).toBe(beforeA - 3);
+            expect((await User.findById(userA2._id)).balance).toBe(beforeA2 + 3);
+        } finally {
+            mongoose.connection.db.admin = admin;
+        }
+    });
+
+    test('an audit save failure inside the transaction rolls balances, ledger, and audit back', async () => {
+        process.env.FINANCIAL_AUDIT_IN_TRANSACTION = 'true';
+        const beforeA = (await User.findById(userA._id)).balance;
+        const beforeA2 = (await User.findById(userA2._id)).balance;
+        const auditBefore = await AuditLog.countDocuments();
+        const ledgerBefore = await Ledger.countDocuments();
+        const original = AuditLog.prototype.save;
+        AuditLog.prototype.save = async function failAfterStaging(options) {
+            await original.call(this, options);
+            throw new Error('AUDIT_SAVE_FAILED');
+        };
+        try {
+            await expect(executeBalanceTransfer({
+                source: sourceOf(await User.findById(userA._id)),
+                targetCode: '111112',
+                amount: 5,
+                tenantContext: requestFor(tenantA)
+            })).rejects.toThrow('AUDIT_SAVE_FAILED');
+        } finally {
+            AuditLog.prototype.save = original;
+        }
+        expect((await User.findById(userA._id)).balance).toBe(beforeA);
+        expect((await User.findById(userA2._id)).balance).toBe(beforeA2);
+        expect(await Ledger.countDocuments()).toBe(ledgerBefore);
+        expect(await AuditLog.countDocuments()).toBe(auditBefore);
     });
 
     test('Redis lock failure in required mode blocks before debit', async () => {
@@ -686,6 +792,36 @@ describe('financial tenant safety', () => {
             expect((await ClientCompany.findById(company._id)).balance).toBe(370);
         });
 
+        test('agent to company transfer still succeeds', async () => {
+            clearFlags();
+            const company = await ClientCompany.create({
+                name: 'شركة الاتجاه العكسي',
+                accountCode: '55553',
+                balance: 100,
+                status: 'active'
+            });
+            const agent = await User.create({
+                name: 'وكيل الاتجاه العكسي',
+                role: 'agent',
+                webUsername: 'safety-agent-to-company',
+                webPassword: 'secret123',
+                phone: '01010000092',
+                accountCode: '4446',
+                balance: 60,
+                status: 'active',
+                tenantId: tenantB._id
+            });
+            const result = await executeBalanceTransfer({
+                source: sourceOf(agent),
+                targetCode: '55553',
+                amount: 9,
+                tenantContext: requestFor(tenantA)
+            });
+            expect(result.success).toBe(true);
+            expect((await User.findById(agent._id)).balance).toBe(51);
+            expect((await ClientCompany.findById(company._id)).balance).toBe(109);
+        });
+
         test('treasury deposit and deduction ignore stored tenantId', async () => {
             clearFlags();
             const { updateBalanceWithLedger } = require('../services/walletService');
@@ -748,6 +884,28 @@ describe('financial tenant safety', () => {
                 { $inc: { balance: -masterCost } },
                 { new: true, session }
             );
+            await Ledger.create([
+                {
+                    entityId: sub._id,
+                    entityModel: 'SubAccount',
+                    transactionId: 'POS-FLAGS-OFF',
+                    type: 'TRANSFER',
+                    amount: -subCost,
+                    balanceBefore: 40,
+                    balanceAfter: updatedSub.balance,
+                    description: 'خصم نقطة البيع'
+                },
+                {
+                    entityId: master._id,
+                    entityModel: 'User',
+                    transactionId: 'POS-FLAGS-OFF',
+                    type: 'TRANSFER',
+                    amount: -masterCost,
+                    balanceBefore: 100,
+                    balanceAfter: updatedMaster.balance,
+                    description: 'خصم الوكيل'
+                }
+            ], { session, ordered: true });
             await session.commitTransaction();
             session.endSession();
             expect(updatedSub.balance).toBe(34);

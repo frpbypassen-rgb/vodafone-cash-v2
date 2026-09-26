@@ -49,8 +49,18 @@ pm2 restart Ahram_Core_API --update-env
 
 ```powershell
 Set-Location $appRoot
-Select-String -Path .env -Pattern '^(NODE_ENV|MONGO_URI|MONGO_TRANSACTIONS_REQUIRED|REDIS_URL|REDIS_URI|REDIS_REQUIRED|REDIS_ENABLED)='
-node -e "require('dotenv').config(); const url=process.env.REDIS_URL||process.env.REDIS_URI; if(!url){ console.log('REDIS_URL missing'); process.exit(2);} const Redis=require('ioredis'); const client=new Redis(url,{maxRetriesPerRequest:1,connectTimeout:3000,lazyConnect:true}); client.connect().then(()=>client.ping()).then((value)=>{ console.log('REDIS_PING', value); return client.quit(); }).catch((error)=>{ console.error(error.message); process.exit(1); });"
+Get-Content .env | ForEach-Object {
+    if ($_ -match '^\s*#' -or $_ -notmatch '^\s*([A-Za-z0-9_]+)=(.*)$') { return }
+    $name = $Matches[1]
+    $value = $Matches[2].Trim().Trim('"').Trim("'")
+    $secret = $name -match 'URI|URL|SECRET|PASSWORD|KEY|TOKEN|DSN'
+    if ($secret) {
+        if ([string]::IsNullOrEmpty($value)) { '{0}=ABSENT' -f $name } else { '{0}=SET length={1}' -f $name, $value.Length }
+    } elseif ($name -match '^(NODE_ENV|TENANT_MODE|REDIS_REQUIRED|REDIS_ENABLED|MONGO_TRANSACTIONS_REQUIRED|PORT|DEFAULT_TENANT_SLUG)$' -or $name -like 'FINANCIAL_*' -or $name -eq 'ALLOW_ACCOUNT_CODE_TENANT_INDEX') {
+        '{0}={1}' -f $name, $value
+    }
+}
+node -e "require('dotenv').config(); const url=process.env.REDIS_URL||process.env.REDIS_URI; if(!url){ console.log('REDIS_UNREACHABLE'); process.exit(2);} const Redis=require('ioredis'); const client=new Redis(url,{maxRetriesPerRequest:1,connectTimeout:3000,lazyConnect:true,retryStrategy:()=>null}); client.on('error',()=>{}); client.connect().then(()=>client.ping()).then((value)=>{ console.log('REDIS_PING', value); return client.quit(); }).catch(()=>{ console.log('REDIS_UNREACHABLE'); process.exit(1); });"
 mongosh $env:MONGO_URI --quiet --eval "const hello=db.adminCommand({hello:1}); const capable=Boolean(hello.setName)||hello.msg==='isdbgrid'; print('setName='+(hello.setName||'')); print('msg='+(hello.msg||'')); print('transactionsCapable='+capable);"
 ```
 

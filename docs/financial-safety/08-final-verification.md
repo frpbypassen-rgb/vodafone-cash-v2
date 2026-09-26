@@ -72,8 +72,8 @@ Remove-Item Env:ALLOW_ACCOUNT_CODE_TENANT_INDEX
 
 ## 5. المجموعة الكاملة
 
-`npx jest --forceExit --runInBand` على Node 22.14.0: 184 مجموعة (182 ناجحة، 2 فاشلة)، 1145 اختبارًا (1143 ناجحة، 2 فاشلة).
+`npx jest --forceExit --runInBand` على Node 22.14.0: 184 مجموعة (182 ناجحة، 2 فاشلة)، 1148 اختبارًا (1146 ناجحة، 2 فاشلة).
 
 `main` `527c7821`: 183 مجموعة (181 ناجحة، 2 فاشلة)، 1123 اختبارًا (1121 ناجحة، 2 فاشلة).
 
-الفرق 22 اختبارًا ناجحًا. الفشلان نفسهما: `tests/mobileConsolidation.test.js` و`tests/mobileAuthContract.test.js`. `npm run lint` و`npm run typecheck` و`npm run check:architecture` ناجحة.
+الفرق 25 اختبارًا ناجحًا عن `main` (1123 اختبارًا). الفشلان نفسهما: `tests/mobileConsolidation.test.js` و`tests/mobileAuthContract.test.js`. `npm run lint` و`npm run typecheck` و`npm run check:architecture` ناجحة. التقرير الجامع: `FINAL_REPORT.md`.

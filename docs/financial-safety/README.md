@@ -49,7 +49,8 @@
 6. `06-test-results.md` — أوامر الاختبار والعدّ، والفشل السابق على `main`.
 7. `07-active-without-flags.md` — ما الذي يبقى فعالًا وكل الأعلام مطفأة، وخطر كل بند.
 8. `08-final-verification.md` — Redis وMongo وAuditLog والتجربة الجافة واختبارات الأعلام المطفأة.
-9. `migration-dry-run-report.json` و`account-code-index-scan.json` — ناتج قاعدة اختبار مقلَّدة، وليس إنتاجًا.
+9. `FINAL_REPORT.md` — التقرير النهائي: ما ثبُت هنا وما يبقى على المشغّل.
+10. `migration-dry-run-report.json` و`account-code-index-scan.json` و`reconciliation-test.json` — ناتج قاعدة اختبار مقلَّدة، وليس إنتاجًا.
 
 التشغيل الحقيقي للتجربة الجافة يكون على Staging مستعاد من نسخة إنتاج حديثة:
 
