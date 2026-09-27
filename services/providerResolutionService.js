@@ -15,6 +15,7 @@ const {
 
 const PROVIDER_RESOLUTION_PERMISSION = 'transactions.resolve_provider';
 const EXECUTOR_DEBIT_DESCRIPTION = 'تنفيذ API آلي';
+const NOT_PAID_CONFLICT_CODE = 'NOT_PAID_CONFLICTS_WITH_EVIDENCE';
 const OUTCOMES = new Set(['provider_paid', 'provider_not_paid']);
 
 const actorCanResolve = (actor) => {
@@ -47,6 +48,48 @@ const countExecutorDebits = async (tx) => {
     if (!tx || !tx.executorGroupId || !tx.customId) return 0;
     return Ledger.countDocuments(executorDebitQuery(tx, tx.executorGroupId));
 };
+
+const storedProviderReference = (tx) => {
+    const data = (tx && tx.apiResultData) || {};
+    return [
+        data.referenceNumber,
+        data.externalTransactionId,
+        data.providerTransactionId,
+        data.providerTransactionNumber,
+        data.transactionNumber
+    ].map(clean).find(Boolean) || '';
+};
+
+const notPaidEvidenceConflict = async (tx) => {
+    if (!tx) return null;
+    const data = tx.apiResultData || {};
+    if (data.providerResolutionEffectStartedAt) return 'providerResolutionEffectStartedAt';
+    const dispatchResult = clean(data.providerDispatchResult);
+    if (dispatchResult === 'pending_reference' || dispatchResult === 'accepted') return dispatchResult;
+    const reference = storedProviderReference(tx);
+    if (reference) return 'provider_reference';
+    if (data.waitingApiAutoCompletion === true && clean(data.referenceNumber)) return 'waiting_reference';
+    if (tx.customId) {
+        const debit = await Ledger.findOne({
+            entityModel: 'ExecutorGroup',
+            transactionId: tx.customId,
+            type: 'TRANSFER',
+            amount: { $lt: 0 }
+        }).select('_id').lean();
+        if (debit) return 'executor_debit';
+    }
+    return null;
+};
+
+const notPaidConflictResponse = (tx, reason) => ({
+    success: false,
+    statusCode: 409,
+    code: NOT_PAID_CONFLICT_CODE,
+    reason,
+    transactionId: tx && tx._id ? String(tx._id) : null,
+    customId: tx ? tx.customId : null,
+    message: 'لا يمكن اعتماد عدم الدفع: يوجد أثر مالي أو إثبات من المزود. لن يتغير شيء ولن تعود العملية قابلة للإرسال.'
+});
 
 const moneyPreview = async (tx, outcome) => {
     const debits = await countExecutorDebits(tx);
@@ -138,6 +181,11 @@ const resolveProviderResult = async (input = {}) => {
             outcome,
             preview
         };
+    }
+
+    if (outcome === 'provider_not_paid') {
+        const conflict = await notPaidEvidenceConflict(tx);
+        if (conflict) return notPaidConflictResponse(tx, conflict);
     }
 
     if (!providerMoneyHold(tx) || resolutionOutcomeOf(tx)) {
@@ -355,6 +403,7 @@ const resolveProviderResult = async (input = {}) => {
 
 module.exports = {
     PROVIDER_RESOLUTION_PERMISSION,
+    NOT_PAID_CONFLICT_CODE,
     actorCanResolve,
     resolveProviderResult
 };

@@ -61,7 +61,8 @@ const { reversalService } = require('../src/Application/Services/ReversalService
 const { cancelTransfer } = require('../services/transferService');
 const { postCancelTask, postReturnTask } = require('../controllers/executorTransactionController');
 const { returnTask } = require('../services/mobileWebParityService');
-const { resolveProviderResult } = require('../services/providerResolutionService');
+const { resolveProviderResult, NOT_PAID_CONFLICT_CODE } = require('../services/providerResolutionService');
+const { updateBalanceWithLedger } = require('../services/walletService');
 const adminTransactions = require('../routes/adminTransactions');
 
 jest.setTimeout(180000);
@@ -135,6 +136,32 @@ const createHeldTransfer = async ({ status = 'processing' } = {}) => {
     });
     return { user, executor, tx };
 };
+
+const createAmbiguousTransfer = async () => {
+    const held = await createHeldTransfer();
+    held.tx.apiResultData = {
+        providerDispatchStartedAt: new Date(),
+        providerDispatchAttemptId: `attempt-ambiguous-${sequence}`,
+        providerDispatchExecutorGroupId: held.executor._id,
+        providerResultUnresolved: true,
+        providerResultUnresolvedAt: new Date(),
+        providerResultUnresolvedReason: 'timeout after the payment request was sent',
+        providerResultUnresolvedCode: 'PROVIDER_RESULT_UNRESOLVED'
+    };
+    held.tx.markModified('apiResultData');
+    await held.tx.save();
+    return held;
+};
+
+const confirmResolution = (tx, admin, outcome, expectedUpdatedAt) => resolveProviderResult({
+    transactionId: String(tx._id),
+    outcome,
+    evidenceReference: 'PROV-TX-1001',
+    note: 'كشف المزود يؤكد هذه المحاولة',
+    confirm: true,
+    expectedUpdatedAt,
+    actor: { id: admin._id, name: admin.name, role: admin.role, permissions: admin.permissions }
+});
 
 const invokeJson = (handler, req) => new Promise((resolve) => {
     const res = {
@@ -413,8 +440,8 @@ describe('manual provider resolution', () => {
         expect(audit.newData.status).toBe('completed');
     });
 
-    test('confirm not_paid follows the existing pending release once', async () => {
-        const { executor, tx } = await createHeldTransfer();
+    test('confirm not_paid follows the existing pending release once when no payment evidence exists', async () => {
+        const { executor, tx } = await createAmbiguousTransfer();
         const admin = await resolver(['transactions.resolve_provider']);
         const dry = await preview(tx, admin, 'provider_not_paid');
         expect(dry.preview.moneyMovements).toEqual([]);
@@ -452,6 +479,123 @@ describe('manual provider resolution', () => {
         expect(paymentCalls).toBe(0);
         expect(await AuditLog.countDocuments({ action: 'PROVIDER_RESULT_RESOLVED' })).toBe(1);
         expect((await ExecutorGroup.findById(executor._id)).balance).toBe(50000);
+
+        await queueService.processSingleJob(String(tx._id), String(executor._id));
+        await addTransferJob(String(tx._id), String(executor._id));
+        const route = await enqueueAutoRouteIfNeeded(await Transaction.findById(tx._id), executor);
+        const afterAutomatic = await Transaction.findById(tx._id);
+        expect(afterAutomatic.status).toBe('pending');
+        expect(afterAutomatic.executorGroupId).toBeUndefined();
+        expect(paymentCalls).toBe(0);
+        expect(await Ledger.countDocuments({ transactionId: tx.customId })).toBe(0);
+        expect(route.queued === true || route.queued === false).toBe(true);
+        if (route.queued) {
+            await queueService.processSingleJob(String(tx._id), String(executor._id));
+            expect(paymentCalls).toBe(0);
+            expect((await Transaction.findById(tx._id)).status).toBe('pending');
+        }
+    });
+
+    test('not_paid is refused when payment evidence or an executor debit exists', async () => {
+        const admin = await resolver(['transactions.resolve_provider']);
+        const cases = [];
+
+        const pendingReference = await createHeldTransfer();
+        cases.push(['pending_reference', pendingReference.tx]);
+
+        const withReference = await createAmbiguousTransfer();
+        withReference.tx.apiResultData = {
+            ...withReference.tx.apiResultData,
+            referenceNumber: 'REF-ALREADY',
+            externalTransactionId: 'PROV-ALREADY'
+        };
+        withReference.tx.markModified('apiResultData');
+        await withReference.tx.save();
+        cases.push(['provider_reference', withReference.tx]);
+
+        const accepted = await createAmbiguousTransfer();
+        accepted.tx.apiResultData = {
+            ...accepted.tx.apiResultData,
+            providerDispatchResult: 'accepted',
+            providerTransactionId: 'TXN-5001'
+        };
+        accepted.tx.markModified('apiResultData');
+        await accepted.tx.save();
+        cases.push(['accepted', accepted.tx]);
+
+        const effectStarted = await createAmbiguousTransfer();
+        effectStarted.tx.apiResultData = {
+            ...effectStarted.tx.apiResultData,
+            providerResolutionEffectStartedAt: new Date()
+        };
+        effectStarted.tx.markModified('apiResultData');
+        await effectStarted.tx.save();
+        cases.push(['providerResolutionEffectStartedAt', effectStarted.tx]);
+
+        const debited = await createAmbiguousTransfer();
+        await updateBalanceWithLedger(
+            'ExecutorGroup',
+            debited.executor._id,
+            -AMOUNT,
+            'TRANSFER',
+            debited.tx.customId,
+            'تنفيذ API آلي'
+        );
+        cases.push(['executor_debit', debited.tx]);
+
+        for (const [reason, tx] of cases) {
+            const before = await Transaction.findById(tx._id).lean();
+            const ledgerBefore = await Ledger.countDocuments({ transactionId: tx.customId });
+            const auditBefore = await AuditLog.countDocuments({ targetId: tx._id });
+            const dry = await preview(tx, admin, 'provider_not_paid');
+            const confirmed = await confirmResolution(tx, admin, 'provider_not_paid', dry.expectedUpdatedAt || before.updatedAt);
+            const after = await Transaction.findById(tx._id).lean();
+
+            expect({ reason, code: dry.code, status: dry.statusCode }).toEqual({
+                reason,
+                code: NOT_PAID_CONFLICT_CODE,
+                status: 409
+            });
+            expect(confirmed.code).toBe(NOT_PAID_CONFLICT_CODE);
+            expect(confirmed.statusCode).toBe(409);
+            expect(after.status).toBe(before.status);
+            expect(String(after.executorGroupId || '')).toBe(String(before.executorGroupId || ''));
+            expect(after.apiResultData.providerResultUnresolved).toBe(before.apiResultData.providerResultUnresolved);
+            expect(after.apiResultData.providerDispatchResult || null).toBe(before.apiResultData.providerDispatchResult || null);
+            expect(await Ledger.countDocuments({ transactionId: tx.customId })).toBe(ledgerBefore);
+            expect(await AuditLog.countDocuments({ targetId: tx._id })).toBe(auditBefore);
+        }
+        expect(paymentCalls).toBe(0);
+    });
+
+    test('provider_paid after an already committed executor debit does not post a second debit', async () => {
+        const { executor, tx } = await createAmbiguousTransfer();
+        const admin = await resolver(['transactions.resolve_provider']);
+        await updateBalanceWithLedger(
+            'ExecutorGroup',
+            executor._id,
+            -AMOUNT,
+            'TRANSFER',
+            tx.customId,
+            'تنفيذ API آلي'
+        );
+        const dry = await preview(tx, admin, 'provider_paid');
+        expect(dry.preview.moneyMovements[0].apply).toBe(false);
+        const confirmed = await confirmResolution(tx, admin, 'provider_paid', dry.expectedUpdatedAt);
+        const debits = await Ledger.find({
+            transactionId: tx.customId,
+            entityModel: 'ExecutorGroup',
+            type: 'TRANSFER'
+        }).lean();
+        const stored = await Transaction.findById(tx._id);
+
+        expect(confirmed.applied).toBe(true);
+        expect(confirmed.statusAfter).toBe('completed');
+        expect(stored.status).toBe('completed');
+        expect(debits).toHaveLength(1);
+        expect(debits[0].amount).toBe(-AMOUNT);
+        expect(paymentCalls).toBe(0);
+        expect((await ExecutorGroup.findById(executor._id)).balance).toBe(50000 - AMOUNT);
     });
 
     test('confirm fails when the row changed and concurrent confirms apply once', async () => {
@@ -506,7 +650,7 @@ describe('manual provider resolution', () => {
     });
 
     test('resolution script dry-run does not call Payment or update the row', async () => {
-        const { tx } = await createHeldTransfer();
+        const { tx } = await createAmbiguousTransfer();
         const admin = await resolver(['transactions.resolve_provider']);
         const script = fs.readFileSync(path.join(__dirname, '../scripts/resolveUnresolvedProviderResult.js'), 'utf8');
         expect(script).not.toMatch(/Transactions\/Payment|updateBalanceWithLedger|axios/);
