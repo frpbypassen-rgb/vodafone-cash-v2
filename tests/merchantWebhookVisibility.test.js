@@ -712,7 +712,9 @@ describe('company webhook routes', () => {
     test('diagnostic powershell here-string matches ahram_webhook_diag.js', () => {
         const doc = fs.readFileSync(path.join(__dirname, '../docs/incidents/merchant-webhooks-visibility.md'), 'utf8');
         const heading = doc.indexOf('## PowerShell: diagnostic');
-        const fence = doc.indexOf('```powershell\n', heading);
+        const commandFence = doc.indexOf('```powershell\n', heading);
+        const afterCommand = doc.indexOf('\n```', commandFence);
+        const fence = doc.indexOf('```powershell\n', afterCommand);
         const start = fence + '```powershell\n'.length;
         const end = doc.indexOf('\n```', start);
         const block = doc.slice(start, end);
@@ -721,9 +723,16 @@ describe('company webhook routes', () => {
         const embedded = Buffer.from(block.slice(open + 3, close), 'utf8');
         const script = fs.readFileSync(path.join(__dirname, '../docs/incidents/ahram_webhook_diag.js'));
         expect(embedded.equals(script)).toBe(true);
-        expect(block).toContain('$env:NODE_PATH');
-        expect(block).toContain('$ErrorActionPreference = $prevEAP');
-        expect(block).toContain('Remove-Item $scriptPath -Force -ErrorAction SilentlyContinue');
+        const jsHeading = doc.indexOf('## Full diagnostic script');
+        const jsFence = doc.indexOf('```javascript\n', jsHeading);
+        const jsStart = jsFence + '```javascript\n'.length;
+        const jsEnd = doc.indexOf('\n```', jsStart);
+        expect(Buffer.from(doc.slice(jsStart, jsEnd), 'utf8').equals(script)).toBe(true);
+        expect(block).toContain('powershell -NoProfile -ExecutionPolicy Bypass -File .\\ahram_webhook_diag_run.ps1');
+        expect(block).toContain('$ErrorActionPreference = $diagPrevEAP');
+        expect(block).toContain('DIAG_TRACE_SAMPLE');
+        expect(block).toContain('[System.IO.File]::Delete($diagTempPath)');
+        expect(block).toContain('values above 200 are capped');
     });
 
     test('company routes do not use the open admin scope', () => {

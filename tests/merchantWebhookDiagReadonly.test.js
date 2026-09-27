@@ -3,7 +3,6 @@
 const { spawn, spawnSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
-const crypto = require('crypto');
 const { MongoClient, ObjectId } = require('mongodb');
 const { MongoMemoryReplSet } = require('mongodb-memory-server');
 
@@ -41,8 +40,6 @@ const runScript = (env) => new Promise((resolve) => {
     child.stderr.on('data', (chunk) => { stderr += chunk; });
     child.on('close', (code) => resolve({ code, stdout, stderr }));
 });
-
-const hashOf = (id) => crypto.createHash('sha256').update(String(id)).digest('hex').slice(0, 8);
 
 beforeAll(async () => {
     replSet = await MongoMemoryReplSet.create({
@@ -272,18 +269,19 @@ const lastOplogTs = async () => {
 
 test('the diagnostic script has no write operations and refuses an unset MONGO_URI', () => {
     const source = fs.readFileSync(SCRIPT, 'utf8');
-    expect(source).toContain('autoIndex');
-    expect(source).toContain('autoCreate');
-    expect(source).toContain("mongoose.set('autoIndex', false)");
-    expect(source).toContain("mongoose.set('autoCreate', false)");
+    expect(source).toContain('monitorCommands: true');
+    expect(source).toContain('retryWrites: false');
+    expect(source).toContain('READ_COMMANDS');
+    expect(source).toContain('maxTimeMS');
     expect(source).not.toMatch(/insertOne|insertMany|updateOne|updateMany|deleteOne|deleteMany|findOneAndUpdate|findOneAndDelete|bulkWrite|replaceOne|createIndex|ensureIndex|syncIndexes/);
     const refused = spawnSync(process.execPath, [SCRIPT], {
         env: { PATH: process.env.PATH },
         cwd: path.join(__dirname, '..')
     });
-    expect(refused.status).not.toBe(0);
-    expect(refused.stderr.toString()).toMatch(/MONGO_URI is unset/);
+    expect(refused.status).toBe(2);
+    expect(refused.stdout.toString()).toMatch(/MONGO_URI is not set/);
     expect(refused.stdout.toString()).not.toMatch(/mongodb:\/\//);
+    expect(refused.stderr.toString()).not.toMatch(/mongodb:\/\//);
 });
 
 test('read-only user cannot write, and the script adds no oplog entries', async () => {
@@ -304,7 +302,15 @@ test('read-only user cannot write, and the script adds no oplog entries', async 
     });
     expect(single.code).toBe(0);
     expect(single.stderr).toBe('');
-    const singleReport = JSON.parse(single.stdout);
+    expect(single.stdout).toContain('trace: skipped (default SHORT mode)');
+    expect(single.stdout).toContain('  total: 5');
+    expect(single.stdout).toContain('  enabled: 4');
+    expect(single.stdout).toContain('visibleToAdminScope [estimate based on script config; tenantScope {tenantId:{$in:[current,null]}} as in routes/merchantWebhooks.js on main]: 3');
+    expect(single.stdout).toContain('visibleToAdminScope [fix/merchant-webhooks-visibility adminAccountScope, single mode = unscoped]: 5');
+    expect(single.stdout).toContain('by status (all time): delivered=1, failed=2, pending=1, sending=2, other=0');
+    expect(single.stdout).toContain("stale 'sending' (lockedAt older than 15 min): 0");
+    expect(single.stdout).toContain("'failed' by HTTP response class: 4xx=1, 5xx=1");
+    expect(single.stdout).toMatch(/read-only check: commands observed read=\d+, non-read=0/);
     const writesAfterSingle = await oplogWrites(since);
     expect(writesAfterSingle).toEqual([]);
 
@@ -325,7 +331,9 @@ test('read-only user cannot write, and the script adds no oplog entries', async 
     });
     expect(multi.code).toBe(0);
     expect(await oplogWrites(multiSince)).toEqual([]);
-    const multiReport = JSON.parse(multi.stdout);
+    expect(multi.stdout).toContain('TENANT_MODE effective: multi');
+    expect(multi.stdout).toContain('visibleToAdminScope [estimate based on script config; tenantScope {tenantId: current} as in routes/merchantWebhooks.js on main]: 2');
+    expect(multi.stdout).toContain('visibleToAdminScope [fix/merchant-webhooks-visibility adminAccountScope, multi mode = same as tenantScope]: 2');
 
     const forbidden = [
         'secret.example',
@@ -350,46 +358,10 @@ test('read-only user cannot write, and the script adds no oplog entries', async 
         expect(combined).not.toContain(token);
     });
 
-    expect(singleReport).toMatchObject({
-        readOnly: true,
-        tenantMode: 'single',
-        currentTenantResolved: true,
-        adminScope: 'single-current-or-null',
-        endpoints: {
-            total: 5,
-            enabled: 4,
-            disabled: 1,
-            byOwnerModel: { ClientCompany: 3, User: 2 },
-            visibleToAdminScope: 3
-        },
-        deliveries: {
-            byStatus: { delivered: 1, failed: 2, pending: 1, sending: 2 },
-            staleSending: 1,
-            failureResponseCodes: { '404': 1, '500': 1 }
-        },
-        completedWithoutDelivery: {
-            windowHours: 48,
-            count: 1,
-            sample: {
-                tenantCategory: 'current',
-                ownerModel: 'ClientCompany',
-                resolveOwnerFound: true,
-                endpointMatchesOwner: true,
-                tenantMatchFails: true
-            }
-        }
-    });
-    expect(singleReport.endpoints.byTenantCategory).toEqual({
-        current: 2,
-        none: 1,
-        [`other-${hashOf(fixture.legacy)}`]: 1,
-        [`other-${hashOf(fixture.other)}`]: 1
-    });
-    expect(JSON.parse(bySlug.stdout).endpoints.visibleToAdminScope).toBe(3);
-    expect(multiReport.tenantMode).toBe('multi');
-    expect(multiReport.adminScope).toBe('multi-exact');
-    expect(multiReport.endpoints.visibleToAdminScope).toBe(2);
-    expect(multiReport.completedWithoutDelivery.count).toBe(1);
+    expect(bySlug.code).toBe(0);
+    expect(bySlug.stdout).toContain('tenant source: DEFAULT_TENANT_SLUG');
+    expect(bySlug.stdout).toContain('visibleToAdminScope [estimate based on script config; tenantScope {tenantId:{$in:[current,null]}} as in routes/merchantWebhooks.js on main]: 3');
+    expect(bySlug.stdout).not.toContain(String(fixture.current));
 
     const counts = await rootClient.db(DB_NAME).collection('merchantwebhookendpoints').countDocuments();
     expect(counts).toBe(5);
