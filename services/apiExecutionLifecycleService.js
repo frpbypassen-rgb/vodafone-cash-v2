@@ -3,12 +3,17 @@
 const mongoose = require('mongoose');
 const Transaction = require('../models/Transaction');
 const ExecutorGroup = require('../models/ExecutorGroup');
+const Ledger = require('../models/Ledger');
 const walletService = require('./walletService');
 const eventBus = require('./eventBus');
 const logger = require('../utils/logger');
 const { isFinancialSchedulersEnabled } = require('../utils/runtimeControls');
 const { generateExecutorReceiptBase64 } = require('../utils/manualExecutorReceipt');
 const { saveProofImage } = require('./proofStorageService');
+const {
+    isProviderResultUnresolved,
+    needsUnresolvedHold
+} = require('./providerDispatchClaimService');
 
 const DEFAULT_API_COMPLETION_DELAY_MS = 25000;
 const MONITOR_INTERVAL_MS = 5000;
@@ -241,16 +246,29 @@ const completeApiTransactionWithReference = async ({
 
     let ledgerResult = null;
     let ledgerError = null;
+    const debitAmount = -Number(tx.amount || 0);
 
     try {
-        ledgerResult = await walletService.updateBalanceWithLedger(
-            'ExecutorGroup',
-            executorGroup._id,
-            -Number(tx.amount || 0),
-            'TRANSFER',
-            tx.customId,
-            'تنفيذ API آلي'
-        );
+        const existingDebit = await Ledger.findOne({
+            entityModel: 'ExecutorGroup',
+            entityId: executorGroup._id,
+            transactionId: tx.customId,
+            type: 'TRANSFER',
+            amount: debitAmount,
+            description: 'تنفيذ API آلي'
+        }).lean();
+        if (existingDebit) {
+            ledgerResult = { success: true, idempotent: true };
+        } else {
+            ledgerResult = await walletService.updateBalanceWithLedger(
+                'ExecutorGroup',
+                executorGroup._id,
+                debitAmount,
+                'TRANSFER',
+                tx.customId,
+                'تنفيذ API آلي'
+            );
+        }
     } catch (error) {
         ledgerError = error;
         appendAdminNote(tx, `[تنبيه مالي: تم استلام الرقم المرجعي واعتماد العملية، لكن تعذر تسجيل قيد رصيد المنفذ: ${error.message}]`);
@@ -305,6 +323,8 @@ const completeApiTransactionWithReference = async ({
         completionMode: 'immediate_reference',
         ledgerPosted: Boolean(ledgerResult),
         ledgerError: ledgerError ? ledgerError.message : null,
+        providerDispatchResult: 'accepted',
+        providerResultUnresolved: false,
         executorReceiptProof: systemReceiptProof || tx.apiResultData?.executorReceiptProof || null,
         apiProviderReceiptProof: receiptProof || tx.apiResultData?.apiProviderReceiptProof || null
     };
@@ -358,6 +378,10 @@ const completeApiTransaction = async (txId, executorGroupId) => {
 
     if (tx.status !== 'processing') {
         return { completed: false, reason: `invalid_status:${tx.status}` };
+    }
+
+    if (isProviderResultUnresolved(tx) || needsUnresolvedHold(tx)) {
+        return { completed: false, reason: 'provider_result_unresolved' };
     }
 
     if (!sameId(tx.executorGroupId, executorGroupId)) {
@@ -483,7 +507,9 @@ const completeDueApiTransactions = async () => {
     const dueTransactions = await Transaction.find({
         status: 'processing',
         'apiResultData.waitingApiAutoCompletion': true,
-        'apiResultData.autoCompleteAt': { $lte: new Date() }
+        'apiResultData.autoCompleteAt': { $lte: new Date() },
+        'apiResultData.providerResultUnresolved': { $ne: true },
+        'apiResultData.providerDispatchResult': { $ne: 'pending_reference' }
     }).limit(50);
 
     for (const tx of dueTransactions) {

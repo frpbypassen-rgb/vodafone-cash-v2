@@ -14,7 +14,8 @@ const ClientEmployee = require('../models/ClientEmployee');
 const Admin = require('../models/Admin');
 const Notification = require('../models/Notification');
 const SupportTicket = require('../models/SupportTicket');
-const { requireAuth } = require('../middlewares/auth');
+const { requireAuth, requirePermission } = require('../middlewares/auth');
+const { PROVIDER_RESOLUTION_PERMISSION } = require('../services/providerResolutionService');
 const { systemDateKey, systemDateRange } = require('../config/systemTime');
 const { syncBotBalance } = require('../utils/helpers');
 const { escapeRegex } = require('../middlewares/sanitize');
@@ -561,6 +562,15 @@ router.post('/transaction/:id/assign-executor', async (req, res) => {
     try {
         const actor = requireAdminActor(req);
         const txId = req.params.id; const executorGroupId = req.body.executorGroupId || req.body.executorBotId; const tx = await Transaction.findOne(adminTxById(req, txId));
+        const { refundBlockedByUnresolvedProvider } = require('../services/providerDispatchClaimService');
+        const unresolvedAssignBlock = refundBlockedByUnresolvedProvider(tx);
+        if (unresolvedAssignBlock) {
+            return respondTransactionAction(req, res, 409, {
+                success: false,
+                code: unresolvedAssignBlock.code,
+                message: unresolvedAssignBlock.message
+            });
+        }
         if (!tx || tx.status !== 'pending') {
             return respondTransactionAction(req, res, 409, {
                 success: false,
@@ -691,6 +701,15 @@ router.post('/transaction/:id/pull-task', async (req, res) => {
             return respondTransactionAction(req, res, 409, {
                 success: false,
                 message: 'هذه العملية ليست موجهة حالياً ولا يمكن سحبها.'
+            });
+        }
+        const { refundBlockedByUnresolvedProvider } = require('../services/providerDispatchClaimService');
+        const unresolvedBlock = refundBlockedByUnresolvedProvider(tx);
+        if (unresolvedBlock) {
+            return respondTransactionAction(req, res, 409, {
+                success: false,
+                code: unresolvedBlock.code,
+                message: unresolvedBlock.message
             });
         }
         const oldGroupId = tx.executorGroupId; const displayId = tx.customId || tx._id.toString();
@@ -917,6 +936,37 @@ router.post('/transaction/:id/edit-data', async (req, res) => {
     }
 });
 
+router.post('/transaction/:id/resolve-provider-result', requirePermission(PROVIDER_RESOLUTION_PERMISSION), async (req, res) => {
+    try {
+        const actor = requireAdminActor(req);
+        const { resolveProviderResult } = require('../services/providerResolutionService');
+        const result = await resolveProviderResult({
+            transactionId: req.params.id,
+            outcome: req.body?.outcome,
+            evidenceReference: req.body?.evidenceReference,
+            note: req.body?.note,
+            confirm: req.body?.confirm === true || req.body?.confirm === 'true',
+            expectedUpdatedAt: req.body?.expectedUpdatedAt,
+            actor: {
+                id: actor.id,
+                name: actor.name,
+                role: actor.role || req.session.adminRole,
+                permissions: req.session.adminPermissions || []
+            },
+            req
+        });
+        return respondTransactionAction(req, res, result.statusCode || (result.success ? 200 : 400), result);
+    } catch (error) {
+        if (isAdminActorError(error)) return respondActorRequired(req, res, operationsListReturnUrl(req));
+        console.error('[adminTransactions/resolve-provider-result] failed:', error.message);
+        return respondTransactionAction(req, res, 500, {
+            success: false,
+            code: 'PROVIDER_RESOLUTION_FAILED',
+            message: 'تعذر حسم نتيجة المزود حالياً.'
+        });
+    }
+});
+
 router.post('/transaction/:id/global-cancel', async (req, res) => {
     const redirectUrl = operationsListReturnUrl(req);
     try {
@@ -932,6 +982,7 @@ router.post('/transaction/:id/global-cancel', async (req, res) => {
         if (!result.success) {
             return respondTransactionAction(req, res, result.statusCode || 400, {
                 success: false,
+                code: result.code,
                 message: result.message || 'تعذر إلغاء العملية.'
             }, redirectUrl);
         }

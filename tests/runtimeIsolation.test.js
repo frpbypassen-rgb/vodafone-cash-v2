@@ -429,9 +429,11 @@ describe('runtime isolation kill switches', () => {
             { vodafoneNumber: '01271870153', amount: 5, customId: 'ATT-1' },
             { apiUrl: 'https://zayn.example', apiUsername: 'api-user', apiPassword: 'api-pass' }
         );
-        expect(result.success).toBe(true);
+        expect(result.success).toBe('unresolved');
+        expect(result.code).toBe('PROVIDER_RESULT_UNRESOLVED');
         expect(axios.post).toHaveBeenCalled();
         expect(String(axios.post.mock.calls[0][0])).toBe('https://zayn.example/api/Account/GetToken');
+        expect(axios.post.mock.calls.some((call) => String(call[0]).includes('/Transactions/Payment'))).toBe(false);
     });
 
     test('production still falls back to https://zaynpay.com and staging refuses it', async () => {
@@ -556,9 +558,11 @@ describe('runtime isolation kill switches', () => {
             { vodafoneNumber: '01271870153', amount: 5, customId: 'ATT-UNSET' },
             { apiUrl: 'https://zayn.example', apiUsername: 'api-user', apiPassword: 'api-pass' }
         );
-        expect(result.success).toBe(true);
+        expect(result.success).toBe('unresolved');
+        expect(result.code).toBe('PROVIDER_RESULT_UNRESOLVED');
         expect(axios.post).toHaveBeenCalled();
         expect(String(axios.post.mock.calls[0][0])).toBe('https://zayn.example/api/Account/GetToken');
+        expect(axios.post.mock.calls.some((call) => String(call[0]).includes('/Transactions/Payment'))).toBe(false);
     });
 
     test('BullMQ init still creates workers when the flag is on', () => {

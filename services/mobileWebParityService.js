@@ -912,6 +912,14 @@ async function returnTask({ executorId, taskId, reason }) {
     assertExecutorTaskRole(emp);
 
     const tx = await Transaction.findById(taskId);
+    const { refundBlockedByUnresolvedProvider } = require('./providerDispatchClaimService');
+    const unresolvedBlock = refundBlockedByUnresolvedProvider(tx);
+    if (unresolvedBlock) {
+        const blocked = new Error('PROVIDER_RESULT_UNRESOLVED');
+        blocked.code = unresolvedBlock.code;
+        blocked.statusCode = 409;
+        throw blocked;
+    }
     if (!tx || tx.status !== 'accepted' || tx.operatorId !== emp._id.toString()) {
         throw new Error('INVALID_STATE');
     }

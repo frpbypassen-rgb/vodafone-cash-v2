@@ -4,6 +4,33 @@ jest.mock('axios', () => ({
     post: jest.fn()
 }));
 
+jest.mock('../services/providerDispatchClaimService', () => {
+    const actual = jest.requireActual('../services/providerDispatchClaimService');
+    return {
+        ...actual,
+        claimProviderDispatch: jest.fn(async (tx) => {
+            const attemptId = 'unit-attempt';
+            const claimedAt = new Date('2026-01-01T00:00:00.000Z');
+            if (tx) {
+                tx.apiResultData = {
+                    ...(tx.apiResultData || {}),
+                    providerDispatchStartedAt: claimedAt,
+                    providerDispatchAttemptId: attemptId
+                };
+            }
+            return { claimed: true, attemptId, claimedAt };
+        }),
+        releaseProviderDispatchClaim: jest.fn(async (tx) => {
+            if (tx && tx.apiResultData) {
+                delete tx.apiResultData.providerDispatchStartedAt;
+                delete tx.apiResultData.providerDispatchAttemptId;
+                delete tx.apiResultData.providerDispatchExecutorGroupId;
+            }
+            return { released: true };
+        })
+    };
+});
+
 const axios = require('axios');
 const {
     executeTransferViaApi,

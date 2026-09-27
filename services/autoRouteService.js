@@ -292,6 +292,20 @@ const enqueueAutoRouteIfNeeded = async (tx, executorGroup) => {
             return { queued: false, code: blocked.code, reason: blocked.reason };
         }
     }
+    const {
+        UNRESOLVED_CODE,
+        automaticPaymentBlocked,
+        guardAutomaticProviderRedispatch
+    } = require('./providerDispatchClaimService');
+    if (tx && automaticPaymentBlocked(tx)) {
+        await guardAutomaticProviderRedispatch(tx._id);
+        logger.warn('Auto-route refused unresolved provider dispatch', {
+            txId: tx.customId || String(tx._id),
+            code: UNRESOLVED_CODE
+        });
+        return { queued: false, code: UNRESOLVED_CODE };
+    }
+
     if (tx && executorGroup) {
         eventBus.publish('executor:task-available', { tx, source: 'auto-route' });
     }

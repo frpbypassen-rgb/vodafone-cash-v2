@@ -346,7 +346,16 @@ export class ReversalService {
         }
     }
 
+    private providerRefundBlock(tx: any): ReversalResult | null {
+        const { refundBlockedByUnresolvedProvider } = require('../../../services/providerDispatchClaimService');
+        return refundBlockedByUnresolvedProvider(tx);
+    }
+
     private async reverseTransactionWithoutMongoTransaction(txId: string, reason: string, performedBy: string, options: ReversalOptions): Promise<ReversalResult> {
+        const preview = await (Transaction as any).findById(txId);
+        const blocked = this.providerRefundBlock(preview);
+        if (blocked) return blocked;
+
         const cancellationNumber = options.cancellationNumber || await this.nextCancellationNumber(null);
         const cancelledAt = new Date();
         const targetStatus = options.status || 'cancelled_by_admin';
@@ -490,6 +499,12 @@ export class ReversalService {
             if (!this.isReversibleStatus(tx.status)) {
                 await session.abortTransaction();
                 return { success: false, message: 'حالة العملية لا تسمح بالإلغاء والاسترجاع' };
+            }
+
+            const unresolvedBlock = this.providerRefundBlock(tx);
+            if (unresolvedBlock) {
+                await session.abortTransaction();
+                return unresolvedBlock;
             }
 
             // 2. البحث عن المستخدم أو الشركة وإرجاع الرصيد

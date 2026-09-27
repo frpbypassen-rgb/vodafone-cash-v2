@@ -2265,7 +2265,7 @@ router.post('/executor/cancel-task/:id', authenticateJWT, cancelTaskValidator, a
             { status: 'rejected' }
         );
         if (!result.success) {
-            return sendMobileError(res, 409, 'CANCELLATION_FAILED', result.message, req.correlationId);
+            return sendMobileError(res, result.statusCode || 409, result.code || 'CANCELLATION_FAILED', result.message, req.correlationId);
         }
 
         await logAction({

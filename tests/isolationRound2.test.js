@@ -624,12 +624,10 @@ describe('completion transaction boundary and immediate provider path', () => {
         })).toBe(0);
     });
 
-    test('a hard crash after the provider accepts and before the immediate save is re-sent on retry', async () => {
-        // Pre-existing on main dd152b76. queueService.js is unchanged by this PR.
-        // processSingleJobSerialized calls executeTransferViaApi before tx.save,
-        // and completeApiTransactionWithReference commits the executor debit in
-        // its own session before that save. A kill in between leaves status
-        // processing, so the next pass calls the provider again.
+    test('a hard crash after the provider accepts and before the immediate save is not re-sent', async () => {
+        // Combined #80+#83 tree. The immediate debit still commits before tx.save,
+        // but the dispatch claim is already stored. The save throw is caught and
+        // the row is held unresolved, so the next pass must not call Payment again.
         const customId = 'ATT-IMM-CRASH';
         const customerId = await insertCustomer(customId);
         const group = await ExecutorGroup.create({
@@ -683,16 +681,20 @@ describe('completion transaction boundary and immediate provider path', () => {
 
         await queueService.processSingleJob(tx._id, group._id);
 
-        expect(paymentPosts()).toBe(2);
+        expect(paymentPosts()).toBe(1);
         const debits = await Ledger.find({
             transactionId: customId,
             entityModel: 'ExecutorGroup',
             type: 'TRANSFER'
         }).lean();
-        expect(debits).toHaveLength(2);
-        expect(debits.every((entry) => entry.amount === -1600)).toBe(true);
-        expect((await Transaction.findById(tx._id).lean()).status).toBe('completed');
-        expect((await ExecutorGroup.findById(group._id).lean()).balance).toBe(1800);
+        expect(debits).toHaveLength(1);
+        expect(debits[0].amount).toBe(-1600);
+        const held = await Transaction.findById(tx._id).lean();
+        expect(held.status).toBe('processing');
+        expect(String(held.executorGroupId)).toBe(String(group._id));
+        expect(held.apiResultData.providerResultUnresolved).toBe(true);
+        expect(held.apiResultData.providerDispatchAttemptId).toBeTruthy();
+        expect((await ExecutorGroup.findById(group._id).lean()).balance).toBe(3400);
         await expectNoCustomerMovement(customId, customerId);
         expect(originalSave).toBe(Transaction.prototype.save);
     });
@@ -813,7 +815,7 @@ describe('characterizes main behavior for an unresolved provider result', () => 
             code: 'ERR_BAD_RESPONSE',
             response: { status: 500, data: { Message: 'upstream failed' } }
         })]
-    ])('main dd152b76: payment %s does not re-send or refund and returns the row to pending', async (_label, customId, paymentError) => {
+    ])('payment %s holds the row unresolved and does not re-send or refund', async (_label, customId, paymentError) => {
         installAmbiguousPayment(paymentError);
         const customerId = await insertCustomer(customId);
         const group = await ExecutorGroup.create({
@@ -841,10 +843,11 @@ describe('characterizes main behavior for an unresolved provider result', () => 
         expect(paymentPosts()).toBe(1);
         expect(axios.post.mock.calls.filter((call) => String(call[0]).includes('/Transactions/Print'))).toHaveLength(0);
         const stored = await Transaction.findById(tx._id).lean();
-        expect(stored.status).toBe('pending');
-        expect(stored.executorGroupId).toBeFalsy();
-        expect(stored.adminNotes).toContain('فشل التنفيذ الآلي');
-        expect(stored.apiResultData?.providerResultUnresolved).not.toBe(true);
+        expect(stored.status).toBe('processing');
+        expect(String(stored.executorGroupId)).toBe(String(group._id));
+        expect(stored.adminNotes).toContain('PROVIDER_RESULT_UNRESOLVED');
+        expect(stored.apiResultData?.providerResultUnresolved).toBe(true);
+        expect(stored.apiResultData?.providerDispatchAttemptId).toBeTruthy();
         expect(stored.apiResultData?.waitingApiAutoCompletion).not.toBe(true);
         expect(await Ledger.countDocuments({ transactionId: customId })).toBe(0);
         expect((await ExecutorGroup.findById(group._id).lean()).balance).toBe(5000);

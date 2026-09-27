@@ -301,6 +301,11 @@ exports.postCancelTask = async (req, res) => {
             return res.status(400).json({ success: false, error: 'سبب الإلغاء مطلوب.' });
         }
         const tx = await Transaction.findById(req.params.id);
+        const { refundBlockedByUnresolvedProvider } = require('../services/providerDispatchClaimService');
+        const unresolvedBlock = refundBlockedByUnresolvedProvider(tx);
+        if (unresolvedBlock) {
+            return res.status(409).json({ success: false, code: unresolvedBlock.code, error: unresolvedBlock.message });
+        }
         const emp = await Employee.findById(req.session.executorId);
 
         if (tx && tx.status === 'accepted' && tx.operatorId === emp._id.toString()) {
@@ -347,6 +352,11 @@ exports.postReturnTask = async (req, res) => {
     try {
         const { reason } = req.body;
         const tx = await Transaction.findById(req.params.id);
+        const { refundBlockedByUnresolvedProvider } = require('../services/providerDispatchClaimService');
+        const unresolvedBlock = refundBlockedByUnresolvedProvider(tx);
+        if (unresolvedBlock) {
+            return res.status(409).json({ success: false, code: unresolvedBlock.code, error: unresolvedBlock.message });
+        }
         const emp = await Employee.findById(req.session.executorId);
 
         if (tx && tx.status === 'accepted' && tx.operatorId === emp._id.toString()) {
