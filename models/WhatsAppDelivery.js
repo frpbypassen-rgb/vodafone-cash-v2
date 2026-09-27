@@ -3,7 +3,7 @@
 const mongoose = require('mongoose');
 
 const whatsAppDeliverySchema = new mongoose.Schema({
-    kind: { type: String, enum: ['otp', 'receipt', 'cancellation_receipt', 'support', 'test', 'rate_change'], required: true, index: true },
+    kind: { type: String, enum: ['otp', 'receipt', 'part_receipt', 'cancellation_receipt', 'support', 'test', 'rate_change'], required: true, index: true },
     provider: { type: String, default: 'whatchimp' },
     recipientPhone: { type: String, required: true, index: true },
     recipientName: { type: String, default: '' },
@@ -39,6 +39,14 @@ whatsAppDeliverySchema.index(
         unique: true,
         partialFilterExpression: { kind: 'receipt', transactionId: { $exists: true } },
         name: 'whatsapp_receipt_once_per_recipient'
+    }
+);
+whatsAppDeliverySchema.index(
+    { kind: 1, transactionId: 1, 'metadata.partKey': 1 },
+    {
+        unique: true,
+        partialFilterExpression: { kind: 'part_receipt' },
+        name: 'whatsapp_part_receipt_once'
     }
 );
 whatsAppDeliverySchema.index({ status: 1, updatedAt: -1 });

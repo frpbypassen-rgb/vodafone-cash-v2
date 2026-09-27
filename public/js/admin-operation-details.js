@@ -168,7 +168,27 @@
     function collectProofs(tx) {
         const items = [];
         if (!tx || !tx._id) return items;
-        const officialReceipt = tx.proofImage || (Array.isArray(tx.proofImages) ? tx.proofImages.find(Boolean) : '');
+        const partProofs = Array.isArray(tx.partProofs) ? tx.partProofs : [];
+        if (partProofs.length > 1) {
+            partProofs.forEach((part) => {
+                const ready = Number.isInteger(part.receiptIndex) && part.receiptIndex >= 0;
+                items.push({
+                    kind: 'official',
+                    label: ready
+                        ? `إثبات الجزء ${part.partId} — ${part.amount} من ${part.senderWallet || '—'}`
+                        : `الجزء ${part.partId} — الإثبات غير متاح`,
+                    audience: part.recipient ? `إلى ${part.recipient}` : 'عام للعميل',
+                    url: ready ? `/proxy/image/${tx._id}/${part.receiptIndex}` : '',
+                    partId: part.partId,
+                    proofStatus: part.proofStatus || '',
+                    uploader: hasAssignedExecutor(tx) ? String(tx.executorName || tx.assignedExecutorName).trim() : '',
+                    time: part.confirmedAt || null
+                });
+            });
+        }
+        const officialReceipt = partProofs.length > 1
+            ? ''
+            : (tx.proofImage || (Array.isArray(tx.proofImages) ? tx.proofImages.find(Boolean) : ''));
         if (officialReceipt) {
             items.push({
                 kind: 'official',
@@ -180,7 +200,9 @@
             });
         }
         const executorProofs = Array.isArray(tx.executorProofImages) ? tx.executorProofImages.filter(Boolean) : [];
-        const offset = officialReceipt ? 1 : 0;
+        const offset = partProofs.length > 1
+            ? partProofs.filter((part) => Number.isInteger(part.receiptIndex) && part.receiptIndex >= 0).length
+            : (officialReceipt ? 1 : 0);
         executorProofs.forEach((_file, index) => {
             items.push({
                 kind: 'executor',
@@ -666,16 +688,36 @@
                 </div>
             `;
         }
-        const cards = model.proofs.map((item, index) => `
-            <button type="button" class="od-proof-card" data-od-lightbox="${escapeHtml(item.url)}" data-od-caption="${escapeHtml(item.label)}" aria-label="${escapeHtml(item.label)}">
-                <img src="${escapeHtml(item.url)}" alt="${escapeHtml(item.label)}" loading="${index === 0 ? 'eager' : 'lazy'}">
-                <div class="od-proof-caption">
-                    <strong>${escapeHtml(item.label)}</strong>
-                    <span class="od-proof-audience">${escapeHtml(item.audience)}</span>
-                    ${proofMeta(item, model.formatDate)}
-                </div>
-            </button>
-        `).join('');
+        const cards = model.proofs.map((item, index) => {
+            const retry = item.partId && item.proofStatus && item.proofStatus !== 'sent'
+                ? `<button type="button" class="btn btn-sm btn-outline-warning mt-2" data-od-retry-part="${escapeHtml(item.partId)}">إعادة إرسال إثبات الجزء</button>`
+                : '';
+            if (!item.url) {
+                return `
+                    <div class="od-proof-card">
+                        <div class="od-proof-caption">
+                            <strong>${escapeHtml(item.label)}</strong>
+                            <span class="od-proof-audience">${escapeHtml(item.audience)}</span>
+                            ${proofMeta(item, model.formatDate)}
+                            ${retry}
+                        </div>
+                    </div>
+                `;
+            }
+            return `
+            <div class="od-proof-card">
+                <button type="button" class="od-proof-card" data-od-lightbox="${escapeHtml(item.url)}" data-od-caption="${escapeHtml(item.label)}" aria-label="${escapeHtml(item.label)}">
+                    <img src="${escapeHtml(item.url)}" alt="${escapeHtml(item.label)}" loading="${index === 0 ? 'eager' : 'lazy'}">
+                    <div class="od-proof-caption">
+                        <strong>${escapeHtml(item.label)}</strong>
+                        <span class="od-proof-audience">${escapeHtml(item.audience)}</span>
+                        ${proofMeta(item, model.formatDate)}
+                    </div>
+                </button>
+                ${retry}
+            </div>
+        `;
+        }).join('');
         return `<div class="od-proofs-gallery" id="od-proofs-gallery">${cards}</div>`;
     }
 
@@ -791,6 +833,13 @@
                 copyText(copyOp.getAttribute('data-copy-value'), copyOp);
                 return;
             }
+            const retryBtn = event.target.closest('[data-od-retry-part]');
+            if (retryBtn && root.contains(retryBtn)) {
+                event.preventDefault();
+                event.stopPropagation();
+                retryPartProof(root.dataset.transactionId, retryBtn.getAttribute('data-od-retry-part'), retryBtn);
+                return;
+            }
             const lightboxBtn = event.target.closest('[data-od-lightbox]');
             if (lightboxBtn && root.contains(lightboxBtn)) {
                 openLightbox(lightboxBtn.getAttribute('data-od-lightbox'), lightboxBtn.getAttribute('data-od-caption'));
@@ -798,9 +847,32 @@
         });
     }
 
+    async function retryPartProof(transactionId, partId, button) {
+        if (!transactionId || !partId || !button) return;
+        button.disabled = true;
+        try {
+            const csrfToken = document.querySelector('input[name="_csrf"]')?.value || '';
+            const response = await fetch(`/transaction/${encodeURIComponent(transactionId)}/retry-part-proof/${encodeURIComponent(partId)}`, {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: {
+                    Accept: 'application/json',
+                    ...(csrfToken ? { 'x-csrf-token': csrfToken } : {})
+                }
+            });
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok || data.success === false) throw new Error(data.error || 'تعذر إعادة إرسال الإثبات.');
+            button.textContent = data.duplicate ? 'الإثبات مُرسل مسبقاً' : 'تمت إعادة الإرسال';
+        } catch (error) {
+            button.disabled = false;
+            button.textContent = error.message || 'تعذر إعادة الإرسال';
+        }
+    }
+
     function bind(root, model) {
         attachLightboxUi();
         ensureDelegated(root);
+        root.dataset.transactionId = String(model.tx?._id || '');
         const copyOp = root.querySelector('#od-copy-id');
         if (copyOp) copyOp.setAttribute('data-copy-value', model.tx.customId || model.tx._id || '');
         const printBtn = root.querySelector('#od-print-invoice');

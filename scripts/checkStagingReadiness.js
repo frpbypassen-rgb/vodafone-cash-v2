@@ -259,6 +259,10 @@ const evaluateStaticChecks = (env) => {
             ? 'REDIS_ENABLED is false while REDIS_REQUIRED is true'
             : 'REDIS_ENABLED is false; ping skipped');
     }
+    const { collectStagingEnvViolations } = require('../utils/runtimeControls');
+    collectStagingEnvViolations(env).forEach((violation) => {
+        add('FAIL', violation.name, violation.detail);
+    });
     return lines;
 };
 
@@ -399,6 +403,9 @@ const runStagingCheck = async (env, { appDir, processEnv = process.env, denyDb =
                 }
             }
             await checkSessions(mongoose.connection.db, String(env.SESSION_STORE || '').trim().toLowerCase(), add);
+            const { scanStagingDatabase } = require('../utils/stagingStartupGuard');
+            const stored = await scanStagingDatabase(mongoose.connection.db, env);
+            stored.forEach((violation) => add('FAIL', violation.name, violation.detail));
             const users = await countCollection(mongoose.connection.db, 'users', (doc) => doc.role !== 'agent');
             const subAccounts = await countCollection(
                 mongoose.connection.db,

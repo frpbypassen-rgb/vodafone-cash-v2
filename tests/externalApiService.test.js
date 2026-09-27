@@ -43,6 +43,9 @@ const {
 describe('externalApiService', () => {
     beforeEach(() => {
         jest.clearAllMocks();
+        process.env.EXTERNAL_API_ENABLED = 'true';
+        delete process.env.APP_ENV;
+        delete process.env.ENVIRONMENT;
         delete process.env.ZAYN_USERNAME;
         delete process.env.ZAYN_PASSWORD;
         delete process.env.ZAYNPAY_USERNAME;
@@ -387,4 +390,8 @@ describe('externalApiService', () => {
         expect(isReturnedProviderStatus('تم إلغاء العملية وردها')).toBe(true);
         expect(isReturnedProviderStatus('عملية ناجحة')).toBe(false);
     });
+});
+
+afterAll(() => {
+    delete process.env.EXTERNAL_API_ENABLED;
 });

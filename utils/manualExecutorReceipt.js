@@ -1,8 +1,12 @@
 'use strict';
 
 const { createCanvas } = require('canvas');
+const { getBrandContact } = require('./brandContact');
 
-const SUPPORT_PHONE = '01108172258';
+const officialSupportPhone = () => {
+    const phone = String(getBrandContact().phoneDisplay || '').replace(/[^\d+]/g, '');
+    return phone || '0913731533';
+};
 const SUCCESS_COLORS = {
     page: '#f6faf8',
     paper: '#ffffff',
@@ -444,7 +448,7 @@ function generateExecutorReceiptBase64(data = {}) {
     fillRoundedRect(ctx, 56, supportY, width - 112, 98, 24, colors.supportFill, colors.supportBorder, false);
     drawIconCircle(ctx, 120, supportY + 49, receiptIcons.support, colors);
     drawCenter(ctx, 'الدعم الفني واتساب فقط', 397, supportY + 39, { size: 18, weight: '900', color: colors.ink });
-    drawCenter(ctx, SUPPORT_PHONE, 397, supportY + 73, { size: 24, weight: '900', color: colors.accentDark, direction: 'ltr' });
+    drawCenter(ctx, officialSupportPhone(), 397, supportY + 73, { size: 24, weight: '900', color: colors.accentDark, direction: 'ltr' });
 
     const footerY = supportY + 140;
     ctx.strokeStyle = colors.supportBorder;

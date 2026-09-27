@@ -3,7 +3,8 @@
 
 // محاكاة النماذج والخدمات والعمليات الخارجية بشكل عالمي في أعلى الملف لمنع الـ Hoisting والاتصال الفعلي
 jest.mock('../models/Notification', () => ({
-    create: jest.fn().mockResolvedValue({})
+    create: jest.fn().mockResolvedValue({}),
+    updateOne: jest.fn().mockResolvedValue({})
 }));
 
 jest.mock('../services/settlementService', () => ({
@@ -26,6 +27,7 @@ describe('BullMQ Queue Service Tests (Local / Memory Fallback)', () => {
     beforeEach(() => {
         jest.resetModules();
         jest.restoreAllMocks();
+        process.env.BULLMQ_WORKERS_ENABLED = 'true';
         
         // إعادة التحميل بعد resetModules للحصول على النسخ المحاكاة الصحيحة من السجل
         Notification = require('../models/Notification');
@@ -60,7 +62,13 @@ describe('BullMQ Queue Service Tests (Local / Memory Fallback)', () => {
         const { addNotificationJob, addReportJob, addReconciliationJob, addBackupJob } = require('../services/bullQueueService');
 
         await addNotificationJob('user123', 'Title', 'Msg', 'alert');
-        expect(Notification.create).toHaveBeenCalled();
+        expect(Notification.create).toHaveBeenCalledWith({
+            userId: 'user123',
+            title: 'Title',
+            message: 'Msg',
+            type: 'alert'
+        });
+        expect(Notification.updateOne).not.toHaveBeenCalled();
 
         await addReportJob('daily_settlement', new Date());
         expect(settlementService.generateDailySettlement).toHaveBeenCalled();
@@ -87,6 +95,7 @@ describe('BullMQ Queue Service Tests (Redis / Distributed Queue)', () => {
     beforeEach(() => {
         jest.resetModules();
         jest.restoreAllMocks();
+        process.env.BULLMQ_WORKERS_ENABLED = 'true';
 
         // إعادة التحميل بعد resetModules للحصول على النسخ المحاكاة الصحيحة من السجل
         Notification = require('../models/Notification');
@@ -159,11 +168,44 @@ describe('BullMQ Queue Service Tests (Redis / Distributed Queue)', () => {
         const handler = mockWorkerCallbacks['notifications-queue'];
         await handler({ id: 'job-notify', data: { userId: 'u1', title: 'T', message: 'M', type: 'system' } });
         
-        expect(Notification.create).toHaveBeenCalledWith(expect.objectContaining({
+        expect(Notification.create).toHaveBeenCalledWith({
             userId: 'u1',
             title: 'T',
-            message: 'M'
-        }));
+            message: 'M',
+            type: 'system'
+        });
+        expect(Notification.updateOne).not.toHaveBeenCalled();
+    });
+
+    test('two identical notifications without a key enqueue two jobs and insert two rows', async () => {
+        delete process.env.APP_ENV;
+        delete process.env.ENVIRONMENT;
+        process.env.NODE_ENV = 'production';
+        process.env.BULLMQ_WORKERS_ENABLED = 'true';
+        const { initBullMQ, addNotificationJob } = require('../services/bullQueueService');
+        expect(initBullMQ()).toBe(true);
+        mockAdd.mockResolvedValue({ id: 'job-ok' });
+
+        await addNotificationJob('u1', 'إيداع', 'تم إيداع 100', 'deposit');
+        await addNotificationJob('u1', 'إيداع', 'تم إيداع 100', 'deposit');
+
+        const notificationAdds = mockAdd.mock.calls.filter((call) => String(call[0]).startsWith('notify_'));
+        expect(notificationAdds).toHaveLength(2);
+        notificationAdds.forEach((call) => {
+            expect(call[1]).toEqual({
+                userId: 'u1',
+                title: 'إيداع',
+                message: 'تم إيداع 100',
+                type: 'deposit'
+            });
+            expect(call[2]).toBeUndefined();
+        });
+
+        const handler = mockWorkerCallbacks['notifications-queue'];
+        await handler({ id: 'job-a', data: notificationAdds[0][1] });
+        await handler({ id: 'job-b', data: notificationAdds[1][1] });
+        expect(Notification.create).toHaveBeenCalledTimes(2);
+        expect(Notification.updateOne).not.toHaveBeenCalled();
     });
 
     test('يجب تشغيل معالج الـ Worker الخاص بالتقارير وتوليد تسوية يومية', async () => {
@@ -271,4 +313,8 @@ describe('BullMQ Queue Service Tests (Redis / Distributed Queue)', () => {
             expect.any(Object)
         );
     });
+});
+
+afterAll(() => {
+    delete process.env.BULLMQ_WORKERS_ENABLED;
 });
