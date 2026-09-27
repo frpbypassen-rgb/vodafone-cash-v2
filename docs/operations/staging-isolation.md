@@ -99,11 +99,22 @@ While the worker is off, `deliverWebhook` returns before `claimDelivery`, so pen
 
 ## In-app notifications
 
-`transfer:created`, `transfer:completed`, and `transfer:cancelled` still call `addNotificationJob`. Those three call sites pass an explicit key `` `${transactionId}:${recipientId}:${type}` ``, using `customId` or `_id` as the transaction id. `recordInAppNotification` upserts on that key only. `Notification.dedupeKey` has a unique sparse index, so documents without the field are not part of it.
+`transfer:created`, `transfer:completed`, and `transfer:cancelled` still call `addNotificationJob`. Those three call sites pass an explicit key `` `${transactionId}:${recipientId}:${type}` ``, using `customId` or `_id` as the transaction id. `recordInAppNotification` upserts on that key only (`services/bullQueueService.js`). Documents without the field are ordinary inserts.
 
-A caller that does not pass a key gets the previous behavior: `Notification.create`, and a BullMQ job with no `jobId`. Two identical texts for the same user stay two rows and two jobs. BullMQ does not drop the second job.
+`models/Notification.js` does not declare `{ dedupeKey: 1 }` unique sparse. `config/database.js` sets `autoIndex` false. Nothing in startup, `syncIndexes`, `ensureIndexes`, `createIndexes`, or a migration runner creates `notifications.dedupeKey_1`. `Notification.syncIndexes()` would drop that index if it had been created by hand, because it is not part of the schema. Do not call it after the manual step below.
 
-If workers are off, `addNotificationJob` writes the in-app row directly and does not enqueue. It does not delete jobs already in Redis. A later worker run of a transfer job carries the same explicit key, so the direct row and that queued job do not create two notifications. This does not start a new WhatsApp, SMTP, or push send.
+In-app notification delivery is not exactly-once.
+
+Without the unique index:
+
+- Sequential calls with the same explicit key keep one row. The second `updateOne` upsert matches the first document and `$setOnInsert` does not insert again.
+- True concurrency does not. Two overlapping upserts of a key that is not there yet can both insert. Duplicate notification rows are possible. No wallet, ledger, or transfer amount changes. On a `MongoMemoryReplSet`, 8 rounds of 24 overlapping upserts of one new key produced row counts 3, 2, 3, 4, 2, 2, 2, and 2. A later run can differ. The test requires the largest of those 8 counts to be greater than 1.
+
+With `notifications.dedupeKey_1` created by the manual script, the second overlapping insert fails with duplicate key `11000` or `11001` and `recordInAppNotification` ignores that error, so those concurrent calls keep one row. That is still not exactly-once delivery: BullMQ, a process restart, or a caller with no key can still produce another row or another job. A caller that does not pass a key gets `Notification.create` and a BullMQ job with no `jobId`. Two identical texts for the same user stay two rows and two jobs. BullMQ does not drop the second job.
+
+If workers are off, `addNotificationJob` writes the in-app row directly and does not enqueue. It does not delete jobs already in Redis. A later worker run of a transfer job carries the same explicit key. Sequential execution of that direct row and that queued job does not create two notifications. Overlapping execution can, until the unique index exists. This does not start a new WhatsApp, SMTP, or push send.
+
+Owner-approved manual step, not part of deploy: `node scripts/checkNotificationDedupeDuplicates.js` is aggregate-only. It prints how many notifications have a `dedupeKey`, how many duplicate key groups exist, and sample ids. It does not write. Then, only after that report shows zero duplicate groups, `node scripts/createNotificationDedupeIndex.js --confirm-create-notification-dedupe-index` creates `dedupeKey_1` and no other index. Both scripts abort on the production PM2 name `ahram_core_api`, the production app path, or a denied production database name (`vodafone_cash_system`, `vodafone_cash`). The create script also aborts when the confirmation flag is missing or any duplicate group exists. Do not run the create script except from that explicit command or from tests.
 
 ## ZaynPay URL fallback
 
@@ -146,6 +157,8 @@ What each re-enable does to that backlog:
 - `BULLMQ_WORKERS_ENABLED`: workers start and process queued jobs immediately. `api-transfers-queue` jobs call the provider when external API is on, and a successful reference posts the executor ledger debit. Transfer notification jobs upsert on their explicit event key. Jobs with no key insert a new in-app row. Report, backup, and reconciliation jobs run their existing work.
 - `FINANCIAL_SCHEDULERS_ENABLED`: the API completion monitor completes due provider-paid waiting rows and posts each executor ledger debit once. It does not re-send the provider call and does not refund. Rows that are not `waitingApiAutoCompletion` are not completed.
 - `MERCHANT_WEBHOOK_WORKER_ENABLED`: each 30 seconds, up to 50 due `pending` or `failed` deliveries are claimed and posted. `sending` rows left by a crash are not selected. Merchants must dedupe on `x-ahrampay-event-id`.
+
+`notifications.dedupeKey_1` is not created by deploy or startup. The owner-approved manual step is `node scripts/checkNotificationDedupeDuplicates.js`, then `node scripts/createNotificationDedupeIndex.js --confirm-create-notification-dedupe-index` only when the pre-check reports zero duplicate groups. Both refuse the production PM2 name, the production app path, and the denied production database names. See In-app notifications above. Do not run `Notification.syncIndexes()` afterwards; it would drop an index that is not on the schema.
 
 Recommended order, after the counts look acceptable: enable `EXTERNAL_API_ENABLED`, then `BULLMQ_WORKERS_ENABLED`, then `FINANCIAL_SCHEDULERS_ENABLED`, then `MERCHANT_WEBHOOK_WORKER_ENABLED`. Outside staging, removing an explicit `false` (or leaving the variable unset) is what turns a switch back on. Reloading the previous build starts every subsystem at once and processes the same backlogs immediately, so count before that revert as well. No migration is involved. The customer-wallet debit from request creation is not reversed by re-enabling any switch.
 

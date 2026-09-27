@@ -185,6 +185,10 @@ const recordInAppNotification = async ({ userId, title, message, type, dedupeKey
     const Notification = require('../models/Notification');
     const key = explicitNotificationKey(dedupeKey);
     // No explicit key: same insert as main. Identical text is a new row.
+    // An explicit key uses one upsert. Sequential calls keep a single row
+    // without a unique index. Overlapping calls can insert more than one row
+    // until notifications.dedupeKey_1 exists. A duplicate-key error is ignored
+    // only when that index rejects the second insert. No wallet is changed.
     if (!key) {
         await Notification.create({
             userId,

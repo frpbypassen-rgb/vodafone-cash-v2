@@ -80,7 +80,6 @@ beforeAll(async () => {
     indexedModels().forEach((model) => model.schema.set('autoIndex', false));
     replSet = await MongoMemoryReplSet.create({ replSet: { count: 1, storageEngine: 'wiredTiger' } });
     await mongoose.connect(replSet.getUri());
-    await Notification.collection.createIndex({ dedupeKey: 1 }, { unique: true, sparse: true });
 });
 
 afterAll(async () => {
