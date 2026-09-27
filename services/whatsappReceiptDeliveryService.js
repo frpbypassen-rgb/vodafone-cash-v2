@@ -549,6 +549,11 @@ const sendSplitPartReceipt = async ({
             ),
             reference: reference || `${transaction.customId || transaction._id}:${safePartId}`,
             amount: formatReceiptAmount(amount),
+            partAmount: Number(amount),
+            partId: safePartId,
+            senderWallet: String(entry.phone || ''),
+            transferRecipient: String(transaction.vodafoneNumber || transaction.accountNumber || ''),
+            imageId: String(entry.customerProof?.imageId || ''),
             currency: receiptCurrency(transaction),
             completedAt: confirmedAt || transaction.completedAt || new Date(),
             receiptUrl

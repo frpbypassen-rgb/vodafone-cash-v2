@@ -15,7 +15,8 @@ const {
 
 const PROOF_UPLOAD_DIR = path.join(process.cwd(), 'uploads', 'proofs');
 const AUTOMATIC_CLAIM_STATUSES = ['pending', 'failed'];
-const RETRY_CLAIM_STATUSES = ['pending', 'failed', 'generated', 'generating', 'unavailable'];
+const RETRY_CLAIM_STATUSES = ['pending', 'failed', 'generated', 'unavailable'];
+const STALE_GENERATING_MS = 120000;
 
 const safeProofError = (error) => {
     const message = String(error?.message || error || 'PART_PROOF_FAILED').replace(/\s+/g, ' ').trim();
@@ -92,10 +93,15 @@ const successProofImagesExpression = {
     }
 };
 
-const syncCustomerProofList = async (transactionId) => Transaction.updateOne({ _id: transactionId }, [
-    { $set: { proofImages: successProofImagesExpression } },
-    { $set: { proofImage: { $arrayElemAt: ['$proofImages', 0] } } }
-]);
+const syncCustomerProofList = async (transactionId) => Transaction.updateOne(
+    { _id: transactionId },
+    [
+        { $set: { proofImages: successProofImagesExpression } },
+        { $set: { proofImage: { $arrayElemAt: ['$proofImages', 0] } } }
+    ],
+    // Mongoose 9.9 rejects an aggregation pipeline unless this option is set.
+    { updatePipeline: true }
+);
 
 const setPartProofState = async (transactionId, partId, fields) => {
     const set = {};
@@ -109,29 +115,50 @@ const setPartProofState = async (transactionId, partId, fields) => {
     );
 };
 
-const claimPartProof = async (transactionId, partId, proofKey, fromStatuses) => Transaction.findOneAndUpdate(
-    {
-        _id: transactionId,
-        status: 'completed',
-        executorSenderEntries: {
-            $elemMatch: {
-                partId: String(partId),
-                status: 'success',
-                'customerProof.key': proofKey,
-                'customerProof.status': { $in: fromStatuses }
-            }
-        }
-    },
-    {
+const claimPartProof = async (transactionId, partId, proofKey, fromStatuses, { staleGenerating = false } = {}) => {
+    const claimUpdate = {
         $set: {
             'executorSenderEntries.$.customerProof.status': 'generating',
             'executorSenderEntries.$.customerProof.claimedAt': new Date(),
             'executorSenderEntries.$.customerProof.lastError': ''
         },
         $inc: { 'executorSenderEntries.$.customerProof.attempts': 1 }
-    },
-    { new: true }
-);
+    };
+    const claimed = await Transaction.findOneAndUpdate(
+        {
+            _id: transactionId,
+            status: 'completed',
+            executorSenderEntries: {
+                $elemMatch: {
+                    partId: String(partId),
+                    status: 'success',
+                    'customerProof.key': proofKey,
+                    'customerProof.status': { $in: fromStatuses }
+                }
+            }
+        },
+        claimUpdate,
+        { new: true }
+    );
+    if (claimed || !staleGenerating) return claimed;
+    return Transaction.findOneAndUpdate(
+        {
+            _id: transactionId,
+            status: 'completed',
+            executorSenderEntries: {
+                $elemMatch: {
+                    partId: String(partId),
+                    status: 'success',
+                    'customerProof.key': proofKey,
+                    'customerProof.status': 'generating',
+                    'customerProof.claimedAt': { $lt: new Date(Date.now() - STALE_GENERATING_MS) }
+                }
+            }
+        },
+        claimUpdate,
+        { new: true }
+    );
+};
 
 const markUnavailable = async (transaction, entry, reason) => {
     logPartProof('warn', 'Split part proof unavailable', transaction, entry.partId, { reason });
@@ -179,7 +206,8 @@ const issueSplitPartProof = async (transactionId, partId, { retry = false } = {}
         transaction._id,
         initialFacts.partId,
         initialFacts.proofKey,
-        retry ? RETRY_CLAIM_STATUSES : AUTOMATIC_CLAIM_STATUSES
+        retry ? RETRY_CLAIM_STATUSES : AUTOMATIC_CLAIM_STATUSES,
+        { staleGenerating: retry }
     );
     if (!claimed) {
         const current = findSplitPart(await Transaction.findById(transaction._id), initialFacts.partId);
@@ -222,6 +250,15 @@ const issueSplitPartProof = async (transactionId, partId, { retry = false } = {}
             confirmedAt: facts.confirmedAt,
             reference: `${facts.reference}:${facts.partId}`
         });
+        if (delivery?.code === 'RECEIPT_DELIVERY_BUSY') {
+            return {
+                ok: true,
+                duplicate: true,
+                code: 'PART_PROOF_IN_PROGRESS',
+                partId: facts.partId,
+                proofStatus: 'generating'
+            };
+        }
         if (!delivery?.success) {
             const reason = safeProofError(delivery?.message || delivery?.code || 'PART_PROOF_SEND_FAILED');
             await setPartProofState(claimed._id, facts.partId, {

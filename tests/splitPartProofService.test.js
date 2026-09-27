@@ -125,7 +125,10 @@ describe('split part customer proofs', () => {
         jest.spyOn(manualExecutorReceipt, 'generateManualExecutorReceiptBase64').mockResolvedValue('data:image/jpeg;base64,QQ==');
         sendSplitPartReceipt.mockResolvedValue({ success: true, messageId: 'msg-part' });
         Transaction.findById.mockImplementation(async () => state);
-        Transaction.updateOne.mockImplementation(async (_filter, update) => {
+        Transaction.updateOne.mockImplementation(async (_filter, update, options = {}) => {
+            if (Array.isArray(update) && options.updatePipeline !== true) {
+                throw new Error('Cannot pass an array to query updates unless the updatePipeline option is set.');
+            }
             if (Array.isArray(update)) {
                 state.proofImages = state.executorSenderEntries
                     .filter((candidate) => candidate.status === 'success' && candidate.customerProof?.imageId)
@@ -201,6 +204,11 @@ describe('split part customer proofs', () => {
             amount: 1500,
             reference: 'REF-2500:2'
         }));
+        expect(Transaction.updateOne).toHaveBeenCalledWith(
+            { _id: state._id },
+            expect.any(Array),
+            { updatePipeline: true }
+        );
         expect(state.proofImages).toEqual(['proofs/REF-2500_part_1.jpg', 'proofs/REF-2500_part_2.jpg']);
         expect(getClientReceiptProofIds(state)).toEqual(state.proofImages);
         expect(state.amount).toBe(financialBefore.amount);
