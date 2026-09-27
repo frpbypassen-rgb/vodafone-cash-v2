@@ -636,6 +636,11 @@ exports.postSupportMessages = async (req, res) => {
 
 
 exports.executeViaZaynPay = async (req, res) => {
+    const { directProviderExecutionBlock } = require('../utils/runtimeControls');
+    const blocked = directProviderExecutionBlock();
+    if (blocked) {
+        return res.json({ success: false, code: blocked.code, error: blocked.message });
+    }
     try {
         const tx = await Transaction.findById(req.params.id);
         const emp = await Employee.findById(req.session.executorId).populate('groupId');
