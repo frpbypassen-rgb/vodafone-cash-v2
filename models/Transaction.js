@@ -152,7 +152,24 @@ const transactionSchema = new mongoose.Schema({
     executorSenderEntries: [{
         phone: { type: String, trim: true },
         amount: { type: Number, min: 0 },
-        proofImage: { type: String, default: null }
+        proofImage: { type: String, default: null },
+        // Optional part identity for new split completions. Legacy entries omit these
+        // fields and are never rewritten or auto-proofed.
+        partId: { type: String, trim: true },
+        status: { type: String, enum: ['pending', 'success', 'failed', 'cancelled'] },
+        confirmedAt: { type: Date },
+        customerProof: {
+            key: { type: String, trim: true },
+            status: {
+                type: String,
+                enum: ['pending', 'generating', 'generated', 'sent', 'failed', 'unavailable']
+            },
+            imageId: { type: String, default: null },
+            attempts: { type: Number, default: 0 },
+            lastError: { type: String, default: '' },
+            claimedAt: { type: Date },
+            sentAt: { type: Date }
+        }
     }],
     // القيمة الأصلية التي أدخلها المنفذ. مخفية افتراضياً ولا تُقرأ إلا في تفاصيل الإدارة.
     executorExecutionNumber: { type: String, trim: true, maxlength: 64, select: false },

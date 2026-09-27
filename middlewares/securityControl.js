@@ -206,8 +206,8 @@ const protectedMutation = (req) => {
         /^\/employees\//,
         /^\/admin\/accounts\//,
         /^\/settings\/update/,
-        /^\/executor-portal\/api\/(accept-task|complete-task|cancel-task|return-task|edit-amount|route-task|request-deposit|zaynpay-execute)/,
-        /^\/api\/(v1\/)?mobile\/(client\/(new-transfer|balance-transfer)|executor\/(accept-task|complete-task|cancel-task|request-deposit|route-task|tasks\/|employees)|agent\/sub-accounts)/,
+        /^\/executor-portal\/api\/(accept-task|complete-task|cancel-task|return-task|edit-amount|route-task|request-deposit|zaynpay-execute|retry-part-proof)/,
+        /^\/api\/(v1\/)?mobile\/(client\/(new-transfer|balance-transfer)|executor\/(accept-task|complete-task|cancel-task|request-deposit|route-task|retry-part-proof|tasks\/|employees)|agent\/sub-accounts)/,
         /^\/api\/v1\/merchant\/transfer/
     ].some((pattern) => pattern.test(path));
 };

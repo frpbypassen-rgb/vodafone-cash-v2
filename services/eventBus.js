@@ -94,9 +94,12 @@ eventBus.on('transfer:completed', async (data) => {
 
         // Start external delivery immediately after the completed transaction is persisted.
         // Journal and in-app notification work can continue without delaying WhatsApp.
-        const { sendCompletedTransactionReceipt } = require('./whatsappReceiptDeliveryService');
-        const receiptDelivery = sendCompletedTransactionReceipt(tx).catch((error) => {
-            logger.error('Failed to send WhatsApp receipt', { customId: tx.customId, error: error.message });
+        const { isSplitPartProofTransfer } = require('../utils/splitPartProofs');
+        const receiptDelivery = (isSplitPartProofTransfer(tx)
+            ? require('./splitPartProofService').issueSplitPartProofs(tx._id || tx)
+            : require('./whatsappReceiptDeliveryService').sendCompletedTransactionReceipt(tx)
+        ).catch((error) => {
+            logger.error('Failed to send customer receipt', { customId: tx.customId, error: error.message });
         });
 
         const { recordTransferRealization } = require('./agencyJournalService');

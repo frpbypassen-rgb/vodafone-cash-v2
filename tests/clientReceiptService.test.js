@@ -79,6 +79,50 @@ describe('clientReceiptService', () => {
         });
     });
 
+    test('lists each successful split-part proof and no combined total image', () => {
+        const transaction = {
+            _id: '64f123456789012345678901',
+            customId: 'REF-2500',
+            amount: 2500,
+            vodafoneNumber: '01011112222',
+            proofImage: 'proofs/should-not-be-a-total.jpg',
+            proofImages: ['proofs/should-not-be-a-total.jpg'],
+            executorSenderEntries: [
+                {
+                    partId: '1',
+                    phone: '01108172258',
+                    amount: 1000,
+                    status: 'success',
+                    customerProof: { key: 'tx:1', status: 'sent', imageId: 'proofs/part-1000.jpg' }
+                },
+                {
+                    partId: '2',
+                    phone: '01000926306',
+                    amount: 1500,
+                    status: 'failed',
+                    customerProof: { key: 'tx:2', status: 'pending', imageId: null }
+                },
+                {
+                    partId: '3',
+                    phone: '01000926306',
+                    amount: 1500,
+                    status: 'success',
+                    customerProof: { key: 'tx:3', status: 'sent', imageId: 'proofs/part-1500.jpg' }
+                }
+            ]
+        };
+
+        expect(getClientReceiptProofIds(transaction)).toEqual([
+            'proofs/part-1000.jpg',
+            'proofs/part-1500.jpg'
+        ]);
+        expect(buildClientReceiptImages(transaction).map((image) => image.label)).toEqual([
+            'إثبات الجزء 1 — 1000 من 01108172258',
+            'إثبات الجزء 3 — 1500 من 01000926306'
+        ]);
+        expect(JSON.stringify(buildClientReceiptImages(transaction))).not.toContain('should-not-be-a-total');
+    });
+
     test('presents portal transactions with proxy URLs and without storage paths', () => {
         const presented = presentClientPortalTransaction({
             _id: '64f123456789012345678901',
