@@ -6,7 +6,10 @@ const Transaction = require('../models/Transaction');
 const logger = require('../utils/logger');
 
 const UNRESOLVED_CODE = 'PROVIDER_RESULT_UNRESOLVED';
-const DEFINITIVE_DISPATCH_RESULTS = new Set(['accepted', 'rejected', 'pending_reference']);
+// pending_reference is an HTTP 200 acceptance without a reference number.
+// It is not a settled result: the provider may have paid, so money guards
+// treat it like an unresolved dispatch. accepted and rejected are settled.
+const DEFINITIVE_DISPATCH_RESULTS = new Set(['accepted', 'rejected']);
 const BEFORE_SEND_CODES = new Set([
     'ENOTFOUND',
     'EAI_AGAIN',
@@ -63,12 +66,28 @@ const needsUnresolvedHold = (tx) => Boolean(
     && !isProviderResultUnresolved(tx)
 );
 
+const resolutionOutcome = (tx) => String(dataOf(tx).providerResolutionOutcome || '');
+
+// Money hold: do not refund, re-send, or return the row to the assignable pool.
+// Reuses providerResultUnresolved rather than a second flag. pending_reference
+// is also a hold even if that flag was not written, because HTTP 200 without a
+// reference still means the provider may have accepted the transfer.
+const providerMoneyHold = (tx) => {
+    if (!tx) return false;
+    const outcome = resolutionOutcome(tx);
+    if (outcome === 'provider_not_paid' && tx.status === 'pending' && !isProviderResultUnresolved(tx)) return false;
+    if (outcome === 'provider_paid' && tx.status === 'completed') return false;
+    if (isProviderResultUnresolved(tx) || needsUnresolvedHold(tx)) return true;
+    if (String(dataOf(tx).providerDispatchResult || '') === 'pending_reference') return true;
+    return outcome === 'provider_paid' || outcome === 'provider_not_paid';
+};
+
 // Blocks another Payment. A recorded rejection is retryable once the in-flight
 // marker has been released. Accepted, pending-reference, unresolved, and
 // marker-without-result rows are not.
 const automaticPaymentBlocked = (tx) => {
     if (!tx) return false;
-    if (isProviderResultUnresolved(tx) || needsUnresolvedHold(tx)) return true;
+    if (providerMoneyHold(tx)) return true;
     if (!hasDispatchMarker(tx)) return false;
     const result = String(dataOf(tx).providerDispatchResult || '');
     return result === 'accepted' || result === 'pending_reference';
@@ -79,7 +98,7 @@ const unresolvedHoldMessage = () => (
 );
 
 const refundBlockedByUnresolvedProvider = (tx) => {
-    if (!isProviderResultUnresolved(tx) && !needsUnresolvedHold(tx)) return null;
+    if (!providerMoneyHold(tx)) return null;
     return {
         success: false,
         statusCode: 409,
@@ -207,7 +226,7 @@ const markProviderResultUnresolved = async ({ txId, reason, source } = {}) => {
             _id: asObjectId(current._id),
             status: 'processing',
             'apiResultData.providerDispatchAttemptId': current.apiResultData.providerDispatchAttemptId,
-            'apiResultData.providerDispatchResult': { $nin: ['accepted', 'rejected', 'pending_reference'] }
+            'apiResultData.providerDispatchResult': { $nin: ['accepted', 'rejected'] }
         },
         {
             $set: {
@@ -261,7 +280,7 @@ const unresolvedProviderResultFilter = () => ({
             status: 'processing',
             'apiResultData.providerDispatchStartedAt': { $type: 'date' },
             $nor: [
-                { 'apiResultData.providerDispatchResult': { $in: ['accepted', 'rejected', 'pending_reference'] } }
+                { 'apiResultData.providerDispatchResult': { $in: ['accepted', 'rejected'] } }
             ]
         }
     ]
@@ -304,11 +323,13 @@ module.exports = {
     hasDefinitiveProviderResult,
     isProviderResultUnresolved,
     needsUnresolvedHold,
+    providerMoneyHold,
     automaticPaymentBlocked,
     refundBlockedByUnresolvedProvider,
     classifyPaymentTransportError,
     claimProviderDispatch,
     releaseProviderDispatchClaim,
+    clearClaimOnDoc,
     markProviderResultUnresolved,
     guardAutomaticProviderRedispatch,
     unresolvedProviderResultFilter,

@@ -2,6 +2,7 @@
 
 const Transaction = require('../models/Transaction');
 const ExecutorGroup = require('../models/ExecutorGroup');
+const Ledger = require('../models/Ledger');
 const { updateBalanceWithLedger } = require('./walletService');
 const eventBus = require('./eventBus');
 const logger = require('../utils/logger');
@@ -177,16 +178,29 @@ const completeApiTransactionWithReference = async ({
 
     let ledgerResult = null;
     let ledgerError = null;
+    const debitAmount = -Number(tx.amount || 0);
 
     try {
-        ledgerResult = await updateBalanceWithLedger(
-            'ExecutorGroup',
-            executorGroup._id,
-            -Number(tx.amount || 0),
-            'TRANSFER',
-            tx.customId,
-            'تنفيذ API آلي'
-        );
+        const existingDebit = await Ledger.findOne({
+            entityModel: 'ExecutorGroup',
+            entityId: executorGroup._id,
+            transactionId: tx.customId,
+            type: 'TRANSFER',
+            amount: debitAmount,
+            description: 'تنفيذ API آلي'
+        }).lean();
+        if (existingDebit) {
+            ledgerResult = { success: true, idempotent: true };
+        } else {
+            ledgerResult = await updateBalanceWithLedger(
+                'ExecutorGroup',
+                executorGroup._id,
+                debitAmount,
+                'TRANSFER',
+                tx.customId,
+                'تنفيذ API آلي'
+            );
+        }
     } catch (error) {
         ledgerError = error;
         appendAdminNote(tx, `[تنبيه مالي: تم استلام الرقم المرجعي واعتماد العملية، لكن تعذر تسجيل قيد رصيد المنفذ: ${error.message}]`);
@@ -372,7 +386,8 @@ const completeDueApiTransactions = async () => {
         status: 'processing',
         'apiResultData.waitingApiAutoCompletion': true,
         'apiResultData.autoCompleteAt': { $lte: new Date() },
-        'apiResultData.providerResultUnresolved': { $ne: true }
+        'apiResultData.providerResultUnresolved': { $ne: true },
+        'apiResultData.providerDispatchResult': { $ne: 'pending_reference' }
     }).limit(50);
 
     for (const tx of dueTransactions) {

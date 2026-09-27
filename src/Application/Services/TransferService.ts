@@ -781,17 +781,17 @@ export class TransferService {
             if (req && req.tenant) empQuery.tenantId = req.tenant._id;
             const emp = await Employee.findOne(empQuery).session(session);
 
-            if (!emp) throw new Error('EMPLOYEE_NOT_FOUND');
-            if (!tx || tx.status !== 'accepted' || tx.operatorId !== emp._id.toString()) {
-                throw new Error('INVALID_STATE');
-            }
-
             const { refundBlockedByUnresolvedProvider } = require('../../../services/providerDispatchClaimService');
             const unresolvedBlock = refundBlockedByUnresolvedProvider(tx);
             if (unresolvedBlock) {
                 await session.abortTransaction();
                 session.endSession();
                 return unresolvedBlock;
+            }
+
+            if (!emp) throw new Error('EMPLOYEE_NOT_FOUND');
+            if (!tx || tx.status !== 'accepted' || tx.operatorId !== emp._id.toString()) {
+                throw new Error('INVALID_STATE');
             }
 
             // تحديد المحفظة ونوع العملة لإعادة شحنها

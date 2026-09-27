@@ -18,7 +18,8 @@ jest.mock('../middlewares/auth', () => ({
     requireAuth: (req, _res, next) => {
         req.session = { adminName: 'Admin-Test' };
         next();
-    }
+    },
+    requirePermission: () => (_req, _res, next) => next()
 }));
 
 // Mock rate limiters and trust engines

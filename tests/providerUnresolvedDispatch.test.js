@@ -167,6 +167,22 @@ const armProvider = () => {
             }
             const thrown = throwPaymentError(paymentMode);
             if (thrown) throw thrown;
+            if (paymentMode === 'accepted_no_ref') {
+                return {
+                    data: {
+                        Code: 200,
+                        Message: 'عمليه ناجحه',
+                        Data: {
+                            Amount: AMOUNT,
+                            BalanceBefore: 5000,
+                            BalanceAfter: 4900,
+                            Status: 'عمليه ناجحه',
+                            IsPaid: 1,
+                            IsFailure: 0
+                        }
+                    }
+                };
+            }
             return successPaymentBody();
         }
         throw new Error(`unexpected provider url ${target}`);
@@ -598,6 +614,27 @@ describe('provider dispatch defects', () => {
         expect(script).not.toMatch(/updateOne|updateMany|findOneAndUpdate|deleteOne|deleteMany|bulkWrite|replaceOne|findOneAndDelete|\.save\(/);
         expect(script).toMatch(/countDocuments/);
         expect(script).toMatch(/\.find\(/);
+    });
+
+    test('provider HTTP 200 without a reference is held unresolved and is not refunded', async () => {
+        armProvider();
+        paymentMode = 'accepted_no_ref';
+        const { user, executor, tx } = await createFixture();
+        await queueService.processSingleJob(String(tx._id), String(executor._id));
+        const stored = await reload(tx);
+        const debits = await executorDebits(executor);
+        const refunds = await customerRefunds();
+        const refreshedUser = await User.findById(user._id);
+
+        expect(paymentCalls).toBe(1);
+        expect(debits).toHaveLength(0);
+        expect(refunds).toHaveLength(0);
+        expect(refreshedUser.balance).toBe(CUSTOMER_BALANCE);
+        expect(stored.status).toBe('processing');
+        expect(String(stored.executorGroupId)).toBe(String(executor._id));
+        expect(stored.apiResultData.providerDispatchResult).toBe('pending_reference');
+        expect(stored.apiResultData.providerResultUnresolved).toBe(true);
+        expect(stored.apiResultData.providerResultUnresolvedCode).toBe('PROVIDER_RESULT_UNRESOLVED');
     });
 
     test('classifies transport failures before and after Payment may have been sent', () => {

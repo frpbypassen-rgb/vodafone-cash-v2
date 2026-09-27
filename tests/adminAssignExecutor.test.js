@@ -6,7 +6,8 @@ const express = require('express');
 const request = require('supertest');
 
 jest.mock('../middlewares/auth', () => ({
-    requireAuth: (req, _res, next) => next()
+    requireAuth: (req, _res, next) => next(),
+    requirePermission: () => (_req, _res, next) => next()
 }));
 
 jest.mock('../models/Transaction', () => ({

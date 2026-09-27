@@ -300,14 +300,14 @@ exports.postCancelTask = async (req, res) => {
             return res.status(400).json({ success: false, error: 'سبب الإلغاء مطلوب.' });
         }
         const tx = await Transaction.findById(req.params.id);
+        const { refundBlockedByUnresolvedProvider } = require('../services/providerDispatchClaimService');
+        const unresolvedBlock = refundBlockedByUnresolvedProvider(tx);
+        if (unresolvedBlock) {
+            return res.status(409).json({ success: false, code: unresolvedBlock.code, error: unresolvedBlock.message });
+        }
         const emp = await Employee.findById(req.session.executorId);
 
         if (tx && tx.status === 'accepted' && tx.operatorId === emp._id.toString()) {
-            const { refundBlockedByUnresolvedProvider } = require('../services/providerDispatchClaimService');
-            const unresolvedBlock = refundBlockedByUnresolvedProvider(tx);
-            if (unresolvedBlock) {
-                return res.status(409).json({ success: false, code: unresolvedBlock.code, error: unresolvedBlock.message });
-            }
             if (tx.companyId) await ClientCompany.findByIdAndUpdate(tx.companyId, { $inc: { balance: tx.costLYD } });
             else if (tx.userId) await User.findOneAndUpdate({ $or: [{ phone: tx.userId }, { webUsername: tx.userId }] }, { $inc: { balance: tx.costLYD } });
 
@@ -351,14 +351,14 @@ exports.postReturnTask = async (req, res) => {
     try {
         const { reason } = req.body;
         const tx = await Transaction.findById(req.params.id);
+        const { refundBlockedByUnresolvedProvider } = require('../services/providerDispatchClaimService');
+        const unresolvedBlock = refundBlockedByUnresolvedProvider(tx);
+        if (unresolvedBlock) {
+            return res.status(409).json({ success: false, code: unresolvedBlock.code, error: unresolvedBlock.message });
+        }
         const emp = await Employee.findById(req.session.executorId);
 
         if (tx && tx.status === 'accepted' && tx.operatorId === emp._id.toString()) {
-            const { refundBlockedByUnresolvedProvider } = require('../services/providerDispatchClaimService');
-            const unresolvedBlock = refundBlockedByUnresolvedProvider(tx);
-            if (unresolvedBlock) {
-                return res.status(409).json({ success: false, code: unresolvedBlock.code, error: unresolvedBlock.message });
-            }
             tx.status = 'pending'; tx.executorGroupId = undefined; tx.managerGroupId = undefined;
             tx.executorName = undefined; tx.operatorId = undefined; tx.assignedExecutorId = undefined; tx.assignedExecutorName = undefined; tx.assignedExecutorAt = undefined; tx.broadcastMessages = [];
             appendAdminNote(tx, `[إرجاع للإدارة | السبب: ${reason}]`);

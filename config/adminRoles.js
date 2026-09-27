@@ -6,6 +6,7 @@ const ADMIN_PERMISSIONS = Object.freeze([
     ['dashboard.read', 'عرض لوحة القيادة'],
     ['transactions.read', 'عرض العمليات'],
     ['transactions.manage', 'إدارة وتوجيه العمليات'],
+    ['transactions.resolve_provider', 'حسم نتيجة مزود غير محسومة'],
     ['accounts.read', 'عرض الحسابات'],
     ['accounts.manage', 'إدارة الحسابات والأرصدة'],
     ['executors.read', 'عرض شركات التنفيذ'],

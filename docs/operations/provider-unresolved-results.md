@@ -24,6 +24,7 @@ If it is not clear whether Payment was sent, the result is unresolved.
 | --- | --- | --- |
 | Crash after Payment, before save | Second Payment and a second executor debit. Customer debit from creation stays held. | One Payment. At most one executor debit. Row stays `processing` and flagged, or `completed` if the success save landed. No second debit. No customer refund. |
 | Timeout, reset, or HTTP 5xx after send | Row returns to `pending`. A new route can pay again. Cancel-with-refund credits the customer while the provider may have paid. | One Payment. Zero executor debits. Zero customer refunds or credits. Status stays `processing`, executor stays assigned, row is flagged. |
+| HTTP 200 accepted, no reference (`pending_reference`) | Row returned to `pending` and could be refunded or sent again. | Same money hold as an unresolved result: stay `processing`, keep the executor, flag `providerResultUnresolved`, no refund, no second Payment. |
 | Error before send | `pending`, executor cleared, zero Payment calls. | Unchanged. |
 | Normal success | One Payment, one executor debit (`TRANSFER`, negative amount, description `تنفيذ API آلي`), status `completed`. | Unchanged. |
 
@@ -39,7 +40,7 @@ Before Payment, the worker claims the row with `findOneAndUpdate` conditioned on
 
 The write is committed with majority write concern before the HTTP call. Only the claim winner calls Payment.
 
-A later job that finds a dispatch marker without a definitive result (`accepted`, `rejected`, or `pending_reference`) does not call Payment. It sets:
+A later job that finds a dispatch marker without a settled result (`accepted` or `rejected`) does not call Payment. `pending_reference` is not settled. The job sets:
 
 - `apiResultData.providerResultUnresolved = true`
 - `apiResultData.providerResultUnresolvedAt`
@@ -65,10 +66,12 @@ Automatic re-send and human cancel-with-refund are refused while a row is flagge
 | `src/Application/Services/ReversalService.ts:504` `reverseTransaction` (fallback preview at `:356`) | Cancel-with-refund returns `409` / `PROVIDER_RESULT_UNRESOLVED`. |
 | `src/Application/Services/TransferService.ts:789` `cancelTransfer` | Same refusal before any wallet credit. |
 | `controllers/executorTransactionController.js:306` `postCancelTask` and `:357` `postReturnTask` | Direct refund and return-to-pending are refused. |
-| `routes/adminTransactions.js:682` pull-task | Cannot move the row back to `pending`. |
+| `routes/adminTransactions.js` pull-task, assign-executor, and global-cancel | Cannot pull, reassign, or cancel-with-refund a held row. |
 | `services/mobileWebParityService.js:918` `returnTask` | Cannot move the row back to `pending`. |
 
-A Payment HTTP 200 that is accepted without a reference number is recorded as `providerDispatchResult: pending_reference` (`services/queueService.js:220` and `:247`). That is a definitive result, so it is not flagged unresolved and it is not sent again. The claim itself is `services/externalApiService.js:369`.
+A Payment HTTP 200 that is accepted without a reference number is recorded as `providerDispatchResult: pending_reference` and `providerResultUnresolved: true` (`holdProviderAcceptedWithoutReference` in `services/queueService.js`). Status stays `processing` and the executor stays assigned. The claim itself is `services/externalApiService.js:369`.
+
+`pending_reference` reuses `providerResultUnresolved` instead of a second flag. Every refund, return-to-pending, pull, assign, auto-route, and queue guard already keys off that hold. A second flag would be one missed `if` away from refunding a transfer the provider may have accepted. Operators still tell the cases apart: `providerDispatchResult` is `pending_reference` for an HTTP 200 without a reference, and it is empty for a timeout, reset, 5xx, or crash. No new index is added.
 
 Admin global cancel, complaint cancel, executor provider-return cancel, and the mobile executor cancel route all call `reverseTransaction`, so they use that guard.
 
@@ -82,19 +85,38 @@ MONGO_URI="mongodb://..." node scripts/listUnresolvedProviderResults.js
 
 There is no resolution action in this change.
 
-## Resolution is a business decision
+## Resolution procedure
 
-The owner has to choose how a human closes an unresolved row. This change does not pick one.
+Close one flagged row only after the provider has given evidence. The provider status API cannot do this by itself: it needs a `TransactionNumber`, the crash and timeout paths do not have one, Payment has no idempotency key, and `MachineSerial` is a device serial (`XP1` by default).
 
-- A provider status query needs a `TransactionNumber`. The crash and timeout paths do not have one, because the Payment response never landed.
-- The provider Payment request has no idempotency key, so sending it again can pay again.
-- `MachineSerial` is a device serial (`XP1` by default). It does not identify one transfer.
+Permission: `transactions.resolve_provider`. Routing staff with only `transactions.manage` cannot close these rows. A master admin can. The permission is not granted to accountants.
 
-Until that procedure exists, leave the row flagged. Do not refund the customer and do not send Payment again unless the provider has confirmed the first attempt did not pay.
+1. Get evidence from the provider: a TransactionNumber, a statement line, or a ticket id, plus a short note of what it shows.
+2. Dry-run. This changes nothing and does not call Payment.
+
+```bash
+MONGO_URI="mongodb://..." node scripts/resolveUnresolvedProviderResult.js \
+  --id "<transaction id>" \
+  --outcome provider_paid \
+  --evidence "<provider reference>" \
+  --note "<what the evidence shows>" \
+  --actor-id "<admin id>"
+```
+
+The same dry-run is `POST /transaction/:id/resolve-provider-result` with `{ outcome, evidenceReference, note, confirm: false }`.
+
+3. Read the preview. `provider_paid` shows one executor debit (`ExecutorGroup`, amount `-transaction.amount`, type `TRANSFER`, description `تنفيذ API آلي`) and zero customer refund. `provider_not_paid` shows zero money movements. The row will return to `pending` through `releaseFailedApiExecutionToPending`, the same release the queue already uses when Payment is known to have failed before it was sent. A customer refund is not posted here. After the row is pending, an operator can cancel it with the existing reversal screen if the customer should be credited.
+4. Confirm with the same outcome, evidence, note, and `expectedUpdatedAt` from the preview. Add `--confirm --expected-updated-at "<preview expectedUpdatedAt>"` on the script, or `"confirm": true` on the endpoint.
+5. If the response is `ROW_CHANGED`, someone else touched the row. Dry-run again. Do not confirm the old preview.
+6. Check the audit log action `PROVIDER_RESULT_RESOLVED`. It stores the actor, the evidence, and the before/after snapshot.
+
+`provider_paid` completes the row through `completeApiTransactionWithReference`. That posts at most one executor debit and never calls Payment. A second confirm does not debit again. `provider_not_paid` does not credit the customer and does not call Payment.
+
+Refuse the action when evidence or the note is blank.
 
 ## Migration
 
-New optional fields on the existing mixed `apiResultData` object only. No backfill. No new index. A partial index on `apiResultData.providerResultUnresolved` was considered and not added; unresolved rows should be rare, and an index needs owner approval before it is created.
+New optional fields on the existing mixed `apiResultData` object only (`providerResolutionOutcome`, `providerResolutionEvidence`, `providerResolutionNote`, `providerResolutionActorId`, `providerResolutionClaimedAt`, `providerResolutionEffectStartedAt`, `providerResolvedAt`). No backfill. No new index. A partial index on `apiResultData.providerResultUnresolved` was considered and not added; unresolved rows should be rare, and an index needs owner approval before it is created.
 
 ## Rollback
 

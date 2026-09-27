@@ -367,7 +367,11 @@ router.post('/api/complaints/:id/cancel', requireAuth, async (req, res) => {
             const result = await reversalService.reverseTransaction(txId, reason, actor.name, { status: 'cancelled_by_admin' });
 
             if (!result.success) {
-                return res.status(400).json({ error: result.message });
+                return res.status(result.statusCode || 400).json({
+                    success: false,
+                    code: result.code,
+                    error: result.message
+                });
             }
 
             await Transaction.updateOne(
