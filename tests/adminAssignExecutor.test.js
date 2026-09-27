@@ -99,6 +99,8 @@ const pendingTx = {
 describe('admin assign-executor API dispatch', () => {
     beforeEach(() => {
         jest.clearAllMocks();
+        delete process.env.EXTERNAL_API_ENABLED;
+        delete process.env.BULLMQ_WORKERS_ENABLED;
         Transaction.findOne.mockResolvedValue(pendingTx);
         Transaction.collection.updateOne.mockResolvedValue({ acknowledged: true, modifiedCount: 1 });
         addTransferJob.mockResolvedValue(undefined);
@@ -217,6 +219,64 @@ describe('admin assign-executor API dispatch', () => {
         );
     });
 
+    test.each([
+        ['EXTERNAL_API_ENABLED', 'false', 'EXTERNAL_API_DISABLED'],
+        ['BULLMQ_WORKERS_ENABLED', 'false', 'BULLMQ_WORKERS_DISABLED']
+    ])('refuses a new API route when %s is %s and leaves the transfer pending', async (flag, value, reason) => {
+        process.env[flag] = value;
+        ExecutorGroup.findOne.mockResolvedValue({
+            _id: 'api-group-1',
+            name: 'منفذ API',
+            status: 'active',
+            isApiBot: true,
+            isManagerBot: false,
+            serviceKey: 'vodafone'
+        });
+
+        const response = await request(buildApp())
+            .post('/transaction/tx-api-1/assign-executor')
+            .set('Accept', 'application/json')
+            .set('x-requested-with', 'XMLHttpRequest')
+            .send({ executorGroupId: 'api-group-1' });
+
+        delete process.env[flag];
+        expect(response.status).toBe(409);
+        expect(response.body).toMatchObject({
+            success: false,
+            code: 'API_EXECUTION_UNAVAILABLE',
+            reason
+        });
+        expect(Transaction.collection.updateOne).not.toHaveBeenCalled();
+        expect(addTransferJob).not.toHaveBeenCalled();
+        expect(queueService.addJob).not.toHaveBeenCalled();
+        expect(logAction).not.toHaveBeenCalled();
+        expect(eventBus.publish).not.toHaveBeenCalled();
+        expect(pendingTx.status).toBe('pending');
+    });
+
+    test('still routes a human executor when BullMQ workers are off', async () => {
+        process.env.BULLMQ_WORKERS_ENABLED = 'false';
+        ExecutorGroup.findOne.mockResolvedValue({
+            _id: 'human-group-1',
+            name: 'منفذ بشري',
+            status: 'active',
+            isApiBot: false,
+            isManagerBot: false,
+            serviceKey: 'vodafone'
+        });
+
+        const response = await request(buildApp())
+            .post('/transaction/tx-api-1/assign-executor')
+            .set('Accept', 'application/json')
+            .set('x-requested-with', 'XMLHttpRequest')
+            .send({ executorGroupId: 'human-group-1' });
+
+        delete process.env.BULLMQ_WORKERS_ENABLED;
+        expect(response.status).toBe(200);
+        expect(Transaction.collection.updateOne).toHaveBeenCalled();
+        expect(addTransferJob).not.toHaveBeenCalled();
+    });
+
     test('refuses to route when the admin session has no identity', async () => {
         ExecutorGroup.findOne.mockResolvedValue({
             _id: 'human-group-1',
@@ -264,7 +324,7 @@ describe('admin assign-executor source contracts', () => {
 
     test('starts BullMQ workers after Redis connects', () => {
         expect(appSource).toContain("const { initBullMQ } = require('./services/bullQueueService');");
-        expect(appSource).toContain('if (!initBullMQ())');
+        expect(appSource).toContain('if (isBullmqWorkersEnabled() && !initBullMQ())');
         expect(appSource.indexOf('initRedis()')).toBeLessThan(
             appSource.indexOf("require('./services/bullQueueService')")
         );

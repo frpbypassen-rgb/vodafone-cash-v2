@@ -38,6 +38,19 @@ Host-specific (must exist in `.env`, never commit real values):
 - `DEFAULT_TENANT_SLUG` or `DEFAULT_TENANT_ID`
 - `PUBLIC_APP_URL` on HTTPS
 
+## Background subsystem switches
+
+`MERCHANT_WEBHOOK_WORKER_ENABLED`, `EXTERNAL_API_ENABLED`,
+`BULLMQ_WORKERS_ENABLED`, and `FINANCIAL_SCHEDULERS_ENABLED` stay **on** in
+production when they are unset. A production deploy does not need four `=true`
+lines. Only `false`, `0`, `no`, or `off` disables a switch. Staging
+(`NODE_ENV`, `APP_ENV`, or `ENVIRONMENT` = `staging`) fails closed: an unset
+switch is off, and `.env.staging.example` sets all four to `false`. If one of
+those three variables is `staging` and another is a different non-empty mode,
+startup is refused (`STAGING_ENV_CONFLICT`) instead of serving in a mixed mode.
+Startup logs one warning naming every switch that is off. Details:
+`docs/operations/staging-isolation.md`.
+
 ## Repair then reload
 
 ```powershell
