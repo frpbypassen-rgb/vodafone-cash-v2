@@ -260,7 +260,8 @@ describe('pending_reference money hold', () => {
         }).toMatchObject({
             success: false,
             statusCode: 409,
-            code: 'PROVIDER_RESULT_UNRESOLVED'
+            code: 'PROVIDER_RESULT_UNRESOLVED',
+            message: expect.stringContaining('نتيجة المزود غير محسومة')
         });
         expect(executorCancel.statusCode).toBe(409);
         expect(executorCancel.body.code).toBe('PROVIDER_RESULT_UNRESOLVED');

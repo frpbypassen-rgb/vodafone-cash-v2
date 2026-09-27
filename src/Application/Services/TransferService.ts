@@ -766,6 +766,16 @@ export class TransferService {
             return { success: false, statusCode: 429, code: 'LOCK_TIMEOUT', message: 'الرجاء الانتظار، العملية قيد المعالجة حالياً' };
         }
 
+        const { refundBlockedByUnresolvedProvider } = require('../../../services/providerDispatchClaimService');
+        try {
+            const heldPreview = await Transaction.findById(taskId);
+            const previewBlock = refundBlockedByUnresolvedProvider(heldPreview);
+            if (previewBlock) {
+                await releaseLock(lock);
+                return previewBlock;
+            }
+        } catch (_) {}
+
         const session = await mongoose.startSession();
         session.startTransaction();
 
@@ -777,17 +787,16 @@ export class TransferService {
                 tx = await Transaction.findById(taskId).session(session);
             }
 
-            const empQuery: any = { webUsername: userId };
-            if (req && req.tenant) empQuery.tenantId = req.tenant._id;
-            const emp = await Employee.findOne(empQuery).session(session);
-
-            const { refundBlockedByUnresolvedProvider } = require('../../../services/providerDispatchClaimService');
             const unresolvedBlock = refundBlockedByUnresolvedProvider(tx);
             if (unresolvedBlock) {
                 await session.abortTransaction();
                 session.endSession();
                 return unresolvedBlock;
             }
+
+            const empQuery: any = { webUsername: userId };
+            if (req && req.tenant) empQuery.tenantId = req.tenant._id;
+            const emp = await Employee.findOne(empQuery).session(session);
 
             if (!emp) throw new Error('EMPLOYEE_NOT_FOUND');
             if (!tx || tx.status !== 'accepted' || tx.operatorId !== emp._id.toString()) {
