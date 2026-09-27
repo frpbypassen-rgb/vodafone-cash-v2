@@ -18,6 +18,7 @@ const request = require('supertest');
 const mongoose = require('mongoose');
 const { MongoMemoryReplSet } = require('mongodb-memory-server');
 const axios = require('axios');
+const ClientEmployee = require('../models/ClientEmployee');
 const Ledger = require('../models/Ledger');
 const MerchantWebhookDelivery = require('../models/MerchantWebhookDelivery');
 const MerchantWebhookEndpoint = require('../models/MerchantWebhookEndpoint');
@@ -38,6 +39,7 @@ jest.setTimeout(180000);
 let replSet;
 let app;
 let requestTenantId = null;
+let clientSession = null;
 const savedEnv = {};
 
 const trackedEnv = [
@@ -50,6 +52,7 @@ const trackedEnv = [
 ];
 
 const indexedModels = () => [
+    ClientEmployee,
     Ledger,
     MerchantWebhookDelivery,
     MerchantWebhookEndpoint,
@@ -65,7 +68,9 @@ beforeAll(async () => {
     app = express();
     app.use(express.json());
     app.use((req, _res, next) => {
-        req.session = { isLoggedIn: true, adminRole: 'master' };
+        req.session = clientSession
+            ? { ...clientSession }
+            : { isLoggedIn: true, adminRole: 'master' };
         req.tenantId = requestTenantId;
         req.tenant = requestTenantId ? { _id: requestTenantId } : null;
         next();
@@ -87,6 +92,7 @@ beforeEach(async () => {
     axios.post.mockReset();
     axios.post.mockResolvedValue({ status: 204, data: '' });
     requestTenantId = null;
+    clientSession = null;
     delete process.env.TENANT_MODE;
     delete process.env.APP_ENV;
     delete process.env.ENVIRONMENT;
@@ -94,6 +100,7 @@ beforeEach(async () => {
     delete process.env.MERCHANT_WEBHOOK_STALE_SENDING_RECLAIM_AFTER;
     process.env.NODE_ENV = 'test';
     await Promise.all([
+        ClientEmployee.deleteMany({}),
         MerchantWebhookEndpoint.deleteMany({}),
         MerchantWebhookDelivery.deleteMany({}),
         Transaction.deleteMany({}),
@@ -128,6 +135,36 @@ const waitForTerminal = async (id) => {
 };
 
 const endpointIds = (body) => body.endpoints.map((item) => item.id).sort();
+
+const createCompanyEmployee = (fields) => ClientEmployee.create({
+    name: 'Company manager',
+    webUsername: `co-${new mongoose.Types.ObjectId()}`,
+    webPassword: 'not-used',
+    role: 'owner',
+    canManageCompany: false,
+    ...fields
+});
+
+const signInCompany = (employee) => {
+    clientSession = {
+        isClientLoggedIn: true,
+        clientId: employee._id,
+        accountType: 'company'
+    };
+};
+
+const createDelivery = (endpoint, fields) => MerchantWebhookDelivery.create({
+    endpointId: endpoint._id,
+    ownerModel: endpoint.ownerModel,
+    ownerId: endpoint.ownerId,
+    tenantId: endpoint.tenantId,
+    eventId: `evt-${new mongoose.Types.ObjectId()}`,
+    eventType: 'transfer.completed',
+    payload: { type: 'transfer.completed' },
+    status: 'failed',
+    attemptCount: 1,
+    ...fields
+});
 
 describe('admin webhook visibility', () => {
     test('single mode lists a legacy tenant endpoint and a no-tenant endpoint', async () => {
@@ -443,6 +480,261 @@ describe('admin webhook page load failure', () => {
         expect(empty.ok).toBe(true);
         expect(empty.endpoints).toEqual([]);
         expect(empty.summary).toEqual({});
+    });
+});
+
+describe('company webhook routes', () => {
+    const financialFixture = async () => {
+        const user = await User.create({
+            webUsername: `wh-${new mongoose.Types.ObjectId()}`,
+            webPassword: 'not-used',
+            role: 'agent',
+            balance: 2500
+        });
+        const ledger = await Ledger.create({
+            entityId: user._id,
+            entityModel: 'User',
+            transactionId: `ATT-WH-${new mongoose.Types.ObjectId().toString().slice(-8)}`,
+            type: 'DEPOSIT',
+            amount: 2500,
+            balanceBefore: 0,
+            balanceAfter: 2500,
+            description: 'opening'
+        });
+        return async () => ({
+            balance: (await User.findById(user._id).lean()).balance,
+            ledger: await Ledger.find({ _id: ledger._id }).lean()
+        });
+    };
+
+    test('single mode shows and manages only this company, including its own legacy tenant', async () => {
+        process.env.TENANT_MODE = 'single';
+        const current = new mongoose.Types.ObjectId();
+        const legacy = new mongoose.Types.ObjectId();
+        const otherLegacy = new mongoose.Types.ObjectId();
+        requestTenantId = current;
+        const companyA = new mongoose.Types.ObjectId();
+        const companyB = new mongoose.Types.ObjectId();
+        const manager = await createCompanyEmployee({
+            companyId: companyA,
+            tenantId: legacy,
+            role: 'owner',
+            canManageCompany: false
+        });
+        signInCompany(manager);
+        const ownLegacy = await createEndpoint({
+            tenantId: legacy,
+            ownerModel: 'ClientCompany',
+            ownerId: companyA,
+            name: 'own-legacy'
+        });
+        const ownMissing = await createEndpoint({
+            tenantId: null,
+            ownerModel: 'ClientCompany',
+            ownerId: companyA,
+            name: 'own-missing'
+        });
+        const otherSameTenant = await createEndpoint({
+            tenantId: current,
+            ownerModel: 'ClientCompany',
+            ownerId: companyB,
+            name: 'other-current'
+        });
+        const otherLegacyEndpoint = await createEndpoint({
+            tenantId: otherLegacy,
+            ownerModel: 'ClientCompany',
+            ownerId: companyB,
+            name: 'other-legacy'
+        });
+        const ownDelivery = await createDelivery(ownLegacy);
+        const otherDelivery = await createDelivery(otherSameTenant);
+        const otherLegacyDelivery = await createDelivery(otherLegacyEndpoint);
+        const snapshot = await financialFixture();
+        const before = await snapshot();
+        const storedTenantIds = async () => (await MerchantWebhookEndpoint.find().sort({ _id: 1 }).lean())
+            .map((row) => ({ id: String(row._id), tenantId: row.tenantId ? String(row.tenantId) : null }));
+        const tenantsBefore = await storedTenantIds();
+
+        const listed = await request(app).get('/client/api/webhooks');
+        expect(listed.status).toBe(200);
+        expect(endpointIds(listed.body)).toEqual([String(ownLegacy._id), String(ownMissing._id)].sort());
+        const listedDeliveryIds = listed.body.deliveries.map((row) => String(row._id));
+        expect(listedDeliveryIds).toEqual([String(ownDelivery._id)]);
+        expect(listedDeliveryIds).not.toContain(String(otherDelivery._id));
+        expect(listedDeliveryIds).not.toContain(String(otherLegacyDelivery._id));
+
+        const patchOther = await request(app)
+            .patch(`/client/api/webhooks/${otherSameTenant._id}`)
+            .send({ name: 'taken-over' });
+        expect(patchOther.status).toBe(404);
+        const patchOtherLegacy = await request(app)
+            .patch(`/client/api/webhooks/${otherLegacyEndpoint._id}`)
+            .send({ name: 'taken-over-legacy' });
+        expect(patchOtherLegacy.status).toBe(404);
+
+        const deleteOther = await request(app).delete(`/client/api/webhooks/${otherSameTenant._id}`);
+        expect(deleteOther.status).toBe(404);
+        const deleteOtherLegacy = await request(app).delete(`/client/api/webhooks/${otherLegacyEndpoint._id}`);
+        expect(deleteOtherLegacy.status).toBe(404);
+        expect(await MerchantWebhookEndpoint.findById(otherSameTenant._id).lean()).toBeTruthy();
+        expect(await MerchantWebhookEndpoint.findById(otherLegacyEndpoint._id).lean()).toBeTruthy();
+
+        const retryOther = await request(app).post(`/client/api/webhook-deliveries/${otherDelivery._id}/retry`);
+        expect(retryOther.status).toBe(404);
+        const retryOtherLegacy = await request(app).post(`/client/api/webhook-deliveries/${otherLegacyDelivery._id}/retry`);
+        expect(retryOtherLegacy.status).toBe(404);
+        expect(axios.post).not.toHaveBeenCalled();
+        expect((await MerchantWebhookDelivery.findById(otherDelivery._id).lean()).status).toBe('failed');
+        expect((await MerchantWebhookDelivery.findById(otherLegacyDelivery._id).lean()).status).toBe('failed');
+
+        const patchOwn = await request(app)
+            .patch(`/client/api/webhooks/${ownLegacy._id}`)
+            .send({ name: 'own-legacy-renamed' });
+        expect(patchOwn.status).toBe(200);
+        expect(patchOwn.body.endpoint.name).toBe('own-legacy-renamed');
+        const renamed = await MerchantWebhookEndpoint.findById(ownLegacy._id).lean();
+        expect(String(renamed.tenantId)).toBe(String(legacy));
+
+        const retryOwn = await request(app).post(`/client/api/webhook-deliveries/${ownDelivery._id}/retry`);
+        expect(retryOwn.status).toBe(200);
+        expect(retryOwn.body.success).toBe(true);
+        const finished = await waitForTerminal(ownDelivery._id);
+        expect(finished.status).toBe('delivered');
+        expect(axios.post).toHaveBeenCalled();
+
+        const deleteOwn = await request(app).delete(`/client/api/webhooks/${ownMissing._id}`);
+        expect(deleteOwn.status).toBe(200);
+        expect(await MerchantWebhookEndpoint.findById(otherSameTenant._id).lean()).toMatchObject({ name: 'other-current' });
+        expect(await MerchantWebhookEndpoint.findById(otherLegacyEndpoint._id).lean()).toMatchObject({ name: 'other-legacy' });
+        expect(await MerchantWebhookDelivery.findById(otherDelivery._id).lean()).toBeTruthy();
+        expect(await storedTenantIds()).toEqual(tenantsBefore.filter((row) => row.id !== String(ownMissing._id)));
+        expect(await snapshot()).toEqual(before);
+    });
+
+    test('multi mode hides another tenant even when ownerId matches, and a sub-user is refused', async () => {
+        process.env.TENANT_MODE = 'multi';
+        const tenantA = new mongoose.Types.ObjectId();
+        const tenantB = new mongoose.Types.ObjectId();
+        requestTenantId = tenantA;
+        const companyA = new mongoose.Types.ObjectId();
+        const companyB = new mongoose.Types.ObjectId();
+        const manager = await createCompanyEmployee({
+            companyId: companyA,
+            tenantId: tenantA,
+            role: 'owner'
+        });
+        signInCompany(manager);
+        const ownHere = await createEndpoint({
+            tenantId: tenantA,
+            ownerModel: 'ClientCompany',
+            ownerId: companyA,
+            name: 'own-tenant-a'
+        });
+        const sameOwnerOtherTenant = await createEndpoint({
+            tenantId: tenantB,
+            ownerModel: 'ClientCompany',
+            ownerId: companyA,
+            name: 'own-tenant-b'
+        });
+        const otherCompany = await createEndpoint({
+            tenantId: tenantA,
+            ownerModel: 'ClientCompany',
+            ownerId: companyB,
+            name: 'other-tenant-a'
+        });
+        const unscopedSameOwner = await createEndpoint({
+            tenantId: null,
+            ownerModel: 'ClientCompany',
+            ownerId: companyA,
+            name: 'own-unscoped'
+        });
+        const foreignDelivery = await createDelivery(sameOwnerOtherTenant);
+        const otherDelivery = await createDelivery(otherCompany);
+        const snapshot = await financialFixture();
+        const before = await snapshot();
+
+        const listed = await request(app).get('/client/api/webhooks');
+        expect(listed.status).toBe(200);
+        expect(endpointIds(listed.body)).toEqual([String(ownHere._id)]);
+        const listedDeliveryIds = listed.body.deliveries.map((row) => String(row._id));
+        expect(listedDeliveryIds).not.toContain(String(foreignDelivery._id));
+        expect(listedDeliveryIds).not.toContain(String(otherDelivery._id));
+
+        expect((await request(app).patch(`/client/api/webhooks/${sameOwnerOtherTenant._id}`).send({ name: 'cross-tenant' })).status).toBe(404);
+        expect((await request(app).patch(`/client/api/webhooks/${otherCompany._id}`).send({ name: 'cross-company' })).status).toBe(404);
+        expect((await request(app).patch(`/client/api/webhooks/${unscopedSameOwner._id}`).send({ name: 'cross-unscoped' })).status).toBe(404);
+        expect((await request(app).delete(`/client/api/webhooks/${sameOwnerOtherTenant._id}`)).status).toBe(404);
+        expect((await request(app).delete(`/client/api/webhooks/${otherCompany._id}`)).status).toBe(404);
+        expect((await request(app).post(`/client/api/webhook-deliveries/${foreignDelivery._id}/retry`)).status).toBe(404);
+        expect((await request(app).post(`/client/api/webhook-deliveries/${otherDelivery._id}/retry`)).status).toBe(404);
+        expect(axios.post).not.toHaveBeenCalled();
+        expect((await MerchantWebhookEndpoint.findById(sameOwnerOtherTenant._id).lean()).name).toBe('own-tenant-b');
+        expect(String((await MerchantWebhookEndpoint.findById(sameOwnerOtherTenant._id).lean()).tenantId)).toBe(String(tenantB));
+        expect((await MerchantWebhookDelivery.findById(foreignDelivery._id).lean()).status).toBe('failed');
+        expect(await snapshot()).toEqual(before);
+
+        const staff = await createCompanyEmployee({
+            companyId: companyA,
+            tenantId: tenantA,
+            role: 'employee',
+            canManageCompany: false
+        });
+        signInCompany(staff);
+        expect((await request(app).get('/client/api/webhooks')).status).toBe(403);
+        expect((await request(app).get('/client/integrations/webhooks')).status).toBe(403);
+        expect((await request(app).patch(`/client/api/webhooks/${ownHere._id}`).send({ name: 'staff-edit' })).status).toBe(422);
+        expect((await request(app).delete(`/client/api/webhooks/${ownHere._id}`)).status).toBe(403);
+        expect((await request(app).post(`/client/api/webhook-deliveries/${(await createDelivery(ownHere))._id}/retry`)).status).toBe(403);
+        expect((await MerchantWebhookEndpoint.findById(ownHere._id).lean()).name).toBe('own-tenant-a');
+        expect(axios.post).not.toHaveBeenCalled();
+
+        const operator = await createCompanyEmployee({
+            companyId: companyA,
+            tenantId: tenantA,
+            role: 'employee',
+            canManageCompany: true
+        });
+        signInCompany(operator);
+        const allowed = await request(app).get('/client/api/webhooks');
+        expect(allowed.status).toBe(200);
+        expect(endpointIds(allowed.body)).toEqual([String(ownHere._id)]);
+
+        requestTenantId = null;
+        const unscopedEmployee = await createCompanyEmployee({
+            companyId: companyA,
+            role: 'owner'
+        });
+        signInCompany(unscopedEmployee);
+        expect((await request(app).get('/client/api/webhooks')).status).toBe(403);
+        expect(await snapshot()).toEqual(before);
+    });
+
+    test('diagnostic powershell here-string matches ahram_webhook_diag.js', () => {
+        const doc = fs.readFileSync(path.join(__dirname, '../docs/incidents/merchant-webhooks-visibility.md'), 'utf8');
+        const heading = doc.indexOf('## PowerShell: diagnostic');
+        const fence = doc.indexOf('```powershell\n', heading);
+        const start = fence + '```powershell\n'.length;
+        const end = doc.indexOf('\n```', start);
+        const block = doc.slice(start, end);
+        const open = block.indexOf("@'\n");
+        const close = block.indexOf("\n'@", open);
+        const embedded = Buffer.from(block.slice(open + 3, close), 'utf8');
+        const script = fs.readFileSync(path.join(__dirname, '../docs/incidents/ahram_webhook_diag.js'));
+        expect(embedded.equals(script)).toBe(true);
+        expect(block).toContain('$env:NODE_PATH');
+        expect(block).toContain('$ErrorActionPreference = $prevEAP');
+        expect(block).toContain('Remove-Item $scriptPath -Force -ErrorAction SilentlyContinue');
+    });
+
+    test('company routes do not use the open admin scope', () => {
+        const routeSource = fs.readFileSync(path.join(__dirname, '../routes/merchantWebhooks.js'), 'utf8');
+        const clientSection = routeSource.slice(0, routeSource.indexOf("router.get('/admin/webhooks'"));
+        expect(clientSection).not.toMatch(/adminAccountScope\(/);
+        expect(clientSection).not.toMatch(/tenantScope\(/);
+        expect(clientSection).toMatch(/ownerModel: owner\.ownerModel/);
+        expect(clientSection).toMatch(/tenantMode\(\) === 'multi'/);
+        expect(clientSection).toMatch(/tenantWriteId\(req\)/);
+        expect(routeSource).toMatch(/\/admin\/api\/webhooks[\s\S]*adminAccountScope\(req\)/);
     });
 });
 

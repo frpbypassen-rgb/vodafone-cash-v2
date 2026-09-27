@@ -6,9 +6,9 @@ Delivery is at-least-once. Merchants dedupe with the `x-ahrampay-event-id` heade
 
 ## Verdict
 
-Two code defects hide or skip legacy webhook rows in single-tenant mode. Both are older than the `527c782..6cc6d02` deploy. A third defect leaves crashed `sending` rows unselected by the worker. The admin page paints a successful empty payload as zeros, and it does not say so when the load failed. The worker switch added in that deploy can stop HTTP delivery, and it cannot empty the endpoint list.
+Two code defects hide or skip legacy webhook rows in single-tenant mode. Both are older than the `527c782..6cc6d02` deploy. A third defect leaves crashed `sending` rows unselected by the worker. The admin page paints a successful empty payload as zeros, and it does not say so when the load failed. The worker switch added in that deploy can stop HTTP delivery, and it cannot empty the endpoint list. The company integrations routes had the same single-tenant hide. This branch shows a company its own legacy endpoints and does not use the open admin scope on those routes.
 
-Whether production rows are actually in the legacy-tenant shape, and whether the running PM2 process is staging or has the worker switch off, needs the read-only diagnostic and the PM2 env check below.
+Status: mechanism proven from code; production confirmation pending. The production root cause is not confirmed until the production diagnostic output is received. Whether stored rows are in the legacy-tenant shape, and whether the running PM2 process is staging or has the worker switch off, needs that read-only diagnostic and the PM2 env check below.
 
 ## What `527c782..6cc6d02` changed
 
@@ -41,7 +41,7 @@ The chain stops at step 5 when the transaction's tenant id and the endpoint's te
 
 `utils/tenantScope.js:19-26`: when a tenant id is resolved and `TENANT_MODE` is `single` (also the default), the filter is `{ tenantId: { $in: [current, null] } }`. A row whose `tenantId` is a different ObjectId does not match. `null` and missing `tenantId` do match, because `{ tenantId: null }` matches missing fields.
 
-`utils/tenantScope.js:35-38` `adminAccountScope` returns `{}` in single mode and `tenantScope` in multi mode. Account and ledger admin views already use it. The webhook routes did not.
+`utils/tenantScope.js:35-38` `adminAccountScope` returns `{}` in single mode and `tenantScope` in multi mode. Account and ledger admin views already use it. The webhook admin routes did not. The company routes at `6cc6d02b` used the same `tenantScope` inside `endpointScope` (around lines 40-44, and the client list at 55-62). This branch replaces that company filter. The admin line numbers above are the pre-fix code.
 
 **Needs production data to confirm** this is why `/admin/webhooks` is empty on this host. If `visibleToAdminScope` is 0 and `byTenantCategory` is only `other-*`, this is the page bug. If `total` is 0, the endpoints are absent (case a).
 
@@ -98,7 +98,7 @@ This does not hide endpoints. It explains deliveries that stay in `sending`.
 
 No webhook path in this diagnosis writes `Ledger`, `Transaction` balances, or `AuditLog`. Customer and executor balances do not move because a callback was skipped. The operational loss is that a merchant who subscribed to `transfer.created`, `transfer.completed`, or `transfer.cancelled` does not get the HTTP call, so their own fulfillment or reconciliation does not run. Support sees an empty admin page and cannot retry a legacy delivery, because the retry lookup uses the same filter. A stuck `sending` row can mean the merchant already processed the event. Auto-resending every historical stuck row would repeat that side effect. This fix does not do that.
 
-The client portal (`routes/merchantWebhooks.js:40-62`, `endpointScope` via `tenantScope`) has the same single-tenant hide for a historical tenant id. This change does not alter client routes. After the fix, single-tenant enqueue still creates the delivery for that endpoint. The merchant's own integrations page can still omit it until a follow-up.
+At `6cc6d02b` the company integrations routes (`routes/merchantWebhooks.js` `endpointScope` via `tenantScope`, around lines 40-62) hide a historical tenant id the same way the admin page did. This branch changes those routes. Single mode lists and manages endpoints owned by the authenticated company, including a legacy or missing `tenantId`. Multi mode keeps the exact request tenant and ownership. Another company's endpoints and deliveries stay unreachable for view, update, delete, and retry. Company routes do not call `adminAccountScope` and do not use an empty filter. No stored `tenantId` is rewritten. A company manager is still the existing check: role `owner`, or `canManageCompany`.
 
 ## Reproduction
 
@@ -109,14 +109,17 @@ Tests in `tests/merchantWebhookVisibility.test.js`. They use the local Mongo mem
 - Multi mode, two tenants, same `ownerModel` + `ownerId`: tenant A's admin response does not contain tenant B's endpoint or delivery, retry returns 404, and enqueue writes a delivery only for tenant A's endpoint. A transaction with no tenant id matches only an unscoped endpoint, not tenant B.
 - Stale `sending` whose `lockedAt` is after `MERCHANT_WEBHOOK_STALE_SENDING_RECLAIM_AFTER` and older than 2 minutes is posted with the same `x-ahrampay-event-id`. A row locked before the cutoff is not posted. With the variable unset, a stale `sending` row is not posted. `attemptCount >= 6` is not posted.
 - `classifyAdminWebhookLoad(500, { success: false })` and a 200 body with `success: false` are failures. A 200 body with `success: true` and empty arrays is a real empty result.
+- Single mode, company routes: the signed-in company sees and can update, retry, and delete its own legacy-tenant endpoint and a missing-tenant endpoint. It cannot view, update, delete, or retry another company's endpoint or delivery, including a same-tenant row and a legacy-tenant row owned by the other company. `tenantId` values stay as stored. User `balance` and the `Ledger` row stay equal.
+- Multi mode, two tenants: a same-`ownerId` endpoint in the other tenant is not listed, updated, deleted, or retried. A missing-tenant row for that owner is not visible. A sub-user whose role is not `owner` and whose `canManageCompany` is false receives 403 on list, page, delete, and retry. An employee with `canManageCompany` can list the company's endpoint in the request tenant. With no request tenant, the company lookup matches nothing.
 - User `balance` and the `Ledger` row are equal before and after enqueue plus delivery.
 - `isMerchantWebhookWorkerEnabled({ NODE_ENV: 'production' })` is true when the switch is unset. `{ NODE_ENV: 'staging' }` and `{ NODE_ENV: 'production', APP_ENV: 'staging' }` are false. Kept from `tests/runtimeIsolation.test.js` and repeated here.
 
 ## Fix in this branch
 
 - Admin list, stats, and admin retry use `adminAccountScope`. Single mode sees every stored endpoint and delivery, including a historical tenant id and a missing tenant id. Multi mode stays `{ tenantId }` for the request tenant.
+- Company list, update, delete, and retry use ownership (`ownerModel` + `ownerId` of the authenticated company or agency). Single mode tolerates a historical or missing `tenantId` only on rows that company owns. Multi mode also requires the exact request tenant. A missing tenant in multi mode matches nothing (`tenantId: { $in: [] }`). These routes do not call `adminAccountScope` and do not use an empty filter. The session lookup uses the same rule, still keyed by the session id, and still requires role `owner` or `canManageCompany` (agency staff still require `canManageAgent`). New endpoints still store `tenantWriteId(req)`. Existing `tenantId` values are not rewritten.
 - Single-mode enqueue no longer adds `tenantId` to the endpoint query. `ownerModel` + `ownerId` + `enabled` + event remain the boundary. Multi mode sets `tenantId` to the transaction's tenant id, or `null` when the transaction has none, so it cannot attach to another tenant's endpoint.
-- `processPendingWebhooks` selects a stale `sending` row only when `MERCHANT_WEBHOOK_STALE_SENDING_RECLAIM_AFTER` parses as a time and `lockedAt` is strictly after that time and at least 2 minutes old. Unset or invalid means the worker does not auto-retry any stale `sending` row. Set the variable to the deploy instant after review. Older rows stay for `node scripts/listStaleSendingWebhooks.js`, which prints counts and delivery ids only. Resend remains the existing admin retry, as a separate approved action. The header stays `x-ahrampay-event-id`.
+- `processPendingWebhooks` selects a stale `sending` row only when `MERCHANT_WEBHOOK_STALE_SENDING_RECLAIM_AFTER` parses as a time and `lockedAt` is strictly after that time and at least 2 minutes old. Leave the variable unset until separately approved. Unset or invalid means the worker does not auto-retry any stale `sending` row and does not backfill missed events. Older rows stay for `node scripts/listStaleSendingWebhooks.js`, which prints counts and delivery ids only. Resend remains the existing admin or company retry, as a separate approved action. The header stays `x-ahrampay-event-id`.
 - `/admin/webhooks` uses `classifyAdminWebhookLoad`. HTTP failure, `success !== true`, or a body without the arrays shows `تعذر تحميل مراقبة الويب هوك` and does not paint zeros.
 - No migration, no new index, no `tenantId` rewrite, no endpoint delete, no secret rotation, no balance or ledger write.
 
@@ -151,7 +154,7 @@ Seed, and the single-mode result the test parsed from stdout:
 
 ## PowerShell: diagnostic
 
-Run on the production host. The here-string is the full script. It is written to `%TEMP%` and deleted afterwards, along with `MONGO_URI`.
+Run on the production host. The block below is the reviewed script, verbatim. It writes the diagnostic to `%TEMP%`, loads only `MONGO_URI`, `TENANT_MODE`, `DEFAULT_TENANT_ID`, `DEFAULT_TENANT_SLUG`, and `TENANT_ISOLATION_REQUIRED` from the repo `.env`, and restores every environment variable it touches (including `NODE_PATH`) and `ErrorActionPreference`, even on failure. It deletes the temp file. It prints whether each variable exists, never the values. The here-string is byte-identical to `docs/incidents/ahram_webhook_diag.js`. Production confirmation of the root cause waits on the output of this script: mechanism proven from code; production confirmation pending.
 
 ```powershell
 $repo = 'C:\Users\Administrator\Desktop\vodafone-cash-v2'
@@ -441,37 +444,57 @@ main()
         await mongoose.disconnect().catch(() => {});
     });
 '@
-[System.IO.File]::WriteAllText($scriptPath, $script, $utf8)
-
-$allowed = [System.Collections.Generic.HashSet[string]]::new([string[]]@(
-    'MONGO_URI', 'TENANT_MODE', 'DEFAULT_TENANT_ID', 'DEFAULT_TENANT_SLUG', 'TENANT_ISOLATION_REQUIRED'
-))
-foreach ($line in [System.IO.File]::ReadAllLines((Join-Path $repo '.env'))) {
-    $trim = $line.Trim()
-    if ($trim.Length -eq 0 -or $trim.StartsWith('#')) { continue }
-    $eq = $trim.IndexOf('=')
-    if ($eq -lt 1) { continue }
-    $name = $trim.Substring(0, $eq).Trim()
-    if (-not $allowed.Contains($name)) { continue }
-    $value = $trim.Substring($eq + 1).Trim()
-    if (($value.StartsWith('"') -and $value.EndsWith('"')) -or ($value.StartsWith("'") -and $value.EndsWith("'"))) {
-        $value = $value.Substring(1, $value.Length - 2)
-    }
-    Set-Item -Path "Env:$name" -Value $value
+# ---- Everything below only touches the CURRENT PowerShell session. ----
+# Every variable we set is saved first and restored exactly (value or absence), even on failure.
+$prevEAP = $ErrorActionPreference
+$ErrorActionPreference = 'Stop'
+$names = @('MONGO_URI', 'TENANT_MODE', 'DEFAULT_TENANT_ID', 'DEFAULT_TENANT_SLUG', 'TENANT_ISOLATION_REQUIRED', 'NODE_PATH')
+$saved = @{}
+foreach ($n in $names) {
+    $saved[$n] = [pscustomobject]@{ Existed = (Test-Path "Env:$n"); Value = [System.Environment]::GetEnvironmentVariable($n, 'Process') }
 }
-
-$env:NODE_PATH = Join-Path $repo 'node_modules'
-Push-Location $repo
+$pushed = $false
 try {
+    [System.IO.File]::WriteAllText($scriptPath, $script, $utf8)
+
+    $allowed = [System.Collections.Generic.HashSet[string]]::new([string[]]@(
+        'MONGO_URI', 'TENANT_MODE', 'DEFAULT_TENANT_ID', 'DEFAULT_TENANT_SLUG', 'TENANT_ISOLATION_REQUIRED'
+    ))
+    foreach ($line in [System.IO.File]::ReadAllLines((Join-Path $repo '.env'))) {
+        $trim = $line.Trim()
+        if ($trim.Length -eq 0 -or $trim.StartsWith('#')) { continue }
+        $eq = $trim.IndexOf('=')
+        if ($eq -lt 1) { continue }
+        $name = $trim.Substring(0, $eq).Trim()
+        if (-not $allowed.Contains($name)) { continue }
+        $value = $trim.Substring($eq + 1).Trim()
+        if (($value.StartsWith('"') -and $value.EndsWith('"')) -or ($value.StartsWith("'") -and $value.EndsWith("'"))) {
+            $value = $value.Substring(1, $value.Length - 2)
+        }
+        Set-Item -Path "Env:$name" -Value $value
+    }
+
+    $env:NODE_PATH = Join-Path $repo 'node_modules'
+    Push-Location $repo
+    $pushed = $true
     node $scriptPath
-} finally {
-    Pop-Location
-    Remove-Item Env:MONGO_URI -ErrorAction SilentlyContinue
-    Remove-Item Env:TENANT_MODE -ErrorAction SilentlyContinue
-    Remove-Item Env:DEFAULT_TENANT_ID -ErrorAction SilentlyContinue
-    Remove-Item Env:DEFAULT_TENANT_SLUG -ErrorAction SilentlyContinue
-    Remove-Item Env:TENANT_ISOLATION_REQUIRED -ErrorAction SilentlyContinue
+    "diag exit code = $LASTEXITCODE"
+}
+finally {
+    if ($pushed) { Pop-Location }
+    foreach ($n in $names) {
+        if ($saved[$n].Existed) {
+            [System.Environment]::SetEnvironmentVariable($n, $saved[$n].Value, 'Process')
+        } else {
+            Remove-Item "Env:$n" -ErrorAction SilentlyContinue
+        }
+    }
     Remove-Item $scriptPath -Force -ErrorAction SilentlyContinue
+    # Verification: prints only whether each variable exists, never its value.
+    foreach ($n in $names) { "{0} restored (exists now={1}, existed before={2})" -f $n, (Test-Path "Env:$n"), $saved[$n].Existed }
+    "temp script removed = {0}" -f (-not (Test-Path $scriptPath))
+    $ErrorActionPreference = $prevEAP
+    Remove-Variable saved, script -ErrorAction SilentlyContinue
 }
 ```
 
@@ -499,7 +522,7 @@ Do not copy URLs, names, payloads, response bodies beyond those fields, or the c
 
 ## Stuck `sending` listing
 
-After deploy review, `node scripts/listStaleSendingWebhooks.js` prints counts and delivery ids for rows locked longer than 2 minutes. It does not send. Ids in `manualReviewIds` are not auto-retried. Ids in `reclaimEligibleIds` are the ones the worker may post when the cutoff is set. Any resend of a manual-review id is a separate approved admin retry.
+Leave `MERCHANT_WEBHOOK_STALE_SENDING_RECLAIM_AFTER` unset until separately approved. Do not backfill missed events. `node scripts/listStaleSendingWebhooks.js` prints counts and delivery ids for rows locked longer than 2 minutes. It does not send. Ids in `manualReviewIds` are not auto-retried while the variable is unset. Ids in `reclaimEligibleIds` are the ones the worker may post only when a cutoff is set later, under a separate approval. Any resend of a manual-review id is a separate approved admin or company retry.
 
 ## Full diagnostic script
 

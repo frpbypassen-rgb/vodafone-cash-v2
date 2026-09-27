@@ -9,8 +9,9 @@ const User = require('../models/User');
 const MerchantWebhookEndpoint = require('../models/MerchantWebhookEndpoint');
 const MerchantWebhookDelivery = require('../models/MerchantWebhookDelivery');
 const { requireAuth, requirePermission } = require('../middlewares/auth');
+const { tenantMode } = require('../middlewares/tenantResolver');
 const { encrypt } = require('../utils/encryption');
-const { adminAccountScope, tenantScope, tenantWriteId } = require('../utils/tenantScope');
+const { adminAccountScope, tenantWriteId } = require('../utils/tenantScope');
 const {
     EVENTS, deliverWebhook, normalizeEvents, publicEndpoint, validateWebhookUrl
 } = require('../services/merchantWebhookService');
@@ -20,28 +21,51 @@ const requireClientAuth = (req, res, next) => {
     return res.status(401).json({ success: false, error: 'AUTH_REQUIRED' });
 };
 
+const requestTenantId = (req) => req.tenantId || (req.tenant && req.tenant._id) || null;
+
+// Company and agency portal lookups. Single mode keys only on the session id
+// so a historical tenantId on that record still resolves. Multi mode also
+// requires the exact request tenant. A missing tenant matches nothing.
+// This is never adminAccountScope and never an empty collection filter.
+const clientIdentityScope = (req, id) => {
+    const query = { _id: id };
+    if (tenantMode() === 'multi') {
+        const tenantId = requestTenantId(req);
+        query.tenantId = tenantId || { $in: [] };
+    }
+    return query;
+};
+
 const resolveClientOwner = async (req) => {
-    const scope = tenantScope(req);
     if (req.session.accountType === 'company') {
-        const employee = await ClientEmployee.findOne({ _id: req.session.clientId, ...scope }).select('companyId role canManageCompany name').lean();
+        const employee = await ClientEmployee.findOne(clientIdentityScope(req, req.session.clientId)).select('companyId role canManageCompany name').lean();
         if (!employee || !['owner'].includes(employee.role) && !employee.canManageCompany) throw new Error('WEBHOOK_ACCESS_DENIED');
         return { ownerModel: 'ClientCompany', ownerId: employee.companyId, actorName: employee.name || 'شركة' };
     }
     if (req.session.accountType === 'agent_staff') {
-        const employee = await AgentEmployee.findOne({ _id: req.session.clientId, ...scope }).select('agentId canManageAgent name').lean();
+        const employee = await AgentEmployee.findOne(clientIdentityScope(req, req.session.clientId)).select('agentId canManageAgent name').lean();
         if (!employee?.canManageAgent) throw new Error('WEBHOOK_ACCESS_DENIED');
         return { ownerModel: 'User', ownerId: employee.agentId, actorName: employee.name || 'وكالة' };
     }
-    const agent = await User.findOne({ _id: req.session.clientId, role: 'agent', ...scope }).select('_id name').lean();
+    const agent = await User.findOne({ ...clientIdentityScope(req, req.session.clientId), role: 'agent' }).select('_id name').lean();
     if (!agent) throw new Error('WEBHOOK_ACCESS_DENIED');
     return { ownerModel: 'User', ownerId: agent._id, actorName: agent.name || 'وكالة' };
 };
 
-const endpointScope = (req, owner) => ({
-    ...tenantScope(req),
-    ownerModel: owner.ownerModel,
-    ownerId: owner.ownerId
-});
+// Single mode: company ownership is the boundary, including a legacy or
+// missing tenantId on rows that company owns. Multi mode adds the exact
+// request tenant. Never adminAccountScope and never an empty filter.
+const endpointScope = (req, owner) => {
+    const query = {
+        ownerModel: owner.ownerModel,
+        ownerId: owner.ownerId
+    };
+    if (tenantMode() === 'multi') {
+        const tenantId = requestTenantId(req);
+        query.tenantId = tenantId || { $in: [] };
+    }
+    return query;
+};
 
 router.get('/client/integrations/webhooks', requireClientAuth, async (req, res) => {
     try {

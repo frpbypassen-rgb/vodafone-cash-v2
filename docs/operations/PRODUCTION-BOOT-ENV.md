@@ -52,12 +52,11 @@ Startup logs one warning naming every switch that is off. Details:
 `docs/operations/staging-isolation.md`.
 
 `MERCHANT_WEBHOOK_STALE_SENDING_RECLAIM_AFTER` is not a kill switch. Leave it
-unset on the first boot of a webhook-visibility fix so historical `sending`
-rows are not auto-retried. After review, set it to the deploy instant (ISO)
-if new crashed `sending` rows should be retried once their lock is older than
-2 minutes. Rows locked at or before that instant stay for manual review
-(`node scripts/listStaleSendingWebhooks.js` prints counts and delivery ids
-only). Delivery is at-least-once. Merchants dedupe on `x-ahrampay-event-id`.
+unset until separately approved. While it is unset, historical `sending`
+rows are not auto-retried and missed events are not backfilled. Do not set
+it to a deploy instant as part of this change. Rows stay listed for manual
+review (`node scripts/listStaleSendingWebhooks.js` prints counts and delivery
+ids only). Delivery is at-least-once. Merchants dedupe on `x-ahrampay-event-id`.
 
 ## Repair then reload
 
