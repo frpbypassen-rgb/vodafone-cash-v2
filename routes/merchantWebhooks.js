@@ -10,7 +10,7 @@ const MerchantWebhookEndpoint = require('../models/MerchantWebhookEndpoint');
 const MerchantWebhookDelivery = require('../models/MerchantWebhookDelivery');
 const { requireAuth, requirePermission } = require('../middlewares/auth');
 const { encrypt } = require('../utils/encryption');
-const { tenantScope, tenantWriteId } = require('../utils/tenantScope');
+const { adminAccountScope, tenantScope, tenantWriteId } = require('../utils/tenantScope');
 const {
     EVENTS, deliverWebhook, normalizeEvents, publicEndpoint, validateWebhookUrl
 } = require('../services/merchantWebhookService');
@@ -134,7 +134,7 @@ router.post('/client/api/webhook-deliveries/:id/retry', requireClientAuth, async
 
 router.get('/admin/webhooks', requireAuth, requirePermission('reports.read'), (_req, res) => res.render('admin_webhooks'));
 router.get('/admin/api/webhooks', requireAuth, requirePermission('reports.read'), async (req, res) => {
-    const scope = tenantScope(req);
+    const scope = adminAccountScope(req);
     const [endpoints, deliveries, summary] = await Promise.all([
         MerchantWebhookEndpoint.find(scope).sort({ lastFailureAt: -1, createdAt: -1 }).limit(200).lean(),
         MerchantWebhookDelivery.find(scope).sort({ createdAt: -1 }).limit(200).select('-payload').lean(),
@@ -147,7 +147,7 @@ router.get('/admin/api/webhooks', requireAuth, requirePermission('reports.read')
 });
 router.post('/admin/api/webhook-deliveries/:id/retry', requireAuth, requirePermission('reports.manage'), async (req, res) => {
     const delivery = await MerchantWebhookDelivery.findOneAndUpdate(
-        { _id: req.params.id, ...tenantScope(req) },
+        { _id: req.params.id, ...adminAccountScope(req) },
         { $set: { status: 'pending', attemptCount: 0, nextAttemptAt: new Date(), lockedAt: null, lastError: '' } },
         { returnDocument: 'after' }
     );
