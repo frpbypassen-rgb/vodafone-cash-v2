@@ -51,6 +51,13 @@ startup is refused (`STAGING_ENV_CONFLICT`) instead of serving in a mixed mode.
 Startup logs one warning naming every switch that is off. Details:
 `docs/operations/staging-isolation.md`.
 
+`MERCHANT_WEBHOOK_STALE_SENDING_RECLAIM_AFTER` is not a kill switch. Leave it
+unset until separately approved. While it is unset, historical `sending`
+rows are not auto-retried and missed events are not backfilled. Do not set
+it to a deploy instant as part of this change. Rows stay listed for manual
+review (`node scripts/listStaleSendingWebhooks.js` prints counts and delivery
+ids only). Delivery is at-least-once. Merchants dedupe on `x-ahrampay-event-id`.
+
 ## Repair then reload
 
 ```powershell
