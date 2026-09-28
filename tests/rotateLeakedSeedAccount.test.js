@@ -36,6 +36,50 @@ const employee = () => ({
 });
 
 describe('leaked seed account rotation', () => {
+    test.each([{ status: 1 }, { status: null, error: new Error('missing icacls') }])(
+        'ACL failure leaves no password file and prevents credential mutation', async (aclResult) => {
+            const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'rotation-acl-'));
+            const applyChanges = jest.fn();
+            const runAcl = jest.fn(() => {
+                const [filePath] = runAcl.mock.calls[0][1];
+                expect(fs.readFileSync(filePath, 'utf8')).toBe('');
+                return aclResult;
+            });
+            try {
+                await expect(runRotation({
+                    apply: true,
+                    findEmployee: async () => employee(),
+                    hashPassword: async () => '$2b$12$alreadyhashedvalue',
+                    applyChanges,
+                    resolvePassword: async () => PASSWORD,
+                    persistPasswordFile: true,
+                    writePasswordFile: (value) => writeRestrictedPasswordFile(value, directory, {
+                        platform: 'win32', env: { USERNAME: 'test', USERDOMAIN: 'machine' }, spawnSync: runAcl
+                    }),
+                    stdout: capture().stream, stderr: capture().stream
+                })).rejects.toThrow('ACL restriction failed');
+                expect(applyChanges).not.toHaveBeenCalled();
+                expect(fs.readdirSync(directory)).toEqual([]);
+            } finally {
+                fs.rmSync(directory, { recursive: true, force: true });
+            }
+        }
+    );
+
+    test('Windows identity is required before writing the credential', () => {
+        const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'rotation-identity-'));
+        const runAcl = jest.fn();
+        try {
+            expect(() => writeRestrictedPasswordFile(PASSWORD, directory, {
+                platform: 'win32', env: {}, spawnSync: runAcl
+            })).toThrow('identity is unavailable');
+            expect(runAcl).not.toHaveBeenCalled();
+            expect(fs.readdirSync(directory)).toEqual([]);
+        } finally {
+            fs.rmSync(directory, { recursive: true, force: true });
+        }
+    });
+
     test('dry-run reports existence and makes no writes', async () => {
         const stdout = capture();
         const stderr = capture();
@@ -174,7 +218,15 @@ describe('leaked seed account rotation', () => {
             expect(stdout.text()).toContain('audit: appended');
             expect(stdout.text()).toContain(`passwordFile: ${result.passwordFile}`);
             expect(fs.readFileSync(result.passwordFile, 'utf8')).toBe(`${PASSWORD}\n`);
-            expect(fs.statSync(result.passwordFile).mode & 0o777).toBe(0o600);
+            if (process.platform === 'win32') {
+                const { spawnSync } = require('child_process');
+                const acl = spawnSync('icacls', [result.passwordFile], { encoding: 'utf8', windowsHide: true });
+                expect(acl.status).toBe(0);
+                expect(acl.stdout).not.toContain('(I)');
+                expect(acl.stdout).toContain(`${process.env.USERNAME}:(F)`);
+            } else {
+                expect(fs.statSync(result.passwordFile).mode & 0o777).toBe(0o600);
+            }
         } finally {
             fs.rmSync(directory, { recursive: true, force: true });
         }

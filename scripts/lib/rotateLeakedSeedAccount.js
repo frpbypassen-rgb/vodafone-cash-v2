@@ -35,7 +35,10 @@ const generatePassword = () => {
 
 const escapeRegex = (value) => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-const writeRestrictedPasswordFile = (password, directory = path.join(process.cwd(), '.secrets')) => {
+const writeRestrictedPasswordFile = (password, directory = path.join(process.cwd(), '.secrets'), options = {}) => {
+    const platform = options.platform || process.platform;
+    const env = options.env || process.env;
+    const spawnSync = options.spawnSync || require('child_process').spawnSync;
     fs.mkdirSync(directory, { recursive: true, mode: 0o700 });
     try {
         fs.chmodSync(directory, 0o700);
@@ -47,23 +50,30 @@ const writeRestrictedPasswordFile = (password, directory = path.join(process.cwd
     const flags = fs.constants.O_WRONLY | fs.constants.O_CREAT | fs.constants.O_EXCL;
     const descriptor = fs.openSync(filePath, flags, 0o600);
     try {
+        // Restrict the empty file before it contains any credential.
+        if (platform === 'win32') {
+            const identity = env.USERNAME && (env.USERDOMAIN ? `${env.USERDOMAIN}\\${env.USERNAME}` : env.USERNAME);
+            if (!identity) throw new Error('Cannot secure password file: Windows account identity is unavailable.');
+            const result = spawnSync('icacls', [filePath, '/inheritance:r', '/grant:r', `${identity}:(F)`], {
+                stdio: 'ignore', windowsHide: true
+            });
+            if (result.error || result.status !== 0) {
+                throw new Error('Cannot secure password file: Windows ACL restriction failed.');
+            }
+        } else {
+            fs.fchmodSync(descriptor, 0o600);
+        }
         fs.writeFileSync(descriptor, `${password}\n`, { encoding: 'utf8' });
-    } finally {
+    } catch (error) {
         fs.closeSync(descriptor);
+        fs.rmSync(filePath, { force: true });
+        throw error;
     }
+    fs.closeSync(descriptor);
     try {
         fs.chmodSync(filePath, 0o600);
     } catch (_error) {
-        // Windows cannot represent the full Unix mode. The ACL step below is best-effort.
-    }
-    if (process.platform === 'win32' && process.env.USERNAME) {
-        const { spawnSync } = require('child_process');
-        spawnSync('icacls', [
-            filePath,
-            '/inheritance:r',
-            '/grant:r',
-            `${process.env.USERNAME}:(R)`
-        ], { stdio: 'ignore' });
+        // Windows ACLs, enforced before writing, are authoritative on Windows.
     }
     return filePath;
 };

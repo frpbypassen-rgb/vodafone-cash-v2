@@ -30,6 +30,10 @@ const SCAN_LIMIT = 1000;
 
 const SUCCESS_STATUS_SET = new Set(SUCCESS_STATUSES);
 const RETRYABLE_KIND_SET = new Set(RETRYABLE_KINDS);
+const UNRESOLVED_FAILURE_CODES = new Set([
+    'WHATCHIMP_TIMEOUT', 'WHATCHIMP_REQUEST_FAILED', 'RETRY_SEND_FAILED',
+    'RECEIPT_DELIVERY_FAILED', 'PART_PROOF_SEND_FAILED', 'RETRY_SUPERSEDED'
+]);
 
 const readBoundedInt = (name, fallback, min, max) => {
     const raw = process.env[name];
@@ -93,6 +97,7 @@ const ineligibilityReason = (delivery, context) => {
     if (delivery.kind === 'rate_change') return 'RATE_CHANGE_EXCLUDED';
     if (!RETRYABLE_KIND_SET.has(delivery.kind)) return 'KIND_EXCLUDED';
     if (delivery.status !== STOPPED_STATUS) return 'STATUS_NOT_STOPPED';
+    if (UNRESOLVED_FAILURE_CODES.has(delivery.failureCode)) return 'PROVIDER_RESULT_UNRESOLVED';
     if (attemptCount(delivery) >= context.maxAttempts) return 'RETRY_CAP_EXCEEDED';
     const updatedAt = new Date(delivery.updatedAt).getTime();
     if (!Number.isFinite(updatedAt) || updatedAt < context.since.getTime()) return 'OUTSIDE_WINDOW';
@@ -143,11 +148,17 @@ const loadTransactionsInScope = async (transactionIds, tenantFilter) => {
     return Transaction.find(query).select('_id').lean();
 };
 
+const deliveryFilterForTenant = async (match, tenantFilter) => {
+    if (!hasTenantFilter(tenantFilter)) return match;
+    const transactions = await Transaction.find(tenantFilter).select('_id').lean();
+    return { ...match, transactionId: { $in: transactions.map((row) => row._id) } };
+};
+
 const planRetries = async ({ tenantFilter = {}, window, now = new Date() } = {}) => {
     const resolved = resolveWindow(window, now);
     const maxAttempts = resolveMaxAttempts();
     const batchCap = resolveBatchCap();
-    const filter = candidateFilter(resolved.since, maxAttempts);
+    const filter = await deliveryFilterForTenant(candidateFilter(resolved.since, maxAttempts), tenantFilter);
     const [rows, totalMatched] = await Promise.all([
         WhatsAppDelivery.find(filter).sort({ updatedAt: 1 }).limit(SCAN_LIMIT).lean(),
         WhatsAppDelivery.countDocuments(filter)
@@ -215,10 +226,7 @@ const scopeListedDeliveries = async (deliveries, tenantFilter) => {
 };
 
 const countDeliveries = async (match, tenantFilter) => {
-    if (!hasTenantFilter(tenantFilter)) return WhatsAppDelivery.countDocuments(match);
-    const rows = await WhatsAppDelivery.find(match).select('transactionId').lean();
-    const scoped = await scopeListedDeliveries(rows, tenantFilter);
-    return scoped.length;
+    return WhatsAppDelivery.countDocuments(await deliveryFilterForTenant(match, tenantFilter));
 };
 
 const wait = (ms) => (ms > 0
@@ -238,14 +246,19 @@ const acquireBulkLock = async () => {
     const ownerId = crypto.randomBytes(16).toString('hex');
     const now = new Date();
     const expiresAt = new Date(now.getTime() + LOCK_TTL_MS);
+    // Older releases used ObjectId rows and may still have a unique key index.
+    const legacyFilter = { key: LOCK_KEY, _id: { $ne: LOCK_KEY } };
+    const activeLegacy = await BulkJobLock.collection.findOne({ ...legacyFilter, expiresAt: { $gt: now } });
+    if (activeLegacy) return null;
+    await BulkJobLock.collection.deleteMany({ ...legacyFilter, expiresAt: { $lte: now } });
     const stolen = await BulkJobLock.findOneAndUpdate(
-        { key: LOCK_KEY, expiresAt: { $lte: now } },
+        { _id: LOCK_KEY, expiresAt: { $lte: now } },
         { $set: { ownerId, expiresAt } },
         { new: true }
     );
     if (stolen) return { ownerId };
     try {
-        await BulkJobLock.create({ key: LOCK_KEY, ownerId, expiresAt });
+        await BulkJobLock.create({ _id: LOCK_KEY, key: LOCK_KEY, ownerId, expiresAt });
         return { ownerId };
     } catch (error) {
         if (error?.code === 11000) return null;
@@ -255,7 +268,7 @@ const acquireBulkLock = async () => {
 
 const extendBulkLock = async (ownerId) => {
     const updated = await BulkJobLock.updateOne(
-        { key: LOCK_KEY, ownerId },
+        { _id: LOCK_KEY, ownerId },
         { $set: { expiresAt: new Date(Date.now() + LOCK_TTL_MS) } }
     );
     return Boolean(updated?.matchedCount || updated?.modifiedCount);
@@ -263,7 +276,7 @@ const extendBulkLock = async (ownerId) => {
 
 const releaseBulkLock = async (ownerId) => {
     if (!ownerId) return;
-    await BulkJobLock.deleteOne({ key: LOCK_KEY, ownerId });
+    await BulkJobLock.deleteOne({ _id: LOCK_KEY, ownerId });
 };
 
 const claimFilter = (delivery, maxAttempts) => ({
@@ -522,5 +535,6 @@ module.exports = {
     previewFailedRetries,
     retryFailedDeliveries,
     scopeListedDeliveries,
+    deliveryFilterForTenant,
     countDeliveries
 };
