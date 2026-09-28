@@ -9,13 +9,15 @@ const SubAccount = require('../models/SubAccount');
 const ExecutorGroup = require('../models/ExecutorGroup');
 const Employee = require('../models/Employee');
 const Transaction = require('../models/Transaction');
+const { assertExplicitNonProductionMongoUri, requireSecret } = require('./lib/productionDatabaseGuard');
 
 async function runStressTest() {
-    console.log('Connecting to DB...');
-    await mongoose.connect(process.env.MONGO_URI);
-    console.log('Connected.');
-
     try {
+        assertExplicitNonProductionMongoUri(process.env);
+        const password = requireSecret(process.env, 'STRESS_TEST_PASSWORD', 8);
+        console.log('Connecting to DB. The connection string is not printed.');
+        await mongoose.connect(process.env.MONGO_URI, { autoIndex: false, autoCreate: false });
+        console.log('Connected.');
         console.log('Cleaning old test data...');
         // Clean up previous test data
         await User.deleteMany({ phone: /test_/ });
@@ -30,7 +32,7 @@ async function runStressTest() {
         // 1. حساب عميل مباشر
         const clientUser = await User.create({
             name: 'Test Client', phone: 'test_client_01', balance: 10000, 
-            status: 'active', webUsername: 'test_client', webPassword: '123'
+            status: 'active', webUsername: 'test_client', webPassword: password
         });
 
         // 2. حساب شركة
@@ -39,20 +41,20 @@ async function runStressTest() {
         });
         const compEmp = await ClientEmployee.create({
             name: 'Test Comp Emp', phone: 'test_emp_01', role: 'manager', 
-            status: 'active', companyId: clientCompany._id, webUsername: 'test_comp_emp', webPassword: '123'
+            status: 'active', companyId: clientCompany._id, webUsername: 'test_comp_emp', webPassword: password
         });
 
         // 3. حساب عميل جديد تابع لوكالة (نقطة بيع)
         const subAccountUser = await SubAccount.create({
             masterType: 'user', masterId: clientUser._id, name: 'TestSubAccount User',
             phone: 'test_sub_01', balance: 5000, status: 'active', customMargin: 0.1,
-            webUsername: 'test_sub_user', webPassword: '123'
+            webUsername: 'test_sub_user', webPassword: password
         });
 
         const subAccountComp = await SubAccount.create({
             masterType: 'company', masterId: clientCompany._id, name: 'TestSubAccount Comp',
             phone: 'test_sub_02', balance: 10000, status: 'active', customMargin: 0.1,
-            webUsername: 'test_sub_comp', webPassword: '123'
+            webUsername: 'test_sub_comp', webPassword: password
         });
 
         // 4. حساب منفذ
@@ -61,7 +63,7 @@ async function runStressTest() {
         });
         const execEmp = await Employee.create({
             name: 'Test Exec Emp', phone: 'test_exec_01', role: 'manager', 
-            status: 'active', groupId: execGroup._id, webUsername: 'test_exec_emp', webPassword: '123'
+            status: 'active', groupId: execGroup._id, webUsername: 'test_exec_emp', webPassword: password
         });
 
         // 5. حساب منفذ API
@@ -131,7 +133,7 @@ async function runStressTest() {
         
         process.exit(0);
     } catch (e) {
-        console.error('Fatal Error during stress test:', e);
+        console.error('Fatal Error during stress test:', String(e && e.message || 'failed').replace(/(?:mongodb(?:\+srv)?:\/\/)\S+/gi, '[redacted]'));
         process.exit(1);
     }
 }

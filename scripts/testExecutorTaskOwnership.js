@@ -26,9 +26,15 @@ async function request(path, token, method = 'GET', body) {
     return { status: response.status, data: await response.json() };
 }
 
+const requiredSecret = (name) => {
+    const value = String(process.env[name] || '');
+    if (value.length < 8) throw new Error(`${name} is required and is not printed.`);
+    return value;
+};
+
 async function main() {
-    const manager = await login('local_exec_manager@ahram.com', 'DemoManager2026!');
-    const operator = await login('local_exec_operator@ahram.com', 'DemoOperator2026!');
+    const manager = await login('local_exec_manager@ahram.com', requiredSecret('SEED_LOCAL_EXEC_MANAGER_PASSWORD'));
+    const operator = await login('local_exec_operator@ahram.com', requiredSecret('SEED_LOCAL_EXEC_OPERATOR_PASSWORD'));
     const initial = await request('/executor/live-tasks', manager.token);
     const task = (initial.data.data || []).find((item) => item.txId === taskId);
     if (!task) throw new Error(`Task not found: ${taskId}`);

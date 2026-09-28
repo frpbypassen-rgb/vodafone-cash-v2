@@ -5,9 +5,14 @@ const path = require('path');
 
 const BASE = process.env.TEST_BASE_URL || 'http://127.0.0.1:3002';
 const OUT_DIR = path.join(process.cwd(), 'artifacts', 'executor-deposit-test', new Date().toISOString().replace(/[:.]/g, '-'));
+const requiredSecret = (name) => {
+    const value = String(process.env[name] || '');
+    if (value.length < 8) throw new Error(`${name} is required and is not printed.`);
+    return value;
+};
 const MANAGER = {
     username: 'local_exec_manager@ahram.com',
-    password: 'DemoManager2026!'
+    password: requiredSecret('SEED_LOCAL_EXEC_MANAGER_PASSWORD')
 };
 
 function ensureDir(dir) {
