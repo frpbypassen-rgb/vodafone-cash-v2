@@ -1,8 +1,12 @@
 <%# Ahram Client OS — mobile home is deliberately separate from the desktop layout. %>
 <section class="client-os-mobile" aria-label="الرئيسية">
     <header class="client-os-mobile-greeting">
-        <div><p>مركز القيادة</p><h1>أهلاً، <%= user.name %></h1><span><i class="fa-solid fa-circle-check"></i> <%= isSystemOpen ? 'الخدمات متاحة الآن' : 'الخدمات متوقفة مؤقتاً' %></span></div>
-        <button type="button" onclick="openWalletHubMore()" aria-label="إعدادات الحساب"><i class="fa-solid fa-sliders"></i></button>
+        <div><p>بوابة العملاء</p><h1>أهلاً، <%= user.name %></h1><span><i class="fa-solid fa-circle-check"></i> <%= isSystemOpen ? 'الخدمات متاحة الآن' : 'الخدمات متوقفة مؤقتاً' %></span></div>
+        <div class="client-os-mobile-greeting-actions">
+            <%- include('customer_notifications') %>
+            <%- include('customer_theme_switcher') %>
+            <button type="button" class="cl-icon-button" data-cl-more-open aria-label="المزيد"><i class="fa-solid fa-ellipsis"></i></button>
+        </div>
     </header>
 
     <article class="client-os-mobile-balance">
@@ -14,8 +18,9 @@
     <% if (user.role !== 'accountant') { %>
     <div class="client-os-mobile-primary-actions">
         <button type="button" data-bs-toggle="modal" data-bs-target="#transferModal"><i class="fa-solid fa-paper-plane"></i><span>تحويل مالي</span></button>
-        <% if (user.role !== 'agent') { %><a href="/client/account?tab=deposits-new"><i class="fa-solid fa-circle-plus"></i><span>إيداع</span></a><% } %>
+        <% if (typeof canRequestDeposit === 'undefined' ? user.role !== 'agent' : canRequestDeposit) { %><a href="/client/account?tab=deposits-new"><i class="fa-solid fa-circle-plus"></i><span>إيداع</span></a><% } %>
         <a href="/client/account?tab=operations"><i class="fa-solid fa-file-invoice"></i><span>كشف حساب</span></a>
+        <a href="/client/reports"><i class="fa-solid fa-chart-column"></i><span>التقارير</span></a>
         <a href="/client/support"><i class="fa-solid fa-headset"></i><span>دعم</span></a>
     </div>
     <% } %>
@@ -24,7 +29,8 @@
         <header><div><p>خدمات الحساب</p><h2>تابع حسابك بسهولة</h2></div><i class="fa-solid fa-shield-halved"></i></header>
         <div>
             <a href="/client/account?tab=operations"><i class="fa-solid fa-receipt"></i><span>العمليات والإيصالات</span></a>
-            <% if (user.role !== 'agent') { %><a href="/client/account?tab=deposits-new"><i class="fa-solid fa-circle-plus"></i><span>إضافة رصيد</span></a><% } %>
+            <a href="/client/reports"><i class="fa-solid fa-chart-column"></i><span>التقارير</span></a>
+            <% if (typeof canRequestDeposit === 'undefined' ? user.role !== 'agent' : canRequestDeposit) { %><a href="/client/account?tab=deposits-new"><i class="fa-solid fa-circle-plus"></i><span>إضافة رصيد</span></a><% } %>
             <a href="/client/support"><i class="fa-solid fa-headset"></i><span>الدعم والشكاوى</span></a>
             <a href="/client/settings?section=security"><i class="fa-solid fa-shield-halved"></i><span>الأمان</span></a>
         </div>
@@ -72,6 +78,7 @@
     </section>
 
     <section class="client-os-mobile-tools">
+        <a href="/client/reports"><span><i class="fa-solid fa-chart-column"></i></span><div><strong>التقارير</strong><small>ملخص الفترة · كشف · تصدير</small></div><i class="fa-solid fa-chevron-left"></i></a>
         <a href="/client/account"><span><i class="fa-solid fa-file-invoice"></i></span><div><strong>كشف الحساب</strong><small>عمليات · إيداعات · تصدير</small></div><i class="fa-solid fa-chevron-left"></i></a>
         <a href="/client/settings?section=profile"><span><i class="fa-solid fa-gear"></i></span><div><strong>الإعدادات</strong><small>الملف · الأمان · الإشعارات</small></div><i class="fa-solid fa-chevron-left"></i></a>
     </section>

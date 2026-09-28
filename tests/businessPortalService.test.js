@@ -5,11 +5,13 @@ const {
     resolveCompanyPermissions,
     resolveAgentPermissions,
     buildNavigation,
+    buildCompanyMobileNav,
     buildReportGroups,
     buildReportAnalytics,
     summarizeTransactions,
     findServiceByToken,
     resolvePortalHomeHref,
+    resolveClientPostLoginHref,
     forbiddenRedirectPath,
     canAccessPage,
     canPostPortalTransfer,
@@ -29,6 +31,8 @@ describe('Business portal service', () => {
         expect(owner).toMatchObject({ owner: true, manager: true, canManageStaff: true, canManageCustomers: false, canInternalTransfer: true, canRequestDeposit: true });
         expect(manager).toMatchObject({ owner: false, manager: true, canManageStaff: false, canManageCustomers: false, canInternalTransfer: true });
         expect(employee).toMatchObject({ employee: true, canViewBalance: false, canViewReports: false, canTransfer: true, canInternalTransfer: false });
+        expect(resolveCompanyPermissions({ role: 'employee', corporateRole: 'manager' })).toMatchObject({ manager: true, employee: false, canTransfer: true });
+        expect(resolveCompanyPermissions({ role: 'employee', corporateRole: 'accountant' })).toMatchObject({ accountant: true, canTransfer: false });
     });
 
     test('keeps accountants read-only and agent owners fully enabled', () => {
@@ -109,23 +113,27 @@ describe('Business portal service', () => {
             }
         }, 'services');
 
-        expect(managerNav.find((item) => item.key === 'services')).toMatchObject({ href: '/client/services', active: true });
+        expect(managerNav.find((item) => item.key === 'services')).toMatchObject({ href: '/client/services', active: true, pharaonicIcon: 'temple' });
         expect(managerNav.some((item) => item.key === 'smart_transfer')).toBe(true);
         expect(managerNav.some((item) => item.key === 'internal_transfer')).toBe(true);
         expect(managerNav.find((item) => item.key === 'deposits')).toMatchObject({ href: '/client/company/deposits', label: 'طلب إيداع' });
         expect(managerNav.some((item) => item.href === '/client/security')).toBe(true);
         expect(managerNav.find((item) => item.key === 'settings')).toMatchObject({ href: '/client/settings', label: 'بيانات المنشأة' });
         expect(managerNav.some((item) => item.key === 'customers')).toBe(false);
+        expect(managerNav.some((item) => item.href === '/corporate' || item.key === 'corporate')).toBe(false);
+        expect(employeeNav.some((item) => item.href === '/corporate' || item.key === 'corporate')).toBe(false);
         expect(employeeNav.some((item) => item.key === 'overview')).toBe(false);
         expect(employeeNav.some((item) => item.key === 'internal_transfer')).toBe(false);
         expect(employeeNav.some((item) => item.key === 'staff')).toBe(false);
         expect(employeeNav.some((item) => item.key === 'finance')).toBe(false);
         expect(resolvePortalHomeHref({ isCompany: true, persona: 'employee' })).toBe('/client/services');
         expect(resolvePortalHomeHref({ isCompany: true, persona: 'accountant' })).toBe('/client/finance');
-        expect(resolvePortalHomeHref({ isCompany: true, persona: 'manager' })).toBe('/client/dashboard?home=1');
+        expect(resolvePortalHomeHref({ isCompany: true, persona: 'manager' })).toBe('/client/services');
+        expect(resolveClientPostLoginHref('company')).toBe('/client/services');
+        expect(resolveClientPostLoginHref('user')).toBe('/client/dashboard');
         expect(forbiddenRedirectPath({ isCompany: true, persona: 'employee' })).toBe('/client/services?portalError=forbidden');
         expect(forbiddenRedirectPath({ isCompany: true, persona: 'accountant' })).toBe('/client/finance?portalError=forbidden');
-        expect(forbiddenRedirectPath({ isCompany: true, persona: 'manager' })).toBe('/client/dashboard?home=1&portalError=forbidden');
+        expect(forbiddenRedirectPath({ isCompany: true, persona: 'manager' })).toBe('/client/services?portalError=forbidden');
         expect(canAccessPage({
             isCompany: true,
             permissions: { employee: true, canTransfer: true }
@@ -184,6 +192,41 @@ describe('Business portal service', () => {
         expect(canPostPortalTransfer('user', { role: 'accountant' })).toBe(false);
     });
 
+    test('builds a five-item company mobile dock from existing permissions', () => {
+        const managerNav = buildNavigation({
+            isCompany: true,
+            forceToday: false,
+            permissions: {
+                canTransfer: true,
+                canViewBalance: true,
+                manager: true,
+                accountant: false,
+                employee: false,
+                canViewReports: true,
+                canInternalTransfer: true,
+                canRequestDeposit: true
+            }
+        }, 'services');
+        const dock = buildCompanyMobileNav({ persona: 'manager', isCompany: true }, managerNav);
+        expect(dock.map((item) => item.key)).toEqual(['services', 'transactions', 'reports', 'support', 'settings']);
+        expect(dock.every((item) => item.dockLabel)).toBe(true);
+
+        const employeeNav = buildNavigation({
+            isCompany: true,
+            forceToday: true,
+            permissions: {
+                canTransfer: true,
+                canViewBalance: false,
+                manager: false,
+                accountant: false,
+                employee: true,
+                canViewReports: false
+            }
+        }, 'services');
+        expect(buildCompanyMobileNav({ persona: 'employee' }, employeeNav).map((item) => item.key))
+            .toEqual(['services', 'smart_transfer', 'transactions', 'support', 'security']);
+    });
+
     test('resolves company service workbenches by key or slug', () => {
         expect(findServiceByToken('cash').key).toBe('vodafone');
         expect(findServiceByToken('post-card').key).toBe('post_card');
@@ -202,7 +245,7 @@ describe('Business portal service', () => {
             requiresGovernorate: true,
             requiresIdentityImage: true
         });
-        expect(byKey.bank_account.requiresBankName).toBeUndefined();
+        expect(byKey.bank_account.requiresBank).toBe(true);
         expect(byKey.sefa_niger).toMatchObject({
             integerAmount: true,
             destinationMaxLength: 11,

@@ -1,0 +1,32 @@
+<%
+    const themeOptions = [
+        { key: 'day', label: 'نهاري', hint: 'نيلي وفيروز واضح', icon: 'fa-sun' },
+        { key: 'night', label: 'ليلي', hint: 'عمليات داكنة واضحة', icon: 'fa-moon' },
+        { key: 'pharaonic', label: 'فرعوني', hint: 'رمل وذهب وفيروز', icon: 'fa-landmark' }
+    ];
+    const currentTheme = typeof clientTheme !== 'undefined' ? clientTheme : 'day';
+%>
+<div class="cl-theme-switcher" data-client-theme-switcher>
+    <div class="cl-theme-rail" role="group" aria-label="مظهر بوابة العملاء">
+        <% themeOptions.forEach(option => { %>
+            <button type="button" class="cl-theme-option" data-theme-option="<%= option.key %>" aria-pressed="<%= currentTheme === option.key ? 'true' : 'false' %>" title="<%= option.label %> — <%= option.hint %>">
+                <i class="fa-solid <%= option.icon %>" aria-hidden="true"></i>
+                <span><%= option.label %></span>
+            </button>
+        <% }) %>
+    </div>
+    <button type="button" class="cl-theme-toggle" data-theme-menu-toggle aria-expanded="false" aria-controls="customerThemePanel" title="مظهر بوابة العملاء" aria-label="مظهر بوابة العملاء">
+        <i class="fa-solid fa-palette" aria-hidden="true"></i>
+    </button>
+    <div class="cl-theme-panel" id="customerThemePanel" data-theme-panel hidden role="dialog" aria-label="اختيار المظهر">
+        <form method="POST" action="/client/settings/theme" class="cl-theme-ssr-form">
+            <% if (typeof csrfToken !== 'undefined' && csrfToken) { %><input type="hidden" name="_csrf" value="<%= csrfToken %>"><% } %>
+            <% themeOptions.forEach(option => { %>
+                <button type="submit" class="cl-theme-option" name="theme" value="<%= option.key %>" data-theme-option="<%= option.key %>" aria-pressed="<%= currentTheme === option.key ? 'true' : 'false' %>">
+                    <i class="fa-solid <%= option.icon %>" aria-hidden="true"></i>
+                    <span><%= option.label %><small><%= option.hint %></small></span>
+                </button>
+            <% }) %>
+        </form>
+    </div>
+</div>

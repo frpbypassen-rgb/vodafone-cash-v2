@@ -11,6 +11,7 @@ const AgentEmployee = require('../models/AgentEmployee');
 const Employee = require('../models/Employee');
 const ExecutorGroup = require('../models/ExecutorGroup');
 const Transaction = require('../models/Transaction');
+const { depositSupportMatch } = require('./adminDepositLedgerService');
 
 const SUPPORT_STATUSES = ['open', 'answered', 'pending_internal', 'resolved', 'closed'];
 const SUPPORT_PRIORITIES = ['low', 'normal', 'high', 'urgent'];
@@ -173,7 +174,9 @@ const buildTicketFilter = (query = {}, adminIdentity = { id: '' }) => {
     if (['portal', 'whatsapp'].includes(channel)) filter.channel = channel;
 
     const category = cleanText(query.category, 40);
-    if (SUPPORT_CATEGORIES.includes(category)) filter.category = category;
+    if (category === 'deposit') {
+        filter.$and = [...(Array.isArray(filter.$and) ? filter.$and : []), depositSupportMatch()];
+    } else if (SUPPORT_CATEGORIES.includes(category)) filter.category = category;
 
     const assigned = cleanText(query.assigned, 80);
     if (assigned === 'mine') filter.assignedToId = adminIdentity.id;

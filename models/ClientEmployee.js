@@ -6,6 +6,9 @@ const clientEmployeeSchema = new mongoose.Schema({
     companyId: { type: mongoose.Schema.Types.ObjectId, ref: 'ClientCompany', required: true },
     name: { type: String, required: true },
     phone: { type: String },
+    // بريد رمز الدخول. عند وجود بريد صالح يُرسل الرمز عبر البريد.
+    email: { type: String, trim: true, lowercase: true, default: '' },
+    otpDeliveryChannel: { type: String, enum: ['whatsapp', 'email'], default: 'whatsapp' },
     status: { type: String, default: 'active' }, // active, banned
     
     // بيانات موقع العملاء
@@ -24,6 +27,18 @@ const clientEmployeeSchema = new mongoose.Schema({
     otpIssuedAt: { type: Date },
     otpAttempts: { type: Number, default: 0 },
     role: { type: String, enum: ['owner', 'employee', 'accountant'], default: 'employee' },
+    // بوابة الشركات — أدوار مستقلة عن بوابة العميل الحالية مع نفس جلسة الشركة
+    corporateRole: { type: String, enum: ['manager', 'employee', 'accountant'], default: undefined },
+    approvalLimit: { type: Number, default: null },
+    corporatePortalEnabled: { type: Boolean, default: false },
+    // Legacy alias only. Canonical theme lives on preferences.companyTheme.
+    uiTheme: { type: String, enum: ['day', 'night', 'pharaonic'], default: undefined },
+    preferences: {
+        companyTheme: { type: String, enum: ['day', 'night', 'pharaonic'], default: undefined }
+    },
+    mustChangePassword: { type: Boolean, default: false },
+    canCreateTransfer: { type: Boolean, default: undefined },
+    canManageCompanyProfile: { type: Boolean, default: undefined },
     canViewAllReports: { type: Boolean, default: false }, // السماح برؤية جميع تقارير الشركة
     canManageCompany: { type: Boolean, default: false }, // صلاحيات مدير تشغيل بدون إنشاء حسابات
     canCreateCompanyStaff: { type: Boolean, default: false }, // مالك الشركة فقط ينشئ حسابات الموظفين
@@ -38,6 +53,8 @@ const clientEmployeeSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 clientEmployeeSchema.index({ tenantId: 1, companyId: 1 });
+clientEmployeeSchema.index({ companyId: 1, corporateRole: 1, status: 1 });
+clientEmployeeSchema.index({ companyId: 1, corporatePortalEnabled: 1 });
 
 // 🔐 تشفير كلمة المرور قبل الحفظ
 clientEmployeeSchema.pre('save', async function() {

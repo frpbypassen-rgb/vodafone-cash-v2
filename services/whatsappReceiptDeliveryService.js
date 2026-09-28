@@ -11,10 +11,15 @@ const { acquireLock, releaseLock } = require('./lockService');
 const { logAction } = require('./auditService');
 const { createReceiptImageUrl } = require('./receiptShareService');
 const {
+    CANCELLATION_RECEIPT_PATTERN,
+    getClientReceiptProofIds
+} = require('./clientReceiptService');
+const {
     getWhatChimpConfigurationStatus,
     normalizeWhatsAppPhone,
     sendReceipt
 } = require('./whatsappService');
+const { formatClientReceiptAccountName, bankLabelForTransaction } = require('../utils/egyptianBanks');
 
 const RECEIPT_DELIVERY_STATUSES = new Set(['sent', 'delivered', 'read']);
 
@@ -201,16 +206,16 @@ const saveDelivery = async (delivery) => {
     }
 };
 
-const recordEarlyDeliveryFailure = async ({ transaction, recipient = null, recipientPhone = '', stage, result }) => {
+const recordEarlyDeliveryFailure = async ({ transaction, recipient = null, recipientPhone = '', stage, result, kind = 'receipt' }) => {
     const trackingPhone = recipientPhone || recipient?.phone || `unresolved:${String(transaction._id)}`;
     let delivery = await WhatsAppDelivery.findOne({
-        kind: 'receipt',
+        kind,
         transactionId: transaction._id,
         recipientPhone: trackingPhone
     });
     if (!delivery) {
         delivery = new WhatsAppDelivery({
-            kind: 'receipt',
+            kind,
             transactionId: transaction._id,
             recipientPhone: trackingPhone
         });
@@ -246,7 +251,30 @@ const logReceiptDelivery = async ({ success, transaction, recipient, result }) =
     });
 };
 
-const sendCompletedTransactionReceipt = async (transactionInput) => {
+const CANCELLED_RECEIPT_STATUSES = new Set(['rejected', 'cancelled_by_admin', 'cancelled', 'canceled']);
+
+const completedProofIndex = (transaction) => {
+    const receiptProofs = [
+        ...(Array.isArray(transaction.proofImages) ? transaction.proofImages : []),
+        transaction.proofImage
+    ].filter(Boolean);
+    return receiptProofs.length ? 0 : null;
+};
+
+const cancellationProofIndex = (transaction) => {
+    const ids = getClientReceiptProofIds(transaction);
+    const index = ids.findIndex((proofId) => CANCELLATION_RECEIPT_PATTERN.test(String(proofId)));
+    return index >= 0 ? index : null;
+};
+
+const sendTransactionReceipt = async (transactionInput, {
+    allowedStatuses,
+    unavailableMessage,
+    resolveProofIndex,
+    kind,
+    lockPrefix,
+    timestamp
+}) => {
     const transactionId = String(transactionInput?._id || transactionInput || '').trim();
     if (!transactionId) {
         return { success: false, code: 'TRANSACTION_REQUIRED', message: 'تعذر تحديد العملية لإرسال الإيصال.' };
@@ -254,23 +282,20 @@ const sendCompletedTransactionReceipt = async (transactionInput) => {
 
     let lock;
     try {
-        lock = await acquireLock(`whatsapp-receipt:${transactionId}`, 30000, { retryCount: 1, retryDelay: 25 });
+        lock = await acquireLock(`${lockPrefix}:${transactionId}`, 30000, { retryCount: 1, retryDelay: 25 });
     } catch (error) {
         return { success: false, code: 'RECEIPT_DELIVERY_BUSY', message: 'إرسال الإيصال قيد المعالجة بالفعل.' };
     }
 
     try {
         const transaction = await Transaction.findById(transactionId);
-        if (!transaction || transaction.status !== 'completed') {
-            return { success: false, code: 'RECEIPT_NOT_AVAILABLE', message: 'الإيصال متاح للعمليات الناجحة فقط.' };
+        if (!transaction || !allowedStatuses.has(transaction.status)) {
+            return { success: false, code: 'RECEIPT_NOT_AVAILABLE', message: unavailableMessage };
         }
-        const receiptProofs = [
-            ...(Array.isArray(transaction.proofImages) ? transaction.proofImages : []),
-            transaction.proofImage
-        ].filter(Boolean);
-        if (!receiptProofs.length) {
+        const proofIndex = resolveProofIndex(transaction);
+        if (proofIndex == null) {
             const failure = { success: false, code: 'RECEIPT_PROOF_MISSING', message: 'لم يتم توليد صورة إيصال لهذه العملية بعد.' };
-            await recordEarlyDeliveryFailure({ transaction, stage: 'receipt_ready', result: failure });
+            await recordEarlyDeliveryFailure({ transaction, stage: 'receipt_ready', result: failure, kind });
             return failure;
         }
 
@@ -282,14 +307,14 @@ const sendCompletedTransactionReceipt = async (transactionInput) => {
                 message: 'إعداد قالب إيصال WhatChimp غير مكتمل.',
                 missing: configuration.missing
             };
-            await recordEarlyDeliveryFailure({ transaction, stage: 'configuration_verified', result: failure });
+            await recordEarlyDeliveryFailure({ transaction, stage: 'configuration_verified', result: failure, kind });
             return failure;
         }
 
         const recipient = await resolveReceiptRecipient(transaction);
         if (!recipient?.phone) {
             const failure = { success: false, code: 'RECEIPT_RECIPIENT_MISSING', message: 'لا يوجد رقم واتساب صالح لصاحب العملية.' };
-            await recordEarlyDeliveryFailure({ transaction, recipient, stage: 'recipient_resolved', result: failure });
+            await recordEarlyDeliveryFailure({ transaction, recipient, stage: 'recipient_resolved', result: failure, kind });
             return failure;
         }
 
@@ -298,12 +323,12 @@ const sendCompletedTransactionReceipt = async (transactionInput) => {
             normalizedPhone = normalizeWhatsAppPhone(recipient.phone);
         } catch (error) {
             const failure = { success: false, code: error.code || 'WHATSAPP_PHONE_INVALID', message: error.message };
-            await recordEarlyDeliveryFailure({ transaction, recipient, stage: 'phone_normalized', result: failure });
+            await recordEarlyDeliveryFailure({ transaction, recipient, stage: 'phone_normalized', result: failure, kind });
             return failure;
         }
 
         const existing = await WhatsAppDelivery.findOne({
-            kind: 'receipt',
+            kind,
             transactionId: transaction._id,
             recipientPhone: normalizedPhone
         });
@@ -317,7 +342,7 @@ const sendCompletedTransactionReceipt = async (transactionInput) => {
             };
         }
 
-        const receiptUrl = createReceiptImageUrl({ transactionId: transaction._id, index: 0 });
+        const receiptUrl = createReceiptImageUrl({ transactionId: transaction._id, index: proofIndex });
         if (!receiptUrl) {
             const failure = {
                 success: false,
@@ -325,13 +350,13 @@ const sendCompletedTransactionReceipt = async (transactionInput) => {
                 code: 'RECEIPT_PUBLIC_URL_UNAVAILABLE',
                 message: 'أضف PUBLIC_APP_URL و RECEIPT_SHARE_SECRET لإرسال إيصالات واتساب.'
             };
-            await recordEarlyDeliveryFailure({ transaction, recipient, recipientPhone: normalizedPhone, stage: 'receipt_link_ready', result: failure });
+            await recordEarlyDeliveryFailure({ transaction, recipient, recipientPhone: normalizedPhone, stage: 'receipt_link_ready', result: failure, kind });
             await logReceiptDelivery({ success: false, transaction, recipient, result: failure });
             return failure;
         }
 
         const delivery = existing || new WhatsAppDelivery({
-            kind: 'receipt',
+            kind,
             transactionId: transaction._id,
             recipientPhone: normalizedPhone
         });
@@ -344,8 +369,9 @@ const sendCompletedTransactionReceipt = async (transactionInput) => {
         delivery.metadata = {
             ...(delivery.metadata || {}),
             service: serviceLabel(transaction.transferType),
+            bankName: bankLabelForTransaction(transaction) || '',
             receiptUrl,
-            proofIndex: 0,
+            proofIndex,
             recipientSource: recipient.source || 'account'
         };
         markDeliveryStage(delivery, 'transaction_verified', 'success');
@@ -359,11 +385,14 @@ const sendCompletedTransactionReceipt = async (transactionInput) => {
 
         const result = await sendReceipt({
             phone: normalizedPhone,
-            accountName: recipient.name || transaction.employeeName || transaction.companyName || '',
+            accountName: formatClientReceiptAccountName(
+                transaction,
+                recipient.name || transaction.employeeName || transaction.companyName || ''
+            ),
             reference: transaction.customId || String(transaction._id),
             amount: formatReceiptAmount(transaction.amount),
             currency: receiptCurrency(transaction),
-            completedAt: transaction.completedAt || transaction.updatedAt || new Date(),
+            completedAt: timestamp(transaction),
             receiptUrl
         });
 
@@ -394,6 +423,178 @@ const sendCompletedTransactionReceipt = async (transactionInput) => {
         await releaseLock(lock);
     }
 };
+
+const safePartSendError = (error) => {
+    const message = String(error?.message || 'تعذر إرسال إثبات الجزء.');
+    if (/bearer|token|secret|authorization|cookie|api[_-]?key/i.test(message)) return 'تعذر إرسال إثبات الجزء.';
+    return message.slice(0, 300);
+};
+
+const sendSplitPartReceipt = async ({
+    transactionId,
+    partId,
+    partKey,
+    amount,
+    confirmedAt,
+    reference
+} = {}) => {
+    const id = String(transactionId || '').trim();
+    const key = String(partKey || '').trim();
+    const safePartId = String(partId || '').trim();
+    if (!id || !key || !safePartId) {
+        return { success: false, code: 'PART_PROOF_IDENTITY_REQUIRED', message: 'تعذر تحديد جزء الإثبات.' };
+    }
+
+    let lock;
+    try {
+        lock = await acquireLock(`whatsapp-part-receipt:${key}`, 30000, { retryCount: 1, retryDelay: 25 });
+    } catch (_error) {
+        return { success: false, code: 'RECEIPT_DELIVERY_BUSY', message: 'إرسال إثبات الجزء قيد المعالجة بالفعل.' };
+    }
+
+    try {
+        const transaction = await Transaction.findById(id);
+        if (!transaction || transaction.status !== 'completed') {
+            return { success: false, code: 'RECEIPT_NOT_AVAILABLE', message: 'إثبات الجزء متاح بعد حفظ نجاح الجزء فقط.' };
+        }
+
+        const entry = (transaction.executorSenderEntries || []).find((item) => String(item?.partId || '') === safePartId);
+        const resolvedIndex = getClientReceiptProofIds(transaction).indexOf(String(entry?.customerProof?.imageId || ''));
+        if (!entry || entry.status !== 'success' || resolvedIndex < 0) {
+            return { success: false, code: 'RECEIPT_PROOF_MISSING', message: 'لم يتم حفظ صورة إثبات هذا الجزء.' };
+        }
+
+        const configuration = getWhatChimpConfigurationStatus();
+        if (!configuration.receiptReady) {
+            return {
+                success: false,
+                code: 'WHATCHIMP_RECEIPT_NOT_READY',
+                message: 'إعداد قالب إيصال WhatChimp غير مكتمل.',
+                missing: configuration.missing
+            };
+        }
+
+        const recipient = await resolveReceiptRecipient(transaction);
+        if (!recipient?.phone) {
+            return { success: false, code: 'RECEIPT_RECIPIENT_MISSING', message: 'لا يوجد رقم واتساب صالح لصاحب العملية.' };
+        }
+
+        let normalizedPhone;
+        try {
+            normalizedPhone = normalizeWhatsAppPhone(recipient.phone);
+        } catch (error) {
+            return { success: false, code: error.code || 'WHATSAPP_PHONE_INVALID', message: error.message };
+        }
+
+        const existing = await WhatsAppDelivery.findOne({
+            kind: 'part_receipt',
+            transactionId: transaction._id,
+            'metadata.partKey': key
+        });
+        if (existing && RECEIPT_DELIVERY_STATUSES.has(existing.status)) {
+            return {
+                success: true,
+                duplicate: true,
+                code: 'PART_PROOF_ALREADY_SENT',
+                messageId: existing.messageId || null
+            };
+        }
+
+        const receiptUrl = createReceiptImageUrl({ transactionId: transaction._id, index: resolvedIndex });
+        if (!receiptUrl) {
+            return {
+                success: false,
+                code: 'RECEIPT_PUBLIC_URL_UNAVAILABLE',
+                message: 'أضف PUBLIC_APP_URL و RECEIPT_SHARE_SECRET لإرسال إيصالات واتساب.'
+            };
+        }
+
+        const delivery = existing || new WhatsAppDelivery({
+            kind: 'part_receipt',
+            transactionId: transaction._id,
+            recipientPhone: normalizedPhone,
+            metadata: { partKey: key }
+        });
+        applyReceiptDeliveryIdentity(delivery, transaction, recipient);
+        delivery.templateName = configuration.receiptTemplate || '';
+        delivery.templateId = configuration.receiptMediaTemplateId || '';
+        delivery.status = 'sending';
+        delivery.failureCode = '';
+        delivery.failureReason = '';
+        delivery.reference = reference || `${transaction.customId || ''}:${safePartId}`;
+        delivery.metadata = {
+            ...(delivery.metadata || {}),
+            partKey: key,
+            partId: safePartId,
+            receiptUrl,
+            proofIndex: resolvedIndex,
+            recipientSource: recipient.source || 'account'
+        };
+        await saveDelivery(delivery);
+
+        const stored = await WhatsAppDelivery.findOne({
+            kind: 'part_receipt',
+            transactionId: transaction._id,
+            'metadata.partKey': key
+        });
+        if (stored && String(stored._id) !== String(delivery._id) && RECEIPT_DELIVERY_STATUSES.has(stored.status)) {
+            return { success: true, duplicate: true, code: 'PART_PROOF_ALREADY_SENT', messageId: stored.messageId || null };
+        }
+
+        const result = await sendReceipt({
+            phone: normalizedPhone,
+            accountName: formatClientReceiptAccountName(
+                transaction,
+                recipient.name || transaction.employeeName || transaction.companyName || ''
+            ),
+            reference: reference || `${transaction.customId || transaction._id}:${safePartId}`,
+            amount: formatReceiptAmount(amount),
+            partAmount: Number(amount),
+            partId: safePartId,
+            senderWallet: String(entry.phone || ''),
+            transferRecipient: String(transaction.vodafoneNumber || transaction.accountNumber || ''),
+            imageId: String(entry.customerProof?.imageId || ''),
+            currency: receiptCurrency(transaction),
+            completedAt: confirmedAt || transaction.completedAt || new Date(),
+            receiptUrl
+        });
+
+        delivery.status = result.success ? 'sent' : 'failed';
+        delivery.messageId = result.messageId || '';
+        delivery.failureCode = result.success ? '' : (result.code || 'WHATCHIMP_REQUEST_FAILED');
+        delivery.failureReason = result.success ? '' : String(result.message || 'تعذر إرسال إثبات الجزء.').slice(0, 1000);
+        delivery.sentAt = result.success ? new Date() : undefined;
+        await saveDelivery(delivery);
+        await logReceiptDelivery({ success: result.success, transaction, recipient, result });
+        return { ...result, duplicate: false, partId: safePartId };
+    } catch (error) {
+        return {
+            success: false,
+            code: 'PART_PROOF_SEND_FAILED',
+            message: safePartSendError(error)
+        };
+    } finally {
+        await releaseLock(lock);
+    }
+};
+
+const sendCompletedTransactionReceipt = (transactionInput) => sendTransactionReceipt(transactionInput, {
+    allowedStatuses: new Set(['completed']),
+    unavailableMessage: 'الإيصال متاح للعمليات الناجحة فقط.',
+    resolveProofIndex: completedProofIndex,
+    kind: 'receipt',
+    lockPrefix: 'whatsapp-receipt',
+    timestamp: (transaction) => transaction.completedAt || transaction.updatedAt || new Date()
+});
+
+const sendCancelledTransactionReceipt = (transactionInput) => sendTransactionReceipt(transactionInput, {
+    allowedStatuses: CANCELLED_RECEIPT_STATUSES,
+    unavailableMessage: 'إيصال الإلغاء متاح للعمليات الملغاة فقط.',
+    resolveProofIndex: cancellationProofIndex,
+    kind: 'cancellation_receipt',
+    lockPrefix: 'whatsapp-cancel-receipt',
+    timestamp: (transaction) => transaction.cancelledAt || transaction.updatedAt || new Date()
+});
 
 const normalizeProviderDeliveryStatus = (value) => {
     const raw = String(value || '').trim().toLowerCase();
@@ -484,6 +685,8 @@ module.exports = {
     findCompanyTransferSender,
     findCompanyManager,
     sendCompletedTransactionReceipt,
+    sendSplitPartReceipt,
+    sendCancelledTransactionReceipt,
     updateReceiptDeliveryProviderStatus,
     recordWhatsAppDeliveryAttempt,
     normalizeProviderDeliveryStatus,

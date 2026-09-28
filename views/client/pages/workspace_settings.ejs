@@ -1,13 +1,13 @@
 <% const accountCode = workspace.entity.accountCode || workspace.entity.agentCode || '---'; const canEdit = workspace.permissions.canEditSettings; %>
 
 <% if (workspace.isCompany) { %>
-<section class="cos-ledger-office">
+<section class="cp-page-hero">
     <div>
         <span class="bw-section-kicker">ملف الشركة</span>
         <h2>بيانات المنشأة</h2>
         <p>التواصل والمدينة والسجل في هذه الصفحة. كلمة المرور والأجهزة في أمان الحساب.</p>
     </div>
-    <div class="cos-ledger-links">
+    <div class="cp-page-hero-actions">
         <a href="/client/security" class="bw-button ghost"><i class="fa-solid fa-shield-halved"></i>أمان الحساب</a>
     </div>
 </section>
@@ -36,21 +36,26 @@
         <form method="POST" action="/client/settings/profile" class="bw-form bw-form-grid">
             <label class="bw-field span-2"><span>اسم <%= workspace.entityLabel %></span><input type="text" value="<%= workspace.entity.name %>" disabled><small>يتم تعديل الاسم القانوني عن طريق الإدارة.</small></label>
             <label class="bw-field"><span>اسم مسؤول التواصل</span><input type="text" name="contactName" value="<%= settingsData.profile.contactName || '' %>" maxlength="120" <%= canEdit ? '' : 'disabled' %>></label><label class="bw-field"><span>رقم التواصل</span><input type="tel" name="phone" value="<%= workspace.entity.phone || '' %>" dir="ltr" maxlength="32" <%= canEdit ? '' : 'disabled' %>></label>
-            <label class="bw-field"><span>البريد الإلكتروني</span><input type="email" name="email" value="<%= settingsData.profile.email || '' %>" dir="ltr" maxlength="160" <%= canEdit ? '' : 'disabled' %>></label><label class="bw-field"><span>المدينة</span><input type="text" name="city" value="<%= settingsData.profile.city || '' %>" maxlength="80" <%= canEdit ? '' : 'disabled' %>></label>
+            <label class="bw-field"><span>البريد الإلكتروني</span><input type="text" inputmode="email" autocapitalize="none" spellcheck="false" name="email" value="<%= settingsData.profile.email || '' %>" dir="ltr" maxlength="254" data-account-email="profile" <%= canEdit ? '' : 'disabled' %>></label>
+            <%- include('../../partials/required_owner_email_script') %><label class="bw-field"><span>المدينة</span><input type="text" name="city" value="<%= settingsData.profile.city || '' %>" maxlength="80" <%= canEdit ? '' : 'disabled' %>></label>
             <label class="bw-field span-2"><span>العنوان</span><input type="text" name="address" value="<%= settingsData.profile.address || '' %>" maxlength="240" <%= canEdit ? '' : 'disabled' %>></label><label class="bw-field span-2"><span>رقم السجل أو الترخيص</span><input type="text" name="registrationNumber" value="<%= settingsData.profile.registrationNumber || '' %>" maxlength="80" <%= canEdit ? '' : 'disabled' %>></label>
             <% if (canEdit) { %><div class="bw-form-actions span-2"><button type="submit" class="bw-button primary"><i class="fa-solid fa-floppy-disk"></i>حفظ بيانات الحساب</button></div><% } else { %><p class="bw-setting-note span-2"><i class="fa-solid fa-lock"></i>لا تملك صلاحية تعديل بيانات المنشأة.</p><% } %>
         </form>
     </section>
 
     <section class="bw-settings-panel" id="preferences">
-        <header class="bw-settings-panel-head"><span class="bw-settings-panel-icon tone-violet"><i class="fa-solid fa-palette"></i></span><div><span>المظهر والتجربة</span><h2>واجهة هذا الجهاز</h2><p>هذه الخيارات تُحفظ في المتصفح الحالي فقط.</p></div></header>
+        <header class="bw-settings-panel-head"><span class="bw-settings-panel-icon tone-violet"><i class="fa-solid fa-palette"></i></span><div><span>المظهر والتجربة</span><h2><%= workspace.isCompany ? 'مظهر الحساب' : 'مظهر بوابة العملاء' %></h2><p><%= workspace.isCompany ? 'يُحفظ على الحساب في preferences.companyTheme ويتبعك بعد إعادة الدخول وعلى الهاتف.' : 'يُحفظ على الحساب في preferences.clientTheme ويتبعك بعد إعادة الدخول وعلى الهاتف.' %></p></div></header>
         <div class="bw-settings-choice-grid">
-            <label class="bw-field"><span>المظهر</span><select id="workspaceThemeSelect" data-preference="theme"><option value="light">فاتح</option><option value="dark">داكن</option><option value="system">حسب الجهاز</option></select></label>
+            <% if (workspace.isCompany) { %>
+            <label class="bw-field"><span>مظهر بوابة الشركات</span><select id="workspaceThemeSelect" data-preference="company-theme"><option value="day">نهاري</option><option value="night">ليلي</option><option value="pharaonic">فرعوني</option></select></label>
+            <% } else { %>
+            <label class="bw-field"><span>مظهر بوابة العملاء</span><select id="workspaceThemeSelect" data-preference="client-theme"><option value="day">نهاري</option><option value="night">ليلي</option><option value="pharaonic">فرعوني</option></select></label>
+            <% } %>
             <% if (!workspace.isCompany) { %>
             <label class="bw-field"><span>كثافة الجداول</span><select id="workspaceDensitySelect" data-preference="density"><option value="comfortable">مريحة</option><option value="compact">مضغوطة</option></select></label>
             <% } %>
         </div>
-        <div class="bw-setting-note"><i class="fa-solid fa-display"></i><span><strong>تجربة شخصية لكل جهاز</strong><small>لن يتأثر إعداد أي موظف آخر بخياراتك.</small></span></div>
+        <div class="bw-setting-note"><i class="fa-solid fa-display"></i><span><strong>تفضيل الحساب</strong><small>localStorage للرسم الفوري فقط. بعد تسجيل الدخول قيمة الخادم هي المصدر.</small></span></div>
     </section>
 
     <section class="bw-settings-panel" id="notifications">

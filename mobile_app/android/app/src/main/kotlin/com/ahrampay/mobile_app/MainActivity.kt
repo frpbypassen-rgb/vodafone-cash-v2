@@ -24,7 +24,13 @@ class MainActivity : FlutterActivity() {
                 }
 
                 try {
-                    startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+                    val uri = Uri.parse(url)
+                    val intent = if (url.startsWith("tel:", ignoreCase = true)) {
+                        Intent(Intent.ACTION_DIAL, uri)
+                    } else {
+                        Intent(Intent.ACTION_VIEW, uri)
+                    }
+                    startActivity(intent)
                     result.success(true)
                 } catch (_: Exception) {
                     result.success(false)

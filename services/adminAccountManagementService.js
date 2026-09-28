@@ -21,9 +21,14 @@ const {
 } = require('./accountCodeService');
 const {
     getExecutorServiceOptions,
-    normalizeExecutorServiceKey
+    normalizeExecutorServiceKey,
+    collectEnabledServiceKeysFromBody,
+    getExecutorEnabledServiceKeys,
+    getExecutorSupportedTransferTypes
 } = require('../utils/executorServiceCatalog');
 const { buildMarginStorage } = require('../utils/agencyPricing');
+const { classifyEmailAddress, normalizeEmailAddress } = require('../utils/emailAddress');
+const { resolveCanonicalRole } = require('./companyAccessService');
 const {
     normalizeCreditLimit,
     assertCreditLimitCanCoverBalance
@@ -104,6 +109,11 @@ const ERROR_MESSAGES = Object.freeze({
     ACCOUNT_CODE_DUPLICATE: 'رقم الحساب مستخدم في حساب آخر.',
     ACCOUNT_CODE_INVALID: 'رقم الحساب لا يطابق عدد الأرقام المطلوب.',
     IDENTITY_TAKEN: 'اسم المستخدم أو رقم الهاتف مستخدم في حساب آخر.',
+    EMAIL_REQUIRED: 'البريد الإلكتروني مطلوب.',
+    EMAIL_INVALID: 'أدخل بريداً إلكترونياً صالحاً.',
+    EMAIL_TAKEN: 'هذا البريد الإلكتروني مستخدم في حساب آخر.',
+    EMAIL_OTP_ADDRESS_INVALID: 'أدخل بريداً إلكترونياً صالحاً.',
+    COMPANY_OWNER_REQUIRED: 'لا يوجد حساب مالك لهذه الشركة. أنشئ حساب المالك قبل حفظ بريد صاحب الحساب.',
     UPDATE_FAILED: 'تعذر حفظ التعديلات. راجع البيانات وحاول مرة أخرى.'
 });
 
@@ -207,11 +217,85 @@ const setStatus = (type, account, payload) => {
     account.status = status;
 };
 
+const LOGIN_OTP_EDITOR_TYPES = new Set([
+    'user',
+    'agent',
+    'subaccount',
+    'client-employee',
+    'agent-employee',
+    'executor-employee'
+]);
+
 const setBusinessProfile = (account, payload) => {
     const fields = ['contactName', 'email', 'city', 'address', 'registrationNumber'];
     for (const field of fields) {
-        account.set(`businessProfile.${field}`, cleanText(payload[field], field === 'address' ? 240 : 120));
+        if (field === 'email') {
+            const raw = String(payload.email || '');
+            if (!raw.trim()) {
+                account.set('businessProfile.email', '');
+                continue;
+            }
+            const parsed = classifyEmailAddress(raw);
+            if (!parsed.ok) throw new AdminAccountManagementError('EMAIL_INVALID', 'email');
+            account.set('businessProfile.email', parsed.email);
+            continue;
+        }
+        const maxLength = field === 'address' ? 240 : 120;
+        account.set(`businessProfile.${field}`, cleanText(payload[field], maxLength));
     }
+};
+
+const storedOtpEmail = (value) => normalizeEmailAddress(value);
+
+const requireOtpEmail = (value, field) => {
+    const parsed = classifyEmailAddress(value);
+    if (!parsed.ok) {
+        throw new AdminAccountManagementError(parsed.code === 'required' ? 'EMAIL_REQUIRED' : 'EMAIL_INVALID', field);
+    }
+    return parsed.email;
+};
+
+// A valid address saved from admin always uses email OTP. WhatsApp remains
+// only for legacy accounts that still have no usable email.
+const setLoginOtpDelivery = (type, account, payload) => {
+    if (!LOGIN_OTP_EDITOR_TYPES.has(type)) return;
+    const email = requireOtpEmail(payload.email, 'email');
+    account.otpDeliveryChannel = 'email';
+    if (type === 'user' || type === 'agent') {
+        account.set('businessProfile.email', email);
+    } else {
+        account.email = email;
+    }
+};
+
+const pickCompanyLoginOwner = (employees = []) => {
+    const owners = employees.filter((employee) => resolveCanonicalRole(employee) === 'owner');
+    if (!owners.length) return null;
+    return owners.find((employee) => employee.status === 'active' && employee.role === 'owner')
+        || owners.find((employee) => employee.status === 'active')
+        || owners.find((employee) => employee.role === 'owner')
+        || owners[0];
+};
+
+const findCompanyLoginOwner = async (companyId) => {
+    if (!companyId) return null;
+    const employees = await ClientEmployee.find({
+        companyId,
+        status: { $ne: 'deleted' }
+    }).sort({ createdAt: 1, _id: 1 });
+    return pickCompanyLoginOwner(employees);
+};
+
+const applyCompanyOwnerEmailOtp = (companyOwner, payload = {}) => {
+    if (!companyOwner) {
+        throw new AdminAccountManagementError('COMPANY_OWNER_REQUIRED', 'ownerEmail');
+    }
+    const email = requireOtpEmail(payload.email, 'ownerEmail');
+    const previousChannel = companyOwner.otpDeliveryChannel === 'email' ? 'email' : 'whatsapp';
+    const changed = (companyOwner.email || '') !== email || previousChannel !== 'email';
+    companyOwner.email = email;
+    companyOwner.otpDeliveryChannel = 'email';
+    return changed;
 };
 
 const applyUploadedDocuments = (account, uploads = {}) => {
@@ -360,10 +444,16 @@ const updateUser = async ({ type, definition, account, payload }) => {
     account.tier = parseNumber(payload.tier, 'tier', { min: 1, max: 3, integer: true });
     account.creditLimit = parseNumber(payload.creditLimit || 0, 'creditLimit', { min: 0, max: 1e12 });
     setBusinessProfile(account, payload);
+    setLoginOtpDelivery(type, account, payload);
     return { passwordChanged };
 };
 
-const updateCompany = async ({ account, payload }) => {
+const updateCompany = async ({ account, payload, companyOwner = null }) => {
+    const ownerOtpChanged = applyCompanyOwnerEmailOtp(companyOwner, {
+        email: payload.ownerEmail,
+        emailOtpEnabled: payload.emailOtpEnabled,
+        otpDeliveryChannel: payload.otpDeliveryChannel
+    });
     setName(account, payload);
     setStatus('company', account, payload);
     const phone = normalizePhone(payload.phone, false);
@@ -379,7 +469,7 @@ const updateCompany = async ({ account, payload }) => {
     account.tier = parseNumber(payload.tier, 'tier', { min: 1, max: 3, integer: true });
     account.creditLimit = parseNumber(payload.creditLimit || 0, 'creditLimit', { min: 0, max: 1e12 });
     setBusinessProfile(account, payload);
-    return { passwordChanged: false };
+    return { passwordChanged: false, ownerOtpChanged };
 };
 
 const updateSubAccount = async ({ definition, account, payload }) => {
@@ -399,6 +489,7 @@ const updateSubAccount = async ({ definition, account, payload }) => {
     account.marginPiasters = marginStorage.marginPiasters;
     account.pricingVersion = marginStorage.pricingVersion;
     account.cardMargin = parseNumber(payload.cardMargin || 0, 'cardMargin', { min: -100, max: 100 });
+    setLoginOtpDelivery('subaccount', account, payload);
     return { passwordChanged };
 };
 
@@ -447,6 +538,7 @@ const updateEmployee = async ({ type, definition, account, payload }) => {
     setEmployeeRoleAndPermissions(type, account, payload);
     await setEmployeeOwner(type, account, payload);
     if (type === 'executor-employee') account.telegramId = cleanText(payload.telegramId, 80) || undefined;
+    setLoginOtpDelivery(type, account, payload);
     return { passwordChanged };
 };
 
@@ -466,6 +558,23 @@ const updateExecutor = async ({ account, payload }) => {
         if (inFlightCount > 0) throw new AdminAccountManagementError('ACTIVE_TASKS', 'serviceKey');
         account.serviceKey = serviceKey;
     }
+
+    const nextServiceKeys = collectEnabledServiceKeysFromBody(payload, account.serviceKey);
+    const previousServiceKeys = getExecutorEnabledServiceKeys(account);
+    const removedServices = previousServiceKeys.filter((key) => !nextServiceKeys.includes(key));
+    if (removedServices.length) {
+        const removedTypes = [...new Set(removedServices.flatMap((key) => getExecutorSupportedTransferTypes(key)))];
+        const inFlightForRemoved = await Transaction.countDocuments({
+            $or: [{ executorGroupId: account._id }, { managerGroupId: account._id }],
+            status: { $in: ['processing', 'accepted'] },
+            $or: [
+                { canonicalServiceKey: { $in: removedServices } },
+                { transferType: { $in: removedTypes } }
+            ]
+        });
+        if (inFlightForRemoved > 0) throw new AdminAccountManagementError('ACTIVE_TASKS', 'serviceKeys');
+    }
+    account.serviceKeys = nextServiceKeys;
 
     if (!account.isManagerBot && payload.parentGroupId) {
         assertValidId(payload.parentGroupId);
@@ -510,7 +619,7 @@ const updateExecutor = async ({ account, payload }) => {
     return { passwordChanged: false, secretChanges, serviceChanged: serviceKey !== oldServiceKey };
 };
 
-const safeSnapshot = (type, account) => {
+const safeSnapshot = (type, account, context = {}) => {
     const snapshot = {
         name: account.name || '',
         status: account.status || ''
@@ -529,6 +638,16 @@ const safeSnapshot = (type, account) => {
             ? account.businessProfile.toObject()
             : { ...(account.businessProfile || {}) };
     }
+    if (type === 'user' || type === 'agent') {
+        snapshot.otpDeliveryChannel = account.otpDeliveryChannel === 'email' ? 'email' : 'whatsapp';
+    }
+    if (type === 'company' && hasOwn(context, 'companyOwner')) {
+        const owner = context.companyOwner;
+        snapshot.ownerId = owner ? String(owner._id || '') : '';
+        snapshot.ownerName = owner?.name || '';
+        snapshot.ownerEmail = owner?.email || '';
+        snapshot.ownerOtpDeliveryChannel = owner?.otpDeliveryChannel === 'email' ? 'email' : 'whatsapp';
+    }
     if (type === 'subaccount') {
         snapshot.accountCode = account.accountCode || '';
         snapshot.creditLimit = Number(account.creditLimit || 0);
@@ -536,6 +655,8 @@ const safeSnapshot = (type, account) => {
         snapshot.cardMargin = Number(account.cardMargin || 0);
         snapshot.masterType = account.masterType;
         snapshot.masterId = String(account.masterId || '');
+        snapshot.email = account.email || '';
+        snapshot.otpDeliveryChannel = account.otpDeliveryChannel === 'email' ? 'email' : 'whatsapp';
     }
     if (ROLE_OPTIONS[type]) {
         snapshot.role = account.role;
@@ -545,18 +666,28 @@ const safeSnapshot = (type, account) => {
         snapshot.companyId = String(account.companyId || '');
         snapshot.canManageCompany = Boolean(account.canManageCompany);
         snapshot.canCreateCompanyStaff = Boolean(account.canCreateCompanyStaff);
+        snapshot.email = account.email || '';
+        snapshot.otpDeliveryChannel = account.otpDeliveryChannel === 'email' ? 'email' : 'whatsapp';
     }
     if (type === 'agent-employee') {
         snapshot.agentId = String(account.agentId || '');
         snapshot.canManageAgent = Boolean(account.canManageAgent);
         snapshot.canCreateAgentStaff = Boolean(account.canCreateAgentStaff);
+        snapshot.email = account.email || '';
+        snapshot.otpDeliveryChannel = account.otpDeliveryChannel === 'email' ? 'email' : 'whatsapp';
     }
     if (type === 'executor-employee') {
         snapshot.groupId = String(account.groupId || '');
         snapshot.telegramId = account.telegramId || '';
+        snapshot.email = account.email || '';
+        snapshot.otpDeliveryChannel = account.otpDeliveryChannel === 'email' ? 'email' : 'whatsapp';
+        snapshot.executionPolicyOverride = account.executionPolicyOverride || {};
+        snapshot.inheritCompanyPolicy = !account.executionPolicyOverride
+            || Object.keys(account.executionPolicyOverride.toObject ? account.executionPolicyOverride.toObject() : account.executionPolicyOverride).length === 0;
     }
     if (type === 'executor') {
         snapshot.serviceKey = normalizeExecutorServiceKey(account.serviceKey);
+        snapshot.serviceKeys = getExecutorEnabledServiceKeys(account);
         snapshot.parentGroupId = String(account.parentGroupId || account.parentBotId || '');
         snapshot.isApiBot = Boolean(account.isApiBot);
         if (account.isApiBot) {
@@ -576,9 +707,54 @@ const changedFieldsBetween = (oldData, newData) => {
     return [...fields].filter((field) => JSON.stringify(oldData[field]) !== JSON.stringify(newData[field]));
 };
 
+const updateAccountOwnerEmailOtp = async ({ type, id, payload }) => {
+    const definition = getAccountTypeDefinition(type);
+    if (!['user', 'agent', 'company'].includes(definition.type)) {
+        throw new AdminAccountManagementError('INVALID_ACCOUNT_TYPE');
+    }
+    const { account } = await findEditableAccount(definition.type, id);
+
+    if (definition.type === 'company') {
+        const companyOwner = await findCompanyLoginOwner(account._id);
+        const oldData = safeSnapshot('company', account, { companyOwner });
+        const ownerOtpChanged = applyCompanyOwnerEmailOtp(companyOwner, {
+            email: payload.email,
+            emailOtpEnabled: payload.emailOtpEnabled,
+            otpDeliveryChannel: payload.otpDeliveryChannel
+        });
+        if (ownerOtpChanged) await companyOwner.save();
+        const newData = safeSnapshot('company', account, { companyOwner });
+        return {
+            account,
+            definition,
+            oldData,
+            newData,
+            changedFields: changedFieldsBetween(oldData, newData),
+            companyOwner
+        };
+    }
+
+    const oldData = safeSnapshot(definition.type, account);
+    setLoginOtpDelivery(definition.type, account, payload);
+    account.set('businessProfile.email', storedOtpEmail(payload.email));
+    await account.save();
+    const newData = safeSnapshot(definition.type, account);
+    return {
+        account,
+        definition,
+        oldData,
+        newData,
+        changedFields: changedFieldsBetween(oldData, newData)
+    };
+};
+
 const updateEditableAccount = async ({ type, id, payload, uploads = {} }) => {
     const { definition, account } = await findEditableAccount(type, id);
-    const oldData = safeSnapshot(definition.type, account);
+    const companyOwner = definition.type === 'company'
+        ? await findCompanyLoginOwner(account._id)
+        : null;
+    const snapshotContext = definition.type === 'company' ? { companyOwner } : {};
+    const oldData = safeSnapshot(definition.type, account, snapshotContext);
     let accountCodeChange = null;
 
     try {
@@ -586,7 +762,7 @@ const updateEditableAccount = async ({ type, id, payload, uploads = {} }) => {
         if (definition.type === 'user' || definition.type === 'agent') {
             updateMetadata = await updateUser({ type: definition.type, definition, account, payload });
         } else if (definition.type === 'company') {
-            updateMetadata = await updateCompany({ account, payload });
+            updateMetadata = await updateCompany({ account, payload, companyOwner });
         } else if (definition.type === 'subaccount') {
             updateMetadata = await updateSubAccount({ definition, account, payload });
         } else if (ROLE_OPTIONS[definition.type]) {
@@ -598,7 +774,21 @@ const updateEditableAccount = async ({ type, id, payload, uploads = {} }) => {
         accountCodeChange = await prepareAccountCodeChange({ type: definition.type, account, payload });
         const uploadedDocumentKinds = applyUploadedDocuments(account, uploads);
         await account.save();
+        if (updateMetadata.ownerOtpChanged && companyOwner) await companyOwner.save();
         if (accountCodeChange) await accountCodeChange.finalize();
+
+        if (definition.type === 'executor-employee') {
+            const { applyEmployeeExecutionPolicy } = require('./mobileWebParityService');
+            const { normalizeAdminEmployeePolicyBody } = require('../utils/executorManualPolicy');
+            const group = await ExecutorGroup.findById(account.groupId);
+            if (group && account.role !== 'manager') {
+                await applyEmployeeExecutionPolicy({
+                    employee: account,
+                    group,
+                    body: normalizeAdminEmployeePolicyBody(payload)
+                });
+            }
+        }
 
         if (updateMetadata.serviceChanged) {
             await Settings.updateMany({}, { $pull: { autoRouteRules: { executorGroupId: account._id } } }).catch(() => {});
@@ -608,7 +798,7 @@ const updateEditableAccount = async ({ type, id, payload, uploads = {} }) => {
             ).catch(() => {});
         }
 
-        const newData = safeSnapshot(definition.type, account);
+        const newData = safeSnapshot(definition.type, account, snapshotContext);
         return {
             account,
             definition,
@@ -629,7 +819,7 @@ const updateEditableAccount = async ({ type, id, payload, uploads = {} }) => {
 const getReturnUrl = (type, account) => {
     if (type === 'user' || type === 'agent') return `/user/${account._id}`;
     if (type === 'company') return `/company/${account._id}`;
-    if (type === 'subaccount') return '/clients?section=subaccounts';
+    if (type === 'subaccount') return '/clients?section=agents';
     if (type === 'executor') return `/executor/${account._id}`;
     if (type === 'executor-employee') return '/employees?section=executors';
     return '/employees?section=clients';
@@ -692,7 +882,9 @@ module.exports = {
     normalizeAccountType,
     getAccountTypeDefinition,
     findEditableAccount,
+    findCompanyLoginOwner,
     updateEditableAccount,
+    updateAccountOwnerEmailOtp,
     loadEditOptions,
     getReturnUrl,
     getErrorMessage,

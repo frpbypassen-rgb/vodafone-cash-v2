@@ -17,4 +17,10 @@ describe('Admin report PDF download contract', () => {
         expect(reportsRoute).toContain("res.setHeader('Content-Type', 'application/pdf')");
         expect(reportsRoute).toContain("res.setHeader('Content-Disposition', `attachment;");
     });
+
+    test('does not offer agency clients as a report subtype', () => {
+        expect(reportsView).not.toContain('عميل الوكيل');
+        expect(reportsView).not.toContain('subAccounts');
+        expect(reportsRoute).not.toContain('SubAccount');
+    });
 });

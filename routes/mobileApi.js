@@ -24,6 +24,7 @@ const correlationId = require('../middlewares/correlationId');
 const requireIdempotencyKey = require('../middlewares/requireIdempotencyKey');
 const { logAction } = require('../services/auditService');
 const { verifyAndUpgradePassword } = require('../utils/helpers');
+const { completedTransferLedgerInc } = require('../utils/executorServiceLedger');
 const { proofSourceUrl, saveProofImage, streamProofImage } = require('../services/proofStorageService');
 const { createReceiptImageUrl } = require('../services/receiptShareService');
 const { getClientReceiptProofIds } = require('../services/clientReceiptService');
@@ -72,6 +73,7 @@ const {
 } = require('../validators/mobileValidators');
 
 const mobileWebParityService = require('../services/mobileWebParityService');
+const executorBalancePoolService = require('../services/executorBalancePoolService');
 const executorDepositRequestService = require('../services/executorDepositRequestService');
 const executorSupportService = require('../services/executorSupportService');
 const mobileWebParityMapper = require('../mappers/mobileWebParityMapper');
@@ -90,12 +92,20 @@ const {
     ExecutorSenderEntriesError,
     normalizeExecutorSenderEntries
 } = require('../utils/executorSenderEntries');
+const { describeSplitPartProofs, preparePersistedSenderEntries } = require('../utils/splitPartProofs');
 const {
     ManualExecutionNumberError,
     maskManualExecutionNumber,
     generateManualExecutorReceiptBase64
 } = require('../utils/manualExecutorReceipt');
 const { reserveManualExecutorReceiptReference } = require('../services/manualExecutorReceiptReferenceService');
+const { readExecutorManualPolicy, toPublicExecutionPolicy, validateSenderPhoneDigits } = require('../utils/executorManualPolicy');
+const {
+    BankTransferExecutionError,
+    BANK_TRANSFER_PROOF_NOTE,
+    isBankTransferOperation,
+    prepareBankTransferCompletion
+} = require('../utils/bankTransferExecution');
 const {
     acknowledgeMobilePushTask,
     getMobilePushDeviceStatus,
@@ -122,7 +132,19 @@ const {
     routeExecutorTask,
     routingErrorMessage
 } = require('../services/executorTaskRoutingService');
-const { buildExecutorTaskRecipient } = require('../utils/executorTaskPrivacy');
+const { loadMobileLiveTasks } = require('../services/executorLiveTasksService');
+const {
+    QuickExecuteError,
+    buildQuickExecuteDial,
+    getQuickExecuteState,
+    saveQuickExecutePreferences
+} = require('../services/executorQuickExecuteService');
+const {
+    buildExecutorTaskRecipient,
+    buildTaskRoutingVisibility,
+    canClaimThenQuickExecuteTask,
+    canQuickExecuteTask
+} = require('../utils/executorTaskPrivacy');
 const {
     findBrowserExecutable,
     getSharedBrowser,
@@ -324,6 +346,7 @@ const buildReceiptProxyUrl = (req, ticket) => {
 
 const toExecutorTaskDto = (tx, currentExecutorId = null) => {
     const recipient = buildExecutorTaskRecipient(tx, currentExecutorId);
+    const routing = buildTaskRoutingVisibility(tx, currentExecutorId);
     return {
         id: tx._id ? String(tx._id) : null,
         txId: tx.customId || null,
@@ -337,23 +360,26 @@ const toExecutorTaskDto = (tx, currentExecutorId = null) => {
         notes: customerFacingNotes(customerNoteFromTransaction(tx)) || null,
         status: tx.status || 'unknown',
         operatorId: tx.operatorId ? String(tx.operatorId) : null,
-        assignedExecutorId: tx.assignedExecutorId ? String(tx.assignedExecutorId) : null,
-        assignedExecutorName: tx.assignedExecutorName || null,
-        isAssignedToCurrentExecutor: Boolean(
-            currentExecutorId &&
-            tx.assignedExecutorId &&
-            String(tx.assignedExecutorId) === String(currentExecutorId)
-        ),
-        acceptedByName: tx.status === 'accepted' ? (tx.executorName || null) : null,
+        assignedExecutorId: routing.assignedExecutorId,
+        assignedExecutorName: routing.assignedExecutorName,
+        assignedExecutorAt: routing.assignedExecutorAt
+            ? new Date(routing.assignedExecutorAt).toISOString()
+            : null,
+        routingState: routing.routingState,
+        routingStateLabel: routing.routingStateLabel,
+        isAssignedToCurrentExecutor: routing.isAssignedToCurrentExecutor,
+        acceptedByName: tx.status === 'accepted' ? (tx.executorName || routing.assignedExecutorName || null) : null,
         isOwnedByCurrentExecutor: Boolean(
             currentExecutorId && tx.status === 'accepted' && (() => {
                 const operatorId = tx.operatorId ? String(tx.operatorId) : '';
-                const assignedExecutorId = tx.assignedExecutorId ? String(tx.assignedExecutorId) : '';
+                const assignedExecutorId = routing.assignedExecutorId || '';
                 return (!operatorId || operatorId === String(currentExecutorId))
                     && (!assignedExecutorId || assignedExecutorId === String(currentExecutorId))
                     && (operatorId === String(currentExecutorId) || assignedExecutorId === String(currentExecutorId));
             })()
         ),
+        canQuickExecute: canQuickExecuteTask(tx, currentExecutorId),
+        canClaimThenQuickExecute: canClaimThenQuickExecuteTask(tx, currentExecutorId),
         executorReceivedAt: tx.executorReceivedAt
             ? new Date(tx.executorReceivedAt).toISOString()
             : (tx.createdAt ? new Date(tx.createdAt).toISOString() : null),
@@ -1456,23 +1482,10 @@ router.get('/executor/live-tasks', authenticateJWT, async (req, res) => {
             return sendMobileError(res, 409, 'EXECUTOR_GROUP_MISSING', 'حساب المنفذ غير مرتبط بشركة تنفيذ.', req.correlationId);
         }
 
-        const queryTasks = {
-            ...taskOwnershipFilter(effectiveEmployee),
-            // Some legacy/queue transitions expose a grouped task as pending
-            // for a short period. Keep it actionable instead of showing a
-            // stale card that inevitably fails on accept.
-            status: { $in: ['processing', 'pending', 'accepted'] }
-        };
-        if (req.tenant) queryTasks.tenantId = executorTenantScope(req);
-        const tasks = await Transaction.find(queryTasks).sort({ createdAt: 1 }).lean();
-
-        const queryAlerts = {
-            ...taskOwnershipFilter(effectiveEmployee),
-            emergencyAlert: { $exists: true, $ne: null },
-            status: { $in: ['processing', 'pending', 'accepted'] }
-        };
-        if (req.tenant) queryAlerts.tenantId = executorTenantScope(req);
-        const alerts = await Transaction.find(queryAlerts).lean();
+        const { tasks, alerts, pollIntervalSeconds, executionPolicy, quickExecute } = await loadMobileLiveTasks({
+            emp: effectiveEmployee,
+            tenantId: req.tenant ? executorTenantScope(req) : null
+        });
 
         return res.json({
             success: true,
@@ -1480,7 +1493,9 @@ router.get('/executor/live-tasks', authenticateJWT, async (req, res) => {
             alerts: alerts.map((task) => toExecutorTaskDto(task, userId)),
             manualTaskRoutingEnabled: Boolean(effectiveEmployee.groupId?.manualTaskRoutingEnabled),
             canRouteTasks: effectiveEmployee.role === 'manager',
-            pollIntervalSeconds: 5,
+            executionPolicy,
+            quickExecute,
+            pollIntervalSeconds,
             serverTime: new Date().toISOString()
         });
     } catch (e) {
@@ -1582,6 +1597,106 @@ router.post('/executor/task-routing-mode', authenticateJWT, async (req, res) => 
         );
         return res.json({ success: true, manualTaskRoutingEnabled: Boolean(group?.manualTaskRoutingEnabled) });
     } catch (error) {
+        return sendServerError(res, req);
+    }
+});
+
+router.post('/executor/execution-policy', authenticateJWT, async (req, res) => {
+    try {
+        if (req.user.accountType !== 'executor') {
+            return sendMobileError(res, 403, 'FORBIDDEN', 'صلاحيات غير كافية', req.correlationId);
+        }
+        const policy = await mobileWebParityService.updateCompanyExecutionPolicy({
+            executorId: req.user.userId,
+            body: req.body
+        });
+        return res.json({ success: true, executionPolicy: policy });
+    } catch (error) {
+        if (error.message === 'FORBIDDEN' || error.message === 'UNAUTHORIZED') {
+            return sendMobileError(res, 403, 'FORBIDDEN', 'هذه العملية متاحة لمدير التنفيذ فقط.', req.correlationId);
+        }
+        return sendServerError(res, req);
+    }
+});
+
+router.patch('/executor/employees/:id/execution-policy', authenticateJWT, async (req, res) => {
+    try {
+        if (req.user.accountType !== 'executor') {
+            return sendMobileError(res, 403, 'FORBIDDEN', 'صلاحيات غير كافية', req.correlationId);
+        }
+        return sendMobileError(
+            res,
+            403,
+            'ADMIN_ONLY',
+            'تعديل صلاحيات المنفذ متاح للإدارة المركزية فقط.',
+            req.correlationId
+        );
+    } catch (error) {
+        return sendServerError(res, req);
+    }
+});
+
+router.get('/executor/quick-execute', authenticateJWT, async (req, res) => {
+    try {
+        if (req.user.accountType !== 'executor') {
+            return sendMobileError(res, 403, 'FORBIDDEN', 'صلاحيات غير كافية', req.correlationId);
+        }
+        const quickExecute = await getQuickExecuteState({ executorId: req.user.userId });
+        return res.json({ success: true, quickExecute });
+    } catch (error) {
+        if (error instanceof QuickExecuteError) {
+            return sendMobileError(res, error.status, error.code, error.message, req.correlationId);
+        }
+        return sendServerError(res, req);
+    }
+});
+
+router.put('/executor/quick-execute', authenticateJWT, async (req, res) => {
+    try {
+        if (req.user.accountType !== 'executor') {
+            return sendMobileError(res, 403, 'FORBIDDEN', 'صلاحيات غير كافية', req.correlationId);
+        }
+        const quickExecute = await saveQuickExecutePreferences({
+            executorId: req.user.userId,
+            network: req.body?.network,
+            pin: req.body?.pin,
+            clearPin: req.body?.clearPin === true
+        });
+        return res.json({ success: true, quickExecute });
+    } catch (error) {
+        if (error instanceof QuickExecuteError) {
+            return sendMobileError(res, error.status, error.code, error.message, req.correlationId);
+        }
+        return sendServerError(res, req);
+    }
+});
+
+router.post('/executor/quick-execute/dial/:id', authenticateJWT, async (req, res) => {
+    try {
+        if (req.user.accountType !== 'executor') {
+            return sendMobileError(res, 403, 'FORBIDDEN', 'صلاحيات غير كافية', req.correlationId);
+        }
+        const dial = await buildQuickExecuteDial({
+            executorId: req.user.userId,
+            taskId: req.params.id,
+            pin: req.body?.pin,
+            tenantId: req.tenant ? executorTenantScope(req) : null
+        });
+        return res.json({
+            success: true,
+            network: dial.network,
+            networkLabel: dial.networkLabel,
+            pinIncluded: Boolean(dial.pinIncluded),
+            pinSet: Boolean(dial.pinSet),
+            securityNote: dial.securityNote || '',
+            ussd: dial.ussd,
+            telUri: dial.telUri,
+            acceptedNow: Boolean(dial.acceptedNow)
+        });
+    } catch (error) {
+        if (error instanceof QuickExecuteError) {
+            return sendMobileError(res, error.status, error.code, error.message, req.correlationId);
+        }
         return sendServerError(res, req);
     }
 });
@@ -2150,7 +2265,7 @@ router.post('/executor/cancel-task/:id', authenticateJWT, cancelTaskValidator, a
             { status: 'rejected' }
         );
         if (!result.success) {
-            return sendMobileError(res, 409, 'CANCELLATION_FAILED', result.message, req.correlationId);
+            return sendMobileError(res, result.statusCode || 409, result.code || 'CANCELLATION_FAILED', result.message, req.correlationId);
         }
 
         await logAction({
@@ -2252,25 +2367,11 @@ router.post('/executor/complete-task/:id', authenticateJWT, completeTaskValidato
             senderPhone,
             senderEntries: requestedSenderEntries
         } = req.body;
-        const executionNumber = String(requestedExecutionNumber ?? senderPhone ?? '').trim();
+        const executionNumber = String(requestedExecutionNumber ?? senderPhone ?? '').replace(/\D/g, '');
         const { userId, accountType } = req.user;
         if (accountType !== 'executor') {
             return sendMobileError(res, 403, 'FORBIDDEN', 'صلاحيات غير كافية', req.correlationId);
         }
-        if (!/^\d{11}$/.test(executionNumber)) {
-            return sendMobileError(res, 400, 'INVALID_EXECUTION_NUMBER', 'رقم التنفيذ يجب أن يتكون من 11 رقماً', req.correlationId);
-        }
-
-        let maskedExecutionNumber = '';
-        try {
-            maskedExecutionNumber = maskManualExecutionNumber(executionNumber);
-        } catch (error) {
-            if (error instanceof ManualExecutionNumberError) {
-                return sendMobileError(res, 400, error.code, error.message, req.correlationId);
-            }
-            throw error;
-        }
-
         const empQuery = { _id: userId };
         if (req.tenant) empQuery.tenantId = req.tenant._id;
         const employeeRecord = await Employee.findOne(empQuery).populate('groupId');
@@ -2282,6 +2383,7 @@ router.post('/executor/complete-task/:id', authenticateJWT, completeTaskValidato
             return sendMobileError(res, 403, 'TASKS_FORBIDDEN', 'صلاحيات المحاسب لا تسمح بتنفيذ العمليات', req.correlationId);
         }
 
+        const manualPolicy = readExecutorManualPolicy(emp.groupId, emp);
         const tx = await findOwnedAcceptedExecutorTask({
             transactionId: req.params.id,
             executor: emp,
@@ -2290,63 +2392,130 @@ router.post('/executor/complete-task/:id', authenticateJWT, completeTaskValidato
         if (!tx) {
             return sendMobileError(res, 409, 'INVALID_STATE', 'الطلب غير متاح للإنهاء', req.correlationId);
         }
-        let senderEntries;
-        try {
-            senderEntries = normalizeExecutorSenderEntries({
-                requestedSenderEntries,
-                senderPhone,
-                operationAmount: tx.amount,
-                group: emp.groupId
-            });
-        } catch (error) {
-            if (error instanceof ExecutorSenderEntriesError) {
-                return sendMobileError(res, error.statusCode, error.code, error.message, req.correlationId);
+        const bankTransfer = isBankTransferOperation(tx);
+        let bankProofPayloads = null;
+        if (bankTransfer) {
+            try {
+                bankProofPayloads = prepareBankTransferCompletion({
+                    imageBase64,
+                    imagesBase64,
+                    senderEntries: requestedSenderEntries
+                }).proofs;
+            } catch (error) {
+                if (error instanceof BankTransferExecutionError) {
+                    return sendMobileError(res, error.statusCode, error.code, error.message, req.correlationId);
+                }
+                throw error;
             }
-            throw error;
-        }
-        const executorReceipt = await reserveManualExecutorReceiptReference({ group: emp.groupId });
-        const completedAt = new Date();
-        const receiptBase64 = await generateManualExecutorReceiptBase64({
-            amount: tx.amount,
-            customerPhone: tx.vodafoneNumber || tx.accountNumber || tx.serviceDetails?.clientPhone || '---',
-            executionNumber: maskedExecutionNumber,
-            customId: tx.customId || tx._id.toString(),
-            executorReference: executorReceipt.reference,
-            serviceName: tx.transferType === 'sefa_niger' ? 'سيفا النيجر' : 'محافظ كاش',
-            amountCurrencyLabel: tx.transferType === 'sefa_niger' ? 'سيفا' : 'ج.م',
-            transferType: tx.transferType,
-            completedAt
-        });
-        const systemReceiptId = saveProofImage(receiptBase64, `${tx.customId || tx._id}_manual`);
-
-        if (emp.groupId && emp.groupId.parentGroupId) {
-            await ExecutorGroup.findByIdAndUpdate(emp.groupId.parentGroupId, { $inc: { balance: -tx.amount } });
-        }
-        if (emp.groupId) {
-            await ExecutorGroup.findByIdAndUpdate(emp.groupId._id, { $inc: { balance: -tx.amount } });
+        } else if (executionNumber) {
+            const executionCheck = validateSenderPhoneDigits(executionNumber, {
+                allowedPhoneLengths: manualPolicy.allowedPhoneLengths,
+                splitRequiresFullPhone: false,
+                isSplit: false
+            });
+            if (!executionCheck.ok) {
+                return sendMobileError(res, 400, executionCheck.code, executionCheck.message, req.correlationId);
+            }
         }
 
-        const uploadedImages = Array.isArray(imagesBase64) && imagesBase64.length
-            ? imagesBase64
-            : (imageBase64 ? [imageBase64] : []);
+        let maskedExecutionNumber = '';
+        if (!bankTransfer) {
+            try {
+                maskedExecutionNumber = maskManualExecutionNumber(executionNumber);
+            } catch (error) {
+                if (error instanceof ManualExecutionNumberError) {
+                    return sendMobileError(res, 400, error.code, error.message, req.correlationId);
+                }
+                throw error;
+            }
+        }
+        let senderEntries = [];
+        if (!bankTransfer) {
+            try {
+                senderEntries = normalizeExecutorSenderEntries({
+                    requestedSenderEntries,
+                    senderPhone: senderPhone || executionNumber,
+                    operationAmount: tx.amount,
+                    group: emp.groupId,
+                    policy: manualPolicy
+                });
+            } catch (error) {
+                if (error instanceof ExecutorSenderEntriesError) {
+                    return sendMobileError(res, error.statusCode, error.code, error.message, req.correlationId);
+                }
+                throw error;
+            }
+        }
+        const uploadedImages = bankTransfer
+            ? bankProofPayloads
+            : (Array.isArray(imagesBase64) && imagesBase64.length
+                ? imagesBase64
+                : (imageBase64 ? [imageBase64] : []));
         if (uploadedImages.length > 5 || uploadedImages.some((image) => typeof image !== 'string')) {
             return sendMobileError(res, 400, 'INVALID_PROOF_IMAGES', 'يمكن إرفاق خمس صور إثبات كحد أقصى', req.correlationId);
         }
+        if (!bankTransfer && manualPolicy.proofRequired && uploadedImages.length === 0 && senderEntries.every((entry) => !entry.proofImage)) {
+            return sendMobileError(res, 400, 'PROOF_REQUIRED', 'إرفاق صورة الإثبات إجباري لهذا المنفذ.', req.correlationId);
+        }
+        const splitCompletion = !bankTransfer && senderEntries.length > 1;
+        const executorReceipt = bankTransfer || splitCompletion
+            ? null
+            : await reserveManualExecutorReceiptReference({ group: emp.groupId });
+        const completedAt = new Date();
+        const systemReceiptId = bankTransfer || splitCompletion
+            ? null
+            : saveProofImage(await generateManualExecutorReceiptBase64({
+                amount: tx.amount,
+                customerPhone: tx.vodafoneNumber || tx.accountNumber || tx.serviceDetails?.clientPhone || '---',
+                executionNumber: maskedExecutionNumber,
+                customId: tx.customId || tx._id.toString(),
+                executorReference: executorReceipt.reference,
+                serviceName: tx.transferType === 'sefa_niger' ? 'سيفا النيجر' : 'محافظ كاش',
+                amountCurrencyLabel: tx.transferType === 'sefa_niger' ? 'سيفا' : 'ج.م',
+                transferType: tx.transferType,
+                completedAt
+            }), `${tx.customId || tx._id}_manual`);
+
+        const ledgerInc = completedTransferLedgerInc(emp.groupId, tx, -tx.amount);
+        if (emp.groupId && emp.groupId.parentGroupId) {
+            await ExecutorGroup.findByIdAndUpdate(emp.groupId.parentGroupId, { $inc: ledgerInc });
+        }
+        if (emp.groupId) {
+            await ExecutorGroup.findByIdAndUpdate(emp.groupId._id, { $inc: ledgerInc });
+        }
+
         const savedFileIds = uploadedImages.map((image, index) => (
-            saveProofImage(image, `${tx.customId || tx._id}_executor_${index + 1}`)
+            saveProofImage(image, `${tx.customId || tx._id}_${bankTransfer ? 'bank_proof' : 'executor'}_${index + 1}`)
         ));
+        const clientProofId = bankTransfer ? savedFileIds[0] : (splitCompletion ? null : systemReceiptId);
+        const privateProofIds = bankTransfer ? savedFileIds.slice(1) : savedFileIds;
+        const persistedSenderEntries = bankTransfer
+            ? []
+            : preparePersistedSenderEntries({
+                transactionId: tx._id,
+                entries: senderEntries,
+                completedAt,
+                requestedEntries: Array.isArray(requestedSenderEntries) ? requestedSenderEntries : []
+            });
 
         tx.status = 'completed';
-        tx.proofImages = systemReceiptId ? [systemReceiptId] : [];
-        tx.proofImage = systemReceiptId || undefined;
-        tx.executorProofImages = savedFileIds;
-        tx.executorExecutionNumber = executionNumber || undefined;
-        tx.executorSenderPhone = senderEntries[0]?.phone || undefined;
-        tx.executorSenderEntries = senderEntries;
-        tx.executorExecutionNumberMasked = maskedExecutionNumber || undefined;
-        tx.manualExecutorReceiptReference = executorReceipt.reference;
+        tx.proofImages = clientProofId ? [clientProofId] : [];
+        tx.proofImage = clientProofId || undefined;
+        tx.executorProofImages = privateProofIds;
+        tx.executorExecutionNumber = bankTransfer ? undefined : (executionNumber || undefined);
+        tx.executorSenderPhone = bankTransfer ? undefined : (senderEntries[0]?.phone || undefined);
+        tx.executorSenderEntries = persistedSenderEntries;
+        tx.executorExecutionNumberMasked = bankTransfer ? undefined : (maskedExecutionNumber || undefined);
+        tx.manualExecutorReceiptReference = bankTransfer || splitCompletion ? undefined : executorReceipt.reference;
         tx.completedAt = completedAt;
-        tx.adminNotes = appendAdminNoteText(tx.adminNotes, `[تم توليد إيصال تنفيذ يدوي | مرجع المنفذ: ${executorReceipt.reference}]`);
+        tx.adminNotes = appendAdminNoteText(
+            tx.adminNotes,
+            bankTransfer
+                ? BANK_TRANSFER_PROOF_NOTE
+                : (splitCompletion
+                    ? '[تم تسجيل أجزاء التنفيذ لإصدار إثبات مستقل لكل جزء ناجح]'
+                    : `[تم توليد إيصال تنفيذ يدوي | مرجع المنفذ: ${executorReceipt.reference}]`)
+        );
         await tx.save();
 
         await logAction({
@@ -2360,11 +2529,12 @@ router.post('/executor/complete-task/:id', authenticateJWT, completeTaskValidato
             oldData: { status: 'accepted' },
             newData: {
                 status: 'completed',
-                hasProofImage: savedFileIds.length > 0,
+                hasProofImage: bankTransfer ? Boolean(clientProofId) : savedFileIds.length > 0,
                 proofCount: tx.proofImages.length,
-                executorProofCount: savedFileIds.length,
-                manualExecutorReceiptReference: executorReceipt.reference,
-                executorExecutionNumberMasked: maskedExecutionNumber || null
+                executorProofCount: privateProofIds.length,
+                proofSource: bankTransfer ? 'bank-transfer-executor-upload' : (splitCompletion ? 'split-part-proofs' : 'system-generated'),
+                manualExecutorReceiptReference: bankTransfer || splitCompletion ? null : executorReceipt.reference,
+                executorExecutionNumberMasked: bankTransfer ? null : (maskedExecutionNumber || null)
             },
             metadata: { customId: tx.customId, amount: tx.amount, transferType: tx.transferType }
         });
@@ -2373,9 +2543,50 @@ router.post('/executor/complete-task/:id', authenticateJWT, completeTaskValidato
         // idempotency protection, exactly like the web and API executor channels.
         eventBus.publish('transfer:completed', { tx, emp });
 
-        return res.json({ success: true, message: 'تم إرسال الإثبات بنجاح' });
+        return res.json({
+            success: true,
+            message: bankTransfer
+                ? 'تم إرسال إثبات التحويل البنكي للعميل.'
+                : (splitCompletion ? 'تم حفظ التنفيذ وسيصل إثبات كل جزء ناجح بشكل مستقل.' : 'تم إرسال الإثبات بنجاح')
+        });
     } catch (e) {
         return sendServerError(res, req, 'خطأ في السيرفر');
+    }
+});
+
+router.post('/executor/retry-part-proof/:id/:partId', authenticateJWT, async (req, res) => {
+    try {
+        const { userId, accountType } = req.user;
+        if (accountType !== 'executor') {
+            return sendMobileError(res, 403, 'FORBIDDEN', 'صلاحيات غير كافية', req.correlationId);
+        }
+        const empQuery = { _id: userId };
+        if (req.tenant) empQuery.tenantId = req.tenant._id;
+        const employeeRecord = await Employee.findOne(empQuery);
+        const emp = executorWithSessionGroup(employeeRecord, req.user.executorGroupId);
+        if (!emp) {
+            return sendMobileError(res, 404, 'EMPLOYEE_NOT_FOUND', 'لم يتم العثور على حساب المنفذ', req.correlationId);
+        }
+        const txQuery = { _id: req.params.id };
+        if (req.tenant) txQuery.tenantId = req.tenant._id;
+        const tx = await Transaction.findOne(txQuery);
+        if (!tx) return sendMobileError(res, 404, 'NOT_FOUND', 'العملية غير موجودة', req.correlationId);
+        const employeeGroupId = String(emp.groupId?._id || emp.groupId || '');
+        const ownsTask = String(tx.executorGroupId || '') === employeeGroupId
+            || String(tx.managerGroupId || '') === employeeGroupId;
+        if (!ownsTask) return sendMobileError(res, 403, 'FORBIDDEN', 'صلاحيات غير كافية', req.correlationId);
+
+        const { retrySplitPartProof } = require('../services/splitPartProofService');
+        const result = await retrySplitPartProof(tx._id, req.params.partId);
+        return res.status(result.ok ? 200 : 409).json({
+            success: Boolean(result.ok),
+            code: result.code,
+            partId: result.partId,
+            proofStatus: result.proofStatus || null,
+            duplicate: Boolean(result.duplicate)
+        });
+    } catch (e) {
+        return sendServerError(res, req, 'تعذر إعادة إرسال إثبات الجزء');
     }
 });
 
@@ -2981,13 +3192,31 @@ router.get('/client/transactions/:id', authenticateJWT, async (req, res) => {
                 notes: customerFacingNotes(customerNoteFromTransaction(tx)),
                 cancellationNumber: tx.cancellationNumber || null,
                 cancellationReason: tx.cancellationReason || null,
-                hasProofImage: !!(tx.proofImage || (tx.proofImages && tx.proofImages.length > 0)),
+                hasProofImage: getClientReceiptProofIds(tx).length > 0,
                 // Keep the detail response consistent with the transaction list.
                 // This is also the official cancellation receipt when the operation
                 // was rejected or cancelled by the administration.
-                receiptUrl: (tx.proofImage || (tx.proofImages && tx.proofImages.length > 0))
+                receiptUrl: getClientReceiptProofIds(tx).length
                     ? createReceiptImageUrl({ transactionId: tx._id, index: 0 })
-                    : null
+                    : null,
+                ...(describeSplitPartProofs(tx).length ? {
+                    partProofs: describeSplitPartProofs(tx).map((part) => ({
+                        partId: part.partId,
+                        amount: part.amount,
+                        senderWallet: part.senderWallet,
+                        recipient: part.recipient,
+                        reference: part.reference,
+                        partReference: part.partReference,
+                        status: part.status,
+                        confirmedAt: part.confirmedAt,
+                        proofStatus: part.proofStatus,
+                        proofAvailable: part.proofAvailable,
+                        receiptIndex: part.receiptIndex,
+                        receiptUrl: part.proofAvailable
+                            ? createReceiptImageUrl({ transactionId: tx._id, index: part.receiptIndex })
+                            : null
+                    }))
+                } : {})
             }
         });
     } catch (e) {
@@ -3828,10 +4057,21 @@ router.get('/executor/employees', authenticateJWT, async (req, res) => {
             executorId: userId,
             tenantId: req.tenant ? executorTenantScope(req) : null
         });
+        const manager = await Employee.findById(userId).select('role groupId tenantId name').lean();
+        let poolWorkspace = null;
+        if (manager?.role === 'manager') {
+            poolWorkspace = await executorBalancePoolService.listExternalBalanceWorkspace({ manager }).catch(() => null);
+        }
         return res.json({
             success: true,
             employees: workspace.employees.map(emp => mobileWebParityMapper.toEmployeeDto(emp)),
-            summary: workspace.summary
+            summary: {
+                ...workspace.summary,
+                ...(poolWorkspace?.balances || {})
+            },
+            pools: poolWorkspace?.pools || [],
+            soloExternals: poolWorkspace?.solos || [],
+            companyExecutionPolicy: workspace.companyExecutionPolicy || null
         });
     } catch (e) {
         if (e.message === 'UNAUTHORIZED') {
@@ -4014,6 +4254,96 @@ router.delete('/executor/employees/:id', authenticateJWT, async (req, res) => {
             return sendMobileError(res, 404, 'NOT_FOUND', 'الموظف غير موجود أو لا ينتمي إلى مجموعتك', req.correlationId);
         }
         return sendServerError(res, req, 'حدث خطأ أثناء حذف الموظف');
+    }
+});
+
+const handleExecutorPoolError = (res, req, error) => {
+    if (error instanceof executorBalancePoolService.ExecutorBalancePoolError) {
+        return sendMobileError(res, error.status || 400, error.code, error.message, req.correlationId);
+    }
+    return sendServerError(res, req, error.message || 'تعذر إكمال العملية');
+};
+
+router.get('/executor/balance-pools', authenticateJWT, async (req, res) => {
+    try {
+        const manager = await Employee.findById(req.user.userId);
+        const workspace = await executorBalancePoolService.listExternalBalanceWorkspace({ manager });
+        return res.json({ success: true, ...workspace, serverTime: new Date().toISOString() });
+    } catch (error) {
+        return handleExecutorPoolError(res, req, error);
+    }
+});
+
+router.post('/executor/balance-pools', authenticateJWT, async (req, res) => {
+    try {
+        const manager = await Employee.findById(req.user.userId);
+        const pool = await executorBalancePoolService.createPool({
+            manager,
+            name: req.body?.name,
+            memberIds: req.body?.memberIds || req.body?.members
+        });
+        const workspace = await executorBalancePoolService.listExternalBalanceWorkspace({ manager });
+        return res.status(201).json({ success: true, pool, ...workspace });
+    } catch (error) {
+        return handleExecutorPoolError(res, req, error);
+    }
+});
+
+router.post('/executor/balance-pools/:id/rename', authenticateJWT, async (req, res) => {
+    try {
+        const manager = await Employee.findById(req.user.userId);
+        const pool = await executorBalancePoolService.renamePool({
+            manager,
+            poolId: req.params.id,
+            name: req.body?.name
+        });
+        return res.json({ success: true, pool });
+    } catch (error) {
+        return handleExecutorPoolError(res, req, error);
+    }
+});
+
+router.post('/executor/balance-pools/:id/members', authenticateJWT, async (req, res) => {
+    try {
+        const manager = await Employee.findById(req.user.userId);
+        const workspace = await executorBalancePoolService.attachMembers({
+            manager,
+            poolId: req.params.id,
+            memberIds: req.body?.memberIds || req.body?.members || [req.body?.employeeId]
+        });
+        return res.json({ success: true, ...workspace });
+    } catch (error) {
+        return handleExecutorPoolError(res, req, error);
+    }
+});
+
+router.post('/executor/balance-pools/:id/members/:employeeId/detach', authenticateJWT, async (req, res) => {
+    try {
+        const manager = await Employee.findById(req.user.userId);
+        const workspace = await executorBalancePoolService.detachMember({
+            manager,
+            poolId: req.params.id,
+            employeeId: req.params.employeeId
+        });
+        return res.json({ success: true, ...workspace });
+    } catch (error) {
+        return handleExecutorPoolError(res, req, error);
+    }
+});
+
+router.post('/executor/employees/:id/external-transaction', authenticateJWT, async (req, res) => {
+    try {
+        const manager = await Employee.findById(req.user.userId);
+        const result = await executorBalancePoolService.fundExternalExecutor({
+            manager,
+            employeeId: req.params.id,
+            type: req.body?.type,
+            amount: req.body?.amount,
+            note: req.body?.note
+        });
+        return res.json({ success: true, ...result });
+    } catch (error) {
+        return handleExecutorPoolError(res, req, error);
     }
 });
 

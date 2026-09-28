@@ -27,7 +27,8 @@ const {
 } = require('../utils/rateHelper');
 const { getTransferServiceDefinition } = require('../utils/mobileTransferServiceCatalog');
 const { validateTransferInput } = require('../utils/transferServiceRules');
-const { getClientReceiptProofIds } = require('../services/clientReceiptService');
+const { resolveEgyptianBank } = require('../utils/egyptianBanks');
+const { resolveClientProofImage } = require('../services/clientProofAccessService');
 const { normalizeCustomerNoteInput } = require('../utils/transactionNotes');
 const { normalizeWhatsAppPhone } = require('../services/whatsappService');
 const { activatePendingRateUpdate } = require('../services/rateChangeService');
@@ -265,6 +266,10 @@ exports.postTransfer = async (req, res) => {
             dataEntryAcknowledgedAt: serviceKey === 'sefa_niger' && dataEntryAcknowledged ? new Date() : undefined
         };
 
+        const bankInput = {
+            bankCode: req.body.bankCode,
+            bankName: req.body.bankName
+        };
         const validationError = validateTransferInput({
             serviceKey,
             amount,
@@ -276,9 +281,15 @@ exports.postTransfer = async (req, res) => {
             governorate,
             hasIdentityImage: Boolean(req.file),
             enforceDataEntryAcknowledgement: true,
-            dataEntryAcknowledged
+            dataEntryAcknowledged,
+            ...bankInput
         });
         if (validationError) throw createClientError(validationError, 400);
+        if (serviceKey === 'bank_account' || serviceKey === 'bank_transfer') {
+            const bank = resolveEgyptianBank(bankInput.bankCode || bankInput.bankName);
+            serviceDetails.bankCode = bank.code;
+            serviceDetails.bankName = bank.nameAr;
+        }
 
         let settings = await withSess(Settings.findOne({}));
         if (!settings) settings = await Settings.create({}, sessionOpts);
@@ -709,22 +720,18 @@ exports.postComplaint = async (req, res) => {
 
 exports.getProxyImage = async (req, res) => {
     try {
-        if (!mongoose.isValidObjectId(req.params.id)) return res.status(404).send('لا توجد صورة إثبات');
-        const ownership = await clientOwnershipFilter(req);
-        if (!ownership) return res.status(403).send('غير مصرح لك بعرض هذه الصورة أو الإيصال');
-        const tx = await Transaction.findOne({ $and: [{ _id: req.params.id }, ownership] });
-        if (!tx) return res.status(403).send('غير مصرح لك بعرض هذه الصورة أو الإيصال');
-
-        const index = req.params.index === undefined ? 0 : Number.parseInt(req.params.index, 10);
-        if (!Number.isInteger(index) || index < 0) return res.status(400).send('رقم صورة الإيصال غير صالح');
-        const photoId = getClientReceiptProofIds(tx)[index];
-
-        if (!photoId) return res.status(404).send('لا توجد صورة إثبات');
+        const { photoId } = await resolveClientProofImage({
+            session: req.session,
+            transactionId: req.params.id,
+            index: req.params.index,
+            ownershipFilter: await clientOwnershipFilter(req)
+        });
 
         const { proofSourceUrl, streamProofImage } = require('../services/proofStorageService');
         await streamProofImage(proofSourceUrl(photoId), res);
         return;
     } catch (error) {
+        if (error.statusCode) return res.status(error.statusCode).send(error.message);
         console.error(error);
         res.status(500).send('خطأ داخلي في الخادم');
     }

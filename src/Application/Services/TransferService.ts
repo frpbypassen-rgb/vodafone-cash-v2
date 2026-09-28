@@ -31,6 +31,7 @@ const {
 const { minimumBalanceForDebit } = require('../../../services/agencyCreditLimitService');
 const { requiresMongoTransactions } = require('../../../services/walletService');
 const { resolveAutoRouteExecutor, applyAutoRouteFields, enqueueAutoRouteIfNeeded } = require('../../../services/autoRouteService');
+const { normalizeStoredBank } = require('../../../utils/egyptianBanks');
 const eventBus = require('../../../services/eventBus');
 import logger from '../../../utils/logger';
 
@@ -91,6 +92,7 @@ export interface ITransferInput {
     recipientPhone?: string;
     governorate?: string;
     bankName?: string;
+    bankCode?: string;
 }
 
 export class TransferService {
@@ -265,6 +267,22 @@ export class TransferService {
             const recipientPhone = transferData.recipientPhone?.trim();
             const governorate = transferData.governorate?.trim();
             const bankName = transferData.bankName?.trim();
+            const storedBank = normalizeStoredBank({
+                transferType,
+                bankName,
+                bankCode: transferData.bankCode
+            });
+            if (storedBank.error) {
+                await abortSession(session);
+                return {
+                    success: false,
+                    statusCode: 400,
+                    code: storedBank.code,
+                    message: storedBank.error
+                };
+            }
+            const canonicalBankName = storedBank.bank?.nameAr || '';
+            const canonicalBankCode = storedBank.bank?.code || '';
             let clientPhone = String(transferData.clientPhone || '').trim().slice(0, 30);
             const currency = transferData.currency || 'EGP';
             const storedNotes = [
@@ -273,7 +291,7 @@ export class TransferService {
                 city ? `city=${city}` : null,
                 recipientPhone ? `recipientPhone=${recipientPhone}` : null,
                 governorate ? `governorate=${governorate}` : null,
-                bankName ? `bankName=${bankName}` : null
+                canonicalBankName ? `bankName=${canonicalBankName}` : null
             ].filter(Boolean).join(' | ');
 
             if (clientPhone) {
@@ -544,7 +562,8 @@ export class TransferService {
                     city: city || '',
                     recipientPhone: recipientPhone || '',
                     governorate: governorate || '',
-                    bankName: bankName || '',
+                    bankCode: canonicalBankCode,
+                    bankName: canonicalBankName,
                     clientPhone,
                     destinationLabel: serviceDefinition.numberLabel || '',
                     amountCurrency: pricingDefinition.amountCurrencyCode,
@@ -613,6 +632,10 @@ export class TransferService {
                     creditAccount: 'Assets:Receivables',
                     balanceBefore: clientInfo.masterObj.balance,
                     balanceAfter: updatedMaster.balance,
+                    originalAmount: amount,
+                    originalCurrency: pricingDefinition.amountCurrencyCode,
+                    settledCurrency: 'LYD',
+                    exchangeRate: masterRate,
                     description: `تحويل من نقطة بيع (${clientInfo.subAccount.name}): ${amount} ${pricingDefinition.amountCurrencyLabel} إلى ${number}`
                 });
                 await ledgerMaster.save({ session });
@@ -623,7 +646,11 @@ export class TransferService {
                     debitAccount: 'Liabilities:ClientDeposits',
                     creditAccount: 'Assets:Receivables',
                     balanceBefore: currentBalance, balanceAfter: this.getWalletBalance(updatedClient, currency),
-                    description: `تحويل حوالة مالية بقيمة ${amount} ${pricingDefinition.amountCurrencyLabel} - رقم العملية ${customId}`
+                    originalAmount: amount,
+                    originalCurrency: pricingDefinition.amountCurrencyCode,
+                    settledCurrency: 'LYD',
+                    exchangeRate: finalRate,
+                    description: `تحويل حوالة مالية بقيمة ${amount} ${pricingDefinition.amountCurrencyLabel} بسعر ${finalRate} = ${costLYD} LYD - رقم العملية ${customId}`
                 });
                 await ledgerEntry.save({ session });
             }
@@ -739,6 +766,16 @@ export class TransferService {
             return { success: false, statusCode: 429, code: 'LOCK_TIMEOUT', message: 'الرجاء الانتظار، العملية قيد المعالجة حالياً' };
         }
 
+        const { refundBlockedByUnresolvedProvider } = require('../../../services/providerDispatchClaimService');
+        try {
+            const heldPreview = await Transaction.findById(taskId);
+            const previewBlock = refundBlockedByUnresolvedProvider(heldPreview);
+            if (previewBlock) {
+                await releaseLock(lock);
+                return previewBlock;
+            }
+        } catch (_) {}
+
         const session = await mongoose.startSession();
         session.startTransaction();
 
@@ -748,6 +785,13 @@ export class TransferService {
                 tx = await Transaction.findOne({ _id: taskId, tenantId: req.tenant._id }).session(session);
             } else {
                 tx = await Transaction.findById(taskId).session(session);
+            }
+
+            const unresolvedBlock = refundBlockedByUnresolvedProvider(tx);
+            if (unresolvedBlock) {
+                await session.abortTransaction();
+                session.endSession();
+                return unresolvedBlock;
             }
 
             const empQuery: any = { webUsername: userId };

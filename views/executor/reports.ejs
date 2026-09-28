@@ -87,9 +87,9 @@
     <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
-    <link rel="stylesheet" href="/css/executor-workspace.css?v=20260825-balance1">
+    <link rel="stylesheet" href="/css/executor-workspace.css?v=20260921-pool-ui">
     <link rel="stylesheet" href="/css/executor-2030-override.css?v=20260825-balance1">
-    <link rel="stylesheet" href="/css/executor-os.css?v=20260825-balance1">
+    <link rel="stylesheet" href="/css/executor-os.css?v=20260921-pool-ui">
     <link rel="stylesheet" href="/css/executor-report-controls.css?v=20260825-1">
 
     <style>
@@ -176,7 +176,7 @@
 <body class="executor-os executor-portal-v2 executor-page-reports">
 <%- include('partials/navigation', { emp, activePage: 'reports' }) %>
     <div class="exo-stage">
-        <%- include('partials/command-bar', { emp }) %>
+        <%- include('partials/command-bar', { emp, companyBalances: typeof companyBalances === 'undefined' ? null : companyBalances }) %>
     </div>
     <nav class="navbar-glass">
         <div class="executor-info">
@@ -188,7 +188,15 @@
         </div>
         <div class="nav-actions">
             <% if (!['operator', 'external'].includes(emp.role)) { %>
-            <span class="nav-btn text-success border border-success border-opacity-25" style="cursor: default; font-weight: 800;" title="المبلغ المتاح"><i class="fa-solid fa-wallet me-1"></i> <%= Number(emp.groupId?.balance || 0).toLocaleString('en-US', { maximumFractionDigits: 0 }) %> ج.م</span>
+            <% const reportNavRows = Array.isArray(companyBalances?.byService) ? companyBalances.byService : []; %>
+            <% if (companyBalances?.multiService && reportNavRows.length > 1) { %>
+                <% reportNavRows.forEach((row) => { %>
+                    <span class="nav-btn text-success border border-success border-opacity-25" style="cursor: default; font-weight: 800;" title="<%= row.appliesPoolModel ? row.totalLabel : row.singleLabel %>"><i class="fa-solid fa-wallet me-1"></i> <%= row.shortLabel %> <%= Number(row.appliesPoolModel ? row.totalBalance : row.privateBalance).toLocaleString('en-US', { maximumFractionDigits: 0 }) %> ج.م</span>
+                <% }); %>
+            <% } else { %>
+            <span class="nav-btn text-success border border-success border-opacity-25" style="cursor: default; font-weight: 800;" title="إجمالي الرصيد"><i class="fa-solid fa-vault me-1"></i> <%= Number(companyBalances?.totalBalance ?? emp.groupId?.balance ?? 0).toLocaleString('en-US', { maximumFractionDigits: 0 }) %> ج.م</span>
+            <span class="nav-btn text-warning border border-warning border-opacity-25" style="cursor: default; font-weight: 800;" title="الرصيد الخاص"><i class="fa-solid fa-wallet me-1"></i> <%= Number(companyBalances?.privateBalance ?? emp.groupId?.balance ?? 0).toLocaleString('en-US', { maximumFractionDigits: 0 }) %> ج.م</span>
+            <% } %>
             <% } %>
             <button class="nav-btn btn-theme shadow-sm" onclick="toggleTheme()" title="المظهر"><i class="fa-solid fa-moon" id="themeIcon"></i></button>
             <a href="/executor-portal/logout" class="nav-btn btn-logout"><i class="fa-solid fa-power-off"></i></a>
@@ -351,6 +359,20 @@
             const theme = localStorage.getItem('ahram_theme') || 'light';
             document.getElementById('themeIcon').className = theme === 'dark' ? 'fa-solid fa-sun text-warning' : 'fa-solid fa-moon text-dark';
         });
+        document.addEventListener('click', async (event) => {
+            const button = event.target.closest('.retry-part-proof');
+            if (!button) return;
+            button.disabled = true;
+            try {
+                const response = await executorApiFetch(`/executor-portal/api/retry-part-proof/${button.dataset.tx}/${encodeURIComponent(button.dataset.part)}`, { method: 'POST' });
+                const data = await response.json().catch(() => ({}));
+                if (!response.ok || data.success === false) throw new Error(data.error || 'تعذر إعادة إرسال الإثبات.');
+                button.textContent = data.duplicate ? 'الإثبات مُرسل مسبقاً' : 'تمت إعادة الإرسال';
+            } catch (error) {
+                button.disabled = false;
+                button.textContent = error.message || 'تعذر إعادة الإرسال';
+            }
+        });
 
         const TRIPOLI_TZ = 'Africa/Tripoli';
 
@@ -467,6 +489,12 @@
                     body: JSON.stringify(reportRequest)
                 });
                 const data = await res.json();
+                if (data.code === 'DEVICE_BINDING_MISMATCH'
+                    || data.code === 'SECURITY_SESSION_EXPIRED'
+                    || data.code === 'ADMIN_SESSION_REVOKED') {
+                    window.location.assign(`/login?security=${encodeURIComponent(data.code)}`);
+                    return;
+                }
                 if (!data.success) throw new Error(data.error);
 
                 isPersonalExecutorReport = data.data.scope === 'employee';
@@ -721,6 +749,11 @@
                                 <div class="fw-bold mb-1">مرسل #${index + 1}</div>
                                 <div><label>رقم الهاتف</label><span dir="ltr">${entry.phone || '---'}</span></div>
                                 <div><label>المبلغ</label><span>${formatEgp(entry.amount || 0)}</span></div>
+                                ${entry.partId ? `<div><label>مرجع الجزء</label><span dir="ltr">${entry.reference || entry.partId}</span></div>` : ''}
+                                ${entry.status ? `<div><label>حالة الجزء</label><span>${entry.status}</span></div>` : ''}
+                                ${entry.customerProofStatus ? `<div><label>حالة الإثبات</label><span>${entry.customerProofStatus}</span></div>` : ''}
+                                ${entry.customerProofUrl ? `<div class="mt-2"><a href="${entry.customerProofUrl}" target="_blank"><img src="${entry.customerProofUrl}" alt="إثبات الجزء" style="max-height:120px;border-radius:10px;border:1px solid var(--x-border)"></a></div>` : ''}
+                                ${entry.partId && entry.customerProofStatus && entry.customerProofStatus !== 'sent' ? `<button type="button" class="btn btn-sm btn-outline-warning mt-2 retry-part-proof" data-tx="${tx.id}" data-part="${entry.partId}">إعادة إرسال إثبات الجزء</button>` : ''}
                                 ${entry.proofImageUrl ? `<div class="mt-2"><a href="${entry.proofImageUrl}" target="_blank"><img src="${entry.proofImageUrl}" alt="إثبات المرسل" style="max-height:120px;border-radius:10px;border:1px solid var(--x-border)"></a></div>` : ''}
                             </div>
                         `).join('')}

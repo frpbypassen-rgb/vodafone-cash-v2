@@ -1,0 +1,35 @@
+<%#
+  Unified customer "More" sheet — dock overflow so no sidebar item is orphaned.
+  Locals: moreItems (optional), user/account/workspace, moreTitle
+%>
+<%
+    const sheetUser = (typeof user !== 'undefined' && user) ? user : ((typeof account !== 'undefined' && account) ? account : (typeof workspace !== 'undefined' && workspace.actor ? workspace.actor : {}));
+    const sheetWorkspace = typeof workspace !== 'undefined' ? workspace : null;
+    const defaultMore = typeof moreItems !== 'undefined' && Array.isArray(moreItems) ? moreItems : [];
+%>
+<dialog class="cl-more-drawer" id="customerMoreSheet" data-customer-more aria-labelledby="customerMoreTitle">
+    <div class="cl-more-head">
+        <div>
+            <span class="cl-more-kicker"><i class="fa-solid fa-ellipsis"></i> المزيد</span>
+            <h2 id="customerMoreTitle"><%= typeof moreTitle !== 'undefined' && moreTitle ? moreTitle : (sheetUser.name || (sheetWorkspace && sheetWorkspace.entity && sheetWorkspace.entity.name) || 'بوابة العملاء') %></h2>
+            <small><%= (sheetWorkspace && sheetWorkspace.roleLabel) || sheetUser.userRoleLabel || (sheetUser.role === 'accountant' ? 'حسابات' : 'عميل') %></small>
+        </div>
+        <button type="button" class="cl-more-close" data-cl-more-close aria-label="إغلاق"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <nav class="cl-more-nav" aria-label="صفحات إضافية">
+        <% defaultMore.forEach((item) => { %>
+            <a href="<%= item.href %>" class="cl-more-link<%= item.danger || item.tone === 'logout' ? ' is-danger' : '' %><%= item.active ? ' is-active' : '' %>" data-more-key="<%= item.key %>">
+                <span class="cl-more-icon <%= item.tone || item.key %>"><i class="fa-solid <%= item.icon %>"></i></span>
+                <span><%= item.dockLabel || item.label %></span>
+                <i class="fa-solid fa-chevron-left"></i>
+            </a>
+        <% }) %>
+        <% if (!defaultMore.some((item) => item.key === 'logout' || item.href === '/client/logout')) { %>
+            <a href="/client/logout" class="cl-more-link is-danger" data-more-key="logout">
+                <span class="cl-more-icon logout"><i class="fa-solid fa-power-off"></i></span>
+                <span>تسجيل الخروج</span>
+                <i class="fa-solid fa-chevron-left"></i>
+            </a>
+        <% } %>
+    </nav>
+</dialog>

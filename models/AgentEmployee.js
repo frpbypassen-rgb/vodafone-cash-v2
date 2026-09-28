@@ -5,6 +5,9 @@ const agentEmployeeSchema = new mongoose.Schema({
     agentId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     name: { type: String, required: true },
     phone: { type: String },
+    // بريد رمز الدخول. عند وجود بريد صالح يُرسل الرمز عبر البريد.
+    email: { type: String, trim: true, lowercase: true, default: '' },
+    otpDeliveryChannel: { type: String, enum: ['whatsapp', 'email'], default: 'whatsapp' },
     status: { type: String, default: 'active' },
     webUsername: { type: String, unique: true, required: true },
     webPassword: { type: String, required: true },
@@ -32,7 +35,10 @@ const agentEmployeeSchema = new mongoose.Schema({
         webUsername: { type: String }
     },
     deletedAt: { type: Date },
-    deletedBy: { type: String }
+    deletedBy: { type: String },
+    preferences: {
+        clientTheme: { type: String, enum: ['day', 'night', 'pharaonic'], default: undefined }
+    }
 }, { timestamps: true });
 
 agentEmployeeSchema.index({ tenantId: 1, agentId: 1 });

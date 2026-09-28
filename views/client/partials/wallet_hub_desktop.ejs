@@ -4,21 +4,24 @@
         user: user,
         activePage: 'home',
         isSystemOpen: isSystemOpen,
-        isSatellite: false
+        isSatellite: false,
+        canRequestDeposit: typeof canRequestDeposit === 'undefined' ? undefined : canRequestDeposit
     }) %>
 
     <main class="client-os-main">
         <header class="client-os-topbar">
             <div>
-                <p class="client-os-eyebrow"><i class="fa-solid fa-sparkles"></i> مركز القيادة</p>
-                <h1>صباح الخير، <%= user.name %></h1>
-                <p class="client-os-subtitle">هذه نظرة سريعة وآمنة على حسابك وحركة اليوم.</p>
+                <p class="client-os-eyebrow"><i class="fa-solid fa-building-columns"></i> بوابة العملاء</p>
+                <h1>مرحباً، <%= user.name %></h1>
+                <p class="client-os-subtitle">رصيدك وعمليات اليوم في نظرة واحدة — ابدأ تحويلاً أو راجع الكشف.</p>
             </div>
             <div class="client-os-topbar-actions">
                 <button type="button" class="client-os-cmd-trigger" id="clientOsCmdTrigger" aria-label="بحث سريع"><i class="fa-solid fa-magnifying-glass"></i><span>بحث سريع</span><kbd>Ctrl+K</kbd></button>
                 <span class="client-os-status <%= isSystemOpen ? 'is-open' : 'is-closed' %>"><i class="fa-solid <%= isSystemOpen ? 'fa-circle-check' : 'fa-circle-exclamation' %>"></i><%= isSystemOpen ? 'النظام يعمل' : 'النظام مغلق' %></span>
+                <%- include('customer_notifications') %>
+                <%- include('customer_theme_switcher') %>
                 <% if (user.role !== 'accountant') { %>
-                    <button type="button" class="client-os-create" data-bs-toggle="modal" data-bs-target="#transferModal"><i class="fa-solid fa-plus"></i><span>عملية جديدة</span></button>
+                    <button type="button" class="client-os-create" data-bs-toggle="modal" data-bs-target="#transferModal"><i class="fa-solid fa-plus"></i><span>تحويل جديد</span></button>
                 <% } %>
             </div>
         </header>
@@ -73,6 +76,9 @@
             <a href="/client/account" class="client-os-workbench-action">
                 <span><i class="fa-solid fa-file-invoice"></i></span><div><strong>كشف الحساب</strong><small>ابحث وحمّل تقريرك</small></div><i class="fa-solid fa-arrow-left"></i>
             </a>
+            <a href="/client/reports" class="client-os-workbench-action">
+                <span><i class="fa-solid fa-chart-column"></i></span><div><strong>التقارير</strong><small>ملخص الفترة والعمليات</small></div><i class="fa-solid fa-arrow-left"></i>
+            </a>
             <a href="/client/support" class="client-os-workbench-action">
                 <span><i class="fa-solid fa-headset"></i></span><div><strong>تحتاج مساعدة؟</strong><small>تواصل بأمان مع الدعم</small></div><i class="fa-solid fa-arrow-left"></i>
             </a>
@@ -88,7 +94,7 @@
                     <span class="client-os-journey-icon is-blue"><i class="fa-solid fa-receipt"></i></span>
                     <div><strong>العمليات والإيصالات</strong><small>ابحث، راجع الحالة، وحمّل كشفك</small></div><i class="fa-solid fa-arrow-left"></i>
                 </a>
-                <% if (user.role !== 'agent') { %>
+                <% if (typeof canRequestDeposit === 'undefined' ? user.role !== 'agent' : canRequestDeposit) { %>
                 <a href="/client/account?tab=deposits-new" class="client-os-journey-card">
                     <span class="client-os-journey-icon is-mint"><i class="fa-solid fa-circle-plus"></i></span>
                     <div><strong>إضافة رصيد</strong><small>أرسل طلباً وتابع مراجعته</small></div><i class="fa-solid fa-arrow-left"></i>

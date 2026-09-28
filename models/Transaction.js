@@ -41,6 +41,7 @@ const transactionSchema = new mongoose.Schema({
     serviceDetails: {
         subtype: { type: String, trim: true },
         city: { type: String, trim: true },
+        bankCode: { type: String, trim: true },
         bankName: { type: String, trim: true },
         nationalId: { type: String, trim: true },
         governorate: { type: String, trim: true },
@@ -129,6 +130,15 @@ const transactionSchema = new mongoose.Schema({
     assignedExecutorId: { type: String, default: undefined },
     assignedExecutorName: { type: String, default: undefined },
     assignedExecutorAt: { type: Date, default: undefined },
+    // المدير الذي وجّه العملية إلى المنفذ. تُقرأ مباشرة في قائمة العمليات.
+    routedByAdminId: { type: String, trim: true },
+    routedByAdminName: { type: String, trim: true },
+    routedAt: { type: Date },
+    // المدير الذي سجّل إيداعاً أو خصماً أو اعتمد حركة الرصيد.
+    performedByAdminId: { type: String, trim: true },
+    performedByAdminName: { type: String, trim: true },
+    performedByAdminAt: { type: Date },
+    cancelledByAdminId: { type: String, trim: true },
     // وقت وصول العملية إلى قائمة مهام المنفذ، مستقل عن وقت إنشائها لدى العميل.
     executorReceivedAt: { type: Date },
     // وقت تأكيد المنفذ لإتمام العملية، ويستخدم لحساب مدة التنفيذ في تقاريره.
@@ -142,7 +152,24 @@ const transactionSchema = new mongoose.Schema({
     executorSenderEntries: [{
         phone: { type: String, trim: true },
         amount: { type: Number, min: 0 },
-        proofImage: { type: String, default: null }
+        proofImage: { type: String, default: null },
+        // Optional part identity for new split completions. Legacy entries omit these
+        // fields and are never rewritten or auto-proofed.
+        partId: { type: String, trim: true },
+        status: { type: String, enum: ['pending', 'success', 'failed', 'cancelled'] },
+        confirmedAt: { type: Date },
+        customerProof: {
+            key: { type: String, trim: true },
+            status: {
+                type: String,
+                enum: ['pending', 'generating', 'generated', 'sent', 'failed', 'unavailable']
+            },
+            imageId: { type: String, default: null },
+            attempts: { type: Number, default: 0 },
+            lastError: { type: String, default: '' },
+            claimedAt: { type: Date },
+            sentAt: { type: Date }
+        }
     }],
     // القيمة الأصلية التي أدخلها المنفذ. مخفية افتراضياً ولا تُقرأ إلا في تفاصيل الإدارة.
     executorExecutionNumber: { type: String, trim: true, maxlength: 64, select: false },
@@ -200,6 +227,8 @@ transactionSchema.index({ companyId: 1, clientActorId: 1, createdAt: -1 });
 transactionSchema.index({ userId: 1, clientActorId: 1, createdAt: -1 });
 transactionSchema.index({ executorGroupId: 1, status: 1 });        // مهام المنفذ
 transactionSchema.index({ status: 1, updatedAt: -1 });           // التقارير والإحصاءات
+transactionSchema.index({ status: 1, createdAt: -1 }, { name: 'adminDashboard_status_createdAt' });
+transactionSchema.index({ status: 1, completedAt: -1 }, { name: 'adminDashboard_status_completedAt' });
 transactionSchema.index({ executorGroupId: 1, createdAt: -1 });    // رصيد المنفذ
 transactionSchema.index({ executorGroupId: 1, executorReceivedAt: 1 }); // ترتيب قائمة مهام المنفذ
 transactionSchema.index({ managerGroupId: 1, status: 1 });         // مهام المدير
@@ -208,6 +237,18 @@ transactionSchema.index({ executorGroupId: 1, status: 1, executorReceivedAt: 1 }
 transactionSchema.index({ managerGroupId: 1, status: 1, executorReceivedAt: 1 });
 transactionSchema.index({ executorGroupId: 1, status: 1, updatedAt: -1 });
 transactionSchema.index({ managerGroupId: 1, status: 1, updatedAt: -1 });
+transactionSchema.index({ executorGroupId: 1, status: 1, completedAt: -1 });
+transactionSchema.index({ managerGroupId: 1, status: 1, completedAt: -1 });
+transactionSchema.index({ operatorId: 1, status: 1, completedAt: -1 });
+transactionSchema.index({ operatorId: 1, status: 1, updatedAt: -1 });
+transactionSchema.index(
+    { executorGroupId: 1, updatedAt: -1 },
+    { name: 'executorPortal_webAlert_executorGroup', partialFilterExpression: { executorWebAlert: { $exists: true } } }
+);
+transactionSchema.index(
+    { managerGroupId: 1, updatedAt: -1 },
+    { name: 'executorPortal_webAlert_managerGroup', partialFilterExpression: { executorWebAlert: { $exists: true } } }
+);
 transactionSchema.index({ tenantId: 1, createdAt: -1 });
 transactionSchema.index({ tenantId: 1, status: 1, transferType: 1, createdAt: -1 }, { name: 'liveOps_tenant_status_type_createdAt' });
 transactionSchema.index({ tenantId: 1, amount: -1, createdAt: -1 }, { name: 'liveOps_tenant_amount_createdAt' });

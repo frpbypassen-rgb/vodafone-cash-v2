@@ -126,9 +126,9 @@
                 card.classList.add('ready');
                 orb.classList.add('ready');
                 title.textContent = 'تم التشغيل بنجاح';
-                message.innerHTML = 'السيرفر يعمل الآن. سيتم فتح لوحة المراقبة الحية خلال لحظات.';
-                addLine('تم الاتصال بالسيرفر بنجاح. يتم الانتقال إلى شاشة الحركات الحية...');
-                setTimeout(() => { window.location.href = 'http://127.0.0.1:3000/system-monitor'; }, 1200);
+                message.innerHTML = 'السيرفر يعمل الآن. سيتم فتح المراقبة الحية للعمليات خلال لحظات.';
+                addLine('تم الاتصال بالسيرفر بنجاح. يتم الانتقال إلى شاشة المراقبة الحية...');
+                setTimeout(() => { window.location.href = 'http://127.0.0.1:3000/transactions/live'; }, 1200);
             } catch (error) {
                 if (attempts % 2 === 0) addLine('السيرفر لم يكتمل بعد... محاولة رقم ' + attempts);
                 setTimeout(probe, 1500);

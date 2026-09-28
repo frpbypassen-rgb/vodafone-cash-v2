@@ -68,7 +68,8 @@ const logAction = async (params) => {
             location,
             severity,
             required = false,
-            session = null
+            session = null,
+            companyId = null
         } = params;
 
         const ipAddress = req
@@ -151,6 +152,7 @@ const logAction = async (params) => {
             oldData: oldData ? sanitizeData(oldData) : undefined,
             newData: newData ? sanitizeData(newData) : undefined,
             metadata: metadata ? sanitizeData(metadata) : undefined,
+            companyId: companyId || metadata?.companyId || null,
             success,
             errorCode,
             result: finalResult,

@@ -22,11 +22,29 @@ const { buildPendingRateAlertForClient } = require('./rateAlerts/rateAlertAudien
 const { buildArtifact: buildCentralReportArtifact } = require('./centralReportService');
 const { findReportTransactions, getUnifiedReportStatus } = require('./unifiedReportService');
 const { loadAdminReport } = require('./adminReportService');
+const { presentClientPortalTransaction } = require('./clientReceiptService');
 const {
     sanitizeStatementMovement,
-    sanitizeStatementTransaction,
     sanitizeStatementText
 } = require('../utils/accountStatementPrivacy');
+const { loadCompanyCommandCenter } = require('./companyCommandCenterService');
+const {
+    normalizeCompanyTheme,
+    resolveAccountCompanyTheme,
+    COMPANY_PORTAL_THEME_META,
+    pharaonicIconForNav,
+    pharaonicIconForService
+} = require('../utils/companyPortalTheme');
+const {
+    resolveAccountClientTheme,
+    CLIENT_PORTAL_THEME_META
+} = require('../utils/clientPortalTheme');
+const { buildAgentMobileNav } = require('../utils/customerPortalNav');
+const {
+    resolveCompanyAccess,
+    toPortalPermissions,
+    canAccessCompanyPage
+} = require('./companyAccessService');
 
 const STATUS_META = Object.freeze({
     pending: { label: 'قيد الانتظار', tone: 'warning' },
@@ -266,27 +284,7 @@ const isLegacyCompanyOwner = (actor) => {
     return role !== 'accountant' && actor.canViewAllReports === true && actor.canManageCompany !== true;
 };
 
-const resolveCompanyPermissions = (actor) => {
-    const role = String(actor.role || '').toLowerCase();
-    const owner = role === 'owner' || actor.canCreateCompanyStaff === true || isLegacyCompanyOwner(actor);
-    const manager = owner || actor.canManageCompany === true;
-    const accountant = role === 'accountant';
-    return {
-        owner,
-        manager,
-        accountant,
-        employee: !manager && !accountant,
-        canTransfer: !accountant,
-        canViewBalance: owner || manager || accountant || actor.canViewAllReports === true,
-        // الشركة تعمل بفريق داخلي فقط؛ العملاء تابعون للوكلاء وليس للشركات.
-        canManageCustomers: false,
-        canManageStaff: owner,
-        canViewReports: owner || manager || accountant || actor.canViewAllReports === true,
-        canEditSettings: owner || manager,
-        canInternalTransfer: !accountant && manager,
-        canRequestDeposit: manager || accountant
-    };
-};
+const resolveCompanyPermissions = (actor) => toPortalPermissions(resolveCompanyAccess(actor));
 
 const resolveAgentPermissions = (actor) => {
     const owner = actor.role === 'agent';
@@ -395,9 +393,10 @@ const buildWorkspaceResult = ({ type, actor, entity, actorModel, entityModel, pe
         roleLabel,
         entityLabel: type === 'company' ? 'الشركة' : 'الوكيل',
         portalLabel: type === 'company'
-            ? (permissions.employee ? 'غرفة التنفيذ' : permissions.accountant ? 'مكتب المحاسبة' : 'غرفة الشركات')
+            ? 'بوابة الشركات'
             : (permissions.employee ? 'واجهة العميل' : 'بوابة الوكلاء'),
         permissions,
+        canonicalRole: type === 'company' ? (permissions.canonicalRole || (permissions.owner ? 'owner' : (permissions.accountant ? 'accountant' : 'employee'))) : undefined,
         masterType: type === 'company' ? 'company' : 'user',
         masterId: entity._id,
         forceToday: permissions.employee
@@ -444,13 +443,43 @@ const buildNavigation = (workspace, activePage) => {
 
     return items.filter((item) => item.visible).map((item) => ({
         ...item,
+        pharaonicIcon: workspace.isCompany ? pharaonicIconForNav(item.key) : undefined,
         active: item.key === navPage
             || (navPage === 'customer_profile' && item.key === 'customers')
             || (navPage === 'reports' && item.key === 'reports')
     }));
 };
 
+const COMPANY_MOBILE_KEYS = Object.freeze({
+    manager: ['services', 'transactions', 'reports', 'support', 'settings'],
+    accountant: ['finance', 'transactions', 'reports', 'support', 'settings'],
+    employee: ['services', 'smart_transfer', 'transactions', 'support', 'security']
+});
+
+const COMPANY_MOBILE_LABELS = Object.freeze({
+    services: 'الخدمات',
+    smart_transfer: 'تحويل',
+    transactions: 'عمليات',
+    support: 'الدعم',
+    settings: 'الحساب',
+    security: 'الحساب',
+    finance: 'المالية',
+    reports: 'التقارير'
+});
+
+const buildCompanyMobileNav = (workspace, navigation = []) => {
+    const keys = COMPANY_MOBILE_KEYS[workspace?.persona] || COMPANY_MOBILE_KEYS.employee;
+    return keys.map((key) => {
+        const item = navigation.find((nav) => nav.key === key);
+        if (!item) return null;
+        return { ...item, dockLabel: COMPANY_MOBILE_LABELS[key] || item.label };
+    }).filter(Boolean).slice(0, 5);
+};
+
 const canAccessPage = (workspace, page) => {
+    if (workspace.isCompany) {
+        return canAccessCompanyPage(workspace.permissions, page);
+    }
     if (page === 'overview') return !(workspace.isCompany && workspace.permissions.employee);
     if (['transactions', 'settings', 'security', 'support'].includes(page)) return true;
     if (page === 'services' || page === 'service_workbench' || page === 'smart_transfer') {
@@ -618,7 +647,11 @@ const getSettingsAndRates = async (workspace, app) => {
         settings,
         ratesUpdatedAt: workspace.entity.rateUpdatedAt || settings.ratesUpdatedAt || null,
         serviceRates,
-        services: SERVICE_CATALOG.map((service) => ({ ...service, rate: serviceRates[service.key] || 0 }))
+        services: SERVICE_CATALOG.map((service) => ({
+            ...service,
+            rate: serviceRates[service.key] || 0,
+            pharaonicIcon: pharaonicIconForService(service.key)
+        }))
     };
 };
 
@@ -661,28 +694,38 @@ const loadOverview = async (workspace) => {
         summarizeWithAggregation(todayFilter),
         Transaction.find(workspace.forceToday ? todayFilter : ownership).sort({ createdAt: -1 }).limit(8).lean()
     ]);
-    const teamSpotlight = workspace.isCompany && canSeeStaffStats
-        ? await Transaction.aggregate([
-            { $match: { $and: [ownership, { employeeName: { $nin: [null, ''] } }, { createdAt: { $gte: monthRange.start, $lte: monthRange.end } }] } },
-            {
-                $group: {
-                    _id: '$employeeName',
-                    totalCount: { $sum: 1 },
-                    completedCount: { $sum: { $cond: [{ $eq: ['$status', 'completed'] }, 1, 0] } },
-                    pendingCount: { $sum: { $cond: [{ $in: ['$status', ['pending', 'processing', 'accepted']] }, 1, 0] } },
-                    totalEGP: { $sum: { $cond: [{ $eq: ['$status', 'completed'] }, '$amount', 0] } },
-                    lastActivity: { $max: '$createdAt' }
-                }
-            },
-            { $sort: { totalCount: -1, lastActivity: -1 } },
-            { $limit: 5 }
-        ])
-        : [];
+    const teamSpotlight = [];
+
+    const weekRange = {
+        start: new Date(todayRange.start.getTime() - (6 * 24 * 60 * 60 * 1000)),
+        end: todayRange.end
+    };
+    const commandCenter = workspace.isCompany
+        ? await loadCompanyCommandCenter({
+            workspace,
+            ownership,
+            todayRange,
+            weekRange,
+            monthRange,
+            summarize: summarizeWithAggregation
+        })
+        : {
+            weekSummary: summarizeTransactions([]),
+            weekdaySeries: [],
+            employeeRoster: [],
+            onlineWindowMinutes: 10,
+            commandCenterChart: { labels: [], counts: [], values: [], showValues: false }
+        };
 
     return {
         monthSummary,
         todaySummary,
-        recentTransactions,
+        weekSummary: commandCenter.weekSummary,
+        weekdaySeries: commandCenter.weekdaySeries,
+        employeeRoster: commandCenter.employeeRoster,
+        onlineWindowMinutes: commandCenter.onlineWindowMinutes,
+        commandCenterChart: commandCenter.commandCenterChart,
+        recentTransactions: recentTransactions.map(presentClientPortalTransaction),
         customersCount,
         activeCustomersCount,
         staffCount,
@@ -731,7 +774,7 @@ const loadTransactions = async (workspace, query = {}) => {
     ]);
 
     return {
-        transactions,
+        transactions: transactions.map(presentClientPortalTransaction),
         total,
         summary,
         staff,
@@ -1168,7 +1211,7 @@ const loadReports = async (workspace, query = {}) => {
         agencyProfitRows: workspace.isAgent && workspace.permissions.canViewBalance
             ? agencyFinanceService.buildProfitRows(transactions, new Map())
             : [],
-        reportTransactions: transactions.slice(0, 100).map(sanitizeStatementTransaction),
+        reportTransactions: transactions.slice(0, 100).map(presentClientPortalTransaction),
         reportAnalytics: buildReportAnalytics(transactions, workspace.entity.balance),
         filters: { ...range, scope },
         centralReport: buildCentralReportArtifact({
@@ -1187,10 +1230,13 @@ const loadReports = async (workspace, query = {}) => {
 
 const resolvePortalHomeHref = (workspace) => {
     if (!workspace?.isCompany) return '/client/dashboard?home=1';
-    if (workspace.persona === 'employee') return '/client/services';
     if (workspace.persona === 'accountant') return '/client/finance';
-    return '/client/dashboard?home=1';
+    return '/client/services';
 };
+
+const resolveClientPostLoginHref = (accountType) => (
+    accountType === 'company' ? '/client/services' : '/client/dashboard'
+);
 
 const forbiddenRedirectPath = (workspace) => {
     const home = resolvePortalHomeHref(workspace);
@@ -1261,12 +1307,15 @@ const buildBaseContext = async (req, page, workspace) => {
     if (workspace.isCompany && page === 'services' && workspace.forceToday) {
         Object.assign(pageMeta, { title: 'اختر · راجع · أرسل', eyebrow: 'يوم التنفيذ' });
     }
+    const navigation = buildNavigation(workspace, page);
     return {
         page,
         pageMeta,
         workspace,
         portalHomeHref: resolvePortalHomeHref(workspace),
-        navigation: buildNavigation(workspace, page),
+        navigation,
+        companyMobileNav: workspace.isCompany ? buildCompanyMobileNav(workspace, navigation) : [],
+        customerMobileNav: workspace.isCompany ? null : buildAgentMobileNav(navigation, page),
         statusMeta: STATUS_META,
         serviceCatalog: rates.services,
         serviceRates: rates.serviceRates,
@@ -1277,7 +1326,19 @@ const buildBaseContext = async (req, page, workspace) => {
         query: req.query || {},
         csrfToken: req.session.csrfToken || '',
         formatInputDate,
-        now: new Date()
+        now: new Date(),
+        companyTheme: workspace.isCompany
+            ? resolveAccountCompanyTheme(workspace.actor, req.session.companyTheme)
+            : null,
+        companyThemeMeta: workspace.isCompany
+            ? COMPANY_PORTAL_THEME_META[resolveAccountCompanyTheme(workspace.actor, req.session.companyTheme)]
+            : null,
+        clientTheme: workspace.isCompany
+            ? null
+            : resolveAccountClientTheme(workspace.actor, req.session.clientTheme),
+        clientThemeMeta: workspace.isCompany
+            ? null
+            : CLIENT_PORTAL_THEME_META[resolveAccountClientTheme(workspace.actor, req.session.clientTheme)]
     };
 };
 
@@ -1455,133 +1516,6 @@ const loadPageContext = async (req, page) => {
     return context;
 };
 
-const loadCompanyDashboardAnalytics = async (workspace) => {
-    const now = new Date();
-    const todayStart = startOfDay(now);
-    const todayEnd = endOfDay(now);
-    const weekStart = startOfDay(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6));
-    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
-    const historyStart = workspace.forceToday
-        ? todayStart
-        : new Date(Math.min(weekStart.getTime(), monthStart.getTime()));
-    const ownership = await ownershipFilter(workspace);
-    const rawTransactions = await Transaction.find({
-        $and: [ownership, { createdAt: { $gte: historyStart, $lte: todayEnd } }]
-    }).select('customId status transferType amount costLYD subAccountCostLYD exchangeRate subClientRate vodafoneNumber accountNumber serviceDetails.clientPhone employeeName createdAt complaintText')
-        .sort({ createdAt: -1 })
-        .limit(3000)
-        .lean();
-    const excludedStatuses = new Set(['deposit', 'deposit_pending', 'deduction']);
-    const operational = rawTransactions.filter((tx) => !excludedStatuses.has(tx.status));
-    const isCompleted = (tx) => tx.status === 'completed';
-    const inRange = (tx, start, end = todayEnd) => {
-        const createdAt = new Date(tx.createdAt).getTime();
-        return createdAt >= start.getTime() && createdAt <= end.getTime();
-    };
-    const summarize = (rows) => ({
-        count: rows.length,
-        completedCount: rows.filter(isCompleted).length,
-        totalEGP: rows.filter(isCompleted).reduce((sum, tx) => sum + safeNumber(tx.amount), 0),
-        totalLYD: rows.filter(isCompleted).reduce((sum, tx) => sum + safeNumber(tx.costLYD), 0)
-    });
-    const todayRows = operational.filter((tx) => inRange(tx, todayStart));
-    const weekRows = operational.filter((tx) => inRange(tx, weekStart));
-    const monthRows = operational.filter((tx) => inRange(tx, workspace.forceToday ? todayStart : monthStart));
-    const periods = {
-        today: summarize(todayRows),
-        week: summarize(weekRows),
-        month: summarize(monthRows)
-    };
-    const arabicDays = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
-    const weeklySeries = Array.from({ length: 7 }, (_, index) => {
-        const day = new Date(weekStart.getFullYear(), weekStart.getMonth(), weekStart.getDate() + index);
-        const rows = weekRows.filter((tx) => inRange(tx, startOfDay(day), endOfDay(day)));
-        const summary = summarize(rows);
-        return {
-            key: formatInputDate(day),
-            label: arabicDays[day.getDay()],
-            shortLabel: arabicDays[day.getDay()].slice(0, 3),
-            ...summary
-        };
-    });
-    const maxWeeklyEGP = Math.max(1, ...weeklySeries.map((item) => item.totalEGP));
-    weeklySeries.forEach((item) => {
-        item.barPercent = item.totalEGP > 0 ? Math.max(7, Math.round((item.totalEGP / maxWeeklyEGP) * 100)) : 2;
-    });
-    const employeeMap = new Map();
-    monthRows.forEach((tx) => {
-        const name = String(tx.employeeName || workspace.actor.name || 'غير محدد').trim();
-        const current = employeeMap.get(name) || { name, count: 0, completedCount: 0, totalEGP: 0, totalLYD: 0 };
-        current.count += 1;
-        if (isCompleted(tx)) {
-            current.completedCount += 1;
-            current.totalEGP += safeNumber(tx.amount);
-            current.totalLYD += safeNumber(tx.costLYD);
-        }
-        employeeMap.set(name, current);
-    });
-    const employeePerformance = [...employeeMap.values()]
-        .sort((left, right) => right.totalEGP - left.totalEGP || right.completedCount - left.completedCount)
-        .slice(0, 20);
-    const bestDay = weeklySeries.reduce((best, item) => item.totalEGP > best.totalEGP ? item : best, weeklySeries[0]);
-    const successRate = weekRows.length
-        ? Math.round((weekRows.filter(isCompleted).length / weekRows.length) * 1000) / 10
-        : 0;
-    const averageOperation = periods.week.completedCount
-        ? periods.week.totalEGP / periods.week.completedCount
-        : 0;
-    return {
-        companyDashboard: {
-            periods,
-            weeklySeries,
-            employeePerformance,
-            todayOperations: todayRows.slice(0, 100).map((tx) => ({
-                _id: tx._id,
-                customId: tx.customId,
-                phone: tx.vodafoneNumber || tx.accountNumber || tx.serviceDetails?.clientPhone || '---',
-                amountEGP: safeNumber(tx.amount),
-                exchangeRate: safeNumber(tx.exchangeRate || tx.subClientRate || (safeNumber(tx.costLYD) > 0 ? safeNumber(tx.amount) / safeNumber(tx.costLYD) : 0)),
-                totalLYD: safeNumber(tx.subAccountCostLYD || tx.costLYD),
-                employeeName: tx.employeeName || workspace.actor.name || 'غير محدد',
-                status: tx.status,
-                createdAt: tx.createdAt,
-                hasComplaint: Boolean(tx.complaintText)
-            })),
-            insights: {
-                bestDay: bestDay?.label || 'لا توجد بيانات',
-                bestDayTotal: safeNumber(bestDay?.totalEGP),
-                successRate,
-                averageOperation,
-                topEmployee: employeePerformance[0]?.name || 'لا توجد بيانات'
-            }
-        }
-    };
-};
-
-const loadCompanyNextContext = async (req) => {
-    const workspace = await resolveWorkspace(req);
-    if (!workspace.isCompany) {
-        const error = new Error('NOT_COMPANY_PORTAL');
-        error.statusCode = 404;
-        throw error;
-    }
-
-    // Build the base context from a page the current role may access, then add
-    // the common overview metrics. This keeps the preview usable for managers,
-    // accountants and daily operators without widening any permission.
-    const basePage = canAccessPage(workspace, 'overview')
-        ? 'overview'
-        : canAccessPage(workspace, 'finance')
-            ? 'finance'
-            : 'services';
-    const context = await buildBaseContext(req, basePage, workspace);
-    Object.assign(context, await loadOverview(workspace));
-    Object.assign(context, await loadCompanyDashboardAnalytics(workspace));
-    context.page = 'company_next';
-    context.pageMeta = { title: 'واجهة الشركات الجديدة', eyebrow: 'نسخة المعاينة', icon: 'fa-wand-magic-sparkles' };
-    return context;
-};
-
 module.exports = {
     STATUS_META,
     SERVICE_CATALOG,
@@ -1596,7 +1530,10 @@ module.exports = {
     resolveWorkspace,
     canAccessPage,
     buildNavigation,
+    buildCompanyMobileNav,
+    buildAgentMobileNav,
     resolvePortalHomeHref,
+    resolveClientPostLoginHref,
     forbiddenRedirectPath,
     redirectForbiddenPage,
     buildLowBalanceAlert,
@@ -1610,7 +1547,6 @@ module.exports = {
     buildReportGroups,
     buildReportAnalytics,
     loadPageContext,
-    loadCompanyNextContext,
     loadReports,
     loadCentralCompanyReport,
     safeNumber,

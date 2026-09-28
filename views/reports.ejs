@@ -305,7 +305,6 @@
             if (!subId) { column.hidden = true; return; }
             let items = [];
             if (main === 'company') items = (dbCompanies.find((item) => item._id === subId)?.employees || []).filter(Boolean).map((name) => ({ value: name, label: `موظف: ${name}` }));
-            if (main === 'agent') items = (dbAgents.find((item) => item._id === subId)?.subAccounts || []).map((item) => ({ value: item._id, label: `عميل الوكيل: ${item.name}` }));
             if (main === 'executor') items = (dbExecutors.find((item) => item._id === subId)?.employees || []).filter(Boolean).map((name) => ({ value: name, label: `منفذ: ${name}` }));
             items.forEach((item) => addOption(select, item.value, item.label));
             column.hidden = items.length === 0;

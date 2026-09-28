@@ -11,23 +11,48 @@ const {
     normalizeExecutorUsername
 } = require('../services/executorAccountService');
 const {
-    taskOwnershipFilter,
     listRouteCandidates,
     routeExecutorTask,
     routingErrorMessage
 } = require('../services/executorTaskRoutingService');
-const { toExecutorPortalTaskDto } = require('../utils/executorTaskPrivacy');
 const mobileWebParityService = require('../services/mobileWebParityService');
 const mobileWebParityMapper = require('../mappers/mobileWebParityMapper');
-const { systemDayStart, systemDayEnd, systemDateKey } = require('../config/systemTime');
+const { clearExecutorAuthCache } = require('../services/executorAuthCache');
+const { readExecutorManualPolicy, toPublicExecutionPolicy } = require('../utils/executorManualPolicy');
 const executorDepositRequestService = require('../services/executorDepositRequestService');
-
-const COMPLETED_TODAY_LIMIT = 60;
+const { loadPortalLiveTasks } = require('../services/executorLiveTasksService');
+const { getExecutorServiceLabel } = require('../utils/executorServiceCatalog');
+const {
+    QuickExecuteError,
+    buildQuickExecuteDial,
+    getQuickExecuteState,
+    saveQuickExecutePreferences
+} = require('../services/executorQuickExecuteService');
+const {
+    ExecutorBalancePoolError,
+    archivePool,
+    attachMembers,
+    createPool,
+    detachMember,
+    fundExternalExecutor,
+    listExternalBalanceWorkspace,
+    renamePool,
+    snapshotCompanyBalances,
+    workingBalanceForEmployee
+} = require('../services/executorBalancePoolService');
 
 const objectIdString = (value) => String(value?._id || value || '');
 const belongsToGroup = (employee, group) => (
     Boolean(employee) && objectIdString(employee.groupId) === objectIdString(group)
 );
+
+const poolErrorResponse = (res, error) => {
+    if (error instanceof ExecutorBalancePoolError) {
+        return res.status(error.status || 400).json({ success: false, error: error.message, code: error.code });
+    }
+    console.error(error);
+    return res.status(500).json({ success: false, error: 'تعذر إكمال العملية.' });
+};
 
 exports.getProxyImage = async (req, res) => {
     try {
@@ -76,7 +101,19 @@ exports.getDashboard = async (req, res) => {
     if (emp?.role === 'accountant') return res.redirect('/executor-portal/reports');
     const showMfaNotice = Boolean(req.session.showMfaEnableNotice);
     delete req.session.showMfaEnableNotice;
-    res.render('executor/dashboard', { emp, showMfaNotice });
+    const companyBalances = emp?.role === 'manager'
+        ? await snapshotCompanyBalances(emp.groupId).catch(() => null)
+        : null;
+    const workingBalance = emp?.role === 'external'
+        ? await workingBalanceForEmployee(emp).catch(() => null)
+        : null;
+    res.render('executor/dashboard', {
+        emp,
+        showMfaNotice,
+        companyBalances,
+        workingBalance,
+        executionPolicy: toPublicExecutionPolicy(readExecutorManualPolicy(emp?.groupId, emp))
+    });
 };
 
 exports.getSettings = async (req, res) => {
@@ -88,7 +125,22 @@ exports.getSettings = async (req, res) => {
         });
         const showMfaNotice = Boolean(req.session.showMfaEnableNotice);
         delete req.session.showMfaEnableNotice;
-        return res.render('executor/settings', { emp, overview, showMfaNotice });
+        const companyBalances = overview.company
+            ? {
+                privateBalance: Number(overview.company.privateBalance ?? overview.company.balance ?? 0),
+                totalBalance: Number(overview.company.totalBalance ?? overview.company.balance ?? 0),
+                allocatedBalance: Number(overview.company.allocatedBalance || 0),
+                multiService: Boolean(overview.company.multiService),
+                byService: Array.isArray(overview.company.serviceBalances) ? overview.company.serviceBalances : []
+            }
+            : null;
+        return res.render('executor/settings', {
+            emp,
+            overview,
+            showMfaNotice,
+            companyBalances,
+            serviceLabel: getExecutorServiceLabel(overview.company?.serviceKey || emp.groupId?.serviceKey)
+        });
     } catch (_) {
         return res.redirect('/executor-portal/dashboard');
     }
@@ -99,7 +151,19 @@ exports.getDeposits = async (req, res) => {
     if (!emp || !['manager', 'accountant', 'external'].includes(emp.role)) return res.redirect('/executor-portal/reports');
     const showMfaNotice = Boolean(req.session.showMfaEnableNotice);
     delete req.session.showMfaEnableNotice;
-    return res.render('executor/deposits', { emp, showMfaNotice, depositScope: emp.role === 'external' ? 'external' : 'company' });
+    const workingBalance = emp.role === 'external'
+        ? await workingBalanceForEmployee(emp).catch(() => ({ kind: 'solo', balance: Number(emp.balance || 0), pool: null }))
+        : null;
+    const companyBalances = ['manager', 'accountant'].includes(emp.role)
+        ? await snapshotCompanyBalances(emp.groupId).catch(() => null)
+        : null;
+    return res.render('executor/deposits', {
+        emp,
+        showMfaNotice,
+        depositScope: emp.role === 'external' ? 'external' : 'company',
+        workingBalance,
+        companyBalances
+    });
 };
 
 exports.getDepositRequests = async (req, res) => {
@@ -158,7 +222,8 @@ exports.getEmployees = async (req, res) => {
     const emp = req.managerEmp || await Employee.findById(req.session.executorId).populate('groupId');
     const showMfaNotice = Boolean(req.session.showMfaEnableNotice);
     delete req.session.showMfaEnableNotice;
-    res.render('executor/employees', { emp, showMfaNotice });
+    const companyBalances = await snapshotCompanyBalances(emp.groupId).catch(() => null);
+    res.render('executor/employees', { emp, showMfaNotice, companyBalances });
 };
 
 exports.getEmployeesList = async (req, res) => {
@@ -167,10 +232,17 @@ exports.getEmployeesList = async (req, res) => {
             executorId: req.managerEmp._id,
             tenantId: req.tenant ? req.tenant._id : null
         });
+        const pools = await listExternalBalanceWorkspace({ manager: req.managerEmp }).catch(() => null);
         res.json({
             success: true,
             employees: workspace.employees.map((employee) => mobileWebParityMapper.toEmployeeDto(employee)),
-            summary: workspace.summary
+            summary: {
+                ...workspace.summary,
+                ...(pools?.balances || {})
+            },
+            pools: pools?.pools || [],
+            soloExternals: pools?.solos || [],
+            companyExecutionPolicy: workspace.companyExecutionPolicy || null
         });
     } catch (e) { res.status(500).json({ success: false, error: e.message }); }
 };
@@ -235,7 +307,25 @@ exports.postEmployeesCreate = async (req, res) => {
             }
         });
 
-        return res.json({ success: true, username: finalUsername });
+        let poolAttachError = null;
+        if (role === 'external' && String(req.body?.balancePoolId || '').trim()) {
+            try {
+                await attachMembers({
+                    manager: req.managerEmp,
+                    poolId: String(req.body.balancePoolId).trim(),
+                    memberIds: [createdEmp._id]
+                });
+            } catch (error) {
+                poolAttachError = error.message || 'تعذر ربط المنفّذ بمجموعة الرصيد.';
+            }
+        }
+
+        return res.json({
+            success: true,
+            username: finalUsername,
+            employeeId: String(createdEmp._id),
+            poolAttachError
+        });
     } catch (e) {
         console.error(e);
         const message = e instanceof ExecutorAccountError ? e.message : 'تعذر إنشاء حساب الموظف.';
@@ -302,68 +392,102 @@ exports.postEmployeesDelete = async (req, res) => {
 
 exports.postExternalEmployeeTransaction = async (req, res) => {
     try {
-        const { type, amount, note } = req.body;
-        const parsedAmount = Number(amount);
-        if (!['deposit', 'deduction'].includes(type) || !Number.isFinite(parsedAmount) || parsedAmount <= 0) {
-            return res.status(400).json({ success: false, error: 'نوع العملية أو المبلغ غير صالح.' });
-        }
-        const emp = await Employee.findById(req.params.id);
-        if (!emp) return res.status(404).json({ success: false, error: 'الموظف غير موجود.' });
-        if (!belongsToGroup(emp, req.managerEmp.groupId)) {
-            return res.status(403).json({ success: false, error: 'لا يمكن التعامل مع موظف تابع لمنفذ آخر.' });
-        }
-        if (emp.role !== 'external') {
-            return res.status(400).json({ success: false, error: 'هذا الإجراء مخصص للموظفين الخارجيين فقط.' });
-        }
-
-        const group = await ExecutorGroup.findById(req.managerEmp.groupId);
-        if (!group) return res.status(404).json({ success: false, error: 'مجموعة التنفيذ غير موجودة.' });
-
-        const currentEmployeeBalance = Number(emp.balance || 0);
-        const currentGroupBalance = Number(group.balance || 0);
-        if (type === 'deposit' && currentGroupBalance < parsedAmount) {
-            return res.status(400).json({ success: false, error: 'رصيد الشركة غير كافٍ لإتمام الإيداع.' });
-        }
-        if (type === 'deduction' && currentEmployeeBalance < parsedAmount) {
-            return res.status(400).json({ success: false, error: 'رصيد الموظف الخارجي غير كافٍ للخصم.' });
-        }
-
-        if (type === 'deposit') {
-            group.balance = currentGroupBalance - parsedAmount;
-            emp.balance = currentEmployeeBalance + parsedAmount;
-        } else {
-            group.balance = currentGroupBalance + parsedAmount;
-            emp.balance = currentEmployeeBalance - parsedAmount;
-        }
-
-        const customId = `EXT-${Date.now().toString().slice(-8)}`;
-        await Transaction.create({
-            customId,
-            userId: 'external-employee',
-            executorGroupId: req.managerEmp.groupId,
-            managerGroupId: req.managerEmp.groupId,
-            operatorId: String(emp._id),
-            executorName: emp.name,
-            employeeName: emp.name,
-            amount: parsedAmount,
-            costLYD: 0,
-            status: type,
-            notes: note || '',
-            adminNotes: `${type === 'deposit' ? 'إيداع' : 'خصم'} موظف خارجي (${emp.name}) بواسطة المدير`,
-            companyName: 'موظف خارجي',
-            vodafoneNumber: '---',
-            transferType: 'external_balance'
+        const result = await fundExternalExecutor({
+            manager: req.managerEmp,
+            employeeId: req.params.id,
+            type: req.body?.type,
+            amount: req.body?.amount,
+            note: req.body?.note
         });
-        await Promise.all([group.save(), emp.save()]);
         return res.json({
             success: true,
-            customId,
-            companyBalance: group.balance,
-            employeeBalance: emp.balance
+            customId: result.customId,
+            companyBalance: result.companyPrivateBalance,
+            companyPrivateBalance: result.companyPrivateBalance,
+            companyTotalBalance: result.companyTotalBalance,
+            employeeBalance: result.employeeBalance,
+            workingBalance: result.workingBalance,
+            membership: result.membership,
+            pool: result.pool,
+            recipientOnly: true,
+            recipientId: result.recipientId
         });
     } catch (e) {
-        console.error(e);
-        return res.status(500).json({ success: false, error: 'تعذر تسجيل العملية.' });
+        return poolErrorResponse(res, e);
+    }
+};
+
+exports.getBalancePools = async (req, res) => {
+    try {
+        const workspace = await listExternalBalanceWorkspace({ manager: req.managerEmp });
+        return res.json({ success: true, ...workspace });
+    } catch (e) {
+        return poolErrorResponse(res, e);
+    }
+};
+
+exports.postBalancePoolCreate = async (req, res) => {
+    try {
+        const pool = await createPool({
+            manager: req.managerEmp,
+            name: req.body?.name,
+            memberIds: req.body?.memberIds || req.body?.members
+        });
+        const workspace = await listExternalBalanceWorkspace({ manager: req.managerEmp });
+        return res.status(201).json({ success: true, pool, ...workspace });
+    } catch (e) {
+        return poolErrorResponse(res, e);
+    }
+};
+
+exports.postBalancePoolRename = async (req, res) => {
+    try {
+        const pool = await renamePool({
+            manager: req.managerEmp,
+            poolId: req.params.id,
+            name: req.body?.name
+        });
+        return res.json({ success: true, pool });
+    } catch (e) {
+        return poolErrorResponse(res, e);
+    }
+};
+
+exports.postBalancePoolAttach = async (req, res) => {
+    try {
+        const workspace = await attachMembers({
+            manager: req.managerEmp,
+            poolId: req.params.id,
+            memberIds: req.body?.memberIds || req.body?.members || [req.body?.employeeId]
+        });
+        return res.json({ success: true, ...workspace });
+    } catch (e) {
+        return poolErrorResponse(res, e);
+    }
+};
+
+exports.postBalancePoolDetach = async (req, res) => {
+    try {
+        const workspace = await detachMember({
+            manager: req.managerEmp,
+            poolId: req.params.id,
+            employeeId: req.params.employeeId || req.body?.employeeId
+        });
+        return res.json({ success: true, ...workspace });
+    } catch (e) {
+        return poolErrorResponse(res, e);
+    }
+};
+
+exports.postBalancePoolArchive = async (req, res) => {
+    try {
+        const workspace = await archivePool({
+            manager: req.managerEmp,
+            poolId: req.params.id
+        });
+        return res.json({ success: true, archived: true, ...workspace });
+    } catch (e) {
+        return poolErrorResponse(res, e);
     }
 };
 
@@ -379,6 +503,28 @@ exports.postTaskRoutingMode = async (req, res) => {
     } catch (_) {
         return res.status(500).json({ success: false, error: 'تعذر تحديث وضع التوجيه.' });
     }
+};
+
+exports.postExecutionPolicy = async (req, res) => {
+    try {
+        const policy = await mobileWebParityService.updateCompanyExecutionPolicy({
+            executorId: req.managerEmp._id,
+            body: req.body
+        });
+        clearExecutorAuthCache();
+        return res.json({ success: true, executionPolicy: policy });
+    } catch (error) {
+        const status = error.message === 'NOT_FOUND' ? 404 : (error.message === 'FORBIDDEN' ? 403 : 400);
+        return res.status(status).json({ success: false, error: 'تعذر حفظ صلاحيات التنفيذ.' });
+    }
+};
+
+exports.postEmployeeExecutionPolicy = async (req, res) => {
+    return res.status(403).json({
+        success: false,
+        code: 'ADMIN_ONLY',
+        error: 'تعديل صلاحيات المنفذ متاح للإدارة المركزية فقط.'
+    });
 };
 
 exports.getRouteCandidates = async (req, res) => {
@@ -417,107 +563,12 @@ exports.getLiveTasks = async (req, res) => {
     try {
         const emp = req.executorEmployee || await Employee.findById(req.session.executorId);
         if (!emp) return res.status(401).json({ success: false, error: 'Unauthorized' });
-        const filter = {
-            ...taskOwnershipFilter(emp),
-            status: { $in: ['processing', 'accepted'] }
-        };
-        const taskArrivalTime = (tx) => {
-            const value = new Date(tx.executorReceivedAt || tx.createdAt || 0).getTime();
-            return Number.isFinite(value) ? value : 0;
-        };
-
-        const tasks = await Transaction.find(filter).lean();
-        tasks.sort((first, second) => taskArrivalTime(first) - taskArrivalTime(second));
-
-        const now = Date.now();
-        const notificationIds = tasks
-            .filter((tx) => tx.status === 'processing' && !tx.notifiedExecutors)
-            .map((tx) => tx._id);
-        const delayedTaskIds = tasks
-            .filter((tx) => tx.status === 'processing' && !tx.autoAlertFired && now - taskArrivalTime(tx) >= 120000)
-            .map((tx) => tx._id);
-
-        await Promise.all([
-            notificationIds.length
-                ? Transaction.updateMany(
-                    { _id: { $in: notificationIds }, notifiedExecutors: { $ne: true } },
-                    { $set: { notifiedExecutors: true } },
-                    { strict: false }
-                )
-                : Promise.resolve(),
-            delayedTaskIds.length
-                ? Transaction.updateMany(
-                    { _id: { $in: delayedTaskIds }, autoAlertFired: { $ne: true } },
-                    { $set: { emergencyAlert: 'تأخير استجابة! الطلب تخطى 120 ثانية ولم يقبله أحد، يرجى سحبه فوراً!', autoAlertFired: true } },
-                    { strict: false }
-                )
-                : Promise.resolve()
-        ]);
-
-        // Completed-today follows Tripoli day boundaries and operational timestamps,
-        // not server-local midnight or updatedAt alone.
-        const todayKey = systemDateKey(new Date());
-        const dayStart = systemDayStart(todayKey);
-        const dayEnd = systemDayEnd(todayKey);
-        const completedTodayRange = dayStart && dayEnd ? { $gte: dayStart, $lte: dayEnd } : null;
-
-        let completedTodayQuery = { status: 'completed' };
-        const seesGroupCompletedToday = emp.role === 'manager' || emp.role === 'accountant';
-        const completedTodayScope = seesGroupCompletedToday
-            ? { $or: [{ executorGroupId: emp.groupId }, { managerGroupId: emp.groupId }] }
-            : { operatorId: emp._id.toString() };
-        if (completedTodayRange) {
-            const completedTodayClauses = [
-                completedTodayQuery,
-                completedTodayScope,
-                {
-                    $or: [
-                        { createdAt: completedTodayRange },
-                        { updatedAt: completedTodayRange },
-                        { completedAt: completedTodayRange },
-                        { executorReceivedAt: completedTodayRange }
-                    ]
-                }
-            ];
-            completedTodayQuery = { $and: completedTodayClauses };
-        } else {
-            completedTodayQuery = { ...completedTodayQuery, ...completedTodayScope };
-        }
-
-        const [alerts, depAlerts, completedToday, completedTodayStats] = await Promise.all([
-            Transaction.find({
-                ...taskOwnershipFilter(emp),
-                emergencyAlert: { $exists: true, $ne: null },
-                status: { $in: ['processing', 'accepted'] }
-            }).lean(),
-            Transaction.find({
-                $or: [ { operatorId: emp._id.toString() }, { executorGroupId: emp.groupId }, { managerGroupId: emp.groupId } ],
-                executorWebAlert: { $exists: true, $ne: null }
-            }).lean(),
-            Transaction.find(completedTodayQuery)
-                .sort({ updatedAt: -1 })
-                .limit(COMPLETED_TODAY_LIMIT)
-                .select('customId amount transferType vodafoneNumber accountNumber updatedAt executorName')
-                .lean(),
-            Transaction.aggregate([
-                { $match: completedTodayQuery },
-                { $group: { _id: null, count: { $sum: 1 }, amount: { $sum: '$amount' } } }
-            ])
-        ]);
-
-        const completedTodaySummary = completedTodayStats[0] || { count: 0, amount: 0 };
-        res.json({
-            tasks: tasks.map((tx) => toExecutorPortalTaskDto(tx, emp._id)),
-            alerts: alerts.map((tx) => toExecutorPortalTaskDto(tx, emp._id)),
-            depAlerts: depAlerts.map((tx) => ({
-                _id: String(tx._id),
-                executorWebAlert: tx.executorWebAlert || null
-            })),
-            completedToday,
-            completedTodaySummary,
-            manualTaskRoutingEnabled: Boolean(emp.groupId?.manualTaskRoutingEnabled),
-            canRouteTasks: emp.role === 'manager'
+        const lite = req.query?.lite === '1' || req.query?.lite === 'true';
+        const payload = await loadPortalLiveTasks({
+            emp,
+            includeCompletedList: !lite
         });
+        return res.json(payload);
     } catch (_) { res.status(500).json({ error: true }); }
 };
 
@@ -549,4 +600,68 @@ exports.postClearDepAlert = async (req, res) => {
         if (!result.matchedCount) return res.status(403).json({ success: false, error: 'لا تملك صلاحية تعديل هذا التنبيه.' });
         return res.json({ success: true });
     } catch (_) { return res.status(500).json({ success: false, error: 'تعذر إغلاق التنبيه.' }); }
+};
+
+const sendQuickExecuteError = (res, error) => {
+    const status = Number(error.status) || 500;
+    return res.status(status).json({
+        success: false,
+        code: error.code || 'QUICK_EXECUTE_FAILED',
+        error: error.message || 'تعذر تنفيذ الطلب السريع.'
+    });
+};
+
+const publicDialPayload = (dial) => ({
+    network: dial.network,
+    networkLabel: dial.networkLabel,
+    pinIncluded: Boolean(dial.pinIncluded),
+    pinSet: Boolean(dial.pinSet),
+    securityNote: dial.securityNote || '',
+    ussd: dial.ussd,
+    telUri: dial.telUri,
+    acceptedNow: Boolean(dial.acceptedNow)
+});
+
+exports.getQuickExecute = async (req, res) => {
+    try {
+        const emp = req.executorEmployee || await Employee.findById(req.session.executorId);
+        if (!emp) return res.status(401).json({ success: false, error: 'انتهت جلسة الدخول.' });
+        const quickExecute = await getQuickExecuteState({ executorId: emp._id });
+        return res.json({ success: true, quickExecute });
+    } catch (error) {
+        return sendQuickExecuteError(res, error);
+    }
+};
+
+exports.putQuickExecute = async (req, res) => {
+    try {
+        const emp = req.executorEmployee || await Employee.findById(req.session.executorId);
+        if (!emp) return res.status(401).json({ success: false, error: 'انتهت جلسة الدخول.' });
+        const quickExecute = await saveQuickExecutePreferences({
+            executorId: emp._id,
+            network: req.body?.network,
+            pin: req.body?.pin,
+            clearPin: req.body?.clearPin === true
+        });
+        return res.json({ success: true, quickExecute });
+    } catch (error) {
+        return sendQuickExecuteError(res, error);
+    }
+};
+
+exports.postQuickExecuteDial = async (req, res) => {
+    try {
+        const emp = req.executorEmployee || await Employee.findById(req.session.executorId).populate('groupId');
+        if (!emp) return res.status(401).json({ success: false, error: 'انتهت جلسة الدخول.' });
+        const dial = await buildQuickExecuteDial({
+            executorId: emp._id,
+            executor: emp,
+            taskId: req.params.id,
+            pin: req.body?.pin,
+            tenantId: req.tenant ? req.tenant._id : null
+        });
+        return res.json({ success: true, ...publicDialPayload(dial) });
+    } catch (error) {
+        return sendQuickExecuteError(res, error);
+    }
 };

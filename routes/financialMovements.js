@@ -5,11 +5,12 @@ const router = express.Router();
 const Ledger = require('../models/Ledger');
 const Transaction = require('../models/Transaction');
 const { requireAuth } = require('../middlewares/auth');
+const { applyAdminTxPrivacy } = require('../services/adminAccountVisibilityService');
 const { escapeRegex } = require('../middlewares/sanitize');
 const { systemDateKey, systemDayEnd, systemDayStart } = require('../config/systemTime');
 
 const MOVEMENT_TYPES = ['DEPOSIT', 'DEDUCTION', 'TRANSFER', 'INTERNAL_TRANSFER', 'COMMISSION', 'REFUND', 'REVERSAL'];
-const ENTITY_MODELS = ['User', 'ClientCompany', 'ClientBot', 'SubAccount', 'ExecutorBot', 'ExecutorGroup'];
+const ENTITY_MODELS = ['User', 'ClientCompany', 'ClientBot', 'ExecutorBot', 'ExecutorGroup'];
 const SORT_FIELDS = new Set(['createdAt', 'amount', 'balanceBefore', 'balanceAfter', 'type', 'entityModel']);
 
 const parseDateRange = (query) => {
@@ -32,7 +33,9 @@ const buildLedgerFilter = async (query) => {
 
     if (query.type === 'INTERNAL_TRANSFER') filter.type = 'TRANSFER';
     else if (MOVEMENT_TYPES.includes(query.type)) filter.type = query.type;
-    if (ENTITY_MODELS.includes(query.entityModel)) filter.entityModel = query.entityModel;
+    if (query.entityModel === 'SubAccount') filter.entityModel = { $in: [] };
+    else if (ENTITY_MODELS.includes(query.entityModel)) filter.entityModel = query.entityModel;
+    else filter.entityModel = { $ne: 'SubAccount' };
 
     const minAmount = Number(query.minAmount);
     const maxAmount = Number(query.maxAmount);
@@ -48,7 +51,7 @@ const buildLedgerFilter = async (query) => {
     const search = String(query.search || '').trim();
     if (search) {
         const safe = escapeRegex(search);
-        const txMatches = await Transaction.find({
+        const txMatches = await Transaction.find(applyAdminTxPrivacy({
             $or: [
                 { customId: { $regex: safe, $options: 'i' } },
                 { companyName: { $regex: safe, $options: 'i' } },
@@ -57,7 +60,7 @@ const buildLedgerFilter = async (query) => {
                 { accountNumber: { $regex: safe, $options: 'i' } },
                 { cancellationNumber: { $regex: safe, $options: 'i' } }
             ]
-        }).select('customId').limit(300).lean();
+        })).select('customId').limit(300).lean();
 
         const txIds = txMatches.map((tx) => tx.customId).filter(Boolean);
         filter.$or = [
@@ -72,7 +75,7 @@ const buildLedgerFilter = async (query) => {
 
 const enrichMovements = async (ledgers) => {
     const txIds = [...new Set(ledgers.map((item) => item.transactionId).filter(Boolean))];
-    const txs = await Transaction.find({ customId: { $in: txIds } })
+    const txs = await Transaction.find(applyAdminTxPrivacy({ customId: { $in: txIds } }))
         .select('customId status amount costLYD companyName employeeName vodafoneNumber transferType cancellationNumber cancellationReason executorName proofImage proofImages createdAt updatedAt')
         .lean();
     const txMap = new Map(txs.map((tx) => [tx.customId, tx]));

@@ -69,7 +69,7 @@
 | Merchant API | `/api/v1/merchant` | رصيد الشريك، إنشاء تحويل، والاستعلام عن الحالة |
 | Merchant Webhooks | `/client/integrations/webhooks` | إدارة روابط الأحداث، مفاتيح HMAC، سجل التسليم وإعادة الإرسال |
 | Swagger | `/api-docs` | استعراض العقود المتاحة على الخادم |
-| مراقبة التشغيل | `/health`, `/health/ready`, `/metrics`, `/system-monitor` | الجاهزية والمقاييس وحالة مكونات النظام |
+| مراقبة التشغيل | `/health`, `/health/ready`, `/metrics`, `/system-monitor/api/status` | الجاهزية والمقاييس وحالة مكونات النظام |
 
 ## آلية العمل الكاملة
 
@@ -368,7 +368,7 @@ vodafone-cash-v2/
 - عزل `tenantId` والتحقق من ارتباط الحساب والرمز بالمؤسسة.
 - حماية سجلات Ledger وAgencyJournal من التعديل والحذف المباشر في الإنتاج.
 - Helmet وCORS وقواعد Rate Limit وقفل الحساب عند المحاولات المشبوهة.
-- حماية `/metrics` و`/system-monitor` والوصول إلى صور الإثبات.
+- حماية `/metrics` و`/system-monitor/api/status` والوصول إلى صور الإثبات.
 - تنقية مركزية للسجلات لإخفاء كلمات المرور والرموز والأسرار.
 - سجل تدقيق للأحداث الإدارية والمالية المهمة.
 
@@ -534,7 +534,7 @@ docker compose -f docker-compose.prod.yml logs --tail 100 ahram_core_prod
 4. بناء صورة Docker واختبار `/health` داخل الحاوية.
 5. بوابة نهائية تفشل إذا فشلت أي مرحلة مطلوبة.
 
-ملف [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml) لا ينشر إلا Commit اجتاز CI نفسه. يتطلب GitHub Secrets التالية:
+ملف [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml) لا يبدأ إلا بـ `workflow_dispatch` من `main`، بعد كتابة SHA الكامل في `confirm_sha` وموافقة مراجعي بيئة GitHub المسماة `production`. نجاح CI لا ينشر. `migrateTenantIsolation.js --apply` ليس جزءاً من المسار؛ المعاينة بأمر منفصل، والتطبيق خطوة يدوية بعد موافقة. `repairProductionEnv.js --apply` لا يعمل إلا إذا فُعّل الإدخال `apply_repair`، وافتراضه إيقاف. يتطلب GitHub Secrets التالية:
 
 - `DEPLOY_HOST`
 - `DEPLOY_USER`
@@ -576,7 +576,7 @@ node scripts/verifyAuditChain.js
 | `/health` | حياة العملية والاتصال الأساسي | مناسب لموازن الحمل |
 | `/health/ready` | جاهزية الاعتماديات | مناسب لفحص الجاهزية |
 | `/metrics` | مقاييس Prometheus | Localhost أو Token تشغيلي |
-| `/system-monitor` | شاشة حالة التشغيل | مصادقة تشغيلية |
+| `/system-monitor/api/status` | لقطة JSON لحالة التشغيل (بدون لوحة إدارة) | مصادقة تشغيلية |
 
 السجلات المنظمة تكتب عبر Winston مع `correlationId` للربط بين الطلب والخطأ. لا تعتبر رسالة قبول مزود خارجي دليل تسليم نهائي؛ تابع الحالة النهائية في شاشة المراقبة وسجلات Webhook.
 

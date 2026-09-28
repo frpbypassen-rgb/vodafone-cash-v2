@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const { PRODUCTION_SECURITY_FLAGS } = require('../config/productionSecurityDefaults');
 
 const envPath = path.resolve(process.argv[2] || '.env');
 const shouldApply = process.argv.includes('--apply');
@@ -79,22 +80,8 @@ upsert('COOKIE_SAMESITE', 'lax');
 upsert('TRUST_PROXY_HTTPS', 'true', { force: true });
 
 const forcedSecurityValues = {
-    PASSWORD_ONLY_LOGIN_MODE: 'true',
-    SECURITY_VERIFICATION_ENFORCEMENT_ENABLED: 'false',
-    SECURITY_VERIFICATION_MODE: 'optional',
-    PASSKEY_REQUIRED: 'false',
-    FORCE_CLIENT_OTP: 'false',
-    BYPASS_OTP: 'false',
-    BYPASS_CLIENT_OTP: 'false',
-    DISABLE_OTP: 'false',
-    MASTER_OTP: '',
-    SESSION_STORE: 'mongo',
-    MONGO_TRANSACTIONS_REQUIRED: 'true',
-    TENANT_ISOLATION_REQUIRED: 'true',
-    ALLOW_LEGACY_TENANTLESS_RECORDS: 'false',
-    ALLOW_LEGACY_TENANT_TOKENS: 'false',
-    ALLOW_PUBLIC_SYSTEM_MONITOR: 'false',
-    ALLOW_LEGACY_SAME_ORIGIN_CSRF: 'false'
+    ...PRODUCTION_SECURITY_FLAGS,
+    MASTER_OTP: ''
 };
 
 for (const [key, value] of Object.entries(forcedSecurityValues)) {
@@ -106,6 +93,9 @@ if (!['single', 'multi'].includes(currentValue('TENANT_MODE').toLowerCase())) {
 }
 if (!currentValue('DEFAULT_TENANT_ID') && !currentValue('DEFAULT_TENANT_SLUG')) {
     upsert('DEFAULT_TENANT_SLUG', 'ahram');
+}
+if (!currentValue('REDIS_URL') && !currentValue('REDIS_URI')) {
+    upsert('REDIS_URL', 'redis://127.0.0.1:6379');
 }
 
 const authenticationSecretKeys = ['JWT_SECRET', 'JWT_REFRESH_SECRET', 'SESSION_SECRET', 'OTP_SECRET'];
@@ -159,8 +149,6 @@ const safeDefaults = {
     API_BALANCE_TOLERANCE: '0.01',
     API_RETURN_MONITOR_ENABLED: 'true',
     API_RETURN_MONITOR_INTERVAL_MS: '300000',
-    REDIS_ENABLED: 'false',
-    REDIS_REQUIRED: 'false',
     TENANT_ROOT_DOMAIN: 'ahrampay.com',
     GLOBAL_RATE_LIMIT_MAX: '5000',
     ACCESS_TOKEN_TTL_SECONDS: '900'

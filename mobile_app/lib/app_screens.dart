@@ -29,6 +29,9 @@ import 'customer/portal/customer_portal_scope.dart';
 import 'customer/portal/customer_shell.dart';
 import 'customer/transfer_step_bar.dart';
 import 'executor_alert_service.dart';
+import 'executor_execution_policy.dart';
+import 'executor_quick_execute.dart';
+import 'executor_task_sla.dart';
 import 'executor_notification_center.dart';
 import 'executor_ui.dart';
 import 'external_link.dart';
@@ -6057,37 +6060,41 @@ class _TransferScreenState extends State<TransferScreen> {
   static const _egyptBanks = <String>[
     'البنك الأهلي المصري',
     'بنك مصر',
-    'بنك القاهرة',
     'البنك التجاري الدولي CIB',
-    'بنك الإسكندرية',
     'بنك قطر الوطني الأهلي QNB',
+    'بنك القاهرة',
+    'البنك العربي الأفريقي الدولي',
+    'مصرف أبوظبي الإسلامي ADIB',
     'بنك فيصل الإسلامي المصري',
+    'بنك الشركة المصرفية العربية الدولية saib',
+    'بنك HSBC مصر',
+    'بنك الإسكندرية',
+    'البنك الأهلي المتحد مصر',
+    'المصرف العربي الدولي',
+    'بنك المؤسسة العربية المصرفية ABC',
+    'بنك بلوم مصر',
+    'بنك الإمارات دبي الوطني مصر',
+    'بنك أبوظبي التجاري ADCB',
+    'بنك المشرق',
+    'بنك عوده مصر',
+    'بنك الكويت الوطني مصر',
+    'التجاري وفا بنك إيجيبت',
+    'بنك التنمية الصناعية',
+    'بنك التعمير والإسكان',
+    'البنك العقاري المصري العربي',
+    'البنك الزراعي المصري',
     'المصرف المتحد',
     'بنك البركة مصر',
-    'بنك أبو ظبي الإسلامي مصر',
-    'بنك أبو ظبي التجاري مصر',
-    'بنك الإمارات دبي الوطني مصر',
-    'بنك التعمير والإسكان',
     'بنك قناة السويس',
-    'البنك العربي الأفريقي الدولي',
     'البنك العربي',
-    'بنك الشركة المصرفية العربية الدولية SAIB',
     'بنك كريدي أجريكول مصر',
-    'بنك المشرق مصر',
     'البنك الأهلي الكويتي مصر',
-    'بنك المؤسسة العربية المصرفية ABC',
-    'بنك نكست',
-    'بنك التنمية الصناعية',
     'بنك الاستثمار العربي',
-    'المصرف العربي الدولي',
     'سيتي بنك مصر',
-    'بنك HSBC مصر',
-    'البنك العقاري المصري العربي',
     'البنك المصري الخليجي EGBANK',
-    'بنك الكويت الوطني مصر',
-    'البنك الأهلي المتحد مصر',
-    'البنك الزراعي المصري',
     'البنك المصري لتنمية الصادرات',
+    'بنك أبوظبي الأول مصر FAB',
+    'بنك نكست',
   ];
 
   @override
@@ -6547,10 +6554,10 @@ class _TransferScreenState extends State<TransferScreen> {
       final validRecipient = RegExp(
         r'^(?:(010|011|012|015)\d{8}|[A-Za-z0-9._@-]{3,50}|\d{16})$',
       ).hasMatch(recipient);
-      if (nameParts.length < 3 || !validRecipient) {
+      if (nameParts.length < 3 || !validRecipient || (_bankName ?? '').isEmpty) {
         setState(
           () => _error =
-              'أدخل الاسم الثلاثي ورقم الهاتف أو عنوان الدفع اللحظي أو رقم البطاقة الإلكتروني الصحيح.',
+              'أدخل الاسم الثلاثي واختر البنك ورقم الهاتف أو عنوان الدفع اللحظي أو رقم البطاقة الإلكتروني الصحيح.',
         );
         return;
       }
@@ -7973,10 +7980,11 @@ class _TransferScreenState extends State<TransferScreen> {
         .where((part) => part.isNotEmpty);
     if (amount < 500 ||
         nameParts.length < 3 ||
+        (_bankName ?? '').isEmpty ||
         !_isValidInstapayRecipient(recipient)) {
       setState(
         () => _error =
-            'راجع الاسم الثلاثي وبيانات المستلم وقيمة التحويل قبل المتابعة.',
+            'راجع الاسم الثلاثي والبنك وبيانات المستلم وقيمة التحويل قبل المتابعة.',
       );
       return;
     }
@@ -7986,6 +7994,7 @@ class _TransferScreenState extends State<TransferScreen> {
       lines: [
         CustomerReviewLine('الخدمة', _selectedServiceLabel),
         CustomerReviewLine('المستفيد', _name.text.trim()),
+        CustomerReviewLine('البنك', _bankName!),
         CustomerReviewLine('المستلم', recipient),
         CustomerReviewLine('المبلغ', '${formatEgpAmount(amount)} ج.م'),
         CustomerReviewLine('بالدينار', '${formatAmount(_cashAmountLyd)} د.ل'),
@@ -7995,6 +8004,7 @@ class _TransferScreenState extends State<TransferScreen> {
         context: context,
         builder: (context) => _InstapayPreviewDialog(
           beneficiaryName: _name.text.trim(),
+          bankName: _bankName!,
           recipient: recipient,
           amountEgp: amount,
           rate: _rate,
@@ -8081,6 +8091,8 @@ class _TransferScreenState extends State<TransferScreen> {
                     ? null
                     : 'أدخل اسم المستفيد ثلاثياً.',
               ),
+              const SizedBox(height: 14),
+              _egyptBankField(),
               const SizedBox(height: 14),
               TextFormField(
                 controller: _number,
@@ -8188,6 +8200,22 @@ class _TransferScreenState extends State<TransferScreen> {
           label: Text(_busy ? 'جارٍ تجهيز العملية...' : 'معاينة العملية'),
         ),
       ],
+    );
+  }
+
+  Widget _egyptBankField() {
+    return TextFormField(
+      controller: _bankNameController,
+      enabled: !_busy,
+      readOnly: true,
+      onTap: _busy ? null : _selectEgyptBank,
+      decoration: const InputDecoration(
+        labelText: 'البنك',
+        hintText: 'اضغط لاختيار البنك',
+        prefixIcon: Icon(Icons.account_balance_outlined),
+        suffixIcon: Icon(Icons.keyboard_arrow_down_outlined),
+      ),
+      validator: (value) => (value ?? '').trim().isEmpty ? 'اختر البنك.' : null,
     );
   }
 
@@ -8509,6 +8537,8 @@ class _TransferScreenState extends State<TransferScreen> {
                     : 'أدخل اسم المستفيد ثلاثياً.',
               ),
               const SizedBox(height: 14),
+              _egyptBankField(),
+              const SizedBox(height: 14),
               TextFormField(
                 controller: _number,
                 enabled: !_busy,
@@ -8526,21 +8556,6 @@ class _TransferScreenState extends State<TransferScreen> {
                     ).hasMatch((value ?? '').trim())
                     ? null
                     : 'أدخل رقم حساب أو IBAN صحيحاً.',
-              ),
-              const SizedBox(height: 14),
-              TextFormField(
-                controller: _bankNameController,
-                enabled: !_busy,
-                readOnly: true,
-                onTap: _busy ? null : _selectEgyptBank,
-                decoration: const InputDecoration(
-                  labelText: 'اسم البنك',
-                  hintText: 'اضغط لاختيار البنك',
-                  prefixIcon: Icon(Icons.account_balance_outlined),
-                  suffixIcon: Icon(Icons.keyboard_arrow_down_outlined),
-                ),
-                validator: (value) =>
-                    (value ?? '').trim().isEmpty ? 'اختر اسم البنك.' : null,
               ),
               const SizedBox(height: 14),
               TextFormField(
@@ -10735,6 +10750,7 @@ class _NitaPreviewDialog extends StatelessWidget {
 class _InstapayPreviewDialog extends StatelessWidget {
   const _InstapayPreviewDialog({
     required this.beneficiaryName,
+    required this.bankName,
     required this.recipient,
     required this.amountEgp,
     required this.rate,
@@ -10745,6 +10761,7 @@ class _InstapayPreviewDialog extends StatelessWidget {
   });
 
   final String beneficiaryName;
+  final String bankName;
   final String recipient;
   final double amountEgp;
   final double rate;
@@ -10827,6 +10844,8 @@ class _InstapayPreviewDialog extends StatelessWidget {
                       label: 'اسم المستفيد',
                       value: beneficiaryName,
                     ),
+                    if (bankName.isNotEmpty)
+                      _CashPreviewRow(label: 'البنك', value: bankName),
                     _CashPreviewRow(
                       label: 'بيانات المستلم',
                       value: recipient,
@@ -15794,6 +15813,8 @@ class _ExecutorTasksScreenState extends State<ExecutorTasksScreen>
   bool _actionBusy = false;
   bool _urgentAlarmPlaying = false;
   bool _manualTaskRoutingEnabled = false;
+  Map<String, dynamic>? _executionPolicy;
+  Map<String, dynamic>? _quickExecute;
   String? _syncError;
   Map<String, dynamic>? _overview;
   DateTime? _lastUpdated;
@@ -15955,6 +15976,16 @@ class _ExecutorTasksScreenState extends State<ExecutorTasksScreen>
       final rawAlerts = response['alerts'];
       final manualTaskRoutingEnabled =
           response['manualTaskRoutingEnabled'] == true;
+      final executionPolicy = response['executionPolicy'] is Map
+          ? Map<String, dynamic>.from(response['executionPolicy'] as Map)
+          : (_overview?['executionPolicy'] is Map
+                ? Map<String, dynamic>.from(_overview!['executionPolicy'] as Map)
+                : _executionPolicy);
+      final quickExecute = response['quickExecute'] is Map
+          ? Map<String, dynamic>.from(response['quickExecute'] as Map)
+          : (_overview?['quickExecute'] is Map
+                ? Map<String, dynamic>.from(_overview!['quickExecute'] as Map)
+                : _quickExecute);
       final urgentAlerts = rawAlerts is List
           ? rawAlerts
                 .whereType<Map>()
@@ -15982,6 +16013,8 @@ class _ExecutorTasksScreenState extends State<ExecutorTasksScreen>
           _tasks = tasks;
           _urgentAlerts = urgentAlerts;
           _manualTaskRoutingEnabled = manualTaskRoutingEnabled;
+          _executionPolicy = executionPolicy;
+          _quickExecute = quickExecute;
           _lastUpdated = DateTime.now();
           _syncError = null;
         });
@@ -16088,7 +16121,7 @@ class _ExecutorTasksScreenState extends State<ExecutorTasksScreen>
       if (candidates.isEmpty) {
         showSnack(
           context,
-          'لا يوجد موظف تنفيذ نشط يمكن توجيه العملية إليه.',
+          'لا يوجد موظف تنفيذ أو منفّذ خارجي نشط يمكن توجيه العملية إليه.',
           error: true,
         );
         return;
@@ -16105,14 +16138,17 @@ class _ExecutorTasksScreenState extends State<ExecutorTasksScreen>
                   'توجيه العملية',
                   style: TextStyle(fontWeight: FontWeight.w900),
                 ),
-                subtitle: Text('اختر المنفذ الذي ستظهر له العملية.'),
+                subtitle: Text('اختر موظف التنفيذ أو المنفّذ الخارجي.'),
               ),
               ...candidates.map(
                 (candidate) => ListTile(
                   leading: const Icon(Icons.person_outline),
                   title: Text('${candidate['name'] ?? 'منفذ'}'),
                   subtitle: Text(
-                    '${candidate['webUsername'] ?? candidate['phone'] ?? ''}',
+                    [
+                      '${candidate['roleLabel'] ?? (candidate['role'] == 'external' ? 'منفّذ خارجي' : 'موظف تنفيذ')}',
+                      '${candidate['webUsername'] ?? candidate['phone'] ?? ''}',
+                    ].where((line) => line.trim().isNotEmpty).join(' · '),
                   ),
                   onTap: () => Navigator.of(sheetContext).pop(candidate),
                 ),
@@ -16163,7 +16199,11 @@ class _ExecutorTasksScreenState extends State<ExecutorTasksScreen>
     final success = await showDialog<bool>(
       context: context,
       builder: (context) =>
-          CompleteTaskDialog(api: widget.controller.api, task: task),
+          CompleteTaskDialog(
+            api: widget.controller.api,
+            task: task,
+            executionPolicy: _executionPolicy,
+          ),
     );
     if (success == true) await _load();
   }
@@ -16193,6 +16233,122 @@ class _ExecutorTasksScreenState extends State<ExecutorTasksScreen>
         showSnack(context, 'تعذر فتح واتساب؛ تم نسخ رسالة التنفيذ الجاهزة.');
       }
     }
+  }
+
+  Future<void> _dialQuickExecute(Map<String, dynamic> task) async {
+    final state = ExecutorQuickExecuteState.fromJson(_quickExecute);
+    if (!state.enabled) return;
+    final taskId = '${task['id'] ?? task['_id'] ?? ''}'.trim();
+    if (taskId.isEmpty) return;
+    var pin = '';
+    if (state.pinRequired && !state.pinSet) {
+      pin = await showDialog<String>(
+            context: context,
+            builder: (context) => const _QuickExecutePinDialog(),
+          ) ??
+          '';
+      if (pin.isEmpty) return;
+    } else if (state.pinRequired) {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('تنفيذ سريع'),
+          content: Text(state.securityNote),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('إلغاء'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('فتح الاتصال'),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true) return;
+    }
+    setState(() => _actionBusy = true);
+    try {
+      final response = await widget.controller.api.dialExecutorQuickExecute(
+        taskId: taskId,
+        pin: pin.isEmpty ? null : pin,
+      );
+      final ussd = '${response['ussd'] ?? ''}'.trim();
+      final telUri = toQuickExecuteTelUri(
+        '${response['telUri'] ?? ussd}'.trim(),
+      );
+      if (telUri == 'tel:' || ussd.isEmpty && '${response['telUri'] ?? ''}'.isEmpty) {
+        throw const ApiFailure('تعذر تجهيز كود الاتصال.');
+      }
+      final launched = await openExternalUrl(telUri);
+      if (response['acceptedNow'] == true) await _load();
+      if (!launched && mounted) {
+        await _showQuickExecuteCopyFallback(ussd.isEmpty ? telUri : ussd, telUri);
+      }
+    } on ApiFailure catch (error) {
+      if (mounted) {
+        await showDialog<void>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('تعذر التنفيذ السريع'),
+            content: Text(error.message),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('إغلاق'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('حسناً'),
+              ),
+            ],
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _actionBusy = false);
+    }
+  }
+
+  Future<void> _showQuickExecuteCopyFallback(String ussd, String telUri) async {
+    final retry = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('تعذر فتح الاتصال'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Text(
+              'انسخ كود USSD واتصل يدوياً إذا لم يفتح الهاتف شاشة الاتصال.',
+            ),
+            const SizedBox(height: 12),
+            SelectableText(
+              ussd,
+              textDirection: ui.TextDirection.ltr,
+              style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('إعادة المحاولة'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('نسخ الكود'),
+          ),
+        ],
+      ),
+    );
+    if (retry == true) {
+      await openExternalUrl(telUri);
+      return;
+    }
+    await Clipboard.setData(ClipboardData(text: ussd));
+    if (mounted) showSnack(context, 'تم نسخ كود USSD.');
   }
 
   @override
@@ -16290,6 +16446,11 @@ class _ExecutorTasksScreenState extends State<ExecutorTasksScreen>
                 onCancel: () => _cancel(task),
                 onComplete: () => _complete(task),
                 onShare: () => _shareToWhatsApp(task),
+                quickExecuteEnabled:
+                    ExecutorQuickExecuteState.fromJson(_quickExecute).enabled ||
+                    ExecutorExecutionPolicy.fromJson(_executionPolicy)
+                        .quickExecuteEnabled,
+                onQuickExecute: () => _dialQuickExecute(task),
               ),
             ),
           ),
@@ -18681,6 +18842,10 @@ class _ExecutorSettingsScreenState extends State<ExecutorSettingsScreen> {
   bool _preferenceBusy = false;
   bool _previewBusy = false;
   Map<String, dynamic>? _mfaStatus;
+  Map<String, dynamic>? _companyExecutionPolicy;
+  Map<String, dynamic>? _quickExecute;
+  bool _policyBusy = false;
+  bool _quickExecuteBusy = false;
 
   @override
   void initState() {
@@ -18730,6 +18895,14 @@ class _ExecutorSettingsScreenState extends State<ExecutorSettingsScreen> {
         setState(() {
           _overview = Map<String, dynamic>.from(raw);
           _manualTaskRoutingEnabled = manualTaskRoutingEnabled;
+          _companyExecutionPolicy = raw['companyExecutionPolicy'] is Map
+              ? Map<String, dynamic>.from(raw['companyExecutionPolicy'] as Map)
+              : (raw['executionPolicy'] is Map
+                    ? Map<String, dynamic>.from(raw['executionPolicy'] as Map)
+                    : _companyExecutionPolicy);
+          _quickExecute = raw['quickExecute'] is Map
+              ? Map<String, dynamic>.from(raw['quickExecute'] as Map)
+              : _quickExecute;
           _pushStatus = pushStatus;
           _pushStatusError = pushStatusError;
           _localPushDiagnostics = localPushDiagnostics;
@@ -18929,6 +19102,62 @@ class _ExecutorSettingsScreenState extends State<ExecutorSettingsScreen> {
     }
   }
 
+  Future<void> _editCompanyExecutionPolicy() async {
+    final payload = await showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (context) => ExecutorExecutionPolicyEditorDialog(
+        title: 'صلاحيات التنفيذ للشركة',
+        policy: ExecutorExecutionPolicy.fromJson(_companyExecutionPolicy),
+      ),
+    );
+    if (payload == null) return;
+    setState(() => _policyBusy = true);
+    try {
+      final response = await widget.controller.api.setExecutorExecutionPolicy(
+        payload,
+      );
+      if (!mounted) return;
+      setState(() {
+        _companyExecutionPolicy = response['executionPolicy'] is Map
+            ? Map<String, dynamic>.from(response['executionPolicy'] as Map)
+            : payload;
+      });
+      showSnack(context, 'تم حفظ صلاحيات التنفيذ للشركة.');
+    } on ApiFailure catch (error) {
+      if (mounted) showSnack(context, error.message, error: true);
+    } finally {
+      if (mounted) setState(() => _policyBusy = false);
+    }
+  }
+
+  Future<void> _editQuickExecute() async {
+    final current = ExecutorQuickExecuteState.fromJson(_quickExecute);
+    final result = await showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (context) => _QuickExecuteSettingsDialog(state: current),
+    );
+    if (result == null) return;
+    setState(() => _quickExecuteBusy = true);
+    try {
+      final response = await widget.controller.api.saveExecutorQuickExecute(
+        network: result['network'] as String?,
+        pin: result['pin'] as String?,
+        clearPin: result['clearPin'] == true,
+      );
+      if (!mounted) return;
+      setState(() {
+        _quickExecute = response['quickExecute'] is Map
+            ? Map<String, dynamic>.from(response['quickExecute'] as Map)
+            : _quickExecute;
+      });
+      showSnack(context, 'تم حفظ إعداد التنفيذ السريع.');
+    } on ApiFailure catch (error) {
+      if (mounted) showSnack(context, error.message, error: true);
+    } finally {
+      if (mounted) setState(() => _quickExecuteBusy = false);
+    }
+  }
+
   String _roleLabel(String role) {
     switch (role) {
       case 'manager':
@@ -19033,11 +19262,50 @@ class _ExecutorSettingsScreenState extends State<ExecutorSettingsScreen> {
                 label: 'الخدمة',
                 value: serviceLabel(company['serviceKey']?.toString()),
               ),
-              if (company['balance'] != null)
+              if (company['serviceBalances'] is List &&
+                  (company['serviceBalances'] as List).length > 1)
+                ...[
+                  for (final raw in company['serviceBalances'] as List)
+                    if (raw is Map)
+                      DetailLine(
+                        label:
+                            '${raw['appliesPoolModel'] == true ? (raw['totalLabel'] ?? raw['label'] ?? '') : (raw['singleLabel'] ?? raw['label'] ?? '')}',
+                        value:
+                            '${formatEgpAmount(numberValue(raw['appliesPoolModel'] == true ? raw['totalBalance'] : raw['privateBalance']))} ج.م',
+                      ),
+                ]
+              else ...[
+                if (company['totalBalance'] != null)
+                  DetailLine(
+                    label: 'إجمالي الرصيد',
+                    value:
+                        '${formatEgpAmount(numberValue(company['totalBalance']))} ج.م',
+                  ),
+                if (company['privateBalance'] != null)
+                  DetailLine(
+                    label: 'الرصيد الخاص',
+                    value:
+                        '${formatEgpAmount(numberValue(company['privateBalance']))} ج.م',
+                  ),
+                if (company['balance'] != null &&
+                    company['privateBalance'] == null)
+                  DetailLine(
+                    label: 'رصيد الشركة',
+                    value:
+                        '${formatEgpAmount(numberValue(company['balance']))} ج.م',
+                  ),
+              ],
+              if (executor['workingBalance'] != null)
                 DetailLine(
-                  label: 'رصيد الشركة',
+                  label: () {
+                    final pool = executor['balancePool'];
+                    final poolName = pool is Map ? '${pool['name'] ?? ''}' : '';
+                    return poolName.isEmpty
+                        ? 'رصيدك'
+                        : 'رصيد مجموعة «$poolName»';
+                  }(),
                   value:
-                      '${formatEgpAmount(numberValue(company['balance']))} ج.م',
+                      '${formatEgpAmount(numberValue(executor['workingBalance']))} ج.م',
                 ),
             ],
           ),
@@ -19072,6 +19340,40 @@ class _ExecutorSettingsScreenState extends State<ExecutorSettingsScreen> {
             onTap: _manageAuthenticator,
           ),
         ),
+        if (widget.controller.canAcceptExecutorTasks) ...[
+          const SizedBox(height: 18),
+          ExecutorSurface(
+            accent: ExecutorUiColors.cobalt,
+            child: ListTile(
+              contentPadding: EdgeInsets.zero,
+              enabled: !_quickExecuteBusy,
+              onTap: _quickExecuteBusy ? null : _editQuickExecute,
+              leading: const ExecutorMetalIcon(
+                icon: Icons.phone_in_talk_outlined,
+                color: ExecutorUiColors.cobalt,
+                size: 42,
+                selected: true,
+              ),
+              title: const Text(
+                'تنفيذ سريع',
+                style: TextStyle(fontWeight: FontWeight.w900),
+              ),
+              subtitle: Text(() {
+                final state = ExecutorQuickExecuteState.fromJson(_quickExecute);
+                final pinHint = state.pinRequired
+                    ? (state.pinSet ? 'رقم السر محفوظ مشفراً' : 'يلزم رقم سر المحفظة')
+                    : 'بدون رقم سر في كود فودافون';
+                return '${state.networkLabel} · $pinHint';
+              }()),
+              trailing: _quickExecuteBusy
+                  ? const SizedBox.square(
+                      dimension: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.chevron_left),
+            ),
+          ),
+        ],
         const SizedBox(height: 18),
         ExecutorSurface(
           accent: ExecutorUiColors.cobalt,
@@ -19312,6 +19614,40 @@ class _ExecutorSettingsScreenState extends State<ExecutorSettingsScreen> {
               ),
             ),
           ),
+          const SizedBox(height: 18),
+          ExecutorSurface(
+            accent: ExecutorUiColors.cobalt,
+            child: ListTile(
+              contentPadding: EdgeInsets.zero,
+              enabled: !_policyBusy,
+              onTap: _policyBusy ? null : _editCompanyExecutionPolicy,
+              leading: const ExecutorMetalIcon(
+                icon: Icons.shield_outlined,
+                color: ExecutorUiColors.cobalt,
+                size: 38,
+                selected: true,
+              ),
+              title: const Text(
+                'صلاحيات التنفيذ',
+                style: TextStyle(fontWeight: FontWeight.w900),
+              ),
+              subtitle: Text(() {
+                final policy = ExecutorExecutionPolicy.fromJson(
+                  _companyExecutionPolicy,
+                );
+                final ttl = policy.sessionTtlEnabled
+                    ? 'جلسة ${((policy.sessionTtlSeconds ?? 28800) / 3600).round()}س'
+                    : 'بدون تسجيل خروج للخمول';
+                return 'أرقام ${policy.lengthsHint} · ${policy.proofRequired ? 'صورة إجبارية' : 'صورة اختيارية'} · ${policy.maxConcurrentDevices} جهاز · $ttl';
+              }()),
+              trailing: _policyBusy
+                  ? const SizedBox.square(
+                      dimension: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.chevron_left),
+            ),
+          ),
         ],
         if (metrics is Map) ...[
           const SizedBox(height: 18),
@@ -19363,6 +19699,7 @@ class _ExecutorEmployeesScreenState extends State<ExecutorEmployeesScreen>
     with WidgetsBindingObserver {
   List<Map<String, dynamic>> _employees = <Map<String, dynamic>>[];
   Map<String, dynamic> _summary = <String, dynamic>{};
+  Map<String, dynamic>? _companyExecutionPolicy;
   final TextEditingController _searchController = TextEditingController();
   Object? _error;
   bool _loading = true;
@@ -19424,6 +19761,11 @@ class _ExecutorEmployeesScreenState extends State<ExecutorEmployeesScreen>
           _summary = rawSummary is Map
               ? Map<String, dynamic>.from(rawSummary)
               : <String, dynamic>{};
+          _companyExecutionPolicy = workspace['companyExecutionPolicy'] is Map
+              ? Map<String, dynamic>.from(
+                  workspace['companyExecutionPolicy'] as Map,
+                )
+              : _companyExecutionPolicy;
           _syncError = null;
           _lastUpdated = DateTime.now();
         });
@@ -19551,6 +19893,36 @@ class _ExecutorEmployeesScreenState extends State<ExecutorEmployeesScreen>
     }
   }
 
+  Future<void> _editExecutionPolicy(Map<String, dynamic> employee) async {
+    final id = '${employee['id']}';
+    final payload = await showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (context) => ExecutorExecutionPolicyEditorDialog(
+        title: 'صلاحيات ${employee['name'] ?? 'المنفذ'}',
+        allowInherit: true,
+        policy: ExecutorExecutionPolicy.fromJson(
+          employee['executionPolicy'] is Map
+              ? Map<String, dynamic>.from(employee['executionPolicy'] as Map)
+              : _companyExecutionPolicy,
+        ),
+      ),
+    );
+    if (payload == null) return;
+    setState(() => _busyId = id);
+    try {
+      await widget.controller.api.setExecutorEmployeeExecutionPolicy(
+        id: id,
+        policy: payload,
+      );
+      if (mounted) showSnack(context, 'تم حفظ صلاحيات المنفذ.');
+      await _load();
+    } on ApiFailure catch (error) {
+      if (mounted) showSnack(context, error.message, error: true);
+    } finally {
+      if (mounted) setState(() => _busyId = null);
+    }
+  }
+
   Future<void> _toggleStatus(Map<String, dynamic> employee) async {
     final id = '${employee['id']}';
     setState(() => _busyId = id);
@@ -19645,6 +20017,7 @@ class _ExecutorEmployeesScreenState extends State<ExecutorEmployeesScreen>
           onResetPassword: () => _resetPassword(employee),
           onToggleStatus: () => _toggleStatus(employee),
           onToggleReports: () => _toggleReportsPermission(employee),
+          onExecutionPolicy: null,
           onReport: () => _openReport(employee),
         ),
       ),
@@ -20457,6 +20830,7 @@ class ExecutorEmployeeDetailsScreen extends StatelessWidget {
     required this.onToggleStatus,
     required this.onToggleReports,
     required this.onReport,
+    this.onExecutionPolicy,
   });
 
   final Map<String, dynamic> employee;
@@ -20466,6 +20840,7 @@ class ExecutorEmployeeDetailsScreen extends StatelessWidget {
   final VoidCallback onToggleStatus;
   final VoidCallback onToggleReports;
   final VoidCallback onReport;
+  final VoidCallback? onExecutionPolicy;
 
   String get _roleLabel => switch ('${employee['role']}') {
     'manager' => 'مدير تنفيذي',
@@ -20771,6 +21146,22 @@ class ExecutorEmployeeDetailsScreen extends StatelessWidget {
                   icon: const Icon(Icons.key_outlined),
                   label: const Text('تغيير كلمة المرور'),
                 ),
+                if (onExecutionPolicy != null) ...[
+                  const SizedBox(height: 9),
+                  OutlinedButton.icon(
+                    onPressed: busy ? null : onExecutionPolicy,
+                    icon: const Icon(Icons.shield_outlined),
+                    label: const Text('صلاحيات التنفيذ'),
+                  ),
+                ] else ...[
+                  const SizedBox(height: 9),
+                  Text(
+                    'صلاحيات التنفيذ لهذا المنفذ تُدار من الإدارة المركزية فقط.',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 9),
                 OutlinedButton.icon(
                   onPressed: busy ? null : onToggleReports,
@@ -20979,6 +21370,187 @@ class _ExecutorEmployeeEditorDialogState
   }
 }
 
+class ExecutorExecutionPolicyEditorDialog extends StatefulWidget {
+  const ExecutorExecutionPolicyEditorDialog({
+    super.key,
+    required this.policy,
+    this.title = 'صلاحيات التنفيذ',
+    this.allowInherit = false,
+  });
+
+  final ExecutorExecutionPolicy policy;
+  final String title;
+  final bool allowInherit;
+
+  @override
+  State<ExecutorExecutionPolicyEditorDialog> createState() =>
+      _ExecutorExecutionPolicyEditorDialogState();
+}
+
+class _ExecutorExecutionPolicyEditorDialogState
+    extends State<ExecutorExecutionPolicyEditorDialog> {
+  late bool _inherit;
+  late String _phoneMode;
+  late bool _proofRequired;
+  late bool _quickExecuteEnabled;
+  late final TextEditingController _devices;
+  late bool _sessionTtlEnabled;
+  late final TextEditingController _hours;
+
+  @override
+  void initState() {
+    super.initState();
+    _inherit = widget.allowInherit && widget.policy.inheritsCompanyPolicy;
+    _phoneMode = widget.policy.phoneLengthMode;
+    _proofRequired = widget.policy.proofRequired;
+    _quickExecuteEnabled = widget.policy.quickExecuteEnabled;
+    _devices = TextEditingController(
+      text: '${widget.policy.maxConcurrentDevices}',
+    );
+    _sessionTtlEnabled = widget.policy.sessionTtlEnabled;
+    _hours = TextEditingController(
+      text:
+          '${((widget.policy.sessionTtlSeconds ?? 28800) / 3600).round().clamp(1, 720)}',
+    );
+  }
+
+  @override
+  void dispose() {
+    _devices.dispose();
+    _hours.dispose();
+    super.dispose();
+  }
+
+  void _save() {
+    final devices = int.tryParse(_devices.text.trim()) ?? 1;
+    final hours = int.tryParse(_hours.text.trim()) ?? 8;
+    final policy = ExecutorExecutionPolicy(
+      proofRequired: _proofRequired,
+      quickExecuteEnabled: _quickExecuteEnabled,
+      allowedPhoneLengths: _phoneMode == 'all'
+          ? const <int>[3, 4, 11]
+          : <int>[int.tryParse(_phoneMode) ?? 11],
+      phoneLengthMode: _phoneMode,
+      maxConcurrentDevices: devices,
+      sessionTtlEnabled: _sessionTtlEnabled,
+      sessionTtlSeconds: hours * 3600,
+    );
+    Navigator.pop(
+      context,
+      policy.toSavePayload(inheritCompanyPolicy: widget.allowInherit && _inherit),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(widget.title),
+      content: SizedBox(
+        width: 420,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (widget.allowInherit)
+                SwitchListTile.adaptive(
+                  contentPadding: EdgeInsets.zero,
+                  value: _inherit,
+                  onChanged: (value) => setState(() => _inherit = value),
+                  title: const Text('استخدام إعداد الشركة'),
+                ),
+              if (!_inherit) ...[
+                const Text(
+                  'أرقام إثبات المرسل',
+                  style: TextStyle(fontWeight: FontWeight.w900),
+                ),
+                RadioGroup<String>(
+                  groupValue: _phoneMode,
+                  onChanged: (value) =>
+                      setState(() => _phoneMode = value ?? 'all'),
+                  child: const Column(
+                    children: [
+                      RadioListTile<String>(
+                        contentPadding: EdgeInsets.zero,
+                        value: '3',
+                        title: Text('3 أرقام فقط'),
+                      ),
+                      RadioListTile<String>(
+                        contentPadding: EdgeInsets.zero,
+                        value: '4',
+                        title: Text('4 أرقام فقط'),
+                      ),
+                      RadioListTile<String>(
+                        contentPadding: EdgeInsets.zero,
+                        value: '11',
+                        title: Text('11 رقماً فقط'),
+                      ),
+                      RadioListTile<String>(
+                        contentPadding: EdgeInsets.zero,
+                        value: 'all',
+                        title: Text('الثلاثة مسموحة'),
+                      ),
+                    ],
+                  ),
+                ),
+                SwitchListTile.adaptive(
+                  contentPadding: EdgeInsets.zero,
+                  value: _proofRequired,
+                  onChanged: (value) => setState(() => _proofRequired = value),
+                  title: const Text('صورة الإثبات إجبارية'),
+                ),
+                SwitchListTile.adaptive(
+                  contentPadding: EdgeInsets.zero,
+                  value: _quickExecuteEnabled,
+                  onChanged: (value) =>
+                      setState(() => _quickExecuteEnabled = value),
+                  title: const Text('تنفيذ سريع (USSD)'),
+                  subtitle: const Text(
+                    'يظهر زر الاتصال بجانب إنهاء بعد قبول المهمة.',
+                  ),
+                ),
+                TextField(
+                  controller: _devices,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: 'أقصى أجهزة متزامنة',
+                    helperText: '1 = الدخول الجديد يُخرج الجهاز السابق.',
+                  ),
+                ),
+                SwitchListTile.adaptive(
+                  contentPadding: EdgeInsets.zero,
+                  value: _sessionTtlEnabled,
+                  onChanged: (value) =>
+                      setState(() => _sessionTtlEnabled = value),
+                  title: const Text('حد مدة الجلسة'),
+                  subtitle: const Text(
+                    'عند الإيقاف تبقى الجلسة مفتوحة ويُحدَّث التوكن تلقائياً.',
+                  ),
+                ),
+                TextField(
+                  controller: _hours,
+                  enabled: _sessionTtlEnabled,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: 'مدة الجلسة (ساعات)',
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('إلغاء'),
+        ),
+        FilledButton(onPressed: _save, child: const Text('حفظ الصلاحيات')),
+      ],
+    );
+  }
+}
+
 class ExecutorResetPasswordDialog extends StatefulWidget {
   const ExecutorResetPasswordDialog({super.key});
 
@@ -21033,6 +21605,186 @@ class _ExecutorResetPasswordDialogState
           child: const Text('إلغاء'),
         ),
         FilledButton(onPressed: _save, child: const Text('تغيير')),
+      ],
+    );
+  }
+}
+
+class _QuickExecutePinDialog extends StatefulWidget {
+  const _QuickExecutePinDialog();
+
+  @override
+  State<_QuickExecutePinDialog> createState() => _QuickExecutePinDialogState();
+}
+
+class _QuickExecutePinDialogState extends State<_QuickExecutePinDialog> {
+  final _pin = TextEditingController();
+
+  @override
+  void dispose() {
+    _pin.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('رقم سر المحفظة'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Text(kQuickExecutePinSecurityNote),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _pin,
+            obscureText: true,
+            keyboardType: TextInputType.number,
+            textDirection: ui.TextDirection.ltr,
+            maxLength: 8,
+            decoration: const InputDecoration(
+              labelText: 'رقم السر',
+              counterText: '',
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('إلغاء'),
+        ),
+        FilledButton(
+          onPressed: () {
+            final digits = sanitizeQuickExecuteDigits(_pin.text);
+            if (digits.length < 4 || digits.length > 8) return;
+            Navigator.pop(context, digits);
+          },
+          child: const Text('فتح الاتصال'),
+        ),
+      ],
+    );
+  }
+}
+
+class _QuickExecuteSettingsDialog extends StatefulWidget {
+  const _QuickExecuteSettingsDialog({required this.state});
+
+  final ExecutorQuickExecuteState state;
+
+  @override
+  State<_QuickExecuteSettingsDialog> createState() =>
+      _QuickExecuteSettingsDialogState();
+}
+
+class _QuickExecuteSettingsDialogState
+    extends State<_QuickExecuteSettingsDialog> {
+  late String _network;
+  final _pin = TextEditingController();
+  bool _clearPin = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _network = widget.state.network;
+  }
+
+  @override
+  void dispose() {
+    _pin.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final needsPin = quickExecuteNetworkRequiresPin(_network);
+    return AlertDialog(
+      title: const Text('تنفيذ سريع'),
+      content: SizedBox(
+        width: 420,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text(
+                'الشبكة',
+                style: TextStyle(fontWeight: FontWeight.w900),
+              ),
+              RadioGroup<String>(
+                groupValue: _network,
+                onChanged: (value) =>
+                    setState(() => _network = value ?? 'vodafone'),
+                child: const Column(
+                  children: [
+                    RadioListTile<String>(
+                      contentPadding: EdgeInsets.zero,
+                      value: 'vodafone',
+                      title: Text('فودافون'),
+                    ),
+                    RadioListTile<String>(
+                      contentPadding: EdgeInsets.zero,
+                      value: 'etisalat',
+                      title: Text('اتصالات'),
+                    ),
+                    RadioListTile<String>(
+                      contentPadding: EdgeInsets.zero,
+                      value: 'orange',
+                      title: Text('أورنج'),
+                    ),
+                    RadioListTile<String>(
+                      contentPadding: EdgeInsets.zero,
+                      value: 'we',
+                      title: Text('وي'),
+                    ),
+                  ],
+                ),
+              ),
+              if (needsPin) ...[
+                TextField(
+                  controller: _pin,
+                  obscureText: true,
+                  keyboardType: TextInputType.number,
+                  textDirection: ui.TextDirection.ltr,
+                  maxLength: 8,
+                  decoration: InputDecoration(
+                    labelText: widget.state.pinSet
+                        ? 'رقم السر (اتركه فارغاً للإبقاء)'
+                        : 'رقم سر المحفظة',
+                    counterText: '',
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  kQuickExecutePinSecurityNote,
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+                if (widget.state.pinSet)
+                  CheckboxListTile(
+                    contentPadding: EdgeInsets.zero,
+                    value: _clearPin,
+                    onChanged: (value) =>
+                        setState(() => _clearPin = value == true),
+                    title: const Text('حذف رقم السر المحفوظ'),
+                  ),
+              ],
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('إلغاء'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.pop(context, <String, dynamic>{
+            'network': _network,
+            'pin': _pin.text.trim(),
+            'clearPin': _clearPin,
+          }),
+          child: const Text('حفظ'),
+        ),
       ],
     );
   }
@@ -21629,10 +22381,16 @@ class _CancelTaskDialogState extends State<CancelTaskDialog> {
 }
 
 class CompleteTaskDialog extends StatefulWidget {
-  const CompleteTaskDialog({super.key, required this.api, required this.task});
+  const CompleteTaskDialog({
+    super.key,
+    required this.api,
+    required this.task,
+    this.executionPolicy,
+  });
 
   final MobileApi api;
   final Map<String, dynamic> task;
+  final Map<String, dynamic>? executionPolicy;
 
   @override
   State<CompleteTaskDialog> createState() => _CompleteTaskDialogState();
@@ -21646,6 +22404,11 @@ class _CompleteTaskDialogState extends State<CompleteTaskDialog> {
   final List<TextEditingController> _senderAmounts = <TextEditingController>[];
   bool _busy = false;
   String? _error;
+
+  ExecutorExecutionPolicy get _policy =>
+      ExecutorExecutionPolicy.fromJson(widget.executionPolicy);
+
+  bool get _bankTransfer => isBankTransferService(widget.task['transferType']);
 
   @override
   void dispose() {
@@ -21719,16 +22482,57 @@ class _CompleteTaskDialogState extends State<CompleteTaskDialog> {
   }
 
   Future<void> _complete() async {
+    if (_bankTransfer) {
+      if (_images.isEmpty) {
+        setState(() => _error = 'إرفاق صورة إثبات التحويل البنكي إجباري.');
+        return;
+      }
+      setState(() {
+        _busy = true;
+        _error = null;
+      });
+      try {
+        final proofImages = _images
+            .map((image) => 'data:image/jpeg;base64,${base64Encode(image)}')
+            .toList();
+        await widget.api.completeTask(
+          id: '${widget.task['id']}',
+          imageBase64: proofImages.first,
+          imagesBase64: proofImages,
+        );
+        if (mounted) {
+          showSnack(context, 'تم إرسال إثبات التحويل البنكي للعميل.');
+          Navigator.pop(context, true);
+        }
+      } on ApiFailure catch (error) {
+        if (mounted) setState(() => _error = error.message);
+      } finally {
+        if (mounted) setState(() => _busy = false);
+      }
+      return;
+    }
     final executionNumber = _execution.text.trim();
-    if (!RegExp(r'^\d{11}$').hasMatch(executionNumber)) {
-      setState(() => _error = 'رقم التنفيذ إجباري ويجب أن يتكون من 11 رقماً.');
+    final executionError = _policy.validateDigits(
+      executionNumber,
+      isSplit: false,
+    );
+    if (executionError != null) {
+      setState(() => _error = executionError);
+      return;
+    }
+    if (_policy.proofRequired && _images.isEmpty) {
+      setState(() => _error = 'إرفاق صورة الإثبات إجباري لهذا المنفذ.');
       return;
     }
     final senderEntries = <Map<String, dynamic>>[];
     for (var index = 0; index < _senderPhones.length; index++) {
       final phone = _senderPhones[index].text.trim();
-      if (!RegExp(r'^\d{11}$').hasMatch(phone)) {
-        setState(() => _error = 'كل رقم مرسل يجب أن يتكون من 11 رقماً.');
+      final phoneError = _policy.validateDigits(
+        phone,
+        isSplit: _senderPhones.length > 1,
+      );
+      if (phoneError != null) {
+        setState(() => _error = phoneError);
         return;
       }
       final entry = <String, dynamic>{'phone': phone};
@@ -21815,18 +22619,32 @@ class _CompleteTaskDialogState extends State<CompleteTaskDialog> {
                 label: 'المستلم',
                 value: '${widget.task['recipientNumber'] ?? '-'}',
               ),
-              const SizedBox(height: 14),
-              TextField(
-                controller: _execution,
-                textDirection: ui.TextDirection.ltr,
-                keyboardType: TextInputType.number,
-                maxLength: 11,
-                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                decoration: const InputDecoration(
-                  labelText: 'رقم التنفيذ (11 رقماً) *',
-                  prefixIcon: Icon(Icons.tag_outlined),
+              if ('${widget.task['bankName'] ?? ''}'.trim().isNotEmpty)
+                DetailLine(
+                  label: 'البنك',
+                  value: '${widget.task['bankName']}',
                 ),
-              ),
+              const SizedBox(height: 14),
+              if (_bankTransfer)
+                Text(
+                  'تحويل بنكي: أرفق صورة الإثبات فقط. تُرسل الصورة نفسها للعميل، دون رقم هاتف ودون تقسيم.',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+                )
+              else
+                TextField(
+                  controller: _execution,
+                  textDirection: ui.TextDirection.ltr,
+                  keyboardType: TextInputType.number,
+                  maxLength: _policy.maxDigitLength,
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                  decoration: InputDecoration(
+                    labelText: _policy.executionNumberLabel,
+                    prefixIcon: const Icon(Icons.tag_outlined),
+                  ),
+                ),
+              if (!_bankTransfer) ...[
               const SizedBox(height: 12),
               Text(
                 'رقم المرسل (اختياري)',
@@ -21860,12 +22678,12 @@ class _CompleteTaskDialogState extends State<CompleteTaskDialog> {
                               controller: _senderPhones[index],
                               textDirection: ui.TextDirection.ltr,
                               keyboardType: TextInputType.phone,
-                              maxLength: 11,
+                              maxLength: _policy.maxDigitLength,
                               inputFormatters: [
                                 FilteringTextInputFormatter.digitsOnly,
                               ],
                               decoration: InputDecoration(
-                                labelText: 'رقم المرسل ${index + 1}',
+                                labelText: _policy.senderPhoneLabel(index),
                                 prefixIcon: const Icon(
                                   Icons.phone_android_outlined,
                                 ),
@@ -21907,9 +22725,14 @@ class _CompleteTaskDialogState extends State<CompleteTaskDialog> {
                   label: const Text('إضافة رقم مرسل'),
                 ),
               ),
+              ],
               const SizedBox(height: 4),
               ExecutorProofAttachments(
                 images: _images,
+                requiredProof: _bankTransfer || _policy.proofRequired,
+                caption: _bankTransfer
+                    ? 'أرفق صورة إثبات التحويل البنكي. تُرسل هذه الصورة للعميل دون إنشاء إيصال تلقائي.'
+                    : null,
                 onPick: _pick,
                 onRemove: (index) => setState(() => _images.removeAt(index)),
               ),
@@ -21941,11 +22764,15 @@ class ExecutorProofAttachments extends StatelessWidget {
     required this.images,
     required this.onPick,
     required this.onRemove,
+    this.requiredProof = false,
+    this.caption,
   });
 
   final List<Uint8List> images;
   final VoidCallback onPick;
   final ValueChanged<int> onRemove;
+  final bool requiredProof;
+  final String? caption;
 
   @override
   Widget build(BuildContext context) {
@@ -21961,7 +22788,9 @@ class ExecutorProofAttachments extends StatelessWidget {
           icon: const Icon(Icons.add_photo_alternate_outlined),
           label: Text(
             images.isEmpty
-                ? 'إرفاق صور إثبات (اختياري)'
+                ? (requiredProof
+                      ? 'إرفاق صور إثبات (إجباري)'
+                      : 'إرفاق صور إثبات (اختياري)')
                 : 'إضافة صورة (${images.length}/5)',
           ),
         ),
@@ -22007,7 +22836,10 @@ class ExecutorProofAttachments extends StatelessWidget {
         ],
         const SizedBox(height: 6),
         Text(
-          'يمكن إنهاء العملية دون صورة؛ سيُنشأ إيصال المنظومة تلقائياً.',
+          caption ??
+              (requiredProof
+                  ? 'يجب إرفاق صورة إثبات واحدة على الأقل قبل إتمام العملية.'
+                  : 'يمكن إنهاء العملية دون صورة؛ سيُنشأ إيصال المنظومة تلقائياً.'),
           style: Theme.of(context).textTheme.bodySmall,
         ),
       ],
@@ -22932,6 +23764,17 @@ class CustomerReceiptSheet extends StatelessWidget {
   bool get _canLoadReceipt =>
       _receiptUrl.isNotEmpty || (api != null && _transactionId.isNotEmpty);
 
+  List<Map<String, dynamic>> get _partProofs {
+    final raw = transaction['partProofs'];
+    if (raw is! List) return const [];
+    return raw
+        .whereType<Map>()
+        .map((item) => Map<String, dynamic>.from(item))
+        .toList();
+  }
+
+  bool get _hasSplitProofs => _partProofs.length >= 2;
+
   Future<Uint8List?> _loadReceiptBytes() async {
     if (_receiptUrl.isNotEmpty) {
       try {
@@ -23007,9 +23850,31 @@ class CustomerReceiptSheet extends StatelessWidget {
     }
   }
 
-  void _openReceipt(BuildContext context) {
-    if (!_canLoadReceipt) return;
-    final receiptFuture = _loadReceiptBytes();
+  Future<Uint8List?> _loadPartReceiptBytes({int index = 0, String receiptUrl = ''}) async {
+    final url = receiptUrl.trim();
+    if (url.isNotEmpty) {
+      try {
+        final response = await Dio().get<List<int>>(
+          url,
+          options: Options(responseType: ResponseType.bytes),
+        );
+        final bytes = response.data;
+        if (bytes != null && bytes.isNotEmpty) return Uint8List.fromList(bytes);
+      } catch (_) {}
+    } else if (index == 0) {
+      return _loadReceiptBytes();
+    }
+    if (api == null || _transactionId.isEmpty) return null;
+    try {
+      return await api!.clientReceiptImageBytes(_transactionId, index: index);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  void _openReceipt(BuildContext context, {int index = 0, String receiptUrl = '', String title = 'الإيصال الرسمي'}) {
+    if (index == 0 && receiptUrl.isEmpty && !_canLoadReceipt) return;
+    final receiptFuture = _loadPartReceiptBytes(index: index, receiptUrl: receiptUrl);
     showDialog<void>(
       context: context,
       builder: (_) => Dialog.fullscreen(
@@ -23026,17 +23891,17 @@ class CustomerReceiptSheet extends StatelessWidget {
                       icon: const Icon(Icons.close_rounded),
                     ),
                     const SizedBox(width: 8),
-                    const Expanded(
+                    Expanded(
                       child: Text(
-                        'الإيصال الرسمي',
-                        style: TextStyle(fontWeight: FontWeight.w900),
+                        title,
+                        style: const TextStyle(fontWeight: FontWeight.w900),
                       ),
                     ),
                     IconButton(
                       tooltip: 'نسخ رابط الإيصال',
-                      onPressed: _receiptUrl.isEmpty
+                      onPressed: (receiptUrl.isEmpty ? _receiptUrl : receiptUrl).isEmpty
                           ? null
-                          : () => _copy(context, _receiptUrl, 'رابط الإيصال'),
+                          : () => _copy(context, receiptUrl.isEmpty ? _receiptUrl : receiptUrl, 'رابط الإيصال'),
                       icon: const Icon(Icons.link_rounded),
                     ),
                   ],
@@ -23073,6 +23938,50 @@ class CustomerReceiptSheet extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  List<Widget> _splitProofCards(BuildContext context, ColorScheme colors) {
+    return _partProofs.map((part) {
+      final partId = '${part['partId'] ?? ''}'.trim();
+      final amount = formatEgpAmount(numberValue(part['amount']));
+      final wallet = '${part['senderWallet'] ?? '-'}'.trim();
+      final recipient = '${part['recipient'] ?? '-'}'.trim();
+      final reference = '${part['partReference'] ?? part['reference'] ?? '-'}'.trim();
+      final available = part['proofAvailable'] == true;
+      final index = part['receiptIndex'] is int ? part['receiptIndex'] as int : int.tryParse('${part['receiptIndex']}') ?? 0;
+      final receiptUrl = '${part['receiptUrl'] ?? ''}'.trim();
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 10),
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: colors.surface,
+            border: Border.all(color: colors.outlineVariant),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('إثبات الجزء $partId — $amount ج.م', style: const TextStyle(fontWeight: FontWeight.w900)),
+              const SizedBox(height: 6),
+              Text('من المحفظة $wallet إلى $recipient', style: TextStyle(color: colors.onSurfaceVariant, fontSize: 12)),
+              Text('المرجع $reference', style: TextStyle(color: colors.onSurfaceVariant, fontSize: 12)),
+              const SizedBox(height: 8),
+              Align(
+                alignment: AlignmentDirectional.centerStart,
+                child: OutlinedButton.icon(
+                  onPressed: available
+                      ? () => _openReceipt(context, index: index, receiptUrl: receiptUrl, title: 'إثبات الجزء $partId')
+                      : null,
+                  icon: const Icon(Icons.receipt_long_outlined),
+                  label: Text(available ? 'عرض إثبات الجزء' : 'الإثبات غير متاح'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }).toList();
   }
 
   @override
@@ -23276,7 +24185,8 @@ class CustomerReceiptSheet extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 14),
-                Container(
+                if (_hasSplitProofs) ..._splitProofCards(context, colors),
+                if (!_hasSplitProofs) Container(
                   padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
                     color: colors.surface,
@@ -23333,8 +24243,8 @@ class CustomerReceiptSheet extends StatelessWidget {
                     ],
                   ),
                 ),
-                const SizedBox(height: 16),
-                Row(
+                if (!_hasSplitProofs) const SizedBox(height: 16),
+                if (!_hasSplitProofs) Row(
                   children: [
                     Expanded(
                       child: OutlinedButton.icon(
@@ -23990,6 +24900,8 @@ class ExecutorTaskTile extends StatelessWidget {
     required this.onCancel,
     required this.onComplete,
     required this.onShare,
+    this.quickExecuteEnabled = false,
+    this.onQuickExecute,
   });
 
   final Map<String, dynamic> task;
@@ -24003,6 +24915,8 @@ class ExecutorTaskTile extends StatelessWidget {
   final VoidCallback onCancel;
   final VoidCallback onComplete;
   final Future<void> Function() onShare;
+  final bool quickExecuteEnabled;
+  final VoidCallback? onQuickExecute;
 
   Future<void> _copyValue(
     BuildContext context,
@@ -24021,30 +24935,51 @@ class ExecutorTaskTile extends StatelessWidget {
         '${task['acceptedByName'] ?? task['executorName'] ?? ''}'.trim();
     final assignedExecutorName =
         '${task['assignedExecutorName'] ?? acceptedByName}'.trim();
+    final routingState = '${task['routingState'] ?? ''}'.trim();
+    final routingStateLabel = '${task['routingStateLabel'] ?? ''}'.trim();
     // An accepted task is actionable only by its owner. Treat missing ownership
     // data as locked so an older API response cannot expose unsafe actions.
     final acceptedByMe =
         accepted &&
         (task['isOwnedByCurrentExecutor'] == true ||
             (acceptedById.isNotEmpty && acceptedById == currentExecutorId));
+    final routedToMe =
+        !accepted &&
+        (task['isAssignedToCurrentExecutor'] == true ||
+            '${task['assignedExecutorId'] ?? ''}' == currentExecutorId);
     final takenByAnother = accepted && !acceptedByMe;
     final canRouteTask = canRoute && !accepted;
     final takenByLabel = acceptedByName.isEmpty ? 'منفذ آخر' : acceptedByName;
-    final assignmentStatus = accepted
-        ? 'قيد التنفيذ لدى الموظف'
-        : 'بانتظار قبول الموظف';
+    final assignmentStatus = routingStateLabel.isNotEmpty
+        ? routingStateLabel
+        : (routingState == 'in_progress' || accepted
+            ? 'بدأ التنفيذ'
+            : (routingState == 'pending_with_assignee' ||
+                    assignedExecutorName.isNotEmpty
+                ? 'معلّقة عنده'
+                : 'متاح'));
     final colors = Theme.of(context).colorScheme;
     final transferType = task['transferType']?.toString();
     final isCashWallet = transferType == 'vodafone';
     final recipient = '${task['recipientNumber'] ?? '-'}';
     final recipientRevealed = task['recipientRevealed'] == true && acceptedByMe;
+    final showsQuickExecute = taskOffersQuickExecute(
+      enabled: quickExecuteEnabled,
+      transferType: transferType,
+      acceptedByMe: acceptedByMe,
+      assignedToMe: routedToMe,
+      canQuickExecute: task['canQuickExecute'] == true,
+      canClaimThenQuickExecute: task['canClaimThenQuickExecute'] == true,
+    ) && onQuickExecute != null;
     final amount = formatEgpAmount(numberValue(task['amount']));
     final notes = '${task['notes'] ?? ''}'.trim();
     final receivedAt = task['executorReceivedAt'] ?? task['createdAt'];
     return ExecutorSurface(
       accent: acceptedByMe
           ? ExecutorUiColors.jade
-          : (takenByAnother ? ExecutorUiColors.amber : ExecutorUiColors.cobalt),
+          : (routedToMe
+              ? ExecutorUiColors.cobalt
+              : (takenByAnother ? ExecutorUiColors.amber : ExecutorUiColors.cobalt)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -24076,14 +25011,30 @@ class ExecutorTaskTile extends StatelessWidget {
                       '${task['transferTypeLabel'] ?? serviceLabel(task['transferType']?.toString())}',
                       style: TextStyle(color: colors.onSurfaceVariant),
                     ),
+                    if ('${task['bankName'] ?? ''}'.trim().isNotEmpty)
+                      Text(
+                        '${task['bankName']}',
+                        style: TextStyle(
+                          color: colors.onSurface,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
                   ],
                 ),
               ),
               StatusPill(
                 label: isManager && assignedExecutorName.isNotEmpty
                     ? assignmentStatus
-                    : statusLabel(task['status']?.toString()),
-                color: statusColor(task['status']?.toString()),
+                    : (routedToMe
+                        ? 'موجهة إليك'
+                        : (acceptedByMe
+                            ? 'بدأ التنفيذ'
+                            : statusLabel(task['status']?.toString()))),
+                color: routedToMe
+                    ? ExecutorUiColors.cobalt
+                    : statusColor(
+                        accepted ? 'accepted' : task['status']?.toString(),
+                      ),
               ),
             ],
           ),
@@ -24213,23 +25164,27 @@ class ExecutorTaskTile extends StatelessWidget {
               ],
             ),
           ],
-          if (isManager && assignedExecutorName.isNotEmpty) ...[
+          if ((isManager || routedToMe) && assignedExecutorName.isNotEmpty) ...[
             const Divider(height: 22),
             Container(
               width: double.infinity,
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
               decoration: BoxDecoration(
-                color: AhramColors.emeraldSoft.withValues(alpha: 0.72),
+                color: (accepted ? AhramColors.emeraldSoft : AhramColors.sky)
+                    .withValues(alpha: accepted ? 0.72 : 0.10),
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(
-                  color: AhramColors.emerald.withValues(alpha: 0.25),
+                  color: (accepted ? AhramColors.emerald : AhramColors.sky)
+                      .withValues(alpha: 0.25),
                 ),
               ),
               child: Row(
                 children: [
-                  const Icon(
-                    Icons.assignment_ind_outlined,
-                    color: AhramColors.emerald,
+                  Icon(
+                    routedToMe
+                        ? Icons.inbox_outlined
+                        : Icons.assignment_ind_outlined,
+                    color: accepted ? AhramColors.emerald : AhramColors.sky,
                   ),
                   const SizedBox(width: 10),
                   Expanded(
@@ -24237,7 +25192,7 @@ class ExecutorTaskTile extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          assignmentStatus,
+                          routedToMe ? 'موجهة إليك' : assignmentStatus,
                           style: TextStyle(
                             color: colors.onSurfaceVariant,
                             fontSize: 12,
@@ -24257,6 +25212,12 @@ class ExecutorTaskTile extends StatelessWidget {
                 ],
               ),
             ),
+            if (isManager && routingState == 'pending_with_assignee') ...[
+              const SizedBox(height: 8),
+              _StuckAssigneeSlaHint(
+                assignedExecutorAt: task['assignedExecutorAt'],
+              ),
+            ],
           ],
           if (takenByAnother) ...[
             const Divider(height: 22),
@@ -24302,15 +25263,41 @@ class ExecutorTaskTile extends StatelessWidget {
               ),
             )
           else if (!accepted)
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton.icon(
-                onPressed: busy || acceptBlocked ? null : onAccept,
-                icon: const Icon(Icons.task_alt_outlined),
-                label: Text(
-                  acceptBlocked ? 'أكمل العملية الحالية أولاً' : 'قبول العملية',
+            Row(
+              children: [
+                Expanded(
+                  child: FilledButton.icon(
+                    onPressed: busy || acceptBlocked ? null : onAccept,
+                    style: FilledButton.styleFrom(minimumSize: const Size(0, 52)),
+                    icon: const Icon(Icons.task_alt_outlined),
+                    label: Text(
+                      acceptBlocked
+                          ? 'أكمل العملية الحالية أولاً'
+                          : (routedToMe
+                              ? 'اسحب المهمة الموجهة إليك'
+                              : 'قبول العملية'),
+                    ),
+                  ),
                 ),
-              ),
+                if (showsQuickExecute) ...[
+                  const SizedBox(width: 8),
+                  Tooltip(
+                    message: 'تنفيذ سريع',
+                    child: SizedBox(
+                      width: 52,
+                      height: 52,
+                      child: FilledButton(
+                        onPressed: busy ? null : onQuickExecute,
+                        style: FilledButton.styleFrom(
+                          padding: EdgeInsets.zero,
+                          backgroundColor: const Color(0xFF0EA5E9),
+                        ),
+                        child: const Icon(Icons.phone_in_talk_outlined),
+                      ),
+                    ),
+                  ),
+                ],
+              ],
             )
           else if (acceptedByMe)
             Row(
@@ -24318,10 +25305,29 @@ class ExecutorTaskTile extends StatelessWidget {
                 Expanded(
                   child: FilledButton.icon(
                     onPressed: busy ? null : onComplete,
+                    style: FilledButton.styleFrom(minimumSize: const Size(0, 52)),
                     icon: const Icon(Icons.task_alt_outlined),
                     label: const Text('تم التنفيذ'),
                   ),
                 ),
+                if (showsQuickExecute) ...[
+                  const SizedBox(width: 8),
+                  Tooltip(
+                    message: 'تنفيذ سريع',
+                    child: SizedBox(
+                      width: 52,
+                      height: 50,
+                      child: FilledButton(
+                        onPressed: busy ? null : onQuickExecute,
+                        style: FilledButton.styleFrom(
+                          padding: EdgeInsets.zero,
+                          backgroundColor: const Color(0xFF0EA5E9),
+                        ),
+                        child: const Icon(Icons.phone_in_talk_outlined),
+                      ),
+                    ),
+                  ),
+                ],
                 const SizedBox(width: 8),
                 Expanded(
                   child: OutlinedButton.icon(
@@ -24364,6 +25370,67 @@ class ExecutorTaskTile extends StatelessWidget {
   }
 }
 
+class _StuckAssigneeSlaHint extends StatefulWidget {
+  const _StuckAssigneeSlaHint({this.assignedExecutorAt});
+
+  final Object? assignedExecutorAt;
+
+  @override
+  State<_StuckAssigneeSlaHint> createState() => _StuckAssigneeSlaHintState();
+}
+
+class _StuckAssigneeSlaHintState extends State<_StuckAssigneeSlaHint> {
+  Timer? _ticker;
+
+  @override
+  void initState() {
+    super.initState();
+    _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _ticker?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final hint = stuckAssigneeSlaHint(
+      routingState: 'pending_with_assignee',
+      assignedExecutorAt: widget.assignedExecutorAt,
+    );
+    if (hint == null) return const SizedBox.shrink();
+    final colors = Theme.of(context).colorScheme;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF59E0B).withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.hourglass_bottom, color: Color(0xFFB45309)),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              hint,
+              style: TextStyle(
+                color: colors.onSurface,
+                fontWeight: FontWeight.w800,
+                fontSize: 13,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _TaskDataLine extends StatelessWidget {
   const _TaskDataLine({
     required this.icon,
@@ -24388,7 +25455,7 @@ class _TaskDataLine extends StatelessWidget {
       onTap: onCopy,
       borderRadius: BorderRadius.circular(8),
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 3),
+        padding: const EdgeInsets.symmetric(vertical: 10),
         child: Row(
           children: [
             Icon(icon, size: 20, color: colors.onSurfaceVariant),

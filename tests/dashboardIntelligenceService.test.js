@@ -3,6 +3,7 @@
 const {
     buildInsights,
     buildPeriods,
+    completedInRange,
     fillDailySeries,
     percentageChange
 } = require('../services/dashboardIntelligenceService');
@@ -57,5 +58,20 @@ describe('Dashboard intelligence calculations', () => {
             'نمط ذروة متكرر',
             'المنفذ الأعلى كفاءة'
         ]));
+    });
+
+    test('filters dashboard metrics with indexable completedAt or createdAt ranges', () => {
+        const start = new Date('2026-09-16T22:00:00.000Z');
+        const end = new Date('2026-09-17T12:00:00.000Z');
+        expect(JSON.stringify(completedInRange(start, end))).not.toMatch(/\$expr/);
+        expect(completedInRange(start, end)).toEqual({
+            $or: [
+                { completedAt: { $gte: start, $lte: end } },
+                { $and: [
+                    { $or: [{ completedAt: { $exists: false } }, { completedAt: null }] },
+                    { createdAt: { $gte: start, $lte: end } }
+                ] }
+            ]
+        });
     });
 });

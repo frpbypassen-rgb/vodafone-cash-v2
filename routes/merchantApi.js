@@ -28,6 +28,7 @@ const {
 } = require('../services/walletService');
 const { normalizeWhatsAppPhone } = require('../services/whatsappService');
 const { sanitizeStatementText } = require('../utils/accountStatementPrivacy');
+const { normalizeStoredBank } = require('../utils/egyptianBanks');
 const logger = require('../utils/logger');
 
 const MERCHANT_TRANSFER_MIN_AMOUNT = 100;
@@ -269,6 +270,15 @@ router.post('/transfer', merchantApiAuth, async (req, res) => {
             return res.status(400).json({ status: 'failed', message: 'نوع التحويل غير مدعوم' });
         }
 
+        const storedBank = normalizeStoredBank({
+            transferType: serviceKey,
+            bankCode: req.body?.bank_code || req.body?.bankCode,
+            bankName: req.body?.bank_name || req.body?.bankName
+        });
+        if (storedBank.error) {
+            return res.status(400).json({ status: 'failed', code: storedBank.code, message: storedBank.error });
+        }
+
         const cooldown = await acquireTransferCooldown({
             ownerModel: req.merchant.entityModel,
             ownerId: req.merchant._id,
@@ -348,7 +358,13 @@ router.post('/transfer', merchantApiAuth, async (req, res) => {
                 notes: '',
                 adminNotes: '[طلب وارد عبر API التاجر الخارجي]',
                 executorGroupId: undefined,
-                serviceDetails: receiptWhatsAppNumber ? { clientPhone: receiptWhatsAppNumber } : undefined
+                serviceDetails: (() => {
+                    const details = {
+                        ...(receiptWhatsAppNumber ? { clientPhone: receiptWhatsAppNumber } : {}),
+                        ...(storedBank.bank ? { bankCode: storedBank.bank.code, bankName: storedBank.bank.nameAr } : {})
+                    };
+                    return Object.keys(details).length ? details : undefined;
+                })()
             };
             if (autoRouteExecutor) applyAutoRouteFields(txData, autoRouteExecutor);
             const tx = session

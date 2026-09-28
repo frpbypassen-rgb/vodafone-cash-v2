@@ -9,6 +9,9 @@ const path = require('path');
 
 const rand = (n = 64) => crypto.randomBytes(n).toString('hex');
 const envPath = path.join(__dirname, '..', '.env');
+if (process.env.CLOUD_AGENT_DEV_SETUP_ENABLED !== 'true' || process.env.NODE_ENV !== 'development') {
+    throw new Error('Refusing development environment generation without explicit development opt-in.');
+}
 
 if (fs.existsSync(envPath)) {
     console.log('.env already exists; not overwriting');
@@ -18,10 +21,11 @@ if (fs.existsSync(envPath)) {
 const contents = `# Local Cloud Agent development environment (auto-generated). Not for production.
 TZ=Africa/Tripoli
 NODE_ENV=development
-PORT=3000
+CLOUD_AGENT_DEV_SETUP_ENABLED=true
+PORT=3101
 
 # Database (single-node replica set rs0 for financial transactions)
-MONGO_URI=mongodb://127.0.0.1:27017/vodafone_cash_system?replicaSet=rs0
+MONGO_URI=mongodb://127.0.0.1:27019/ahram_cloud_agent_dev?replicaSet=clouddev
 MONGO_TRANSACTIONS_REQUIRED=true
 
 # Auth / crypto secrets (dev-only, randomly generated)
@@ -66,15 +70,22 @@ ALLOW_LEGACY_TENANTLESS_RECORDS=false
 ALLOW_LEGACY_TENANT_TOKENS=false
 
 # CORS / URLs
-ALLOWED_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
-PUBLIC_APP_URL=http://127.0.0.1:3000
+ALLOWED_ORIGINS=http://localhost:3101,http://127.0.0.1:3101
+PUBLIC_APP_URL=http://127.0.0.1:3101
 
 # Optional integrations disabled for local dev
 WHATCHIMP_ENABLED=false
 FCM_ENABLED=false
 BUSINESS_ASSISTANT_AI_ENABLED=false
+MERCHANT_WEBHOOK_WORKER_ENABLED=false
+EXTERNAL_API_ENABLED=false
+BULLMQ_WORKERS_ENABLED=false
+FINANCIAL_SCHEDULERS_ENABLED=false
+WHATSAPP_OTP_ENABLED=false
+WHATSAPP_LOGIN_OTP_ENABLED=false
+PASSWORD_RESET_EMAIL_ENABLED=false
 GLOBAL_RATE_LIMIT_MAX=5000
 `;
 
-fs.writeFileSync(envPath, contents);
+fs.writeFileSync(envPath, contents, { flag: 'wx', mode: 0o600 });
 console.log('.env generated for local development');

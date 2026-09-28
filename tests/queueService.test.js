@@ -8,6 +8,10 @@ jest.mock('../models/ExecutorGroup', () => ({
     findById: jest.fn()
 }));
 
+jest.mock('../models/Ledger', () => ({
+    findOne: jest.fn().mockReturnValue({ lean: () => Promise.resolve(null) })
+}));
+
 jest.mock('../services/externalApiService', () => ({
     executeTransferViaApi: jest.fn(),
     saveApiReceiptProof: jest.fn()
@@ -208,5 +212,29 @@ describe('queueService API execution', () => {
         expect(tx.adminNotes).toContain('لا تطابق خدمة المنفذ');
         expect(executeTransferViaApi).not.toHaveBeenCalled();
         expect(startApiBalanceAudit).not.toHaveBeenCalled();
+    });
+
+    test('does not silently keep a routed API task in processing when the executor is missing', async () => {
+        const logger = require('../utils/logger');
+        Transaction.findById.mockResolvedValue({
+            _id: 'tx-missing-group',
+            customId: 'ATT-2609-MISS',
+            status: 'processing'
+        });
+        ExecutorGroup.findById.mockResolvedValue(null);
+
+        await queueService.processSingleJob('tx-missing-group', 'missing-api');
+
+        expect(executeTransferViaApi).not.toHaveBeenCalled();
+        expect(logger.warn).toHaveBeenCalledWith(
+            'API transfer job skipped before provider dispatch',
+            expect.objectContaining({
+                txId: 'tx-missing-group',
+                apiGroupId: 'missing-api',
+                hasTx: true,
+                hasExecutorGroup: false,
+                status: 'processing'
+            })
+        );
     });
 });

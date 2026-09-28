@@ -147,4 +147,21 @@ const getRedisClient = () => {
 
 const isRedis = () => isRedisAvailable;
 
-module.exports = { initRedis, getRedisClient, isRedis };
+/**
+ * Dedicated ioredis client for BullMQ. Queue/Worker must not share the
+ * cache/lock client: BullMQ requires maxRetriesPerRequest=null and uses
+ * blocking commands that would stall other Redis traffic.
+ */
+const createBullMQConnection = () => {
+    if (!isRedisAvailable) return null;
+    const REDIS_URL = process.env.REDIS_URL || process.env.REDIS_URI;
+    if (!REDIS_URL) return null;
+
+    const Redis = require('ioredis');
+    return new Redis(REDIS_URL, {
+        maxRetriesPerRequest: null,
+        enableReadyCheck: false
+    });
+};
+
+module.exports = { initRedis, getRedisClient, isRedis, createBullMQConnection };

@@ -797,7 +797,7 @@ Success 200:
     }
   ],
   "alerts": [],
-  "pollIntervalSeconds": 5,
+  "pollIntervalSeconds": 12,
   "serverTime": "2026-06-11T14:00:00.000Z"
 }
 ```

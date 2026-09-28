@@ -2,7 +2,7 @@
 
 jest.mock('../middlewares/tenantResolver', () => ({ tenantMode: () => 'single' }));
 
-const { tenantScope, tenantWriteId } = require('../utils/tenantScope');
+const { adminAccountScope, tenantScope, tenantWriteId } = require('../utils/tenantScope');
 
 describe('tenant scope helpers', () => {
     test('does not treat an Express request without a tenant as a tenant id', () => {
@@ -15,5 +15,21 @@ describe('tenant scope helpers', () => {
         const tenantId = { _bsontype: 'ObjectId', toHexString: () => '507f1f77bcf86cd799439011' };
         expect(tenantScope({ tenantId })).toEqual({ tenantId: { $in: [tenantId, null] } });
         expect(tenantWriteId({ tenantId })).toBe(tenantId);
+    });
+
+    test('does not hide single-tenant admin account widgets behind the resolved tenant', () => {
+        const tenantId = { _bsontype: 'ObjectId', toHexString: () => '507f1f77bcf86cd799439011' };
+        expect(adminAccountScope({ tenantId })).toEqual({});
+        expect(adminAccountScope(tenantId)).toEqual({});
+        expect(tenantScope({ tenantId })).toEqual({ tenantId: { $in: [tenantId, null] } });
+    });
+
+    test('keeps a hard tenant boundary for admin account widgets in multi-tenant mode', () => {
+        jest.resetModules();
+        jest.doMock('../middlewares/tenantResolver', () => ({ tenantMode: () => 'multi' }));
+        const scoped = require('../utils/tenantScope');
+        const tenantId = 'tenant-a';
+        expect(scoped.adminAccountScope(tenantId)).toEqual({ tenantId });
+        expect(scoped.tenantScope(tenantId)).toEqual({ tenantId });
     });
 });

@@ -10,12 +10,16 @@ const { requireAuth, requireMaster } = require('../middlewares/auth');
 const { logAction } = require('../services/auditService');
 const {
     findEditableAccount,
+    findCompanyLoginOwner,
     updateEditableAccount,
+    updateAccountOwnerEmailOtp,
     loadEditOptions,
     getReturnUrl,
     getErrorMessage
 } = require('../services/adminAccountManagementService');
 const { notifyAccountPhoneChanged } = require('../services/accountPhoneChangeNotificationService');
+const { phoneLengthModeFromLengths } = require('../utils/executorManualPolicy');
+const { getExecutorEnabledServiceKeys } = require('../utils/executorServiceCatalog');
 
 const verifyMultipartCsrf = (req, res, next) => {
     const expected = String(req.session?.csrfToken || '');
@@ -42,7 +46,7 @@ const accountDocumentUpload = multer({
             callback(null, `account-document-${crypto.randomUUID()}${extension}`);
         }
     }),
-    limits: { fileSize: 7 * 1024 * 1024, files: 4 },
+    limits: { fileSize: 7 * 1024 * 1024, files: 4, fieldArrayIndexLimit: 16 },
     fileFilter: (_req, file, callback) => {
         const allowed = new Set(['image/jpeg', 'image/png', 'image/webp', 'application/pdf']);
         if (!allowed.has(file.mimetype)) return callback(new Error('INVALID_DOCUMENT_TYPE'));
@@ -74,12 +78,16 @@ const BOOLEAN_FIELDS = Object.freeze([
     'canManageCompany',
     'canCreateCompanyStaff',
     'canManageAgent',
-    'canCreateAgentStaff'
+    'canCreateAgentStaff',
+    'emailOtpEnabled',
+    'inheritCompanyPolicy',
+    'proofRequired',
+    'sessionTtlEnabled'
 ]);
 
 const isChecked = (value) => ['1', 'true', 'on', 'yes'].includes(String(value || '').toLowerCase());
 
-const accountToFormData = (account, submitted = null) => {
+const accountToFormData = (account, submitted = null, extras = {}) => {
     const businessProfile = account.businessProfile?.toObject
         ? account.businessProfile.toObject()
         : { ...(account.businessProfile || {}) };
@@ -99,6 +107,7 @@ const accountToFormData = (account, submitted = null) => {
         groupId: String(account.groupId || ''),
         parentGroupId: String(account.parentGroupId || account.parentBotId || ''),
         serviceKey: account.serviceKey || 'vodafone',
+        serviceKeys: getExecutorEnabledServiceKeys(account),
         telegramId: account.telegramId || '',
         apiUrl: account.apiUrl || '',
         apiUsername: account.apiUsername || '',
@@ -107,7 +116,14 @@ const accountToFormData = (account, submitted = null) => {
         apiFieldId: account.apiFieldId ?? 5488,
         apiMachineSerial: account.apiMachineSerial || 'XP1',
         contactName: businessProfile.contactName || '',
-        email: businessProfile.email || '',
+        email: businessProfile.email || account.email || '',
+        ownerEmail: extras.companyOwner?.email || '',
+        ownerName: extras.companyOwner?.name || '',
+        ownerUsername: extras.companyOwner?.webUsername || '',
+        hasCompanyOwner: Boolean(extras.companyOwner),
+        emailOtpEnabled: extras.companyOwner
+            ? extras.companyOwner.otpDeliveryChannel === 'email'
+            : account.otpDeliveryChannel === 'email',
         city: businessProfile.city || '',
         address: businessProfile.address || '',
         registrationNumber: businessProfile.registrationNumber || '',
@@ -116,6 +132,16 @@ const accountToFormData = (account, submitted = null) => {
         canCreateCompanyStaff: Boolean(account.canCreateCompanyStaff),
         canManageAgent: Boolean(account.canManageAgent),
         canCreateAgentStaff: Boolean(account.canCreateAgentStaff),
+        inheritCompanyPolicy: (() => {
+            const override = account.executionPolicyOverride || {};
+            const raw = override.toObject ? override.toObject() : override;
+            return !raw || Object.keys(raw).filter((key) => raw[key] !== undefined).length === 0;
+        })(),
+        proofRequired: Boolean(account.executionPolicyOverride?.proofRequired),
+        phoneLengthMode: phoneLengthModeFromLengths(account.executionPolicyOverride?.allowedPhoneLengths),
+        maxConcurrentDevices: account.executionPolicyOverride?.maxConcurrentDevices || 1,
+        sessionTtlEnabled: Boolean(account.executionPolicyOverride?.sessionTtlEnabled),
+        sessionTtlHours: Math.max(1, Math.round(Number(account.executionPolicyOverride?.sessionTtlSeconds || 28800) / 3600)),
         newPassword: '',
         apiPassword: '',
         apiToken: ''
@@ -124,6 +150,11 @@ const accountToFormData = (account, submitted = null) => {
     if (!submitted) return base;
     const merged = { ...base, ...submitted, newPassword: '', apiPassword: '', apiToken: '' };
     BOOLEAN_FIELDS.forEach((field) => { merged[field] = isChecked(submitted[field]); });
+    if (submitted.enabledServices) {
+        merged.serviceKeys = Array.isArray(submitted.enabledServices)
+            ? submitted.enabledServices
+            : [submitted.enabledServices];
+    }
     return merged;
 };
 
@@ -135,12 +166,15 @@ const activePageForType = (type) => {
 
 const renderEditor = async (req, res, { error = '', submitted = null, statusCode = 200 } = {}) => {
     const { definition, account } = await findEditableAccount(req.params.type, req.params.id);
+    const companyOwner = definition.type === 'company'
+        ? await findCompanyLoginOwner(account._id)
+        : null;
     const options = await loadEditOptions(definition.type, account);
     return res.status(statusCode).render('admin_account_edit', {
         account,
         accountType: definition.type,
         accountLabel: definition.label,
-        formData: accountToFormData(account, submitted),
+        formData: accountToFormData(account, submitted, { companyOwner }),
         options,
         returnUrl: getReturnUrl(definition.type, account),
         activePage: activePageForType(definition.type),
@@ -148,6 +182,57 @@ const renderEditor = async (req, res, { error = '', submitted = null, statusCode
         query: req.query || {}
     });
 };
+
+const ownerOtpErrorCode = (error) => {
+    if (error?.code === 'EMAIL_REQUIRED') return 'email_required';
+    if (error?.code === 'EMAIL_INVALID' || error?.code === 'EMAIL_OTP_ADDRESS_INVALID') return 'invalid_email';
+    if (error?.code === 'EMAIL_TAKEN') return 'email_taken';
+    if (error?.code === 'COMPANY_OWNER_REQUIRED') return 'owner_missing';
+    if (error?.code === 'ACCOUNT_NOT_FOUND' || error?.code === 'INVALID_ACCOUNT_ID') return 'notfound';
+    return 'failed';
+};
+
+router.post('/admin/accounts/:type/:id/owner-otp', requireAuth, requireMaster, async (req, res) => {
+    try {
+        const result = await updateAccountOwnerEmailOtp({
+            type: req.params.type,
+            id: req.params.id,
+            payload: req.body || {}
+        });
+
+        await logAction({
+            action: 'ADMIN_ACCOUNT_UPDATED',
+            req,
+            performedById: req.session.adminId,
+            performedByModel: 'Admin',
+            performedByName: req.session.adminName || req.session.adminUsername || 'الإدارة',
+            targetId: result.account._id,
+            targetModel: result.definition.modelName,
+            oldData: result.oldData,
+            newData: result.newData,
+            result: 'ناجح',
+            metadata: {
+                accountType: result.definition.type,
+                accountLabel: result.definition.label,
+                changedFields: result.changedFields,
+                ownerEmailOtp: true
+            }
+        }).catch(() => {});
+
+        const returnUrl = getReturnUrl(result.definition.type, result.account);
+        const separator = returnUrl.includes('?') ? '&' : '?';
+        return res.redirect(`${returnUrl}${separator}ownerOtpSaved=1`);
+    } catch (error) {
+        console.error('[admin-account/owner-otp] update failed:', error.message);
+        try {
+            const returnUrl = getReturnUrl(req.params.type, { _id: req.params.id });
+            const separator = returnUrl.includes('?') ? '&' : '?';
+            return res.redirect(`${returnUrl}${separator}ownerOtpError=${ownerOtpErrorCode(error)}`);
+        } catch (_) {
+            return res.redirect('/clients?editError=failed');
+        }
+    }
+});
 
 router.get('/admin/accounts/:type/:id/edit', requireAuth, requireMaster, async (req, res) => {
     try {

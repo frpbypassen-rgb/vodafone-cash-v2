@@ -82,12 +82,15 @@
     };
 
     const savedTheme = localStorage.getItem('powerpay-business-theme') || 'light';
-    applyTheme(savedTheme);
-    document.querySelectorAll('[data-theme-toggle]').forEach((button) => {
-        button.addEventListener('click', () => applyTheme(root.dataset.theme === 'dark' ? 'light' : 'dark'));
-    });
-    const themeSelect = document.querySelector('[data-preference="theme"]');
-    if (themeSelect) themeSelect.addEventListener('change', () => applyTheme(themeSelect.value));
+    const isCustomerPortal = root.getAttribute('data-portal') === 'customer' || body.classList.contains('cl-app');
+    if (config.workspaceType !== 'company' && !body.hasAttribute('data-company-shell') && !isCustomerPortal) {
+        applyTheme(savedTheme);
+        document.querySelectorAll('[data-theme-toggle]').forEach((button) => {
+            button.addEventListener('click', () => applyTheme(root.dataset.theme === 'dark' ? 'light' : 'dark'));
+        });
+        const themeSelect = document.querySelector('[data-preference="theme"]');
+        if (themeSelect) themeSelect.addEventListener('change', () => applyTheme(themeSelect.value));
+    }
 
     const densitySelect = document.querySelector('[data-preference="density"]');
     if (densitySelect) {
@@ -212,6 +215,8 @@
             if (!staffPasswordDialog || !staffPasswordForm) return;
             staffPasswordForm.action = `/client/${config.workspaceType === 'company' ? 'company' : 'agent'}/staff/${encodeURIComponent(button.dataset.memberId)}/password`;
             if (staffPasswordName) staffPasswordName.textContent = button.dataset.memberName || 'الموظف';
+            const usernameInput = document.getElementById('staffPasswordUsername');
+            if (usernameInput) usernameInput.value = button.dataset.memberUsername || '';
             openDialog(staffPasswordDialog);
         });
     });
@@ -227,6 +232,7 @@
     const transferAmountCurrency = document.getElementById('transferAmountCurrency');
     const transferAmountFlag = document.getElementById('transferAmountFlag');
     const transferBeneficiary = document.getElementById('transferBeneficiary');
+    const transferBank = document.getElementById('transferBank');
     const beneficiaryFieldLabel = document.getElementById('beneficiaryFieldLabel');
     const transferSubtype = document.getElementById('transferSubtype');
     const transferCity = document.getElementById('transferCity');
@@ -399,7 +405,7 @@
 
     const clearTransferValues = () => {
         [transferDestination, transferAccountNumber, transferAmount, transferAmountLyd, transferBeneficiary,
-            transferCity, transferNationalId, transferGovernorate, transferClientPhone].forEach((input) => {
+            transferCity, transferNationalId, transferGovernorate, transferClientPhone, transferBank].forEach((input) => {
             if (input) input.value = '';
         });
         if (transferIdentityImage) transferIdentityImage.value = '';
@@ -438,6 +444,9 @@
         toggleConditionalField('[data-beneficiary-field]', Boolean(service.beneficiaryRequired), transferBeneficiary);
         if (beneficiaryFieldLabel) beneficiaryFieldLabel.textContent = service.beneficiaryLabel || 'اسم المستفيد';
         if (transferBeneficiary) transferBeneficiary.placeholder = service.beneficiaryPlaceholder || 'أدخل اسم المستفيد';
+        const bankRequired = Boolean(service.requiresBank || service.key === 'bank_account');
+        toggleConditionalField('[data-bank-field]', bankRequired, transferBank);
+        if (transferBank) transferBank.disabled = !bankRequired;
         toggleConditionalField('[data-subtype-field]', Boolean(service.requiresSubtype), transferSubtype);
         if (service.requiresSubtype && transferSubtype && !transferSubtype.value) {
             transferSubtype.value = service.allowedSubtypes?.[0] || 'nita';
@@ -770,6 +779,9 @@
         if (activeService?.beneficiaryMinWords && beneficiaryName.split(/\s+/).filter(Boolean).length < activeService.beneficiaryMinWords) {
             return { message: 'اسم المستفيد الرباعي مطلوب لهذه الخدمة.', input: transferBeneficiary };
         }
+        if ((activeService?.requiresBank || activeService?.key === 'bank_account') && !transferBank?.value) {
+            return { message: 'اختر البنك قبل إرسال التحويل البنكي.', input: transferBank };
+        }
 
         const subtype = transferSubtype?.value || '';
         if (activeService?.requiresSubtype && !subtype) return { message: 'اختر نوع خدمة سيفا.', input: transferSubtype };
@@ -910,6 +922,7 @@
                 amount: transferAmount?.value || '',
                 notes: transferNotes?.value || '',
                 name: transferBeneficiary?.value || '',
+                bankCode: transferBank?.value || '',
                 clientPhone: transferClientPhone?.value || ''
             }));
         } catch (_) { /* optional */ }
@@ -926,6 +939,7 @@
         if (transferAmount && draft.amount) transferAmount.value = draft.amount;
         if (transferNotes && draft.notes) transferNotes.value = draft.notes;
         if (transferBeneficiary && draft.name) transferBeneficiary.value = draft.name;
+        if (transferBank && draft.bankCode) transferBank.value = draft.bankCode;
         if (transferClientPhone && draft.clientPhone) transferClientPhone.value = draft.clientPhone;
         updateCostEstimate();
     };
@@ -1108,6 +1122,8 @@
             <div class="bw-cost-preview">
                 <div><span>الخدمة</span><strong>${escapeHtml(activeService?.label || '')}</strong></div>
                 <div><span>المستلم</span><strong class="bw-mono">${escapeHtml(destination || '---')}</strong></div>
+                ${transferBeneficiary?.value.trim() ? `<div><span>الاسم</span><strong>${escapeHtml(transferBeneficiary.value.trim())}</strong></div>` : ''}
+                ${(activeService?.requiresBank || activeService?.key === 'bank_account') && transferBank?.selectedOptions?.[0] ? `<div><span>البنك</span><strong>${escapeHtml(transferBank.selectedOptions[0].text)}</strong></div>` : ''}
                 <div><span>المبلغ</span><strong class="bw-mono">${escapeHtml(formatNumber(amount, 2))} ${escapeHtml(sourceCurrencyLabel(activeService))}</strong></div>
                 <div><span>التكلفة</span><strong class="bw-mono">${escapeHtml(formatNumber(cost, 3))} LYD</strong></div>
             </div>`,
@@ -1137,7 +1153,7 @@
         if (transferConfirmTitle) transferConfirmTitle.textContent = 'تأكيد العملية';
         if (transferConfirmSubmit) transferConfirmSubmit.innerHTML = defaultTransferConfirmSubmitHtml;
     });
-    [transferDestination, transferAmount, transferNotes, transferBeneficiary, transferClientPhone].forEach((input) => {
+    [transferDestination, transferAmount, transferNotes, transferBeneficiary, transferBank, transferClientPhone].forEach((input) => {
         input?.addEventListener('input', persistTransferDraft);
     });
     restoreTransferDraft();
@@ -1216,33 +1232,67 @@
 
     const renderReceiptGallery = (transaction) => {
         const receiptImages = Array.isArray(transaction.receiptImages) ? transaction.receiptImages : [];
-        if (!receiptImages.length) return '';
+        if (!receiptImages.length) {
+            return `
+                <section class="bw-receipt-section">
+                    <header class="bw-receipt-section-head">
+                        <div><span>مستندات التنفيذ</span><strong><i class="fa-regular fa-image"></i> صورة الإثبات</strong></div>
+                    </header>
+                    <div class="bw-receipt-empty">
+                        <i class="fa-regular fa-image"></i>
+                        <strong>لا توجد صورة إثبات</strong>
+                        <span>لم يُرفق إثبات مرئي لهذه العملية بعد.</span>
+                    </div>
+                </section>
+            `;
+        }
 
         return `
             <section class="bw-receipt-section">
                 <header class="bw-receipt-section-head">
-                    <div><span>مستندات التنفيذ</span><strong><i class="fa-solid fa-receipt"></i> صور الإيصال</strong></div>
+                    <div><span>مستندات التنفيذ</span><strong><i class="fa-solid fa-receipt"></i> صور الإثبات</strong></div>
                     <span class="bw-meta-chip">${formatNumber(receiptImages.length)} ${receiptImages.length === 1 ? 'صورة' : 'صور'}</span>
                 </header>
                 <div class="bw-receipt-gallery">
                     ${receiptImages.map((image, index) => {
                         const url = escapeHtml(image.url);
-                        const label = escapeHtml(image.label || `صورة الإيصال ${index + 1}`);
+                        const label = escapeHtml(image.label || `صورة الإثبات ${index + 1}`);
                         return `
                             <figure class="bw-receipt-figure">
-                                <a href="${url}" target="_blank" rel="noopener" class="bw-receipt-preview" title="فتح ${label} بالحجم الكامل">
+                                <a href="${url}" class="bw-receipt-preview" data-receipt-lightbox data-receipt-url="${url}" data-receipt-label="${label}" title="تكبير ${label}">
                                     <img src="${url}" alt="${label}" loading="eager" data-receipt-image>
                                 </a>
                                 <figcaption>
                                     <strong>${label}</strong>
                                     <span class="bw-receipt-actions">
-                                        <a href="${url}" target="_blank" rel="noopener" class="bw-icon-button compact" title="فتح بالحجم الكامل" aria-label="فتح ${label} بالحجم الكامل"><i class="fa-solid fa-up-right-from-square"></i></a>
-                                        <a href="${url}" download="receipt-${escapeHtml(transaction.customId || index + 1)}-${index + 1}" class="bw-icon-button compact receipt" title="تحميل الصورة" aria-label="تحميل ${label}"><i class="fa-solid fa-download"></i></a>
+                                        <button type="button" class="bw-icon-button compact" data-receipt-lightbox data-receipt-url="${url}" data-receipt-label="${label}" title="تكبير الصورة" aria-label="تكبير ${label}"><i class="fa-solid fa-expand"></i></button>
+                                        <a href="${url}" download="proof-${escapeHtml(transaction.customId || index + 1)}-${index + 1}" class="bw-icon-button compact receipt" title="تحميل الصورة" aria-label="تحميل ${label}"><i class="fa-solid fa-download"></i></a>
                                     </span>
                                 </figcaption>
                             </figure>
                         `;
                     }).join('')}
+                </div>
+            </section>
+        `;
+    };
+
+    const renderPartProofDetails = (transaction) => {
+        const parts = Array.isArray(transaction.partProofs) ? transaction.partProofs : [];
+        if (parts.length < 2) return '';
+        return `
+            <section class="bw-receipt-section">
+                <header class="bw-receipt-section-head">
+                    <div><span>أجزاء التحويل</span><strong>إثبات كل جزء</strong></div>
+                </header>
+                <div class="bw-detail-grid">
+                    ${parts.map((part) => `
+                        ${detailItem(`الجزء ${part.partId}`, part.proofAvailable ? 'ناجح' : (part.proofStatus || part.status || ''))}
+                        ${detailItem('مبلغ الجزء', formatNumber(part.amount, 0), true)}
+                        ${detailItem('المحفظة المرسلة', part.senderWallet, true)}
+                        ${detailItem('رقم المستلم', part.recipient, true)}
+                        ${detailItem('المرجع', part.partReference || part.reference, true)}
+                    `).join('')}
                 </div>
             </section>
         `;
@@ -1267,9 +1317,11 @@
                 <div><small>رقم العملية</small><strong class="bw-mono">${escapeHtml(transaction.customId)}</strong></div>
                 <div class="bw-detail-hero-state">
                     <span class="bw-status ${statusTone}">${escapeHtml(transaction.statusLabel)}</span>
-                    ${transaction.hasProof ? '<span class="bw-receipt-chip"><i class="fa-solid fa-receipt"></i> إيصال متاح</span>' : ''}
+                    ${transaction.hasProof ? '<span class="bw-receipt-chip"><i class="fa-solid fa-receipt"></i> إثبات متاح</span>' : '<span class="bw-receipt-chip empty"><i class="fa-regular fa-image"></i> بدون إثبات</span>'}
                 </div>
             </div>
+            ${renderReceiptGallery(transaction)}
+            ${renderPartProofDetails(transaction)}
             <div class="bw-detail-grid">
                 ${detailItem('الخدمة', transaction.serviceLabel)}
                 ${detailItem('المبلغ', `${formatNumber(transaction.amount, 0)} ${transaction.amountCurrencyLabel || 'EGP'}`, true)}
@@ -1292,7 +1344,6 @@
             </div>
             <div class="bw-detail-notes"><span>ملاحظة العميل</span><p>${escapeHtml(transaction.notes || 'لا توجد ملاحظة')}</p></div>
             ${whatsappHref ? `<div class="cos-detail-actions"><a class="bw-button ${whatsappButtonClass}" href="${whatsappHref}" target="_blank" rel="noopener"><i class="fa-brands fa-whatsapp"></i>واتساب المستلم</a></div>` : ''}
-            ${renderReceiptGallery(transaction)}
         `;
     };
 
@@ -1325,6 +1376,45 @@
             button.dataset.transactionId,
             button.hasAttribute('data-receipt-focus')
         ));
+    });
+
+    const receiptLightbox = document.getElementById('receiptLightbox');
+    const receiptLightboxImage = document.getElementById('receiptLightboxImage');
+    const receiptLightboxCaption = document.getElementById('receiptLightboxCaption');
+
+    const closeReceiptLightbox = () => {
+        if (receiptLightbox && receiptLightbox.open) receiptLightbox.close();
+        if (receiptLightboxImage) receiptLightboxImage.removeAttribute('src');
+    };
+
+    const openReceiptLightbox = (url, label) => {
+        if (!receiptLightbox || !receiptLightboxImage || !url) return;
+        receiptLightboxImage.src = url;
+        receiptLightboxImage.alt = label || 'صورة الإثبات';
+        if (receiptLightboxCaption) receiptLightboxCaption.textContent = label || 'صورة الإثبات';
+        if (typeof receiptLightbox.showModal === 'function') receiptLightbox.showModal();
+        else receiptLightbox.setAttribute('open', '');
+    };
+
+    document.addEventListener('click', (event) => {
+        const closer = event.target.closest('[data-lightbox-close]');
+        if (closer) {
+            event.preventDefault();
+            closeReceiptLightbox();
+            return;
+        }
+        const trigger = event.target.closest('[data-receipt-lightbox]');
+        if (!trigger) return;
+        event.preventDefault();
+        event.stopPropagation();
+        openReceiptLightbox(
+            trigger.getAttribute('data-receipt-url') || trigger.getAttribute('href'),
+            trigger.getAttribute('data-receipt-label') || trigger.getAttribute('title') || 'صورة الإثبات'
+        );
+    });
+    receiptLightbox?.addEventListener('cancel', closeReceiptLightbox);
+    receiptLightbox?.addEventListener('click', (event) => {
+        if (event.target === receiptLightbox) closeReceiptLightbox();
     });
 
     const supportMessages = document.getElementById('supportMessages');
@@ -1591,33 +1681,6 @@
         event.currentTarget.innerHTML = active
             ? '<i class="fa-solid fa-compress"></i>إنهاء التركيز'
             : '<i class="fa-solid fa-expand"></i>وضع التركيز';
-    });
-
-    document.querySelector('[data-voice-transfer]')?.addEventListener('click', (event) => {
-        const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-        if (!Recognition) {
-            event.currentTarget.title = 'الأوامر الصوتية غير مدعومة في هذا المتصفح';
-            return;
-        }
-        const recognition = new Recognition();
-        recognition.lang = 'ar-EG';
-        recognition.interimResults = false;
-        event.currentTarget.classList.add('is-listening');
-        recognition.onresult = ({ results }) => {
-            const text = String(results?.[0]?.[0]?.transcript || '');
-            const amountMatch = text.match(/([0-9٠-٩]+(?:[.,][0-9٠-٩]+)?)/);
-            const normalizedAmount = amountMatch?.[1]?.replace(/[٠-٩]/g, (digit) => '٠١٢٣٤٥٦٧٨٩'.indexOf(digit)).replace(',', '.');
-            if (transferAmountInput && normalizedAmount) {
-                transferAmountInput.value = normalizedAmount;
-                transferAmountInput.dispatchEvent(new Event('input', { bubbles: true }));
-            }
-            const nameMatch = text.match(/(?:إلى|الى|لـ|ل)\s+(.+?)(?:\s+(?:بمبلغ|مبلغ|قيمة)|$)/u);
-            const beneficiary = document.getElementById('transferBeneficiary');
-            if (beneficiary && nameMatch?.[1]) beneficiary.value = nameMatch[1].trim();
-        };
-        recognition.onend = () => event.currentTarget.classList.remove('is-listening');
-        recognition.onerror = () => event.currentTarget.classList.remove('is-listening');
-        recognition.start();
     });
 
     const offlineBanner = document.querySelector('[data-offline-banner]');

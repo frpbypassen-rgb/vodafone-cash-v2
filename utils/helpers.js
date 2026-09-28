@@ -5,6 +5,8 @@
 const ExecutorGroup = require('../models/ExecutorGroup');
 const Transaction = require('../models/Transaction');
 const bcrypt = require('bcryptjs');
+const { getExecutorPrimaryServiceKey } = require('./executorServiceCatalog');
+const { ledgerServiceKeyForTransaction } = require('./executorServiceLedger');
 
 // ────────────────────────────────────────────────────────────
 // 1️⃣ مزامنة رصيد البوت المنفذ من العمليات المالية
@@ -14,31 +16,46 @@ const syncBotBalance = async (botId) => {
     if (!bot) return 0;
     
     let queryFilter = {};
+    // Funding an external executor (or their shared pool) is an internal
+    // allocation. Those rows must not inflate or deflate the company ledger
+    // that admin and syncBotBalance treat as the company total/private split.
+    const excludeInternalAllocation = { transferType: { $ne: 'external_balance' } };
     if (bot.isManagerGroup) {
-        queryFilter = { 
-            $or: [
-                { managerGroupId: bot._id, status: 'completed' }, 
-                { executorGroupId: bot._id, status: { $in: ['deposit', 'deduction'] } } 
+        queryFilter = {
+            $and: [
+                excludeInternalAllocation,
+                {
+                    $or: [
+                        { managerGroupId: bot._id, status: 'completed' },
+                        { executorGroupId: bot._id, status: { $in: ['deposit', 'deduction'] } }
+                    ]
+                }
             ]
         };
     } else {
-        queryFilter = { 
-            executorGroupId: bot._id, 
-            status: { $in: ['completed', 'deposit', 'deduction'] } 
+        queryFilter = {
+            executorGroupId: bot._id,
+            status: { $in: ['completed', 'deposit', 'deduction'] },
+            ...excludeInternalAllocation
         };
     }
 
+    const primary = getExecutorPrimaryServiceKey(bot);
     const txs = await Transaction.find(queryFilter);
-    let computedBalance = 0;
-    txs.forEach(t => {
-        if (t.status === 'completed') computedBalance -= t.amount; 
-        else if (t.status === 'deposit') computedBalance += t.amount; 
-        else if (t.status === 'deduction') computedBalance -= Math.abs(t.amount); 
+    const byService = {};
+    txs.forEach((t) => {
+        const serviceKey = ledgerServiceKeyForTransaction(t, primary);
+        if (!serviceKey) return;
+        const current = Number(byService[serviceKey] || 0);
+        if (t.status === 'completed') byService[serviceKey] = current - Number(t.amount || 0);
+        else if (t.status === 'deposit') byService[serviceKey] = current + Number(t.amount || 0);
+        else if (t.status === 'deduction') byService[serviceKey] = current - Math.abs(Number(t.amount || 0));
     });
 
-    bot.balance = computedBalance;
+    bot.serviceBalances = byService;
+    bot.balance = Number(byService[primary] || 0);
     await bot.save();
-    return computedBalance;
+    return bot.balance;
 };
 
 // ────────────────────────────────────────────────────────────

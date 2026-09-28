@@ -3,7 +3,11 @@
 jest.mock('../models/User', () => ({ findById: jest.fn(), findOne: jest.fn(), find: jest.fn() }));
 jest.mock('../models/ClientCompany', () => ({ findById: jest.fn(), findOne: jest.fn(), find: jest.fn() }));
 jest.mock('../models/SubAccount', () => ({ findById: jest.fn(), findOne: jest.fn(), exists: jest.fn() }));
-jest.mock('../models/ClientEmployee', () => ({ findById: jest.fn(), findOne: jest.fn() }));
+jest.mock('../models/ClientEmployee', () => ({
+    findById: jest.fn(),
+    findOne: jest.fn(),
+    find: jest.fn(() => ({ sort: jest.fn().mockResolvedValue([]) }))
+}));
 jest.mock('../models/AgentEmployee', () => ({ findById: jest.fn(), findOne: jest.fn() }));
 jest.mock('../models/Employee', () => ({ findById: jest.fn(), findOne: jest.fn() }));
 jest.mock('../models/ExecutorGroup', () => ({ findById: jest.fn(), findOne: jest.fn(), find: jest.fn() }));
@@ -31,7 +35,10 @@ const Settings = require('../models/Settings');
 const Transaction = require('../models/Transaction');
 const {
     updateEditableAccount,
+    updateAccountOwnerEmailOtp,
     findEditableAccount,
+    getErrorMessage,
+    AdminAccountManagementError,
     safeSnapshot
 } = require('../services/adminAccountManagementService');
 
@@ -98,6 +105,7 @@ describe('admin account management service', () => {
     beforeEach(() => {
         jest.clearAllMocks();
         resetIdentityQueries();
+        ClientEmployee.find.mockReturnValue({ sort: jest.fn().mockResolvedValue([]) });
         SubAccount.exists.mockResolvedValue(false);
         Settings.updateMany.mockResolvedValue({ modifiedCount: 0 });
         Transaction.countDocuments.mockResolvedValue(0);
@@ -127,7 +135,43 @@ describe('admin account management service', () => {
         expect(account.balance).toBe(250);
         expect(account.webPassword).toBe('$2b$12$existing-hash');
         expect(result.passwordChanged).toBe(false);
-        expect(result.changedFields).toEqual(expect.arrayContaining(['name', 'tier', 'creditLimit', 'businessProfile']));
+        expect(result.changedFields).toEqual(expect.arrayContaining(['name', 'tier', 'creditLimit', 'businessProfile', 'otpDeliveryChannel']));
+        expect(account.otpDeliveryChannel).toBe('email');
+        expect(account.businessProfile.email).toBe('owner@example.com');
+    });
+
+    test('enables email OTP for a client only when a valid commercial email is stored', async () => {
+        const account = makeAccount();
+        User.findById.mockResolvedValue(account);
+
+        const result = await updateEditableAccount({
+            type: 'user',
+            id: IDS.account,
+            payload: userPayload({ emailOtpEnabled: 'true' })
+        });
+
+        expect(account.otpDeliveryChannel).toBe('email');
+        expect(account.businessProfile.email).toBe('owner@example.com');
+        expect(result.newData.otpDeliveryChannel).toBe('email');
+    });
+
+    test('refuses email OTP when the client email is missing or invalid', async () => {
+        const account = makeAccount();
+        User.findById.mockResolvedValue(account);
+
+        await expect(updateEditableAccount({
+            type: 'user',
+            id: IDS.account,
+            payload: userPayload({ email: 'not-an-email', emailOtpEnabled: 'on' })
+        })).rejects.toMatchObject({ code: 'EMAIL_INVALID', field: 'email' });
+
+        await expect(updateEditableAccount({
+            type: 'user',
+            id: IDS.account,
+            payload: userPayload({ email: '   ' })
+        })).rejects.toMatchObject({ code: 'EMAIL_REQUIRED', field: 'email' });
+
+        expect(account.save).not.toHaveBeenCalled();
     });
 
     test('accepts a new password but never includes it in audit snapshots', async () => {
@@ -186,7 +230,8 @@ describe('admin account management service', () => {
                 role: 'accountant',
                 companyId: IDS.owner,
                 canViewAllReports: 'true',
-                canManageCompany: 'on'
+                canManageCompany: 'on',
+                email: 'staff@example.com'
             }
         });
 
@@ -195,7 +240,106 @@ describe('admin account management service', () => {
         expect(account.canManageCompany).toBe(true);
         expect(account.canCreateCompanyStaff).toBe(false);
         expect(String(account.companyId)).toBe(IDS.owner);
+        expect(account.email).toBe('staff@example.com');
+        expect(account.otpDeliveryChannel).toBe('email');
         expect(result.changedFields).toEqual(expect.arrayContaining(['role', 'canViewAllReports', 'canManageCompany']));
+    });
+
+    test('stores a company staff email and sends login OTP by email', async () => {
+        const account = makeAccount({
+            companyId: IDS.owner,
+            role: 'employee',
+            canViewAllReports: false,
+            canManageCompany: false,
+            canCreateCompanyStaff: false,
+            accountCode: undefined,
+            businessProfile: undefined
+        });
+        ClientEmployee.findById.mockResolvedValue(account);
+        ClientCompany.findOne.mockReturnValue(queryResult({ _id: IDS.owner }));
+
+        await updateEditableAccount({
+            type: 'client-employee',
+            id: IDS.account,
+            payload: {
+                name: 'موظف الحسابات',
+                phone: '0911111111',
+                webUsername: 'account_user',
+                newPassword: '',
+                status: 'active',
+                role: 'employee',
+                companyId: IDS.owner,
+                email: 'Staff@Example.com'
+            }
+        });
+
+        expect(account.email).toBe('staff@example.com');
+        expect(account.otpDeliveryChannel).toBe('email');
+    });
+
+    test('rejects a company staff save when the email is missing', async () => {
+        const account = makeAccount({
+            companyId: IDS.owner,
+            role: 'employee',
+            canViewAllReports: false,
+            canManageCompany: false,
+            canCreateCompanyStaff: false,
+            accountCode: undefined,
+            businessProfile: undefined
+        });
+        ClientEmployee.findById.mockResolvedValue(account);
+        ClientCompany.findOne.mockReturnValue(queryResult({ _id: IDS.owner }));
+
+        await expect(updateEditableAccount({
+            type: 'client-employee',
+            id: IDS.account,
+            payload: {
+                name: 'موظف الحسابات',
+                phone: '0911111111',
+                webUsername: 'account_user',
+                newPassword: '',
+                status: 'active',
+                role: 'employee',
+                companyId: IDS.owner,
+                email: ''
+            }
+        })).rejects.toMatchObject({ code: 'EMAIL_REQUIRED', field: 'email' });
+
+        expect(account.save).not.toHaveBeenCalled();
+    });
+
+    test('enables email OTP for company staff when the checkbox and address are set', async () => {
+        const account = makeAccount({
+            companyId: IDS.owner,
+            role: 'employee',
+            canViewAllReports: false,
+            canManageCompany: false,
+            canCreateCompanyStaff: false,
+            accountCode: undefined,
+            businessProfile: undefined
+        });
+        ClientEmployee.findById.mockResolvedValue(account);
+        ClientCompany.findOne.mockReturnValue(queryResult({ _id: IDS.owner }));
+
+        const result = await updateEditableAccount({
+            type: 'client-employee',
+            id: IDS.account,
+            payload: {
+                name: 'موظف الحسابات',
+                phone: '0911111111',
+                webUsername: 'account_user',
+                newPassword: '',
+                status: 'active',
+                role: 'employee',
+                companyId: IDS.owner,
+                email: 'staff@example.com',
+                emailOtpEnabled: 'true'
+            }
+        });
+
+        expect(account.email).toBe('staff@example.com');
+        expect(account.otpDeliveryChannel).toBe('email');
+        expect(result.changedFields).toEqual(expect.arrayContaining(['email', 'otpDeliveryChannel']));
     });
 
     test('blocks changing an executor service while operations are in flight', async () => {
@@ -252,5 +396,197 @@ describe('admin account management service', () => {
         }, {
             $set: { autoRouteBotId: null }
         });
+    });
+
+    test('keeps email OTP when a client save clears the old checkbox', async () => {
+        const account = makeAccount({
+            otpDeliveryChannel: 'email',
+            businessProfile: { email: 'owner@example.com' }
+        });
+        User.findById.mockResolvedValue(account);
+
+        await updateEditableAccount({
+            type: 'user',
+            id: IDS.account,
+            payload: userPayload({ emailOtpEnabled: '' })
+        });
+
+        expect(account.otpDeliveryChannel).toBe('email');
+        expect(account.businessProfile.email).toBe('owner@example.com');
+    });
+
+    test('defaults a client owner-email save to the email OTP channel', async () => {
+        const account = makeAccount();
+        User.findById.mockResolvedValue(account);
+
+        await updateAccountOwnerEmailOtp({
+            type: 'user',
+            id: IDS.account,
+            payload: { email: 'Owner@Example.com' }
+        });
+
+        expect(account.businessProfile.email).toBe('owner@example.com');
+        expect(account.otpDeliveryChannel).toBe('email');
+    });
+
+    test('accepts any normal owner email, including gmail, and stores it lowercase', async () => {
+        const account = makeAccount();
+        User.findById.mockResolvedValue(account);
+
+        await updateAccountOwnerEmailOtp({
+            type: 'user',
+            id: IDS.account,
+            payload: { email: '  TZDANALLYBYH@Gmail.COM ' }
+        });
+
+        expect(account.businessProfile.email).toBe('tzdanallybyh@gmail.com');
+        expect(account.otpDeliveryChannel).toBe('email');
+        expect(account.save).toHaveBeenCalled();
+    });
+
+    const companyPayload = (overrides = {}) => ({
+        name: 'شركة الاختبار',
+        phone: '0912222222',
+        status: 'active',
+        tier: '3',
+        creditLimit: '0',
+        accountCode: '12345',
+        contactName: 'قسم الحسابات',
+        email: 'company@example.com',
+        ownerEmail: 'owner@example.com',
+        city: 'طرابلس',
+        address: 'الشارع الرئيسي',
+        registrationNumber: 'CR-9',
+        ...overrides
+    });
+
+    const companyOwner = (overrides = {}) => makeAccount({
+        _id: IDS.owner,
+        name: 'مالك الشركة',
+        role: 'owner',
+        status: 'active',
+        email: '',
+        otpDeliveryChannel: 'whatsapp',
+        companyId: IDS.account,
+        canCreateCompanyStaff: true,
+        webUsername: 'company.owner',
+        businessProfile: undefined,
+        ...overrides
+    });
+
+    test('stores the company owner email and enables email OTP on the owner login account', async () => {
+        const company = makeAccount({
+            phone: '0912222222',
+            accountCode: '12345',
+            role: undefined,
+            webUsername: undefined,
+            webPassword: undefined
+        });
+        const owner = companyOwner();
+        ClientCompany.findById.mockResolvedValue(company);
+        ClientEmployee.find.mockReturnValue({ sort: jest.fn().mockResolvedValue([owner]) });
+
+        const result = await updateEditableAccount({
+            type: 'company',
+            id: IDS.account,
+            payload: companyPayload({ emailOtpEnabled: 'true' })
+        });
+
+        expect(company.businessProfile.email).toBe('company@example.com');
+        expect(company.otpDeliveryChannel).toBeUndefined();
+        expect(owner.email).toBe('owner@example.com');
+        expect(owner.otpDeliveryChannel).toBe('email');
+        expect(owner.save).toHaveBeenCalledTimes(1);
+        expect(result.newData.ownerOtpDeliveryChannel).toBe('email');
+        expect(result.changedFields).toEqual(expect.arrayContaining(['ownerEmail', 'ownerOtpDeliveryChannel']));
+    });
+
+    test('rejects company email OTP when the owner address is empty or invalid', async () => {
+        const company = makeAccount({
+            phone: '0912222222',
+            accountCode: '12345',
+            role: undefined,
+            webUsername: undefined,
+            webPassword: undefined
+        });
+        const owner = companyOwner();
+        ClientCompany.findById.mockResolvedValue(company);
+        ClientEmployee.find.mockReturnValue({ sort: jest.fn().mockResolvedValue([owner]) });
+
+        await expect(updateEditableAccount({
+            type: 'company',
+            id: IDS.account,
+            payload: companyPayload({ ownerEmail: 'not-an-email', emailOtpEnabled: 'on' })
+        })).rejects.toMatchObject({ code: 'EMAIL_INVALID', field: 'ownerEmail' });
+
+        await expect(updateAccountOwnerEmailOtp({
+            type: 'company',
+            id: IDS.account,
+            payload: { email: '', emailOtpEnabled: 'true' }
+        })).rejects.toMatchObject({ code: 'EMAIL_REQUIRED' });
+
+        expect(company.save).not.toHaveBeenCalled();
+        expect(owner.save).not.toHaveBeenCalled();
+        expect(getErrorMessage(new AdminAccountManagementError('EMAIL_REQUIRED')))
+            .toBe('البريد الإلكتروني مطلوب.');
+        expect(getErrorMessage(new AdminAccountManagementError('EMAIL_INVALID')))
+            .toBe('أدخل بريداً إلكترونياً صالحاً.');
+        expect(getErrorMessage(new AdminAccountManagementError('EMAIL_TAKEN')))
+            .toBe('هذا البريد الإلكتروني مستخدم في حساب آخر.');
+        expect(getErrorMessage(new AdminAccountManagementError('EMAIL_TAKEN')))
+            .not.toBe(getErrorMessage(new AdminAccountManagementError('EMAIL_INVALID')));
+    });
+
+    test('keeps company owner OTP on email when the checkbox is cleared', async () => {
+        const company = makeAccount({
+            phone: '0912222222',
+            accountCode: '12345',
+            role: undefined,
+            webUsername: undefined,
+            webPassword: undefined
+        });
+        const owner = companyOwner({
+            email: 'owner@example.com',
+            otpDeliveryChannel: 'email'
+        });
+        ClientCompany.findById.mockResolvedValue(company);
+        ClientEmployee.find.mockReturnValue({ sort: jest.fn().mockResolvedValue([owner]) });
+
+        await updateEditableAccount({
+            type: 'company',
+            id: IDS.account,
+            payload: companyPayload()
+        });
+
+        expect(owner.email).toBe('owner@example.com');
+        expect(owner.otpDeliveryChannel).toBe('email');
+    });
+
+    test('refuses to enable company email OTP when the company has no owner login', async () => {
+        const company = makeAccount({
+            phone: '0912222222',
+            accountCode: '12345',
+            role: undefined,
+            webUsername: undefined,
+            webPassword: undefined
+        });
+        ClientCompany.findById.mockResolvedValue(company);
+        ClientEmployee.find.mockReturnValue({ sort: jest.fn().mockResolvedValue([]) });
+
+        await expect(updateEditableAccount({
+            type: 'company',
+            id: IDS.account,
+            payload: companyPayload({ emailOtpEnabled: 'true' })
+        })).rejects.toMatchObject({ code: 'COMPANY_OWNER_REQUIRED' });
+
+        await expect(updateAccountOwnerEmailOtp({
+            type: 'company',
+            id: IDS.account,
+            payload: { email: 'owner@example.com' }
+        })).rejects.toMatchObject({ code: 'COMPANY_OWNER_REQUIRED' });
+
+        expect(company.save).not.toHaveBeenCalled();
+        expect(getErrorMessage(new AdminAccountManagementError('COMPANY_OWNER_REQUIRED')))
+            .toContain('حساب مالك');
     });
 });

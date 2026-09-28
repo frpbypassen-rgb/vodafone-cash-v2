@@ -1,5 +1,7 @@
 'use strict';
 
+const { normalizeStoredBank } = require('./egyptianBanks');
+
 const TRANSFER_SERVICE_RULES = Object.freeze({
     vodafone: Object.freeze({
         destinationRequired: true,
@@ -48,6 +50,7 @@ const TRANSFER_SERVICE_RULES = Object.freeze({
         beneficiaryMinWords: 3,
         beneficiaryLabel: 'اسم المستفيد',
         beneficiaryPlaceholder: 'أدخل اسم المستفيد',
+        requiresBank: true,
         minAmount: 500,
         amountStep: '0.01'
     }),
@@ -98,9 +101,13 @@ const validateTransferInput = ({
     governorate,
     hasIdentityImage,
     enforceDataEntryAcknowledgement = false,
-    dataEntryAcknowledged
+    dataEntryAcknowledged,
+    bank,
+    bankCode,
+    bankName
 }) => {
-    const rules = getTransferServiceRules(serviceKey);
+    const canonicalKey = serviceKey === 'bank_transfer' ? 'bank_account' : serviceKey;
+    const rules = getTransferServiceRules(canonicalKey);
     if (!rules) return 'نوع خدمة التحويل غير صحيح.';
 
     const numericAmount = Number(amount);
@@ -142,6 +149,16 @@ const validateTransferInput = ({
     }
     if (rules.requiresGovernorate && !String(governorate || '').trim()) return 'اختر المحافظة.';
     if (rules.requiresIdentityImage && !hasIdentityImage) return 'أرفق صورة البطاقة من الأمام.';
+
+    if (rules.requiresBank) {
+        const bankError = normalizeStoredBank({
+            transferType: canonicalKey,
+            bank,
+            bankCode,
+            bankName
+        }).error;
+        if (bankError) return bankError;
+    }
 
     return null;
 };

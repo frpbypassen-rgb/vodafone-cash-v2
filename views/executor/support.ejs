@@ -96,7 +96,7 @@
 <body class="executor-os executor-portal-v2 executor-page-support">
 <%- include('partials/navigation', { emp, activePage: 'support' }) %>
 <div class="exo-stage">
-    <%- include('partials/command-bar', { emp }) %>
+    <%- include('partials/command-bar', { emp, companyBalances: typeof companyBalances === 'undefined' ? null : companyBalances }) %>
 </div>
 
 <header class="support-topbar">
@@ -337,7 +337,7 @@
     });
 
     populateCategories(); loadTickets();
-    setInterval(() => { if (!document.hidden) loadTickets(); }, 12000);
+    setInterval(() => { if (!document.hidden) loadTickets(); }, 20000);
 })();
 </script>
 </body>

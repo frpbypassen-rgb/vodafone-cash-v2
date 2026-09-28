@@ -11,6 +11,7 @@ const User = require('../models/User');
 const ClientEmployee = require('../models/ClientEmployee');
 const SupportTicket = require('../models/SupportTicket');
 const { syncBotBalance } = require('../utils/helpers');
+const { completedTransferLedgerInc } = require('../utils/executorServiceLedger');
 const { logAction } = require('../services/auditService');
 const { acquireLock, releaseLock } = require('../services/lockService');
 const {
@@ -30,7 +31,15 @@ const {
     ExecutorSenderEntriesError,
     normalizeExecutorSenderEntries
 } = require('../utils/executorSenderEntries');
+const { preparePersistedSenderEntries } = require('../utils/splitPartProofs');
 const { readExecutorManualPolicy } = require('../utils/executorManualPolicy');
+const {
+    BankTransferExecutionError,
+    BANK_TRANSFER_PROOF_NOTE,
+    isBankTransferOperation,
+    prepareBankTransferCompletion
+} = require('../utils/bankTransferExecution');
+const { bankLabelForTransaction } = require('../utils/egyptianBanks');
 
 const MAX_PROOF_IMAGES = 5;
 const MAX_PROOF_BYTES = 8 * 1024 * 1024;
@@ -292,6 +301,11 @@ exports.postCancelTask = async (req, res) => {
             return res.status(400).json({ success: false, error: 'سبب الإلغاء مطلوب.' });
         }
         const tx = await Transaction.findById(req.params.id);
+        const { refundBlockedByUnresolvedProvider } = require('../services/providerDispatchClaimService');
+        const unresolvedBlock = refundBlockedByUnresolvedProvider(tx);
+        if (unresolvedBlock) {
+            return res.status(409).json({ success: false, code: unresolvedBlock.code, error: unresolvedBlock.message });
+        }
         const emp = await Employee.findById(req.session.executorId);
 
         if (tx && tx.status === 'accepted' && tx.operatorId === emp._id.toString()) {
@@ -305,18 +319,26 @@ exports.postCancelTask = async (req, res) => {
             tx.cancelledAt = cancelledAt;
             appendAdminNote(tx, `[تم الإلغاء | المنفذ: ${emp.name} | السبب: ${reason}]`);
             await tx.save();
+            let cancellationReceiptReady = false;
             try {
-                await attachCancellationReceipt(tx, {
+                cancellationReceiptReady = Boolean(await attachCancellationReceipt(tx, {
                     reason,
                     performedBy: emp.name || 'المنفذ',
                     cancelledAt
-                });
+                }));
             } catch (receiptError) {
                 appendAdminNote(tx, `[تعذر توليد إيصال الإلغاء: ${receiptError.message}]`);
                 await tx.save();
             }
 
-            // WhatsApp notification removed
+            if (cancellationReceiptReady) {
+                try {
+                    const { sendCancelledTransactionReceipt } = require('../services/whatsappReceiptDeliveryService');
+                    await sendCancelledTransactionReceipt(tx);
+                } catch (whatsappError) {
+                    console.error('[executor/cancel-task] WhatsApp cancellation receipt failed:', whatsappError.message);
+                }
+            }
 
             const adminMsg = `🚨 <b>تنبيه للإدارة: تم إلغاء عملية من قِبل المنفذ!</b>\n\n🏢 <b>الجهة/العميل:</b> ${tx.companyName || 'عميل فردي'}\n👤 <b>الموظف الطالب:</b> ${tx.employeeName || 'غير محدد'}\n🤖 <b>بواسطة المنفذ:</b> ${emp.name}\n\n🧾 <b>رقم الطلب:</b> <code>${tx.customId || tx._id}</code>\n📞 <b>الرقم/الحساب:</b> <code>${tx.vodafoneNumber || tx.accountNumber || '---'}</code>\n💵 <b>المبلغ:</b> ${tx.amount} EGP\n🇱🇾 <b>التكلفة المسترجعة:</b> ${tx.costLYD.toFixed(2)} LYD\n⚠️ <b>سبب الإلغاء:</b> <b>${reason}</b>`;
             notifyAdmins(adminMsg);
@@ -330,6 +352,11 @@ exports.postReturnTask = async (req, res) => {
     try {
         const { reason } = req.body;
         const tx = await Transaction.findById(req.params.id);
+        const { refundBlockedByUnresolvedProvider } = require('../services/providerDispatchClaimService');
+        const unresolvedBlock = refundBlockedByUnresolvedProvider(tx);
+        if (unresolvedBlock) {
+            return res.status(409).json({ success: false, code: unresolvedBlock.code, error: unresolvedBlock.message });
+        }
         const emp = await Employee.findById(req.session.executorId);
 
         if (tx && tx.status === 'accepted' && tx.operatorId === emp._id.toString()) {
@@ -354,7 +381,7 @@ exports.postCompleteTask = async (req, res) => {
             return res.status(401).json({ success: false, error: 'حساب المنفذ غير مفعل.' });
         }
 
-        const manualPolicy = readExecutorManualPolicy(emp.groupId);
+        const manualPolicy = readExecutorManualPolicy(emp.groupId, emp);
         const tx = await findOwnedAcceptedExecutorTask({
             transactionId: req.params.id,
             executor: emp
@@ -363,77 +390,106 @@ exports.postCompleteTask = async (req, res) => {
             return res.status(409).json({ success: false, error: 'العملية غير متاحة للإنهاء أو تم إنهاؤها مسبقاً.' });
         }
 
-        const requestedSenderEntries = Array.isArray(req.body.senderEntries)
-            ? req.body.senderEntries.map((entry, index) => ({
-                phone: entry?.phone,
-                amount: entry?.amount,
-                proofImage: entry?.proofImageBase64 || entry?.proofImage || null
-            }))
-            : null;
-        let senderEntries;
-        try {
-            senderEntries = normalizeExecutorSenderEntries({
-                requestedSenderEntries,
-                senderPhone: req.body.executionNumber ?? req.body.senderPhone,
-                operationAmount: tx.amount,
-                group: emp.groupId
-            });
-        } catch (error) {
-            if (error instanceof ExecutorSenderEntriesError) {
-                return res.status(error.statusCode).json({ success: false, error: error.message });
+        const bankTransfer = isBankTransferOperation(tx);
+        let bankProofPayloads = null;
+        if (bankTransfer) {
+            try {
+                bankProofPayloads = prepareBankTransferCompletion(req.body).proofs;
+            } catch (error) {
+                if (error instanceof BankTransferExecutionError) {
+                    return res.status(error.statusCode).json({ success: false, error: error.message });
+                }
+                throw error;
             }
-            throw error;
         }
 
-        const executionNumber = String(
-            req.body.executionNumber
-            ?? req.body.senderPhone
-            ?? senderEntries[0]?.phone
-            ?? ''
-        ).trim();
+        const requestedSenderEntries = bankTransfer
+            ? null
+            : (Array.isArray(req.body.senderEntries)
+                ? req.body.senderEntries.map((entry) => ({
+                    phone: entry?.phone,
+                    amount: entry?.amount,
+                    proofImage: entry?.proofImageBase64 || entry?.proofImage || null
+                }))
+                : null);
+        let senderEntries = [];
+        if (!bankTransfer) {
+            try {
+                senderEntries = normalizeExecutorSenderEntries({
+                    requestedSenderEntries,
+                    senderPhone: req.body.executionNumber ?? req.body.senderPhone,
+                    operationAmount: tx.amount,
+                    group: emp.groupId,
+                    policy: manualPolicy
+                });
+            } catch (error) {
+                if (error instanceof ExecutorSenderEntriesError) {
+                    return res.status(error.statusCode).json({ success: false, error: error.message });
+                }
+                throw error;
+            }
+        }
+
+        const executionNumber = bankTransfer
+            ? ''
+            : String(
+                req.body.executionNumber
+                ?? req.body.senderPhone
+                ?? senderEntries[0]?.phone
+                ?? ''
+            ).trim();
         let maskedExecutionNumber = '';
-        try {
-            maskedExecutionNumber = maskManualExecutionNumber(executionNumber || senderEntries[0]?.phone || '');
-        } catch (error) {
-            if (error instanceof ManualExecutionNumberError) {
-                return res.status(400).json({ success: false, error: error.message });
+        if (!bankTransfer) {
+            try {
+                maskedExecutionNumber = maskManualExecutionNumber(executionNumber || senderEntries[0]?.phone || '');
+            } catch (error) {
+                if (error instanceof ManualExecutionNumberError) {
+                    return res.status(400).json({ success: false, error: error.message });
+                }
+                throw error;
             }
-            throw error;
         }
 
-        const proofs = getProofImages(req.body);
-        if (manualPolicy.proofRequired && proofs.length === 0 && senderEntries.every((entry) => !entry.proofImage)) {
+        const proofs = getProofImages(bankTransfer ? { imagesBase64: bankProofPayloads } : req.body);
+        if (!bankTransfer && manualPolicy.proofRequired && proofs.length === 0 && senderEntries.every((entry) => !entry.proofImage)) {
             return res.status(400).json({ success: false, error: 'إرفاق صورة الإثبات إجباري لهذا المنفذ.' });
         }
 
-        const executorReceipt = await reserveManualExecutorReceiptReference({ group: emp.groupId });
+        const splitCompletion = !bankTransfer && senderEntries.length > 1;
+        const executorReceipt = bankTransfer || splitCompletion
+            ? null
+            : await reserveManualExecutorReceiptReference({ group: emp.groupId });
         const completedAt = new Date();
         tx.completedAt = completedAt;
 
         const localFileNames = [];
         const proofsDir = path.join(process.cwd(), 'uploads', 'proofs');
         if (!fs.existsSync(proofsDir)) { fs.mkdirSync(proofsDir, { recursive: true }); }
-        localFileNames.push(await generateManualExecutorReceiptProof({
-            tx,
-            executionNumber: maskedExecutionNumber,
-            executorReference: executorReceipt.reference,
-            proofsDir,
-            savedPaths
-        }));
-
-        const persistedSenderEntries = senderEntries.map((entry, index) => {
-            const proofImage = saveProofImageBase64({
+        if (!bankTransfer && !splitCompletion) {
+            localFileNames.push(await generateManualExecutorReceiptProof({
                 tx,
+                executionNumber: maskedExecutionNumber,
+                executorReference: executorReceipt.reference,
                 proofsDir,
-                savedPaths,
-                imageBase64: entry.proofImage,
-                suffix: `sender_${index + 1}`
-            });
-            return {
+                savedPaths
+            }));
+        }
+
+        const persistedSenderEntries = preparePersistedSenderEntries({
+            transactionId: tx._id,
+            completedAt,
+            requestedEntries: Array.isArray(req.body.senderEntries) ? req.body.senderEntries : [],
+            entries: senderEntries.map((entry, index) => ({
                 phone: entry.phone,
                 amount: entry.amount,
-                proofImage
-            };
+                proofImage: saveProofImageBase64({
+                    tx,
+                    proofsDir,
+                    savedPaths,
+                    imageBase64: entry.proofImage,
+                    suffix: `sender_${index + 1}`
+                })
+            }))
         });
 
         for (let i = 0; i < proofs.length; i++) {
@@ -447,22 +503,32 @@ exports.postCompleteTask = async (req, res) => {
             }));
         }
 
-        const proofSource = proofs.length || persistedSenderEntries.some((entry) => entry.proofImage)
-            ? 'system-generated-with-executor-upload'
-            : 'system-generated';
-        const systemReceiptId = localFileNames[0];
-        const executorProofImages = localFileNames.slice(1);
-        appendAdminNote(tx, `[تم توليد إيصال تنفيذ يدوي | مرجع المنفذ: ${executorReceipt.reference}]`);
+        const proofSource = bankTransfer
+            ? 'bank-transfer-executor-upload'
+            : (splitCompletion
+                ? 'split-part-proofs'
+                : (proofs.length || persistedSenderEntries.some((entry) => entry.proofImage)
+                    ? 'system-generated-with-executor-upload'
+                    : 'system-generated'));
+        const systemReceiptId = splitCompletion ? undefined : localFileNames[0];
+        const executorProofImages = splitCompletion ? localFileNames : localFileNames.slice(1);
+        if (bankTransfer) {
+            appendAdminNote(tx, BANK_TRANSFER_PROOF_NOTE);
+        } else if (splitCompletion) {
+            appendAdminNote(tx, '[تم تسجيل أجزاء التنفيذ لإصدار إثبات مستقل لكل جزء ناجح]');
+        } else {
+            appendAdminNote(tx, `[تم توليد إيصال تنفيذ يدوي | مرجع المنفذ: ${executorReceipt.reference}]`);
+        }
 
         tx.status = 'completed';
         tx.proofImage = systemReceiptId;
         tx.proofImages = systemReceiptId ? [systemReceiptId] : [];
         tx.executorProofImages = executorProofImages;
-        tx.executorExecutionNumber = executionNumber || senderEntries[0]?.phone || undefined;
-        tx.executorSenderPhone = maskedExecutionNumber || undefined;
-        tx.executorExecutionNumberMasked = maskedExecutionNumber || undefined;
-        tx.executorSenderEntries = persistedSenderEntries;
-        tx.manualExecutorReceiptReference = executorReceipt.reference;
+        tx.executorExecutionNumber = bankTransfer ? undefined : (executionNumber || senderEntries[0]?.phone || undefined);
+        tx.executorSenderPhone = bankTransfer ? undefined : (maskedExecutionNumber || undefined);
+        tx.executorExecutionNumberMasked = bankTransfer ? undefined : (maskedExecutionNumber || undefined);
+        tx.executorSenderEntries = bankTransfer ? [] : persistedSenderEntries;
+        tx.manualExecutorReceiptReference = bankTransfer || splitCompletion ? undefined : executorReceipt.reference;
         tx.completedAt = completedAt;
         tx.completedBy = emp._id;
         tx.broadcastMessages = [];
@@ -490,9 +556,9 @@ exports.postCompleteTask = async (req, res) => {
                 executorProofCount: executorProofImages.length,
                 proofSource,
                 proofRequired: manualPolicy.proofRequired,
-                senderEntryCount: persistedSenderEntries.length,
-                manualExecutorReceiptReference: executorReceipt.reference,
-                executorExecutionNumberMasked: maskedExecutionNumber || null
+                senderEntryCount: bankTransfer ? 0 : persistedSenderEntries.length,
+                manualExecutorReceiptReference: bankTransfer || splitCompletion ? null : executorReceipt.reference,
+                executorExecutionNumberMasked: bankTransfer ? null : (maskedExecutionNumber || null)
             },
             metadata: { customId: tx.customId, amount: tx.amount, transferType: tx.transferType }
         }).catch(() => {});
@@ -501,7 +567,12 @@ exports.postCompleteTask = async (req, res) => {
             require('../services/eventBus').publish('transfer:completed', { tx, emp });
         } catch (_) {}
 
-        return res.json({ success: true, message: 'تم إنهاء العملية وحفظ الإيصال بنجاح.' });
+        return res.json({
+            success: true,
+            message: bankTransfer
+                ? 'تم إنهاء التحويل البنكي وإرسال إثبات التحويل للعميل.'
+                : 'تم إنهاء العملية وحفظ الإيصال بنجاح.'
+        });
     } catch (e) {
         if (!transactionCompleted) {
             savedPaths.forEach((filePath) => {
@@ -583,6 +654,11 @@ exports.postSupportMessages = async (req, res) => {
 
 
 exports.executeViaZaynPay = async (req, res) => {
+    const { directProviderExecutionBlock } = require('../utils/runtimeControls');
+    const blocked = directProviderExecutionBlock();
+    if (blocked) {
+        return res.json({ success: false, code: blocked.code, error: blocked.message });
+    }
     try {
         const tx = await Transaction.findById(req.params.id);
         const emp = await Employee.findById(req.session.executorId).populate('groupId');
@@ -640,8 +716,9 @@ exports.executeViaZaynPay = async (req, res) => {
         localFileNames.push(fileName);
 
         const parentGroupId = emp.groupId.parentGroupId || emp.groupId.parentBotId;
-        if (parentGroupId) { await ExecutorGroup.findByIdAndUpdate(parentGroupId, { $inc: { balance: -tx.amount } }); }
-        await ExecutorGroup.findByIdAndUpdate(emp.groupId._id, { $inc: { balance: -tx.amount } });
+        const ledgerInc = completedTransferLedgerInc(emp.groupId, tx, -tx.amount);
+        if (parentGroupId) { await ExecutorGroup.findByIdAndUpdate(parentGroupId, { $inc: ledgerInc }); }
+        await ExecutorGroup.findByIdAndUpdate(emp.groupId._id, { $inc: ledgerInc });
 
         tx.status = 'completed'; 
         tx.proofImage = localFileNames[0]; 
@@ -663,6 +740,8 @@ exports.executeViaZaynPay = async (req, res) => {
         let clientNoteDisplay = tx.notes ? `\n📝 <b>ملاحظة:</b> ${tx.notes}` : '';
         let accDetails = `📞 <b>الرقم/الحساب:</b> <code>${walletNumber}</code>\n`;
         if (tx.accountName) accDetails += `👤 <b>الاسم:</b> ${tx.accountName}\n`;
+        const bankLabel = bankLabelForTransaction(tx);
+        if (bankLabel) accDetails += `🏦 <b>البنك:</b> ${bankLabel}\n`;
 
         const clientMsg = `✅ <b>تـم تـنـفـيـذ طـلـبـك بـنـجـاح! (${typeLabel})</b> 🎉\n\n` +
                           `🧾 <b>رقم الطلب:</b> <code>${tx.customId || tx._id}</code>\n` + accDetails +
@@ -683,6 +762,32 @@ exports.executeViaZaynPay = async (req, res) => {
     }
 };
 
+
+exports.postRetryPartProof = async (req, res) => {
+    try {
+        const tx = await Transaction.findById(req.params.id);
+        if (!tx) return res.status(404).json({ success: false, error: 'العملية غير موجودة.' });
+        const emp = req.executorEmployee || await Employee.findById(req.session.executorId);
+        if (!emp) return res.status(401).json({ success: false, error: 'Unauthorized' });
+        const employeeGroupId = objectIdString(emp.groupId);
+        const ownsExecutorTask = objectIdString(tx.executorGroupId) === employeeGroupId;
+        const ownsManagerTask = objectIdString(tx.managerGroupId) === employeeGroupId;
+        if (!ownsExecutorTask && !ownsManagerTask) return res.status(403).json({ success: false, error: 'Forbidden' });
+
+        const { retrySplitPartProof } = require('../services/splitPartProofService');
+        const result = await retrySplitPartProof(tx._id, req.params.partId);
+        return res.status(result.ok ? 200 : 409).json({
+            success: Boolean(result.ok),
+            code: result.code,
+            partId: result.partId,
+            proofStatus: result.proofStatus || null,
+            duplicate: Boolean(result.duplicate)
+        });
+    } catch (error) {
+        console.error('[executor/retry-part-proof] failed:', error.message);
+        return res.status(500).json({ success: false, error: 'تعذر إعادة إرسال إثبات الجزء.' });
+    }
+};
 
 exports.postRateExecutor = async (req, res) => {
     try {

@@ -14,23 +14,14 @@ const { isPasskeyRequired } = require('../config/securityPolicy');
 const operationPinService = require('../services/operationPinService');
 const { buildCommandCenter } = require('../services/securityCommandCenterService');
 
-const PERMISSIONS = Object.freeze([
-    ['dashboard.read', 'عرض لوحة القيادة'],
-    ['transactions.read', 'عرض العمليات'],
-    ['transactions.manage', 'إدارة وتوجيه العمليات'],
-    ['accounts.read', 'عرض الحسابات'],
-    ['accounts.manage', 'إدارة الحسابات والأرصدة'],
-    ['executors.read', 'عرض شركات التنفيذ'],
-    ['executors.manage', 'إدارة شركات التنفيذ'],
-    ['reports.read', 'عرض التقارير وسجل التدقيق'],
-    ['reports.manage', 'إدارة التقارير والحركات المالية'],
-    ['support.read', 'عرض الدعم والشكاوى'],
-    ['support.manage', 'إدارة الدعم والشكاوى'],
-    ['settings.read', 'عرض الإعدادات'],
-    ['settings.manage', 'تعديل إعدادات المنظومة'],
-    ['security.read', 'عرض مركز الأمان'],
-    ['security.manage', 'إدارة الحماية والأجهزة']
-]);
+const {
+    ADMIN_PERMISSIONS,
+    normalizeAdminRole,
+    permissionsForRole
+} = require('../config/adminRoles');
+const { parseAdminLoginEmail } = require('../utils/adminLoginEmail');
+
+const PERMISSIONS = ADMIN_PERMISSIONS;
 
 router.use(requireAuth, requirePermission('security.read'));
 
@@ -77,7 +68,7 @@ router.get('/', async (req, res) => {
         securityControl.getState({ fresh: true }),
         SecurityDevice.find().sort({ status: 1, lastSeenAt: -1 }).limit(100).lean(),
         SecurityAccessRequest.find({ status: 'pending', expiresAt: { $gt: new Date() } }).sort({ createdAt: -1 }).limit(50).lean(),
-        Admin.find().select('name role webUsername status permissions mustEnrollSecurity createdAt updatedAt').sort({ createdAt: 1 }).lean(),
+        Admin.find().select('name role webUsername email otpDeliveryChannel status permissions mustEnrollSecurity createdAt updatedAt').sort({ createdAt: 1 }).lean(),
         buildCommandCenter()
     ]);
     return res.render('admin_security', {
@@ -93,6 +84,7 @@ router.get('/', async (req, res) => {
             id: String(admin._id),
             name: admin.name || '',
             username: admin.webUsername || '',
+            email: admin.email || '',
             role: admin.role || '',
             status: admin.status || '',
             permissions: Array.isArray(admin.permissions) ? admin.permissions : []
@@ -397,15 +389,21 @@ router.post('/admins', requireSecurityManager, requireRecentPasskey, async (req,
         if (password.length < 12 || !/[a-z]/.test(password) || !/[A-Z]/.test(password) || !/\d/.test(password) || !/[^\w]/.test(password)) {
             return res.status(422).json({ success: false, error: 'كلمة المرور يجب أن تكون 12 محرفاً وتحتوي على حرف كبير وصغير ورقم ورمز.' });
         }
-        const allowed = new Set(PERMISSIONS.map(([value]) => value));
-        const permissions = [...new Set((req.body.permissions || []).filter((item) => allowed.has(item)))];
-        const role = req.body.role === 'master' && req.session.adminRole === 'master'
+        const loginEmail = parseAdminLoginEmail(req.body.email);
+        if (!loginEmail.ok) {
+            return res.status(422).json({ success: false, error: loginEmail.message });
+        }
+        const requestedRole = String(req.body.role || 'admin');
+        const role = requestedRole === 'master' && req.session.adminRole === 'master'
             ? 'master'
-            : 'admin';
+            : normalizeAdminRole(requestedRole === 'master' ? 'admin' : requestedRole);
+        const permissions = permissionsForRole(role, req.body.permissions || []);
         const admin = await Admin.create({
             name: String(req.body.name || '').trim().slice(0, 120),
             webUsername: username,
             webPassword: password,
+            email: loginEmail.email,
+            otpDeliveryChannel: loginEmail.otpDeliveryChannel,
             role,
             permissions,
             status: 'active',
@@ -414,7 +412,8 @@ router.post('/admins', requireSecurityManager, requireRecentPasskey, async (req,
         await logAction({
             action: 'SECURITY_ADMIN_CREATED', req,
             performedById: req.session.adminId, performedByModel: 'Admin', performedByName: req.session.adminName,
-            targetId: admin._id, targetModel: 'Admin', severity: 'critical', newData: { username, permissions }
+            targetId: admin._id, targetModel: 'Admin', severity: 'critical',
+            newData: { username, role, permissions, email: loginEmail.email, otpDeliveryChannel: loginEmail.otpDeliveryChannel }
         });
         return res.json({ success: true });
     } catch (error) {
@@ -434,18 +433,47 @@ router.patch('/admins/:id', requireSecurityManager, requireRecentPasskey, async 
         if (String(target._id) === String(req.session.adminId) && nextStatus === 'suspended') {
             return res.status(409).json({ success: false, error: 'لا يمكنك تعليق الحساب المستخدم حالياً.' });
         }
-        const allowed = new Set(PERMISSIONS.map(([value]) => value));
-        const previous = { status: target.status, permissions: target.permissions || [] };
+        const loginEmail = parseAdminLoginEmail(req.body.email);
+        if (!loginEmail.ok) {
+            return res.status(422).json({ success: false, error: loginEmail.message });
+        }
+        const previous = {
+            status: target.status,
+            role: target.role,
+            permissions: target.permissions || [],
+            email: target.email || '',
+            otpDeliveryChannel: target.otpDeliveryChannel === 'email' ? 'email' : 'whatsapp'
+        };
+        const requestedRole = req.body.role != null ? String(req.body.role) : target.role;
+        let nextRole = target.role;
+        if (target.role !== 'master') {
+            nextRole = requestedRole === 'master' && req.session.adminRole === 'master'
+                ? 'master'
+                : normalizeAdminRole(requestedRole === 'master' ? target.role : requestedRole);
+        }
         target.status = nextStatus;
-        target.permissions = [...new Set((req.body.permissions || []).filter((item) => allowed.has(item)))];
-        if (req.body.invalidateSessions) target.sessionVersion = Number(target.sessionVersion || 0) + 1;
+        target.role = nextRole;
+        target.permissions = permissionsForRole(nextRole, req.body.permissions || []);
+        target.email = loginEmail.email;
+        target.otpDeliveryChannel = loginEmail.otpDeliveryChannel;
+        const roleChanged = previous.role !== nextRole;
+        if (req.body.invalidateSessions || roleChanged) {
+            target.sessionVersion = Number(target.sessionVersion || 0) + 1;
+        }
         await target.save();
         await logAction({
             action: 'SECURITY_ADMIN_UPDATED', req,
             performedById: req.session.adminId, performedByModel: 'Admin', performedByName: req.session.adminName,
             targetId: target._id, targetModel: 'Admin', severity: 'critical',
             oldData: previous,
-            newData: { status: target.status, permissions: target.permissions, sessionsInvalidated: Boolean(req.body.invalidateSessions) }
+            newData: {
+                status: target.status,
+                role: target.role,
+                permissions: target.permissions,
+                email: target.email,
+                otpDeliveryChannel: target.otpDeliveryChannel,
+                sessionsInvalidated: Boolean(req.body.invalidateSessions) || roleChanged
+            }
         });
         return res.json({ success: true });
     } catch (error) {

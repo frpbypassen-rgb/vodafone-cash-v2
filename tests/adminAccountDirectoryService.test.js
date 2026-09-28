@@ -1,7 +1,11 @@
 'use strict';
 
+const fs = require('fs');
+const path = require('path');
+
 const {
     DEFAULT_PAGE_SIZE,
+    DIRECTORY_SECTIONS,
     normalizeSection,
     normalizeSearch,
     normalizePage,
@@ -36,6 +40,7 @@ const createModels = ({ users = [], companies = [], subAccounts = [] } = {}) => 
 
 describe('Admin account directory service', () => {
     test('classifies accounts by their explicit type instead of sub-account ownership', () => {
+        expect(DIRECTORY_SECTIONS).toEqual(['users', 'companies', 'agents']);
         expect(buildSectionFilter('users')).toEqual({
             status: { $ne: 'deleted' },
             role: { $ne: 'agent' }
@@ -47,6 +52,7 @@ describe('Admin account directory service', () => {
         expect(buildSectionFilter('companies')).toEqual({
             status: { $ne: 'deleted' }
         });
+        expect(normalizeSection('subaccounts')).toBe('users');
     });
 
     test('loads a new agent in the agents collection even when it has no sub-accounts', async () => {
@@ -76,6 +82,45 @@ describe('Admin account directory service', () => {
         expect(directory.agents).toEqual([]);
         expect(models.ClientCompany.find).toHaveBeenCalledWith({ status: { $ne: 'deleted' } });
         expect(models.User.find).not.toHaveBeenCalled();
+    });
+
+    test('does not list agency clients in دليل الحسابات', async () => {
+        const agent = {
+            _id: 'agent-1',
+            name: 'وكالة النور',
+            role: 'agent',
+            agentCode: '2044'
+        };
+        const agencyClient = {
+            _id: 'sub-1',
+            masterType: 'user',
+            masterId: 'agent-1',
+            name: 'محل السراي',
+            phone: '0910000001',
+            webUsername: 'sarai.shop',
+            balance: 75,
+            creditLimit: 200,
+            status: 'active'
+        };
+        const models = createModels({ users: [agent], subAccounts: [agencyClient] });
+
+        const hidden = await loadAdminAccountDirectory(models, { section: 'subaccounts' });
+
+        expect(hidden.activeSection).toBe('users');
+        expect(hidden.subAccounts).toEqual([]);
+        expect(hidden.directoryCounts.subaccounts).toBe(0);
+        expect(JSON.stringify(hidden)).not.toContain('محل السراي');
+        expect(models.SubAccount.find).not.toHaveBeenCalled();
+        expect(models.SubAccount.countDocuments).not.toHaveBeenCalled();
+    });
+
+    test('admin directory page has no agency-client section or rows', () => {
+        const html = fs.readFileSync(path.join(__dirname, '../views/clients.ejs'), 'utf8');
+        expect(html).not.toContain('عملاء الوكلاء');
+        expect(html).not.toContain('section=subaccounts');
+        expect(html).not.toContain('subaccounts-tab');
+        expect(html).not.toContain('/sub-account/');
+        expect(fs.existsSync(path.join(__dirname, '../views/subaccount_details.ejs'))).toBe(false);
     });
 
     test('normalizes navigation input and escapes search expressions', () => {

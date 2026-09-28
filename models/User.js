@@ -17,6 +17,10 @@ const userSchema = new mongoose.Schema({
     profilePhotoKey: { type: String, trim: true, default: '' },
     profilePhotoUpdatedAt: { type: Date },
     role: { type: String, default: 'user' }, // user | accountant
+    companyId: { type: mongoose.Schema.Types.ObjectId, ref: 'ClientCompany' },
+    corporateRole: { type: String, enum: ['manager', 'employee', 'accountant'], default: undefined },
+    approvalLimit: { type: Number, default: null },
+    corporatePortalEnabled: { type: Boolean, default: false },
     businessProfile: {
         contactName: { type: String, trim: true, default: '' },
         email: { type: String, trim: true, lowercase: true, default: '' },
@@ -24,6 +28,9 @@ const userSchema = new mongoose.Schema({
         address: { type: String, trim: true, default: '' },
         registrationNumber: { type: String, trim: true, default: '' }
     },
+    // قناة رمز الدخول. حفظ بريد صالح من الإدارة يضبطها على email.
+    // whatsapp يبقى للحسابات التي لا يوجد لها بريد صالح.
+    otpDeliveryChannel: { type: String, enum: ['whatsapp', 'email'], default: 'whatsapp' },
     verificationDocuments: [{
         kind: { type: String, enum: ['identity', 'tax_card', 'business_license', 'profile_photo'], required: true },
         fileUrl: { type: String, required: true },
@@ -51,7 +58,10 @@ const userSchema = new mongoose.Schema({
     },
     deletedAt: { type: Date },
     deletedBy: { type: String },
-    tenantId: { type: mongoose.Schema.Types.ObjectId, ref: 'Tenant' }
+    tenantId: { type: mongoose.Schema.Types.ObjectId, ref: 'Tenant' },
+    preferences: {
+        clientTheme: { type: String, enum: ['day', 'night', 'pharaonic'], default: undefined }
+    }
 }, { timestamps: true });
 
 userSchema.pre('save', async function() {
@@ -68,5 +78,6 @@ userSchema.pre('save', async function() {
 // webUsername لديه unique بالفعل في الشيما
 userSchema.index({ status: 1 });                        // فلتر الحسابات النشيطة
 userSchema.index({ tenantId: 1 });
+userSchema.index({ companyId: 1, corporateRole: 1 });
 
 module.exports = mongoose.model('User', userSchema);

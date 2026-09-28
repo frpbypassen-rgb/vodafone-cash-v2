@@ -2,8 +2,14 @@
 'use strict';
 
 const { getTransferServiceLabel } = require('../utils/mobileTransferServiceCatalog');
-const { buildExecutorTaskRecipient } = require('../utils/executorTaskPrivacy');
+const {
+    buildExecutorTaskRecipient,
+    canClaimThenQuickExecuteTask,
+    canQuickExecuteTask
+} = require('../utils/executorTaskPrivacy');
 const { createReceiptImageUrl } = require('../services/receiptShareService');
+const { readExecutorManualPolicy, toPublicExecutionPolicy } = require('../utils/executorManualPolicy');
+const { bankLabelForTransaction } = require('../utils/egyptianBanks');
 
 const receiptFields = (tx) => {
     const hasProofImage = Boolean(tx.receiptUrl || tx.proofImage || (tx.proofImages && tx.proofImages.length > 0));
@@ -15,16 +21,32 @@ const receiptFields = (tx) => {
     };
 };
 
-const mapSenderEntries = (tx) => (
-    Array.isArray(tx.executorSenderEntries)
-        ? tx.executorSenderEntries.map((entry) => ({
+const mapSenderEntries = (tx) => {
+    const entries = Array.isArray(tx.executorSenderEntries) ? tx.executorSenderEntries : [];
+    const customerImages = entries
+        .filter((entry) => entry?.status === 'success' && entry?.customerProof?.imageId)
+        .map((entry) => String(entry.customerProof.imageId));
+    return entries.map((entry) => {
+        const imageId = String(entry?.customerProof?.imageId || '');
+        const receiptIndex = imageId ? customerImages.indexOf(imageId) : -1;
+        return {
             phone: entry.phone || null,
             amount: entry.amount === undefined || entry.amount === null ? null : Number(entry.amount),
             proofImage: entry.proofImage || null,
-            proofImageUrl: entry.proofImage ? `/executor-portal/proxy/image/${entry.proofImage}` : null
-        }))
-        : []
-);
+            proofImageUrl: entry.proofImage ? `/executor-portal/proxy/image/${entry.proofImage}` : null,
+            ...(entry.partId ? {
+                partId: String(entry.partId),
+                status: entry.status || null,
+                confirmedAt: entry.confirmedAt || null,
+                recipient: tx.vodafoneNumber || tx.accountNumber || null,
+                reference: tx.customId && entry.partId ? `${tx.customId}:${entry.partId}` : null,
+                customerProofStatus: entry.customerProof?.status || null,
+                customerProofAttempts: Number(entry.customerProof?.attempts || 0),
+                customerProofUrl: receiptIndex >= 0 ? `/executor-portal/proxy/image/${tx._id}/${receiptIndex}` : null
+            } : {})
+        };
+    });
+};
 
 const managerExecutorEvidence = (tx, canView) => {
     if (!canView) return {};
@@ -270,10 +292,13 @@ const toExecutorTaskDto = (tx, currentExecutorId = null) => {
         amount: Number(tx.amount || 0),
         ...recipient,
         recipientName: tx.accountName || null,
+        bankName: bankLabelForTransaction(tx) || null,
         status: tx.status || 'unknown',
         operatorId: tx.operatorId ? String(tx.operatorId) : null,
         acceptedByName: tx.status === 'accepted' ? (tx.executorName || null) : null,
         isOwnedByCurrentExecutor: recipient.recipientRevealed,
+        canQuickExecute: canQuickExecuteTask(tx, currentExecutorId),
+        canClaimThenQuickExecute: canClaimThenQuickExecuteTask(tx, currentExecutorId),
         createdAt: tx.createdAt ? new Date(tx.createdAt).toISOString() : null,
         emergencyAlert: tx.emergencyAlert || null
     };
@@ -310,6 +335,8 @@ const toEmployeeDto = (emp) => {
         status: emp.status,
         webUsername: emp.webUsername,
         canViewAllReports: !!emp.canViewAllReports,
+        executionPolicy: emp.executionPolicy || null,
+        executionPolicyOverride: emp.executionPolicyOverride || {},
         createdAt: emp.createdAt ? new Date(emp.createdAt).toISOString() : null,
         metrics: {
             completedCount: Number(metrics.completedCount || 0),
@@ -339,7 +366,13 @@ const toEmployeeDto = (emp) => {
             amount: Number(currentTask.amount || 0),
             receivedAt: currentTask.receivedAt ? new Date(currentTask.receivedAt).toISOString() : null
         } : null,
-        ...(emp.role === 'external' ? { balance: Number(emp.balance || 0) } : {})
+        ...(emp.role === 'external' ? {
+            workingBalance: Number(emp.workingBalance != null ? emp.workingBalance : emp.balance || 0),
+            balance: Number(emp.workingBalance != null ? emp.workingBalance : emp.balance || 0),
+            soloBalance: Number(emp.soloBalance != null ? emp.soloBalance : emp.balance || 0),
+            balanceMembership: emp.balanceMembership || (emp.balancePool ? 'pool' : 'solo'),
+            balancePool: emp.balancePool || null
+        } : {})
     };
 };
 

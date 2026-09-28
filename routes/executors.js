@@ -12,6 +12,7 @@ const { requireAuth, requireMaster } = require('../middlewares/auth');
 const { systemDateRange } = require('../config/systemTime');
 const { syncBotBalance, escapeRegex } = require('../utils/helpers');
 const { DEFAULT_API_PROVIDER_KEY, getApiProviderPreset, getApiProviderPresets } = require('../utils/apiProviderPresets');
+const { isStagingRuntime } = require('../utils/runtimeControls');
 const { getApiProviderBalance, runApiTransferPreflight } = require('../services/externalApiService');
 const { syncProviderReturnedOperations } = require('../services/apiProviderReconciliationService');
 const { createExecutorAccount, ExecutorAccountError } = require('../services/executorAccountService');
@@ -21,24 +22,41 @@ const {
     executorTransactionFilter
 } = require('../services/executorArchiveService');
 const { logAction } = require('../services/auditService');
+const {
+    requireAdminActor,
+    isAdminActorError,
+    performedFields,
+    cancellationFields,
+    ACTOR_MESSAGE,
+    auditAdminAction
+} = require('../utils/adminActor');
 const { reversalService } = require('../src/Application/Services/ReversalService');
 const {
     getExecutorServiceOptions,
     getExecutorServiceLabel,
     getExecutorSupportedTransferTypes,
-    normalizeExecutorServiceKey
+    normalizeExecutorServiceKey,
+    collectEnabledServiceKeysFromBody,
+    getExecutorEnabledServiceKeys,
+    normalizeEnabledServiceKeys
 } = require('../utils/executorServiceCatalog');
+const { fundingFieldsForService } = require('../utils/executorServiceLedger');
 const {
     ManualExecutorReceiptReferenceError,
     normalizeManualExecutorReceiptPrefix
 } = require('../services/manualExecutorReceiptReferenceService');
-const { serializeAllowedPhoneLengths } = require('../utils/executorManualPolicy');
+const { serializeCompanyExecutionPolicy, serializeEmployeePolicyOverride, toPublicExecutionPolicy, readExecutorManualPolicy, normalizeAdminEmployeePolicyBody } = require('../utils/executorManualPolicy');
+const { enforceExecutorDeviceLimit } = require('../services/executorDeviceSessionService');
+const { clearExecutorAuthCache } = require('../services/executorAuthCache');
 const multer = require('multer');
+const { updateEmployeeExecutionPolicyAsAdmin } = require('../services/mobileWebParityService');
 const { createDepositRequest } = require('../services/executorDepositRequestService');
+const { snapshotServiceLedgers } = require('../utils/executorServiceLedger');
+const { loadAllocatedByGroupIds } = require('../services/executorBalancePoolService');
 
 const adminDepositUpload = multer({
     storage: multer.memoryStorage(),
-    limits: { files: 5, fileSize: 5 * 1024 * 1024 },
+    limits: { files: 5, fileSize: 5 * 1024 * 1024, fieldArrayIndexLimit: 16 },
     fileFilter: (_req, file, callback) => callback(null, /^image\/(jpeg|png|webp)$/i.test(file.mimetype || ''))
 });
 
@@ -46,6 +64,31 @@ const normalizeText = (value) => String(value || '').trim();
 const parseNumberOrDefault = (value, fallback) => {
     const parsed = Number(value);
     return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+};
+
+const transferTypesForServices = (serviceKeys = []) => [...new Set(
+    (Array.isArray(serviceKeys) ? serviceKeys : [serviceKeys])
+        .flatMap((key) => getExecutorSupportedTransferTypes(key))
+)];
+
+const countInFlightForServices = (groupId, serviceKeys) => {
+    const keys = Array.isArray(serviceKeys) ? serviceKeys.filter(Boolean) : [];
+    if (!keys.length) return Promise.resolve(0);
+    return Transaction.countDocuments({
+        $or: [{ executorGroupId: groupId }, { managerGroupId: groupId }],
+        status: { $in: ['processing', 'accepted'] },
+        $or: [
+            { canonicalServiceKey: { $in: keys } },
+            { transferType: { $in: transferTypesForServices(keys) } }
+        ]
+    });
+};
+
+const fundingServiceFromBody = (body, group) => {
+    const requested = normalizeExecutorServiceKey(body?.fundingServiceKey || body?.serviceKey, null);
+    const enabled = getExecutorEnabledServiceKeys(group);
+    if (requested && enabled.includes(requested)) return requested;
+    return enabled[0] || 'vodafone';
 };
 
 const hasValidCsrfToken = (req) => {
@@ -90,8 +133,10 @@ router.get('/executors', requireAuth, async (req, res) => {
             ExecutorGroup.find({ status: { $ne: 'archived' } }).sort({ createdAt: -1 }),
             ExecutorGroup.find({ status: 'archived' }).sort({ archivedAt: -1 })
         ]);
+        const allocatedByGroup = await loadAllocatedByGroupIds(groups.map((group) => group._id));
         const groupsWithStats = await Promise.all(groups.map(async (group) => {
-            const syncedBalance = await syncBotBalance(group._id); 
+            const syncedBalance = await syncBotBalance(group._id);
+            const fresh = await ExecutorGroup.findById(group._id).select('balance serviceKey serviceKeys serviceBalances name').lean();
             group.balance = syncedBalance;
             let liveApiBalance = null;
             if (group.isApiBot && group.status === 'active') {
@@ -102,6 +147,10 @@ router.get('/executors', requireAuth, async (req, res) => {
                 }
             }
             let txCount = 0; if (group.isManagerBot) txCount = await Transaction.countDocuments({ managerGroupId: group._id, status: 'completed' }); else txCount = await Transaction.countDocuments({ executorGroupId: group._id, status: 'completed' });
+            const ledgers = snapshotServiceLedgers({
+                group: fresh || group,
+                allocatedBalance: allocatedByGroup.get(String(group._id)) || 0
+            });
             return {
                 ...group._doc,
                 balance: syncedBalance,
@@ -110,7 +159,10 @@ router.get('/executors', requireAuth, async (req, res) => {
                 liveApiBalanceError: liveApiBalance ? liveApiBalance.error : '',
                 txCount,
                 serviceKey: normalizeExecutorServiceKey(group.serviceKey),
-                serviceLabel: getExecutorServiceLabel(group)
+                serviceKeys: getExecutorEnabledServiceKeys(fresh || group),
+                serviceLabel: getExecutorServiceLabel(group),
+                serviceBalances: ledgers.byService,
+                multiService: ledgers.multiService
             };
         }));
         const archivedGroupsWithStats = await Promise.all(archivedGroups.map(async (group) => {
@@ -172,7 +224,7 @@ router.post('/executors/add', requireAuth, requireMaster, async (req, res) => {
                 parentGroupId: parentId && parentId !== 'none' ? parentId : null,
                 parentBotId: parentId && parentId !== 'none' ? parentId : null,
                 apiProviderKey: isApiBot ? apiPreset.key : '',
-                apiUrl: isApiBot ? (normalizeText(body.apiUrl) || apiPreset.apiUrl) : '',
+                apiUrl: isApiBot ? (normalizeText(body.apiUrl) || (isStagingRuntime() ? '' : apiPreset.apiUrl)) : '',
                 apiToken: isApiBot ? normalizeText(body.apiToken) : '',
                 apiUsername: isApiBot ? normalizeText(body.apiUsername) : '',
                 apiPassword: isApiBot ? normalizeText(body.apiPassword) : '',
@@ -236,6 +288,8 @@ router.post('/executor/:id/service', requireAuth, requireMaster, async (req, res
         if (inFlightCount > 0) return res.redirect('/executors?serviceError=ACTIVE_TASKS');
 
         group.serviceKey = serviceKey;
+        const enabled = normalizeEnabledServiceKeys(group.serviceKeys, serviceKey);
+        group.serviceKeys = enabled;
         await group.save();
 
         await Settings.updateMany(
@@ -266,6 +320,49 @@ router.post('/executor/:id/service', requireAuth, requireMaster, async (req, res
         return res.redirect('/executors?serviceUpdated=1');
     } catch (error) {
         console.error('[executors/service] failed:', error.stack || error.message);
+        return res.redirect('/executors?serviceError=UPDATE_FAILED');
+    }
+});
+
+router.post('/executor/:id/enabled-services', requireAuth, requireMaster, async (req, res) => {
+    try {
+        const group = await ExecutorGroup.findById(req.params.id);
+        if (!group || group.status === 'archived') return res.redirect('/executors?serviceError=NOT_FOUND');
+
+        const nextKeys = collectEnabledServiceKeysFromBody(req.body, group.serviceKey);
+        const previousKeys = getExecutorEnabledServiceKeys(group);
+        const removed = previousKeys.filter((key) => !nextKeys.includes(key));
+        if (removed.length) {
+            const inFlightCount = await countInFlightForServices(group._id, removed);
+            if (inFlightCount > 0) return res.redirect('/executors?serviceError=ACTIVE_TASKS');
+        }
+
+        group.serviceKeys = nextKeys;
+        await group.save();
+
+        await logAction({
+            action: 'EXECUTOR_SERVICES_UPDATED',
+            req,
+            performedById: req.session.adminId,
+            performedByModel: 'Admin',
+            performedByName: req.session.adminName || 'الإدارة',
+            targetId: group._id,
+            targetModel: 'ExecutorGroup',
+            oldData: { serviceKeys: previousKeys },
+            newData: {
+                serviceKey: group.serviceKey,
+                serviceKeys: nextKeys,
+                supportedTransferTypes: getExecutorSupportedTransferTypes(group)
+            },
+            metadata: { executorName: group.name }
+        }).catch(() => {});
+
+        const redirectTo = String(req.body?.returnTo || '').startsWith('/executor/')
+            ? `${req.body.returnTo}${req.body.returnTo.includes('?') ? '&' : '?'}servicesUpdated=1`
+            : '/executors?servicesUpdated=1';
+        return res.redirect(redirectTo);
+    } catch (error) {
+        console.error('[executors/enabled-services] failed:', error.stack || error.message);
         return res.redirect('/executors?serviceError=UPDATE_FAILED');
     }
 });
@@ -413,13 +510,43 @@ router.get('/executor/:id', requireAuth, async (req, res) => {
             });
         }
 
+        const { snapshotCompanyBalances, listExternalBalanceWorkspace } = require('../services/executorBalancePoolService');
+        let externalEmployees = [];
+        let companyBalances = null;
+        let externalPools = [];
+        let teamEmployees = [];
+        try {
+            companyBalances = await snapshotCompanyBalances(bot._id);
+            const fakeManager = { role: 'manager', groupId: bot._id, _id: req.session.adminId };
+            const workspace = await listExternalBalanceWorkspace({ manager: fakeManager });
+            externalEmployees = workspace.employees || [];
+            externalPools = workspace.pools || [];
+        } catch (_) {
+            externalEmployees = await Employee.find({ groupId: bot._id, role: 'external', status: 'active' }).select('name balance phone webUsername').lean();
+        }
+        try {
+            const members = await Employee.find({
+                groupId: bot._id,
+                $or: [{ archivedAt: null }, { archivedAt: { $exists: false } }]
+            }).select('name phone role status webUsername executionPolicyOverride').sort({ role: 1, name: 1 }).lean();
+            teamEmployees = members.map((member) => ({
+                ...member,
+                executionPolicy: toPublicExecutionPolicy(readExecutorManualPolicy(bot, member))
+            }));
+        } catch (_) {
+            teamEmployees = [];
+        }
+
         res.render('executor_details', {
             bot,
             transactions,
             managerBots,
-            externalEmployees: bot.isManagerBot
-                ? await Employee.find({ groupId: bot._id, role: 'external', status: 'active' }).select('name balance phone webUsername').lean()
-                : [],
+            externalEmployees,
+            externalPools,
+            companyBalances,
+            teamEmployees,
+            executorServiceOptions: getExecutorServiceOptions(),
+            enabledServiceKeys: getExecutorEnabledServiceKeys(bot),
             adminName: req.session.adminName,
             isMaster: req.session.adminRole === 'master',
             query: req.query
@@ -532,22 +659,23 @@ router.post('/executor/:id/provider-return/:returnId/cancel', requireAuth, requi
             });
         }
 
+        const actor = requireAdminActor(req);
         const reason = normalizeText(req.body.reason)
             || `إلغاء بعد تأكيد استرجاع مزود API للعملية ${item.providerTransactionId}`;
-        const adminName = req.session.adminName || 'الإدارة';
         const result = await reversalService.reverseTransaction(
             String(item.transactionId),
             reason,
-            adminName,
+            actor.name,
             { status: 'cancelled_by_admin' }
         );
         if (!result.success) {
             return res.status(409).json(result);
         }
 
+        await Transaction.updateOne({ _id: item.transactionId }, { $set: cancellationFields(actor) });
         item.status = 'cancelled';
         item.reviewedAt = new Date();
-        item.reviewedBy = adminName;
+        item.reviewedBy = actor.name;
         item.reviewNotes = reason;
         item.cancellationNumber = result.cancellationNumber || '';
         await item.save();
@@ -560,9 +688,9 @@ router.post('/executor/:id/provider-return/:returnId/cancel', requireAuth, requi
         await logAction({
             action: 'API_PROVIDER_RETURN_CANCELLED',
             req,
-            performedById: req.session.adminId,
+            performedById: actor.id,
             performedByModel: 'Admin',
-            performedByName: adminName,
+            performedByName: actor.name,
             targetId: item.transactionId,
             targetModel: 'Transaction',
             metadata: {
@@ -580,6 +708,9 @@ router.post('/executor/:id/provider-return/:returnId/cancel', requireAuth, requi
             cancellationNumber: result.cancellationNumber
         });
     } catch (error) {
+        if (isAdminActorError(error)) {
+            return res.status(401).json({ success: false, message: ACTOR_MESSAGE });
+        }
         console.error('[executor/provider-return/cancel] failed:', error.stack || error.message);
         return res.status(500).json({ success: false, message: 'تعذر إلغاء العملية المسترجعة' });
     }
@@ -658,6 +789,8 @@ router.post('/executor/:id/settle', requireAuth, requireMaster, adminDepositUplo
         }
         const bot = await ExecutorGroup.findById(req.params.id); const amount = parseFloat(req.body.amount); const notes = req.body.notes ? req.body.notes.trim() : ''; 
         if (!bot || bot.status === 'archived') return res.redirect('/executors?tab=archive&archiveError=READ_ONLY');
+        const fundingServiceKey = fundingServiceFromBody(req.body, bot);
+        const fundingFields = fundingFieldsForService(fundingServiceKey);
         let targetBotId = bot._id; let targetBotName = bot.name;
 
         const parentGroupId = bot.parentGroupId || bot.parentBotId;
@@ -670,14 +803,16 @@ router.post('/executor/:id/settle', requireAuth, requireMaster, adminDepositUplo
             if (!receipts.length) {
                 return res.redirect(`/executor/${bot._id}?settlementError=RECEIPT_REQUIRED`);
             }
+            const actor = requireAdminActor(req);
             const targetBot = await ExecutorGroup.findById(targetBotId);
             const request = await createDepositRequest({
                 group: targetBot,
-                submittedBy: { id: req.session.adminId, name: req.session.adminName || 'الإدارة المركزية' },
+                submittedBy: { id: actor.id, name: actor.name, role: actor.role },
                 amount,
                 note: notes,
                 receipts,
-                submittedFromAdmin: true
+                submittedFromAdmin: true,
+                serviceKey: fundingServiceKey
             });
             req.app.get('io')?.emit('support:ticket-updated', { source: 'admin_executor_deposit_request' });
             if (req.get('x-requested-with') === 'XMLHttpRequest') {
@@ -687,9 +822,18 @@ router.post('/executor/:id/settle', requireAuth, requireMaster, adminDepositUplo
         }
 
         if (!isNaN(amount) && amount !== 0) {
+            const actor = requireAdminActor(req);
             const tx = await Transaction.create({
                 userId: 'admin', executorGroupId: targetBotId, amount: Math.abs(amount), costLYD: 0, vodafoneNumber: 'تسديد حساب',
-                status: amount > 0 ? 'deposit' : 'deduction', customId: `SETTLE-${Date.now().toString().slice(-6)}`, companyName: 'الإدارة المركزية', employeeName: amount > 0 ? 'تسديد نقدية (إيداع)' : 'خصم من المنفذ', executorName: targetBotName, notes: '', adminNotes: notes
+                status: amount > 0 ? 'deposit' : 'deduction', customId: `SETTLE-${Date.now().toString().slice(-6)}`, companyName: 'الإدارة المركزية', employeeName: amount > 0 ? 'تسديد نقدية (إيداع)' : 'خصم من المنفذ', executorName: targetBotName, notes: '', adminNotes: notes,
+                ...performedFields(actor),
+                ...fundingFields
+            });
+            await auditAdminAction(req, actor, {
+                action: amount > 0 ? 'EXECUTOR_DEPOSIT_RECORDED' : 'EXECUTOR_DEDUCTION_RECORDED',
+                targetId: tx._id,
+                newData: { status: tx.status, amount: tx.amount, executorName: targetBotName },
+                metadata: { executorGroupId: String(targetBotId), notes }
             });
             await syncBotBalance(targetBotId); if(targetBotId.toString() !== bot._id.toString()) await syncBotBalance(bot._id); 
 
@@ -713,6 +857,12 @@ router.post('/executor/:id/settle', requireAuth, requireMaster, adminDepositUplo
         }
         res.redirect(`/executor/${bot._id}`);
     } catch (e) {
+        if (isAdminActorError(e)) {
+            if (req.get('x-requested-with') === 'XMLHttpRequest') {
+                return res.status(401).json({ success: false, error: ACTOR_MESSAGE });
+            }
+            return res.redirect(`/executor/${req.params.id}?settlementError=ACTOR_REQUIRED`);
+        }
         if (req.get('x-requested-with') === 'XMLHttpRequest') {
             return res.status(e.status || 500).json({ success: false, error: e.message || 'تعذر إرسال طلب الإيداع.' });
         }
@@ -768,10 +918,22 @@ router.post('/executor/:id/manual-policy', requireAuth, requireMaster, async (re
             return res.redirect('/executors?manualPolicyError=NOT_AVAILABLE');
         }
 
-        bot.manualProofRequired = req.body.manualProofRequired === 'on';
-        bot.manualAllowedPhoneLengths = serializeAllowedPhoneLengths(req.body);
-        bot.manualSplitRequiresFullPhone = req.body.manualSplitRequiresFullPhone === 'on';
+        const serialized = serializeCompanyExecutionPolicy(req.body);
+        bot.manualProofRequired = serialized.manualProofRequired;
+        bot.manualAllowedPhoneLengths = serialized.manualAllowedPhoneLengths;
+        bot.manualSplitRequiresFullPhone = serialized.manualSplitRequiresFullPhone;
+        bot.maxConcurrentDevices = serialized.maxConcurrentDevices;
+        bot.sessionTtlEnabled = serialized.sessionTtlEnabled;
+        bot.sessionTtlSeconds = serialized.sessionTtlSeconds;
+        bot.manualQuickExecuteEnabled = serialized.manualQuickExecuteEnabled;
         await bot.save();
+
+        const members = await Employee.find({
+            groupId: bot._id,
+            archivedAt: null
+        }).select('_id executionPolicyOverride groupId').lean();
+        await Promise.all(members.map((account) => enforceExecutorDeviceLimit({ account, group: bot })));
+        clearExecutorAuthCache();
 
         await logAction({
             action: 'EXECUTOR_MANUAL_POLICY_UPDATED',
@@ -784,7 +946,11 @@ router.post('/executor/:id/manual-policy', requireAuth, requireMaster, async (re
             newData: {
                 manualProofRequired: bot.manualProofRequired,
                 manualAllowedPhoneLengths: bot.manualAllowedPhoneLengths,
-                manualSplitRequiresFullPhone: bot.manualSplitRequiresFullPhone
+                manualSplitRequiresFullPhone: bot.manualSplitRequiresFullPhone,
+                maxConcurrentDevices: bot.maxConcurrentDevices,
+                sessionTtlEnabled: bot.sessionTtlEnabled,
+                sessionTtlSeconds: bot.sessionTtlSeconds,
+                manualQuickExecuteEnabled: bot.manualQuickExecuteEnabled
             },
             metadata: { executorName: bot.name }
         }).catch(() => {});
@@ -792,6 +958,35 @@ router.post('/executor/:id/manual-policy', requireAuth, requireMaster, async (re
         return res.redirect(`/executor/${bot._id}?manualPolicyUpdated=1`);
     } catch (_) {
         return res.redirect(`/executor/${req.params.id}?manualPolicyError=UPDATE_FAILED`);
+    }
+});
+
+router.post('/executor/:id/employees/:employeeId/execution-policy', requireAuth, requireMaster, async (req, res) => {
+    try {
+        const bot = await ExecutorGroup.findById(req.params.id);
+        if (!bot || bot.status === 'archived' || bot.isApiBot || bot.isManagerBot) {
+            return res.redirect('/executors?manualPolicyError=NOT_AVAILABLE');
+        }
+        await updateEmployeeExecutionPolicyAsAdmin({
+            groupId: bot._id,
+            targetId: req.params.employeeId,
+            body: normalizeAdminEmployeePolicyBody(req.body)
+        });
+        await logAction({
+            action: 'EXECUTOR_EMPLOYEE_POLICY_UPDATED',
+            req,
+            performedById: req.session.adminId,
+            performedByModel: 'Admin',
+            performedByName: req.session.adminName || 'الإدارة',
+            targetId: req.params.employeeId,
+            targetModel: 'Employee',
+            newData: serializeEmployeePolicyOverride(req.body || {}),
+            metadata: { executorName: bot.name, inheritCompanyPolicy: req.body?.inheritCompanyPolicy }
+        }).catch(() => {});
+        return res.redirect(`/executor/${bot._id}?employeePolicyUpdated=1`);
+    } catch (error) {
+        const code = error.message === 'NOT_FOUND' ? 'NOT_FOUND' : (error.message === 'FORBIDDEN' ? 'FORBIDDEN' : 'UPDATE_FAILED');
+        return res.redirect(`/executor/${req.params.id}?employeePolicyError=${code}`);
     }
 });
 

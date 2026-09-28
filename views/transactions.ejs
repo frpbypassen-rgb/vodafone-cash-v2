@@ -16,23 +16,10 @@
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
     <style>
-        .summary-box { border-radius: 20px; padding: 20px; display: flex; justify-content: space-between; align-items: center; height: 100%; position: relative; overflow: hidden;}
-        .summary-box::after { content: ''; position: absolute; right: 0; top: 0; width: 6px; height: 100%; }
-        .box-success::after { background: #10b981; } .box-primary::after { background: #3b82f6; } .box-danger::after { background: #ef4444; }
-        .summary-val { font-family: 'JetBrains Mono', monospace; font-size: 1.8rem; font-weight: 900; line-height: 1;}
-        .summary-icon { font-size: 2.5rem; opacity: 0.15; }
-        .executor-balance-panel { border: 1px solid var(--border-glass); border-radius: 18px; background: var(--card-bg); box-shadow: var(--shadow-soft); overflow: hidden; }
-        .executor-balance-header { flex: 0 0 215px; padding: 12px 16px; border-left: 1px solid var(--border-glass); }
-        .executor-balance-list { display: flex; flex: 1 1 auto; max-height: 94px; overflow: auto; }
-        .executor-balance-row { display: flex; flex: 1 0 220px; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 14px; border-left: 1px dashed var(--border-glass); text-decoration: none; transition: background .18s ease, transform .18s ease; }
-        .executor-balance-row:hover { background: rgba(16, 185, 129, .07); transform: translateY(-1px); }
-        .executor-balance-row.is-selected { background: rgba(59, 130, 246, .10); box-shadow: inset 0 -2px 0 #3b82f6; }
-        .executor-balance-row:last-child { border-left: 0; }
-        .executor-balance-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 800; color: var(--text-main); }
-        .executor-balance-value { flex: 0 0 auto; font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; font-weight: 900; color: #10b981; }
-        .executor-balance-meta { display: block; margin-top: 3px; color: var(--text-muted); font-size: .66rem; font-family: 'Tajawal', sans-serif; font-weight: 700; }
         .operation-age { display: block; margin-top: 7px; color: var(--text-muted); font-size: .7rem; font-weight: 800; white-space: nowrap; }
         .operation-age.is-late { color: #d97706; }
+        .admin-actor-line { display: block; margin-top: 4px; font-size: .75rem; font-weight: 800; color: #1d4ed8; line-height: 1.35; }
+        [data-theme="dark"] .admin-actor-line { color: #93c5fd; }
 
         .btn-action-sm { width: 35px; height: 35px; display: inline-flex; align-items: center; justify-content: center; border-radius: 10px; font-size: 0.9rem; transition: 0.2s; border: 1px solid transparent; background: rgba(0,0,0,0.05); color: var(--text-main); text-decoration: none;}
         [data-theme="dark"] .btn-action-sm { background: rgba(255,255,255,0.05); }
@@ -94,49 +81,10 @@
                 flex: 1 1 auto;
                 justify-content: center;
             }
-            .mobile-summary-strip {
-                display: grid;
-                grid-template-columns: repeat(3, minmax(0, 1fr));
-                gap: 8px;
-            }
-            .mobile-summary-item,
             .mobile-filter-card {
                 background: var(--card-bg);
                 border: 1px solid var(--border-glass);
                 box-shadow: var(--shadow-soft);
-            }
-            .mobile-summary-item {
-                border-radius: 14px;
-                padding: 12px 8px;
-                min-width: 0;
-            }
-            .mobile-summary-label {
-                display: block;
-                color: var(--text-muted);
-                font-size: 0.68rem;
-                font-weight: 800;
-                white-space: nowrap;
-                overflow: hidden;
-                text-overflow: ellipsis;
-            }
-            .mobile-summary-value {
-                display: block;
-                margin-top: 5px;
-                font-family: 'JetBrains Mono', monospace;
-                font-size: 0.88rem;
-                font-weight: 900;
-                white-space: nowrap;
-                overflow: hidden;
-                text-overflow: ellipsis;
-            }
-            .mobile-summary-secondary {
-                display: block;
-                margin-top: 2px;
-                font-family: 'JetBrains Mono', monospace;
-                font-size: 0.7rem;
-                font-weight: 800;
-            }
-            .mobile-filter-card {
                 border-radius: 16px;
                 padding: 12px;
             }
@@ -249,7 +197,444 @@
             border-color: var(--brand-gold) !important;
             box-shadow: 0 4px 10px rgba(212, 175, 55, 0.25);
         }
+
+        .ledger-stats-bar {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 8px;
+            padding: 8px;
+            border-radius: 16px;
+            background: var(--card-bg);
+            border: 1px solid var(--border-glass);
+            box-shadow: var(--shadow-soft);
+        }
+        .ledger-stat {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            min-width: 0;
+            padding: 8px 12px;
+            border-radius: 12px;
+            background: var(--input-bg);
+            border: 1px solid transparent;
+        }
+        .ledger-stat-today { border-color: rgba(16, 185, 129, .25); }
+        .ledger-stat-week { border-color: rgba(59, 130, 246, .25); }
+        .ledger-stat-month { border-color: rgba(139, 92, 246, .25); }
+        .ledger-stat-copy { min-width: 0; }
+        .ledger-stat-label {
+            display: block;
+            color: var(--text-muted);
+            font-size: .72rem;
+            font-weight: 800;
+            line-height: 1.35;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .ledger-stat-value {
+            display: block;
+            margin-top: 2px;
+            color: var(--text-main);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 1.05rem;
+            font-weight: 900;
+            line-height: 1.2;
+            direction: ltr;
+            text-align: right;
+        }
+        .ledger-stat-value small {
+            font-family: 'Tajawal', sans-serif;
+            font-size: .68rem;
+            font-weight: 800;
+            color: var(--text-muted);
+        }
+        .ledger-stat-amount {
+            display: block;
+            margin-top: 1px;
+            color: var(--text-muted);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: .68rem;
+            font-weight: 800;
+            direction: ltr;
+            text-align: right;
+        }
+        .ledger-stat-icon {
+            flex: 0 0 32px;
+            width: 32px;
+            height: 32px;
+            border-radius: 10px;
+            display: grid;
+            place-items: center;
+            font-size: .9rem;
+        }
+        .ledger-stat-today .ledger-stat-icon { color: #10b981; background: rgba(16, 185, 129, .12); }
+        .ledger-stat-week .ledger-stat-icon { color: #3b82f6; background: rgba(59, 130, 246, .12); }
+        .ledger-stat-month .ledger-stat-icon { color: #8b5cf6; background: rgba(139, 92, 246, .12); }
+        .ledger-panel {
+            height: 100%;
+            border-radius: 16px;
+            background: var(--card-bg);
+            border: 1px solid var(--border-glass);
+            box-shadow: var(--shadow-soft);
+            overflow: hidden;
+        }
+        .ledger-panel-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            padding: 12px 14px 10px;
+            border-bottom: 1px solid var(--border-glass);
+        }
+        .ledger-panel-head h6 {
+            margin: 0;
+            color: var(--text-main);
+            font-size: .92rem;
+            font-weight: 900;
+        }
+        .ledger-panel-head p {
+            margin: 2px 0 0;
+            color: var(--text-muted);
+            font-size: .72rem;
+            font-weight: 700;
+        }
+        .ledger-panel-count {
+            flex: 0 0 auto;
+            padding: 3px 8px;
+            border-radius: 999px;
+            background: var(--input-bg);
+            color: var(--text-muted);
+            font-size: .72rem;
+            font-weight: 800;
+        }
+        .ledger-panel-list {
+            max-height: 220px;
+            overflow: auto;
+        }
+        .ledger-balance-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            padding: 9px 14px;
+            text-decoration: none;
+            border-bottom: 1px dashed var(--border-glass);
+            transition: background .18s ease;
+        }
+        .ledger-balance-row:last-child { border-bottom: 0; }
+        .ledger-balance-row:hover { background: rgba(59, 130, 246, .06); }
+        .ledger-balance-name {
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            color: var(--text-main);
+            font-weight: 800;
+            font-size: .86rem;
+        }
+        .ledger-balance-meta {
+            display: block;
+            margin-top: 2px;
+            color: var(--text-muted);
+            font-size: .66rem;
+            font-weight: 700;
+        }
+        .ledger-balance-value {
+            flex: 0 0 auto;
+            color: #10b981;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: .8rem;
+            font-weight: 900;
+            direction: ltr;
+            text-align: left;
+        }
+        .ledger-balance-value.is-negative { color: #ef4444; }
+        .ledger-empty {
+            padding: 22px 14px;
+            text-align: center;
+            color: var(--text-muted);
+            font-size: .8rem;
+            font-weight: 800;
+        }
+        .ops-summary-strip {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+        /* صفّان باتجاه RTL: الشركات بعرض الشريط كاملًا، وتحتها المنفذون (المسار الأول، يمينًا)
+           بجانب الإجماليات (المسار الثاني، يسارًا). */
+        .ops-summary-layout {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) minmax(240px, 340px);
+            grid-template-areas:
+                "companies companies"
+                "executors totals";
+            gap: 12px;
+            align-items: start;
+            direction: rtl;
+        }
+        .ops-summary-companies { grid-area: companies; }
+        .ops-summary-executors {
+            grid-area: executors;
+            display: flex;
+            flex-direction: column;
+            align-items: stretch;
+            gap: 8px;
+        }
+        .ops-summary-companies,
+        .ops-summary-executors,
+        .ops-summary-totals {
+            min-width: 0;
+            direction: rtl;
+        }
+        .ops-summary-totals {
+            grid-area: totals;
+            display: flex;
+            flex-direction: column;
+            align-items: stretch;
+            gap: 6px;
+            width: 100%;
+        }
+        .ops-mini-card,
+        .ops-exec-card,
+        .ops-company-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border-glass);
+            box-shadow: var(--shadow-soft);
+            color: var(--text-main);
+        }
+        .ops-mini-card {
+            min-width: 0;
+            width: 100%;
+            padding: 7px 10px;
+            border-radius: 12px;
+        }
+        .ops-mini-card.ops-today {
+            border-color: rgba(212, 175, 55, .45);
+            direction: rtl;
+            min-width: 0;
+            width: 100%;
+        }
+        .ops-mini-card.ops-today .ops-currency-name { white-space: normal; }
+        .ops-mini-card.ops-today .ops-today-sum {
+            margin-top: 4px;
+            padding-top: 3px;
+            border-top: 1px dashed rgba(212, 175, 55, .45);
+        }
+        .ops-mini-card.ops-deposits { border-color: rgba(59, 130, 246, .35); }
+        .ops-mini-card.ops-executor-deposits { border-color: rgba(16, 185, 129, .4); }
+        .ops-mini-label,
+        .ops-exec-label,
+        .ops-micro-label,
+        .ops-company-label {
+            display: block;
+            color: var(--text-muted);
+            font-size: .62rem;
+            font-weight: 800;
+            line-height: 1.3;
+        }
+        .ops-currency-row {
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            gap: 10px;
+            margin-top: 3px;
+        }
+        .ops-summary-totals .ops-currency-row {
+            flex-wrap: wrap;
+            column-gap: 8px;
+            row-gap: 2px;
+        }
+        .ops-summary-totals .ops-currency-value {
+            margin-inline-start: auto;
+        }
+        .ops-currency-name {
+            color: var(--text-muted);
+            font-size: .68rem;
+            font-weight: 800;
+        }
+        .ops-currency-value,
+        .ops-mini-value,
+        .ops-exec-value,
+        .ops-company-balance,
+        .ops-micro-value {
+            font-family: 'JetBrains Mono', monospace;
+            font-weight: 900;
+            line-height: 1.15;
+            direction: ltr;
+            white-space: nowrap;
+        }
+        .ops-currency-value { font-size: .82rem; color: var(--text-main); }
+        .ops-currency-value small,
+        .ops-mini-value small,
+        .ops-exec-value small,
+        .ops-company-balance small,
+        .ops-micro-value small {
+            font-family: 'Tajawal', sans-serif;
+            font-size: .6rem;
+            font-weight: 800;
+            color: var(--text-muted);
+        }
+        .ops-mini-value {
+            display: block;
+            margin-top: 2px;
+            font-size: .9rem;
+            color: #3b82f6;
+        }
+        .ops-exec-head {
+            width: 100%;
+            color: var(--text-muted);
+            font-size: .66rem;
+            font-weight: 800;
+            text-align: right;
+        }
+        .ops-exec-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+            gap: 8px;
+            width: 100%;
+            direction: rtl;
+            align-items: stretch;
+        }
+        .ops-company-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 8px;
+            direction: rtl;
+            align-items: stretch;
+        }
+        .ops-exec-label,
+        .ops-company-label {
+            font-size: .72rem;
+        }
+        .ops-uniform-card {
+            box-sizing: border-box;
+            width: 100%;
+            height: 152px;
+            min-width: 0;
+            overflow: hidden;
+        }
+        .ops-exec-card {
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            gap: 4px;
+            width: 100%;
+            height: 100px;
+            min-width: 0;
+            flex: 0 0 auto;
+            overflow: hidden;
+            padding: 5px 8px;
+            border-radius: 12px;
+            text-decoration: none;
+        }
+        .ops-exec-card:hover { border-color: rgba(16, 185, 129, .45); }
+        .ops-exec-name,
+        .ops-company-name {
+            display: block;
+            max-width: 100%;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            font-size: .88rem;
+            font-weight: 800;
+            color: var(--text-main);
+        }
+        .ops-exec-main {
+            display: flex;
+            flex-direction: column;
+            gap: 1px;
+            min-width: 0;
+        }
+        .ops-exec-name { font-size: .74rem; line-height: 1.15; }
+        .ops-exec-label { font-size: .58rem; line-height: 1.15; }
+        .ops-exec-value { font-size: .78rem; line-height: 1.1; color: #10b981; }
+        .ops-exec-value.is-zero { color: var(--text-muted); }
+        .ops-company-card {
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            gap: 6px;
+            padding: 10px 13px;
+            border-radius: 12px;
+            text-decoration: none;
+        }
+        .ops-company-card:hover { border-color: rgba(212, 175, 55, .55); }
+        .ops-company-head { min-width: 0; }
+        .ops-company-balance { font-size: .92rem; color: #10b981; }
+        .ops-company-balance.is-negative { color: #ef4444; }
+        .ops-micro-stack {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            width: 100%;
+        }
+        .ops-micro {
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            justify-content: space-between;
+            gap: 6px;
+            width: 100%;
+            box-sizing: border-box;
+            padding: 4px 6px;
+            border-radius: 8px;
+            background: var(--input-bg);
+            border: 1px solid var(--border-glass);
+            box-shadow: none;
+        }
+        .ops-micro-value { font-size: .74rem; color: var(--text-main); }
+        .ops-micro-deposit .ops-micro-value { color: #3b82f6; }
+        .ops-exec-card .ops-micro-stack { gap: 3px; }
+        .ops-exec-card .ops-micro {
+            padding: 2px 5px;
+            border-radius: 7px;
+            gap: 4px;
+        }
+        .ops-exec-card .ops-micro-label {
+            font-size: .56rem;
+            line-height: 1.1;
+        }
+        .ops-exec-card .ops-micro-value {
+            font-size: .66rem;
+            line-height: 1.1;
+        }
+        .ops-summary-empty {
+            color: var(--text-muted);
+            font-size: .68rem;
+            font-weight: 800;
+            padding: 4px 2px;
+        }
+        @media (max-width: 991.98px) {
+            .ops-summary-layout {
+                grid-template-columns: 1fr;
+                grid-template-areas:
+                    "companies"
+                    "executors"
+                    "totals";
+            }
+        }
+        @media (max-width: 767.98px) {
+            .ledger-stats-bar { grid-template-columns: 1fr; }
+            .ledger-panel-list { max-height: none; }
+            .ops-summary-layout {
+                grid-template-columns: 1fr;
+                grid-template-areas:
+                    "companies"
+                    "executors"
+                    "totals";
+            }
+        }
+        @media (max-width: 575.98px) {
+            .ops-company-row,
+            .ops-exec-row { grid-template-columns: 1fr; }
+        }
     </style>
+    <link rel="stylesheet" href="/css/admin-operation-details.css?v=20260919-od2">
 </head>
 <body>
 <%
@@ -265,6 +650,11 @@
         /^سحب رصيد من نقطة بيع/,
         /^\[طلب وارد عبر API/
     ];
+    const isBankTransferOperation = (tx = {}) => {
+        const type = String(tx.transferType || '').trim().toLowerCase();
+        const canonical = String(tx.canonicalServiceKey || '').trim().toLowerCase();
+        return type === 'bank_account' || type === 'bank_transfer' || canonical === 'bank_account' || canonical === 'bank_transfer';
+    };
     const splitTxNotesForView = (tx = {}) => {
         const rawNotes = String(tx.notes || '').trim();
         const explicitCustomerNotes = String(tx.customerNotes || '').trim();
@@ -313,7 +703,18 @@
         const merged = [tx.adminNotes, tx.notes].filter(Boolean).join('\n');
         return merged.includes('--- سجل الـ API') ? merged : '';
     };
-    const transactionWorkspacePath = operationWorkspace ? '/transactions/operations' : '/transactions';
+    const formatCount = (value) => Number(value || 0).toLocaleString('en-US');
+    const formatMoney = (value) => Number(value || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const ledgerPeriodStats = (typeof periodStats !== 'undefined' && periodStats) ? periodStats : { today: { count: 0, amountEGP: 0 }, week: { count: 0, amountEGP: 0 }, month: { count: 0, amountEGP: 0 } };
+    const ledgerCompanies = Array.isArray(typeof activeClientCompanies !== 'undefined' ? activeClientCompanies : null) ? activeClientCompanies : [];
+    const ledgerExecutors = Array.isArray(typeof fundedExecutorCompanies !== 'undefined' ? fundedExecutorCompanies : null) ? fundedExecutorCompanies : [];
+    const opsWorkspace = typeof operationWorkspace !== 'undefined' && Boolean(operationWorkspace);
+    const opsSummary = opsWorkspace
+        ? ((typeof operationsSummary !== 'undefined' && operationsSummary) ? operationsSummary : { today: { egyptianEGP: 0, libyanLYD: 0, cashEGP: 0, bankEGP: 0, totalLYD: 0 }, todayDepositsTotal: 0, todayExecutorDepositsTotal: 0, activeExecutors: [], companies: [] })
+        : null;
+    const opsToday = opsSummary && opsSummary.today ? opsSummary.today : { egyptianEGP: 0, libyanLYD: 0, cashEGP: 0, bankEGP: 0, totalLYD: 0 };
+    const opsExecutors = opsSummary && Array.isArray(opsSummary.activeExecutors) ? opsSummary.activeExecutors : [];
+    const opsCompanies = opsSummary && Array.isArray(opsSummary.companies) ? opsSummary.companies : [];
     const operationAgeFor = (tx = {}) => {
         const createdAt = new Date(tx.createdAt || Date.now());
         const minutes = Math.max(0, Math.floor((Date.now() - createdAt.getTime()) / 60000));
@@ -329,22 +730,30 @@
 <button class="mobile-nav-toggle" onclick="toggleSidebar()"><i class="fa-solid fa-bars"></i></button>
 <div class="sidebar-overlay" onclick="toggleSidebar()"></div>
 
-<%- include('partials/sidebar', { activePage: 'transactions' }) %>
+<%- include('partials/sidebar', { activePage: typeof operationWorkspace !== 'undefined' && operationWorkspace ? 'transactions' : 'transactions_central' }) %>
 
 <div class="main-content">
     <div class="container-fluid">
         
+        <% if (!operationWorkspace) { %>
         <div class="d-flex justify-content-between align-items-center mb-4 tx-page-title">
-            <h3 class="fw-bold m-0" style="color: var(--text-main);"><i class="fa-solid fa-server text-primary me-2"></i> <%= operationWorkspace ? 'العمليات والتوجيه' : 'السجل المركزي والمراقبة' %> <span class="spinner-grow spinner-grow-sm text-success ms-2 opacity-50" title="تحديث تلقائي"></span></h3>
-            <a href="/reports" class="btn btn-sm fw-bold rounded-3 px-3" style="background: var(--brand-gold); color: #000;">
-                <i class="fa-solid fa-file-invoice me-1"></i> كشوفات العملاء
-            </a>
+            <h3 class="fw-bold m-0" style="color: var(--text-main);"><i class="fa-solid fa-server text-primary me-2"></i> السجل المركزي والمراقبة <span class="spinner-grow spinner-grow-sm text-success ms-2 opacity-50" title="تحديث تلقائي"></span></h3>
+            <div class="d-flex flex-wrap gap-2">
+                <a href="/transactions/deposits?party=company" class="btn btn-sm btn-outline-primary fw-bold rounded-3 px-3">إيداعات الشركات</a>
+                <a href="/transactions/deposits?party=executor" class="btn btn-sm btn-outline-success fw-bold rounded-3 px-3">إيداعات التنفيذ</a>
+                <a href="/reports" class="btn btn-sm fw-bold rounded-3 px-3" style="background: var(--brand-gold); color: #000;">
+                    <i class="fa-solid fa-file-invoice me-1"></i> كشوفات العملاء
+                </a>
+            </div>
         </div>
+        <% } %>
 
         <% if (query && query.settlementVoided) { %>
             <div class="alert alert-info fw-bold rounded-3"><i class="fa-solid fa-rotate-left me-1"></i> تم حذف أثر التسوية من الرصيد، مع الاحتفاظ بالقيد الأصلي وحركة العكس في السجل المالي.</div>
         <% } %>
-        <% if (query && query.voidError) { %>
+        <% if (query && query.voidError === 'actor') { %>
+            <div class="alert alert-danger fw-bold rounded-3"><i class="fa-solid fa-triangle-exclamation me-1"></i> تعذر تحديد المدير المنفّذ. سجّل الدخول من جديد ثم أعد المحاولة.</div>
+        <% } else if (query && query.voidError) { %>
             <div class="alert alert-danger fw-bold rounded-3"><i class="fa-solid fa-triangle-exclamation me-1"></i> تعذر حذف التسوية أو سبق إلغاؤها. راجع القيد المالي ثم أعد المحاولة.</div>
         <% } %>
         <% if (query && query.routeError) { %>
@@ -352,214 +761,173 @@
                 service_mismatch: 'لا يمكن توجيه العملية إلى هذا المنفذ لأن خدمته لا تطابق نوع العملية.',
                 financial_unavailable: 'تعذر تأكيد التعديل المالي حالياً. لم يتم حفظ أي تغيير؛ حاول لاحقاً.',
                 transaction_unavailable: 'العملية لم تعد متاحة لهذا التعديل أو أن بياناتها غير صالحة.',
+                actor_missing: 'تعذر تحديد المدير المنفّذ للعملية. سجّل الدخول من جديد ثم أعد المحاولة.',
                 update_failed: 'تعذر تنفيذ التعديل. راجع البيانات ثم أعد المحاولة أو تواصل مع الدعم.'
             }; %>
             <div class="alert alert-danger fw-bold rounded-3"><i class="fa-solid fa-triangle-exclamation me-1"></i> <%= transactionErrorMessages[query.routeError] || transactionErrorMessages.update_failed %></div>
         <% } %>
 
-        <div class="mobile-summary-strip d-lg-none mb-3">
-            <div class="mobile-summary-item">
-                <span class="mobile-summary-label">تحويلات اليوم</span>
-                <span class="mobile-summary-value text-success"><%= dailyTotals.transfersEGP.toFixed(2) %> EGP</span>
-                <span class="mobile-summary-secondary text-danger"><%= dailyTotals.transfersLYD.toFixed(2) %> LYD</span>
+        <% if (!operationWorkspace) { %>
+        <div class="ledger-stats-bar mb-3" role="group" aria-label="إجماليات العمليات الناجحة">
+            <div class="ledger-stat ledger-stat-today">
+                <div class="ledger-stat-copy">
+                    <span class="ledger-stat-label">إجمالي العمليات الناجحة اليوم</span>
+                    <strong class="ledger-stat-value"><%= formatCount(ledgerPeriodStats.today.count) %> <small>عملية</small></strong>
+                    <span class="ledger-stat-amount"><%= formatMoney(ledgerPeriodStats.today.amountEGP) %> EGP</span>
+                </div>
+                <span class="ledger-stat-icon" aria-hidden="true"><i class="fa-solid fa-circle-check"></i></span>
             </div>
-            <div class="mobile-summary-item">
-                <span class="mobile-summary-label">إيداعات اليوم</span>
-                <span class="mobile-summary-value text-primary"><%= dailyTotals.depositsEGP.toFixed(2) %> EGP</span>
+            <div class="ledger-stat ledger-stat-week">
+                <div class="ledger-stat-copy">
+                    <span class="ledger-stat-label">إجمالي الأسبوع</span>
+                    <strong class="ledger-stat-value"><%= formatCount(ledgerPeriodStats.week.count) %> <small>عملية</small></strong>
+                    <span class="ledger-stat-amount"><%= formatMoney(ledgerPeriodStats.week.amountEGP) %> EGP</span>
+                </div>
+                <span class="ledger-stat-icon" aria-hidden="true"><i class="fa-solid fa-calendar-week"></i></span>
             </div>
-            <div class="mobile-summary-item">
-                <span class="mobile-summary-label">خصومات اليوم</span>
-                <span class="mobile-summary-value text-danger"><%= dailyTotals.deductionsEGP.toFixed(2) %> EGP</span>
-            </div>
-        </div>
-
-        <div class="mobile-filter-card d-lg-none mb-3">
-            <form method="GET" action="<%= transactionWorkspacePath %>" id="mobileTransactionsFilterForm">
-                <input type="hidden" name="filterType" id="mobileFilterTypeInput" value="<%= typeof filterType !== 'undefined' ? filterType : '' %>">
-                <div class="mb-3">
-                    <label class="form-label fw-bold small text-muted">البحث في السجل</label>
-                    <div class="input-group shadow-sm" style="border-radius: 14px; overflow: hidden; border: 1px solid var(--border-glass);">
-                        <span class="input-group-text border-0" style="background: var(--card-bg); color: var(--text-muted);"><i class="fa-solid fa-magnifying-glass"></i></span>
-                        <input type="text" id="mobileSearchInput" name="search" class="form-control border-0 ps-0 mono-num" placeholder="رقم عملية، عميل، هاتف..." value="<%= typeof search !== 'undefined' ? search : '' %>" oninput="searchMobileCards(this.value)" style="background: var(--card-bg); color: var(--text-main); font-weight: bold;">
-                    </div>
+            <div class="ledger-stat ledger-stat-month">
+                <div class="ledger-stat-copy">
+                    <span class="ledger-stat-label">إجمالي الشهر</span>
+                    <strong class="ledger-stat-value"><%= formatCount(ledgerPeriodStats.month.count) %> <small>عملية</small></strong>
+                    <span class="ledger-stat-amount"><%= formatMoney(ledgerPeriodStats.month.amountEGP) %> EGP</span>
                 </div>
-                <div class="row g-2">
-                    <div class="col-12">
-                        <label class="form-label fw-bold small text-muted">حالة العملية</label>
-                        <select id="mobileStatusFilter" name="status" class="form-select fw-bold">
-                            <option value="">كل الحالات</option>
-                            <option value="pending" <%= typeof statusFilter !== 'undefined' && statusFilter === 'pending' ? 'selected' : '' %>>معلق</option>
-                            <option value="processing" <%= typeof statusFilter !== 'undefined' && statusFilter === 'processing' ? 'selected' : '' %>>توجيه للمنفذ</option>
-                            <option value="accepted" <%= typeof statusFilter !== 'undefined' && statusFilter === 'accepted' ? 'selected' : '' %>>قيد العمل</option>
-                            <option value="completed" <%= typeof statusFilter !== 'undefined' && statusFilter === 'completed' ? 'selected' : '' %>>مكتمل</option>
-                            <option value="deposit_pending" <%= typeof statusFilter !== 'undefined' && statusFilter === 'deposit_pending' ? 'selected' : '' %>>طلب إيداع</option>
-                            <option value="deposit" <%= typeof statusFilter !== 'undefined' && statusFilter === 'deposit' ? 'selected' : '' %>>إيداع</option>
-                            <option value="deduction" <%= typeof statusFilter !== 'undefined' && statusFilter === 'deduction' ? 'selected' : '' %>>خصم</option>
-                            <option value="rejected" <%= typeof statusFilter !== 'undefined' && statusFilter === 'rejected' ? 'selected' : '' %>>ملغي</option>
-                        </select>
-                    </div>
-                    <div class="col-6">
-                        <label class="form-label fw-bold small text-muted">من تاريخ</label>
-                        <input type="date" id="mobileFromDateInput" name="fromDate" class="form-control fw-bold" value="<%= typeof fromDate !== 'undefined' ? fromDate : '' %>">
-                    </div>
-                    <div class="col-6">
-                        <label class="form-label fw-bold small text-muted">إلى تاريخ</label>
-                        <input type="date" id="mobileToDateInput" name="toDate" class="form-control fw-bold" value="<%= typeof toDate !== 'undefined' ? toDate : '' %>">
-                    </div>
-                </div>
-
-                <div class="mobile-filter-pills mt-3">
-                    <button type="button" class="btn btn-light fw-bold mobile-filter-pill <%= !filterType ? 'active' : '' %>" onclick="setMobileFilterType('', this)">كل العمليات</button>
-                    <button type="button" class="btn btn-light fw-bold mobile-filter-pill <%= filterType === 'cash_transfer' ? 'active' : '' %>" onclick="setMobileFilterType('cash_transfer', this)">تحويلات الكاش</button>
-                    <button type="button" class="btn btn-light fw-bold mobile-filter-pill <%= filterType === 'deposit_deduction' ? 'active' : '' %>" onclick="setMobileFilterType('deposit_deduction', this)">إيداع وخصم</button>
-                    <button type="button" class="btn btn-light fw-bold mobile-filter-pill <%= filterType === 'cancelled' ? 'active' : '' %>" onclick="setMobileFilterType('cancelled', this)">الملغية</button>
-                </div>
-
-                <div class="d-flex gap-2 mt-3">
-                    <button type="submit" class="btn btn-primary fw-bold flex-fill"><i class="fa-solid fa-filter me-1"></i> عرض السجل</button>
-                    <button type="button" class="btn fw-bold" style="background: var(--brand-gold); color: #000;" onclick="printReport()"><i class="fa-solid fa-print"></i></button>
-                    <a href="<%= transactionWorkspacePath %>" class="btn btn-light fw-bold"><i class="fa-solid fa-rotate-left"></i></a>
-                </div>
-            </form>
-        </div>
-
-        <div class="row g-3 mb-4 d-none d-lg-flex">
-            <div class="col-md-4">
-                <div class="data-card summary-box box-success m-0">
-                    <div>
-                        <h6 class="fw-bold text-muted mb-2">إجمالي تحويلات اليوم (مكتملة)</h6>
-                        <div class="summary-val text-success mb-1"><%= dailyTotals.transfersEGP.toFixed(2) %> <small class="fs-6">EGP</small></div>
-                        <div class="text-danger fw-bold small mono-num"><%= dailyTotals.transfersLYD.toFixed(2) %> LYD</div>
-                    </div>
-                    <div class="summary-icon text-success"><i class="fa-solid fa-money-bill-transfer"></i></div>
-                </div>
-            </div>
-            <div class="col-md-4">
-                <div class="data-card summary-box box-primary m-0">
-                    <div>
-                        <h6 class="fw-bold text-muted mb-2">إجمالي إيداعات اليوم</h6>
-                        <div class="summary-val" style="color: #3b82f6;"><%= dailyTotals.depositsEGP.toFixed(2) %> <small class="fs-6">EGP</small></div>
-                    </div>
-                    <div class="summary-icon text-primary"><i class="fa-solid fa-hand-holding-dollar"></i></div>
-                </div>
-            </div>
-            <div class="col-md-4">
-                <div class="data-card summary-box box-danger m-0">
-                    <div>
-                        <h6 class="fw-bold text-muted mb-2">إجمالي خصومات اليوم</h6>
-                        <div class="summary-val text-danger"><%= dailyTotals.deductionsEGP.toFixed(2) %> <small class="fs-6">EGP</small></div>
-                    </div>
-                    <div class="summary-icon text-danger"><i class="fa-solid fa-arrow-trend-down"></i></div>
-                </div>
+                <span class="ledger-stat-icon" aria-hidden="true"><i class="fa-solid fa-calendar-days"></i></span>
             </div>
         </div>
 
-        <div class="data-card border-0 mb-4 p-4 d-none d-lg-block">
-            <form method="GET" action="<%= transactionWorkspacePath %>" class="row g-3 align-items-end" id="transactionsFilterForm">
-                <input type="hidden" name="filterType" value="<%= typeof filterType !== 'undefined' ? filterType : '' %>">
-                <div class="col-md-3">
-                    <label class="form-label fw-bold small text-muted">البحث الشامل</label>
-                    <div class="input-group">
-                        <span class="input-group-text"><i class="fa-solid fa-magnifying-glass"></i></span>
-                        <input type="text" id="searchInput" name="search" class="form-control border-start-0 ps-0 mono-num fs-6" placeholder="الرقم، الحساب..." value="<%= typeof search !== 'undefined' ? search : '' %>">
+        <div class="row g-3 mb-4 ledger-overview-cols">
+            <div class="col-lg-6">
+                <section class="ledger-panel">
+                    <div class="ledger-panel-head">
+                        <div>
+                            <h6><i class="fa-solid fa-building text-primary ms-1"></i> الشركات النشطة</h6>
+                            <p>أرصدة الشركة</p>
+                        </div>
+                        <span class="ledger-panel-count"><%= formatCount(ledgerCompanies.length) %></span>
                     </div>
-                </div>
-                <div class="col-md-2">
-                    <label class="form-label fw-bold small text-muted">حالة العملية</label>
-                    <select id="statusFilter" name="status" class="form-select fw-bold">
-                        <option value="">الجميع</option>
-                        <option value="pending" <%= typeof statusFilter !== 'undefined' && statusFilter === 'pending' ? 'selected' : '' %>>⏳ معلق</option>
-                        <option value="processing" <%= typeof statusFilter !== 'undefined' && statusFilter === 'processing' ? 'selected' : '' %>>⚙️ توجيه للمنفذ</option>
-                        <option value="accepted" <%= typeof statusFilter !== 'undefined' && statusFilter === 'accepted' ? 'selected' : '' %>>👤 قيد العمل</option>
-                        <option value="completed" <%= typeof statusFilter !== 'undefined' && statusFilter === 'completed' ? 'selected' : '' %>>✅ مكتمل</option>
-                        <option value="deposit_pending" <%= typeof statusFilter !== 'undefined' && statusFilter === 'deposit_pending' ? 'selected' : '' %>>🖐️ طلب إيداع</option>
-                        <option value="deposit" <%= typeof statusFilter !== 'undefined' && statusFilter === 'deposit' ? 'selected' : '' %>>💰 إيداع (سداد)</option>
-                        <option value="deduction" <%= typeof statusFilter !== 'undefined' && statusFilter === 'deduction' ? 'selected' : '' %>>📉 خصم رصيد</option>
-                        <option value="rejected" <%= typeof statusFilter !== 'undefined' && statusFilter === 'rejected' ? 'selected' : '' %>>❌ ملغي</option>
-                    </select>
-                </div>
-                <div class="col-md-2">
-                    <label class="form-label fw-bold small text-muted">من تاريخ</label>
-                    <input type="date" id="fromDateInput" name="fromDate" class="form-control fw-bold" value="<%= typeof fromDate !== 'undefined' ? fromDate : '' %>">
-                </div>
-                <div class="col-md-2">
-                    <label class="form-label fw-bold small text-muted">إلى تاريخ</label>
-                    <input type="date" id="toDateInput" name="toDate" class="form-control fw-bold" value="<%= typeof toDate !== 'undefined' ? toDate : '' %>">
-                </div>
-                <div class="col-md-3 d-flex gap-2">
-                    <button type="submit" class="btn btn-primary fw-bold px-4 flex-fill"><i class="fa-solid fa-filter me-1"></i> عرض</button>
-                    <a href="<%= transactionWorkspacePath %>" class="btn btn-light fw-bold"><i class="fa-solid fa-rotate-left"></i></a>
-                    <button type="button" class="btn fw-bold" style="background: var(--brand-gold); color: #000;" onclick="printReport()"><i class="fa-solid fa-print"></i></button>
-                </div>
-            </form>
-        </div>
-
-        <% if (operationWorkspace) { %>
-        <div class="mb-4 d-none d-lg-block">
-            <div class="d-flex justify-content-start align-items-center gap-2 p-2 rounded-4 shadow-sm flex-wrap" style="background: var(--card-bg) !important; border: 1px solid var(--border-glass) !important;">
-                <span class="fw-bold me-3 text-muted small ms-2"><i class="fa-solid fa-filter text-primary"></i> حالات العمليات:</span>
-                <% const operationStatusChips = [{ value: '', label: 'الكل', icon: 'fa-list-check' }, { value: 'pending', label: 'معلقة', icon: 'fa-clock' }, { value: 'processing', label: 'موجهة', icon: 'fa-share' }, { value: 'accepted', label: 'قيد العمل', icon: 'fa-person-digging' }, { value: 'completed', label: 'مكتملة', icon: 'fa-circle-check' }, { value: 'rejected', label: 'ملغية', icon: 'fa-ban' }, { value: 'cancelled_by_admin', label: 'ملغية إداريًا', icon: 'fa-user-slash' }]; %>
-                <% operationStatusChips.forEach(chip => { %>
-                    <a href="?fromDate=<%= fromDate %>&toDate=<%= toDate %>&search=<%= encodeURIComponent(search) %>&status=<%= chip.value %><%= executorId ? `&executorId=${executorId}` : '' %>" class="btn fw-bold px-3 py-2 border-0 rounded-3 filter-btn <%= statusFilter === chip.value ? 'active' : '' %>" style="font-size:.85rem;"><i class="fa-solid <%= chip.icon %> me-1"></i><%= chip.label %></a>
-                <% }); %>
+                    <div class="ledger-panel-list">
+                        <% if (ledgerCompanies.length) { %>
+                            <% ledgerCompanies.forEach(company => { %>
+                                <a class="ledger-balance-row" href="/company/<%= company.id %>" title="فتح ملف <%= company.name %>">
+                                    <span class="ledger-balance-name"><%= company.name %><small class="ledger-balance-meta"><%= company.accountCode ? ('كود ' + company.accountCode) : 'بدون كود حساب' %></small></span>
+                                    <span class="ledger-balance-value <%= Number(company.balance) < 0 ? 'is-negative' : '' %>" dir="ltr"><%= formatMoney(company.balance) %> LYD</span>
+                                </a>
+                            <% }); %>
+                        <% } else { %>
+                            <div class="ledger-empty"><i class="fa-solid fa-building ms-1 opacity-50"></i> لا توجد شركات نشطة حالياً.</div>
+                        <% } %>
+                    </div>
+                </section>
             </div>
-        </div>
-        <% } else { %>
-        <!-- أزرار التصفية السريعة بالاعلي -->
-        <div class="mb-4 d-none d-lg-block">
-            <div class="d-flex justify-content-start align-items-center gap-2 p-2 rounded-4 shadow-sm" style="background: var(--card-bg) !important; border: 1px solid var(--border-glass) !important;">
-                <span class="fw-bold me-3 text-muted small ms-2"><i class="fa-solid fa-tags text-primary"></i> تصفية سريعة:</span>
-                
-                <a href="?filterType=&fromDate=<%= fromDate %>&toDate=<%= toDate %>&search=<%= search %>&status=<%= statusFilter %>" 
-                   class="btn fw-bold px-4 py-2 border-0 rounded-3 filter-btn <%= !filterType ? 'active' : '' %>" 
-                   style="font-size: 0.9rem;">
-                    <i class="fa-solid fa-list-check me-1"></i> جميع العمليات
-                </a>
-                
-                <a href="?filterType=cash_transfer&fromDate=<%= fromDate %>&toDate=<%= toDate %>&search=<%= search %>&status=<%= statusFilter %>" 
-                   class="btn fw-bold px-4 py-2 border-0 rounded-3 filter-btn <%= filterType === 'cash_transfer' ? 'active' : '' %>" 
-                   style="font-size: 0.9rem;">
-                    <i class="fa-solid fa-mobile-screen me-1"></i> تحويلات الكاش
-                </a>
-                
-                <a href="?filterType=deposit_deduction&fromDate=<%= fromDate %>&toDate=<%= toDate %>&search=<%= search %>&status=<%= statusFilter %>" 
-                   class="btn fw-bold px-4 py-2 border-0 rounded-3 filter-btn <%= filterType === 'deposit_deduction' ? 'active' : '' %>" 
-                   style="font-size: 0.9rem;">
-                    <i class="fa-solid fa-hand-holding-dollar me-1"></i> الإيداعات والخصم
-                </a>
-                
-                <a href="?filterType=balance_transfer&fromDate=<%= fromDate %>&toDate=<%= toDate %>&search=<%= search %>&status=<%= statusFilter %>" 
-                   class="btn fw-bold px-4 py-2 border-0 rounded-3 filter-btn <%= filterType === 'balance_transfer' ? 'active' : '' %>" 
-                   style="font-size: 0.9rem;">
-                    <i class="fa-solid fa-right-left me-1"></i> التحويلات بين العملاء
-                </a>
-
-                <a href="?filterType=cancelled&fromDate=<%= fromDate %>&toDate=<%= toDate %>&search=<%= search %>&status=<%= statusFilter %>" 
-                   class="btn fw-bold px-4 py-2 border-0 rounded-3 filter-btn <%= filterType === 'cancelled' ? 'active' : '' %>" 
-                   style="font-size: 0.9rem;">
-                    <i class="fa-solid fa-ban me-1"></i> العمليات الملغية
-                </a>
+            <div class="col-lg-6">
+                <section class="ledger-panel">
+                    <div class="ledger-panel-head">
+                        <div>
+                            <h6><i class="fa-solid fa-user-gear text-success ms-1"></i> الشركات المنفذة</h6>
+                            <p>رصيد متاح أكبر من صفر</p>
+                        </div>
+                        <span class="ledger-panel-count"><%= formatCount(ledgerExecutors.length) %></span>
+                    </div>
+                    <div class="ledger-panel-list">
+                        <% if (ledgerExecutors.length) { %>
+                            <% ledgerExecutors.forEach(group => { %>
+                                <a class="ledger-balance-row" href="/executor/<%= group.id %>" title="فتح ملف <%= group.name %>">
+                                    <span class="ledger-balance-name"><%= group.name %><small class="ledger-balance-meta"><%= group.isManager ? 'وكالة تنفيذ' : (group.balanceSource === 'api_service' ? 'API · رصيد خدمة' : 'منفذ · رصيد داخلي') %></small></span>
+                                    <span class="ledger-balance-value" dir="ltr"><%= formatMoney(group.balance) %> EGP</span>
+                                </a>
+                            <% }); %>
+                        <% } else { %>
+                            <div class="ledger-empty"><i class="fa-solid fa-wallet ms-1 opacity-50"></i> لا توجد شركة منفذة برصيد متاح حالياً.</div>
+                        <% } %>
+                    </div>
+                </section>
             </div>
         </div>
         <% } %>
 
-        <% if (operationWorkspace) { %>
-        <section class="executor-balance-panel d-none d-xl-flex mb-3">
-            <div class="executor-balance-header">
-                <div class="d-flex justify-content-between gap-2 align-items-start"><div class="fw-bold" style="color: var(--text-main);"><i class="fa-solid fa-user-gear text-success ms-1"></i> المنفذون الجاهزون</div><a class="btn btn-sm btn-outline-success" title="استعلام رصيد API الآن" href="?refreshBalances=1&fromDate=<%= fromDate %>&toDate=<%= toDate %>&search=<%= encodeURIComponent(search) %>&status=<%= statusFilter %><%= executorId ? `&executorId=${executorId}` : '' %>"><i class="fa-solid fa-rotate"></i></a></div>
-                <div class="small text-muted fw-bold mt-1"><% if (executorId) { %><a class="text-decoration-none" href="?fromDate=<%= fromDate %>&toDate=<%= toDate %>&search=<%= encodeURIComponent(search) %>&status=<%= statusFilter %>"><i class="fa-solid fa-xmark ms-1"></i>إلغاء فلتر المنفذ</a><% } else { %>نشطون وبرصيد متاح للتوجيه<% } %></div>
-            </div>
-            <div class="executor-balance-list">
-                <% if (executorBalanceGroups && executorBalanceGroups.length) { %>
-                    <% executorBalanceGroups.forEach(group => { %>
-                        <a class="executor-balance-row <%= executorId === group.id ? 'is-selected' : '' %>" href="?executorId=<%= group.id %>&fromDate=<%= fromDate %>&toDate=<%= toDate %>&search=<%= encodeURIComponent(search) %>&status=<%= statusFilter %>" title="عرض عمليات <%= group.name %>">
-                            <span class="executor-balance-name"><%= group.name %><small class="executor-balance-meta"><%= group.balanceSource === 'api_service' ? 'API · رصيد خدمة مباشر' : 'يدوي · رصيد داخلي' %></small></span>
-                            <span class="executor-balance-value" dir="ltr"><%= Number(group.balance || 0).toFixed(2) %> EGP<small class="executor-balance-meta">تحديث <%= group.checkedAt ? new Date(group.checkedAt).toLocaleTimeString('en-GB', { timeZone: 'Africa/Tripoli', hour: '2-digit', minute: '2-digit' }) : '—' %></small></span>
-                        </a>
-                    <% }); %>
-                <% } else { %>
-                    <div class="text-center text-muted small fw-bold py-3 px-3 flex-grow-1"><i class="fa-solid fa-wallet ms-1 opacity-50"></i>لا يوجد منفذ نشط برصيد متاح حالياً.</div>
-                <% } %>
+        <% if (opsSummary) { %>
+        <section class="ops-summary-strip" data-ops-summary-strip="operations" aria-label="ملخص العمليات">
+            <div class="ops-summary-layout">
+                <div class="ops-summary-companies">
+                    <div class="ops-company-row">
+                        <% if (opsCompanies.length) { %>
+                            <% opsCompanies.forEach(function(company) { %>
+                                <a class="ops-company-card ops-uniform-card" data-ops-company="<%= company.id %>" href="/company/<%= company.id %>" title="<%= company.name %>">
+                                    <span class="ops-company-head">
+                                        <span class="ops-company-name"><%= company.name %></span>
+                                        <span class="ops-company-label">الرصيد المتاح</span>
+                                        <strong class="ops-company-balance <%= Number(company.balance) < 0 ? 'is-negative' : '' %>"><%= formatMoney(company.balance) %> <small>LYD</small></strong>
+                                    </span>
+                                    <div class="ops-micro-stack">
+                                        <span class="ops-micro ops-micro-completed" data-ops-micro="completed" title="عمليات مكتملة اليوم">
+                                            <span class="ops-micro-label">عمليات اليوم</span>
+                                            <strong class="ops-micro-value" data-ops-completed="<%= Number(company.completedToday) || 0 %>"><%= formatCount(company.completedToday) %></strong>
+                                        </span>
+                                        <span class="ops-micro ops-micro-deposit" data-ops-micro="deposit" title="إيداع الشركة اليوم">
+                                            <span class="ops-micro-label">إيداع اليوم</span>
+                                            <strong class="ops-micro-value" data-ops-company-deposit="<%= Number(company.depositsToday) || 0 %>"><%= formatMoney(company.depositsToday) %></strong>
+                                        </span>
+                                    </div>
+                                </a>
+                            <% }); %>
+                        <% } else { %>
+                            <div class="ops-summary-empty">لا توجد شركات لعرضها.</div>
+                        <% } %>
+                    </div>
+                </div>
+                <div class="ops-summary-executors">
+                    <div class="ops-exec-head">المنفذين النشطين</div>
+                    <div class="ops-exec-row">
+                        <% if (opsExecutors.length) { %>
+                            <% opsExecutors.forEach(function(executor) { %>
+                                <a class="ops-exec-card" data-ops-executor="<%= executor.id %>" href="/executor/<%= executor.id %>" title="<%= executor.name %>">
+                                    <span class="ops-exec-main">
+                                        <span class="ops-exec-name"><%= executor.name %></span>
+                                        <span class="ops-exec-label">إجمالي الرصيد معهم</span>
+                                        <strong class="ops-exec-value <%= Number(executor.balance) === 0 ? 'is-zero' : '' %>"><%= formatMoney(executor.balance) %> <small>EGP</small></strong>
+                                    </span>
+                                    <div class="ops-micro-stack">
+                                        <span class="ops-micro ops-micro-completed" data-ops-micro="completed" title="عمليات مكتملة اليوم">
+                                            <span class="ops-micro-label">عمليات اليوم</span>
+                                            <strong class="ops-micro-value" data-ops-completed="<%= Number(executor.completedToday) || 0 %>"><%= formatCount(executor.completedToday) %></strong>
+                                        </span>
+                                        <span class="ops-micro ops-micro-deposit" data-ops-micro="deposit" title="إيداع المنفذ اليوم">
+                                            <span class="ops-micro-label">إيداع اليوم</span>
+                                            <strong class="ops-micro-value" data-ops-executor-deposit="<%= Number(executor.depositsToday) || 0 %>"><%= formatMoney(executor.depositsToday) %></strong>
+                                        </span>
+                                    </div>
+                                </a>
+                            <% }); %>
+                        <% } else { %>
+                            <div class="ops-summary-empty">لا يوجد منفذون نشطون.</div>
+                        <% } %>
+                    </div>
+                </div>
+                <div class="ops-summary-totals">
+                        <article class="ops-mini-card ops-today" data-ops-today-totals>
+                            <span class="ops-mini-label">إجمالي اليوم</span>
+                            <div class="ops-currency-row">
+                                <span class="ops-currency-name">إجمالي الكاش</span>
+                                <strong class="ops-currency-value" data-ops-cash-egp="<%= Number(opsToday.cashEGP) || 0 %>"><%= formatMoney(opsToday.cashEGP) %> <small>ج.م</small></strong>
+                            </div>
+                            <div class="ops-currency-row">
+                                <span class="ops-currency-name">إجمالي الحساب البنكي</span>
+                                <strong class="ops-currency-value" data-ops-bank-egp="<%= Number(opsToday.bankEGP) || 0 %>"><%= formatMoney(opsToday.bankEGP) %> <small>ج.م</small></strong>
+                            </div>
+                            <div class="ops-currency-row ops-today-sum">
+                                <span class="ops-currency-name">المجموع</span>
+                                <strong class="ops-currency-value" data-ops-total-lyd="<%= Number(opsToday.totalLYD) || 0 %>"><%= formatMoney(opsToday.totalLYD) %> <small>د.ل</small></strong>
+                            </div>
+                        </article>
+                        <article class="ops-mini-card ops-executor-deposits" data-ops-executor-deposits-total>
+                            <span class="ops-mini-label">إيداعات المنفذين</span>
+                            <strong class="ops-mini-value" data-ops-executor-deposits="<%= Number(opsSummary.todayExecutorDepositsTotal) || 0 %>"><%= formatMoney(opsSummary.todayExecutorDepositsTotal) %> <small>EGP</small></strong>
+                        </article>
+                        <article class="ops-mini-card ops-deposits" data-ops-deposits-total>
+                            <span class="ops-mini-label">إيداعات الشركات</span>
+                            <strong class="ops-mini-value" data-ops-deposits="<%= Number(opsSummary.todayDepositsTotal) || 0 %>"><%= formatMoney(opsSummary.todayDepositsTotal) %> <small>LYD</small></strong>
+                        </article>
+                    </div>
             </div>
         </section>
         <% } %>
@@ -620,7 +988,10 @@
                                 <div class="mono-num text-dark fw-bold fs-6" dir="ltr"><%= tx.vodafoneNumber || tx.accountNumber || '---' %></div>
                                 <div class="mt-1">
                                     <% let numStr = tx.vodafoneNumber || tx.accountNumber || ''; %>
-                                    <% if(tx.transferType === 'post_account') { %> <span class="badge bg-warning text-dark opacity-75"><i class="fa-solid fa-envelope"></i> بريد</span>
+                                    <% if (isBankTransferOperation(tx)) { %> <div class="fw-bold small mt-1">تحويل بنكي</div>
+                                    <% const bankLabel = typeof bankLabelForTransaction === 'function' ? bankLabelForTransaction(tx) : ''; %>
+                                    <% if (bankLabel) { %><div class="small text-muted"><%= bankLabel %></div><% } %>
+                                    <% } else if(tx.transferType === 'post_account') { %> <span class="badge bg-warning text-dark opacity-75"><i class="fa-solid fa-envelope"></i> بريد</span>
                                     <% } else if(tx.transferType === 'post_card') { %> <span class="badge bg-info text-dark opacity-75"><i class="fa-solid fa-id-card"></i> بطاقة</span>
                                     <% } else if(tx.status === 'deposit' || tx.status === 'deduction') { %> <span class="badge bg-secondary opacity-75"><i class="fa-solid fa-money-bill-wave"></i> تسوية</span>
                                     <% } else { %> 
@@ -646,11 +1017,12 @@
 
                             <td>
                                 <% if(tx.status === 'deposit' || tx.status === 'deduction') { %> 
-                                    <span class="text-muted">---</span>
+                                    <% if (!tx.performedByAdminName) { %><span class="text-muted">---</span><% } %>
                                 <% } else { %>
                                     <div class="fw-bold text-primary small"><i class="fa-solid fa-building-shield me-1 opacity-50"></i> <%= executorDisplay.companyName || 'تنفيذ مستقل' %></div>
                                     <div class="text-muted small mt-1"><i class="fa-solid fa-user-gear me-1 opacity-50"></i> <%= executorDisplay.executorName || 'غير محدد' %></div>
                                 <% } %>
+                                <%- include('partials/admin_actor_lines', { tx }) %>
                             </td>
 
                             <td class="small text-wrap" style="max-width: 150px; line-height: 1.4;">
@@ -672,7 +1044,7 @@
                                 <% } else if(tx.status === 'deposit_pending') { %> <span class="badge-st st-wait"><i class="fa-solid fa-hand"></i> طلب إيداع</span>
                                 <% } else if(tx.status === 'deposit') { %> <span class="badge-st st-done"><i class="fa-solid fa-arrow-down"></i> إيداع</span>
                                 <% } else if(tx.status === 'deduction') { %> <span class="badge-st" style="background: rgba(108,117,125,0.1); color:#6c757d;"><i class="fa-solid fa-arrow-up"></i> خصم</span>
-                                <% } else { %> <span class="badge-st st-fail"><i class="fa-solid fa-ban"></i> ملغي</span> <% } %>
+                                <% } else { %> <span class="badge-st st-fail"><i class="fa-solid fa-ban"></i> ملغاة</span> <% } %>
                                 <% if (operationWorkspace) { %><span class="operation-age <%= operationAge.isLate ? 'is-late' : '' %>"><i class="fa-regular fa-clock ms-1"></i><%= operationAge.label %></span><% } %>
                             </td>
 
@@ -739,7 +1111,7 @@
                                         <% } %>
 
                                         <% if(['pending', 'processing', 'accepted', 'completed'].includes(tx.status) && tx.transferType !== 'balance_transfer') { %>
-                                            <form action="/transaction/<%= tx._id %>/global-cancel" method="POST" class="m-0" onsubmit="return promptGlobalCancel(this)">
+                                            <form action="/transaction/<%= tx._id %>/global-cancel" method="POST" class="m-0 js-transaction-action">
                                                 <input type="hidden" name="reason" class="cancel-reason-input">
                                                 <button class="btn-action-sm undo" title="تراجع"><i class="fa-solid fa-rotate-left"></i></button>
                                             </form>
@@ -804,7 +1176,7 @@
                                 </div>
                                 <% if(tx.transferType === 'balance_transfer') { %> <span class="badge bg-success opacity-75 mt-1 rounded-pill"><i class="fa-solid fa-check"></i> مكتمل</span>
                                 <% } else if(tx.status === 'completed') { %> <span class="badge bg-success opacity-75 mt-1 rounded-pill"><i class="fa-solid fa-check"></i> مكتملة</span>
-                                <% } else if(tx.status === 'rejected' || tx.status === 'cancelled_by_admin') { %> <span class="badge bg-danger opacity-75 mt-1 rounded-pill"><i class="fa-solid fa-xmark"></i> ملغية</span>
+                                <% } else if(tx.status === 'rejected' || tx.status === 'cancelled_by_admin') { %> <span class="badge bg-danger opacity-75 mt-1 rounded-pill"><i class="fa-solid fa-xmark"></i> ملغاة</span>
                                 <% } else if(tx.status === 'pending') { %> <span class="badge bg-warning text-dark opacity-75 mt-1 rounded-pill"><i class="fa-solid fa-pause"></i> معلقة</span>
                                 <% } else if(tx.status === 'processing') { %> <span class="badge bg-info text-dark opacity-75 mt-1 rounded-pill"><i class="fa-solid fa-spinner fa-spin"></i> توجيه</span>
                                 <% } else if(tx.status === 'accepted') { %> <span class="badge bg-primary opacity-75 mt-1 rounded-pill"><i class="fa-solid fa-user-gear"></i> قيد العمل</span>
@@ -825,7 +1197,12 @@
                                     <div class="text-muted mt-1" style="font-size: 0.75rem;"><i class="fa-solid fa-user-check opacity-50 me-1"></i> عميل مباشر</div>
                                 <% } %>
                             </div>
-                            <div class="mono-num small fw-bold text-end" dir="ltr" style="color: var(--brand-primary);"><%= tx.vodafoneNumber || tx.accountNumber || '---' %></div>
+                            <div class="text-end">
+                                <div class="mono-num small fw-bold" dir="ltr" style="color: var(--brand-primary);"><%= tx.vodafoneNumber || tx.accountNumber || '---' %></div>
+                                <% if (isBankTransferOperation(tx)) { %><div class="fw-bold small">تحويل بنكي</div><% } %>
+                                <% const mobileBankLabel = typeof bankLabelForTransaction === 'function' ? bankLabelForTransaction(tx) : ''; %>
+                                <% if (mobileBankLabel) { %><div class="small text-muted"><%= mobileBankLabel %></div><% } %>
+                            </div>
                         </div>
                         <% if (mobileNoteView.customerText) { %>
                             <div class="small fw-bold mt-2 pt-2" style="border-top: 1px dashed var(--border-glass); white-space: pre-line; color: var(--text-muted);">
@@ -837,7 +1214,10 @@
                             <div class="small mt-2 pt-2" style="border-top: 1px dashed var(--border-glass); color: var(--text-muted);">
                                 <div class="fw-bold" style="color: var(--text-main);"><i class="fa-solid fa-building-shield text-primary me-1"></i><%= mobileExecutorDisplay.companyName || 'تنفيذ مستقل' %></div>
                                 <div class="mt-1"><i class="fa-solid fa-user-gear opacity-50 me-1"></i><%= mobileExecutorDisplay.executorName || 'غير محدد' %></div>
+                                <%- include('partials/admin_actor_lines', { tx }) %>
                             </div>
+                        <% } else { %>
+                            <%- include('partials/admin_actor_lines', { tx }) %>
                         <% } %>
 
                         <% 
@@ -877,7 +1257,7 @@
                                 <% } %>
                                 
                                 <% if(canGlobalCancel) { %>
-                                    <form action="/transaction/<%= tx._id %>/global-cancel" method="POST" class="m-0" onsubmit="return promptGlobalCancel(this)">
+                                    <form action="/transaction/<%= tx._id %>/global-cancel" method="POST" class="m-0 js-transaction-action">
                                         <input type="hidden" name="reason" class="cancel-reason-input">
                                         <button type="submit" class="btn btn-sm fw-bold rounded-3 px-3" style="background: rgba(239, 68, 68, 0.1); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.2);" title="إلغاء العملية"><i class="fa-solid fa-ban"></i></button>
                                     </form>
@@ -921,44 +1301,61 @@
     </div>
 </div>
 
-<div class="modal fade" id="txModal" tabindex="-1">
-    <div class="modal-dialog modal-xl modal-dialog-centered">
-        <div class="modal-content border-0">
-            <div class="modal-header border-0 pb-0 justify-content-center position-relative">
-                <button type="button" class="btn-close position-absolute" style="left:20px; filter:invert(0.5);" data-bs-dismiss="modal"></button>
-                <h5 class="fw-bold m-0 text-center text-primary"><i class="fa-solid fa-receipt me-2"></i> تـفـاصـيـل الـعـمـلـيـة الـشـامـلـة</h5>
-                <button class="btn btn-warning btn-sm fw-bold shadow-sm position-absolute" style="right:20px; border-radius: 8px; color: #000;" onclick="printInvoice()">
-                    <i class="fa-solid fa-print me-1"></i> الفاتورة
-                </button>
-            </div>
-            <div class="modal-body p-4">
-                <div class="row g-4">
-                    <div class="col-md-7" id="m_detail_container">
-                        <div class="info-panel" id="m_detail_panel">
-                            <!-- سيتم حقن المحتوى ديناميكياً بناءً على نوع العملية -->
-                        </div>
+<div class="modal fade" id="txModal" tabindex="-1" aria-labelledby="odTitle">
+    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable od-modal-dialog">
+        <div class="modal-content od-modal-content border-0">
+            <div class="od-header" id="od-header">
+                <div class="od-header-toolbar">
+                    <div class="od-header-actions">
+                        <button type="button" class="btn btn-sm od-copy-btn" id="od-copy-id" title="نسخ رقم العملية">
+                            <i class="fa-regular fa-copy me-1"></i> نسخ رقم العملية
+                        </button>
+                        <button type="button" class="btn btn-sm od-invoice-btn fw-bold" id="od-print-invoice" onclick="printInvoice()">
+                            <i class="fa-solid fa-print me-1"></i> الفاتورة
+                        </button>
                     </div>
-                    <div class="col-lg-5" id="m_timeline_container">
-                        <div class="info-panel">
-                            <div class="panel-title text-danger"><i class="fa-solid fa-microchip ms-2"></i> تتبع دورة حياة التنفيذ</div>
-                            <div class="timeline-box">
-                                <div class="timeline-item"><span class="data-label">وقت إنشاء الطلب:</span><span class="data-val small mono-num text-muted" id="m_t_created"></span></div>
-                                <div class="timeline-item"><span class="data-label">الموظف المنفذ:</span><span class="data-val text-primary" id="m_t_executor"></span></div>
-                                <div class="timeline-item"><span class="data-label">وقت القبول:</span><span class="data-val small mono-num text-muted" id="m_t_accepted"></span></div>
-                                <div class="timeline-item"><span class="data-label">وقت الإكمال النهائي:</span><span class="data-val small text-success mono-num" id="m_t_completed"></span></div>
-                                <div class="timeline-item" style="padding:0;"><span class="data-label">حالة العملية:</span><div id="m_t_status"></div></div>
-                            </div>
-                        </div>
-                        
-                        <div class="mt-4 text-center fw-bold mb-3 text-primary"><i class="fa-solid fa-camera-retro me-2"></i> إثباتات التنفيذ (Screenshots)</div>
-                        <div class="position-relative p-2 border rounded-4" id="m_proof_container" style="background: rgba(0,0,0,0.02); min-height: 200px; display: flex; align-items: center; justify-content: center; flex-direction: column;">
-                            <div class="text-muted text-center"><i class="fa-solid fa-image fs-1 d-block mb-2 opacity-25"></i> جاري التحميل...</div>
-                        </div>
+                    <button type="button" class="od-close-btn" data-bs-dismiss="modal" aria-label="إغلاق"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+                <div class="od-header-title-wrap">
+                    <h5 id="odTitle"><i class="fa-solid fa-receipt me-2"></i> تفاصيل العملية الشاملة</h5>
+                    <div id="od-op-number" class="od-op-number">—</div>
+                </div>
+                <div id="od-header-meta"></div>
+            </div>
+            <div class="modal-body od-body">
+                <div id="od-loading" class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status"></div>
+                    <div class="text-muted mt-2 fw-bold">جاري تحميل تفاصيل العملية...</div>
+                </div>
+                <div id="od-content" hidden>
+                    <p id="od-human-summary" class="od-human-summary"></p>
+                    <div id="od-emphasis" class="od-emphasis" hidden></div>
+                    <div id="od-missing-host"></div>
+                    <div class="od-tabs-bar" id="od-tabs" role="tablist">
+                        <button type="button" class="active" data-od-tab="summary" role="tab" aria-selected="true">الملخص</button>
+                        <button type="button" data-od-tab="parties" role="tab" aria-selected="false">الأطراف</button>
+                        <button type="button" data-od-tab="finance" role="tab" aria-selected="false">المالية</button>
+                        <button type="button" data-od-tab="proofs" role="tab" aria-selected="false">الإثباتات</button>
+                        <button type="button" data-od-tab="timeline" role="tab" aria-selected="false">الخط الزمني</button>
+                        <button type="button" data-od-tab="notes" role="tab" aria-selected="false">الملاحظات</button>
+                    </div>
+                    <div class="od-tab-panels">
+                        <div class="od-pane" data-od-pane="summary" role="tabpanel"></div>
+                        <div class="od-pane" data-od-pane="parties" role="tabpanel" hidden></div>
+                        <div class="od-pane" data-od-pane="finance" role="tabpanel" hidden></div>
+                        <div class="od-pane" data-od-pane="proofs" role="tabpanel" hidden></div>
+                        <div class="od-pane" data-od-pane="timeline" role="tabpanel" hidden></div>
+                        <div class="od-pane" data-od-pane="notes" role="tabpanel" hidden></div>
                     </div>
                 </div>
             </div>
         </div>
     </div>
+</div>
+<div id="od-lightbox" class="od-lightbox" hidden aria-hidden="true" role="dialog" aria-label="معاينة الإثبات">
+    <button type="button" class="od-lightbox-close" id="od-lightbox-close" aria-label="إغلاق المعاينة"><i class="fa-solid fa-xmark"></i></button>
+    <img alt="إثبات العملية">
+    <div class="od-lightbox-caption"></div>
 </div>
 
 <div class="modal fade" id="editTxModal" tabindex="-1">
@@ -1043,6 +1440,7 @@
 </script>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script src="/js/admin-operation-details.js?v=20260924-actor"></script>
 <script>
     function toggleSidebar() { document.querySelector('.sidebar').classList.toggle('active'); document.querySelector('.sidebar-overlay').classList.toggle('active'); }
 
@@ -1110,123 +1508,6 @@
         };
     }
 
-    function txStatusLabel(status) {
-        const labels = {
-            completed: 'مكتملة',
-            pending: 'معلقة',
-            processing: 'موجهة للتنفيذ',
-            accepted: 'قيد العمل',
-            deposit_pending: 'طلب إيداع معلق',
-            deposit: 'إيداع',
-            deduction: 'خصم',
-            rejected: 'مرفوضة',
-            cancelled_by_admin: 'ملغية'
-        };
-        return labels[status] || status || 'غير محددة';
-    }
-
-    function txTypeLabel(tx) {
-        if (tx.transferType === 'balance_transfer') return 'تحويل داخلي';
-        if (tx.status === 'deposit' || tx.status === 'deposit_pending') return 'إيداع';
-        if (tx.status === 'deduction') return 'خصم';
-        if (tx.transferType === 'post_account') return 'حساب بريد';
-        if (tx.transferType === 'post_card') return 'بطاقة بريد';
-        if (tx.transferType === 'bank_transfer') return 'تحويل بنكي';
-        if (tx.transferType === 'nita_transfer') return 'سفا للنيجر';
-        if (tx.transferType === 'bankak_transfer') return 'بنكك للسودان';
-        return 'محفظة كاش';
-    }
-
-    function renderMetric(label, value, icon, valueClass = '') {
-        return `
-            <div class="tx-detail-metric">
-                <div class="tx-detail-label"><i class="fa-solid ${icon} me-1"></i>${label}</div>
-                <div class="tx-detail-value ${valueClass}">${value}</div>
-            </div>
-        `;
-    }
-
-    function renderTransactionSummary(tx, entityName, formatDate) {
-        const statusClass = ['rejected', 'cancelled_by_admin'].includes(tx.status) ? 'st-fail' : (['pending', 'deposit_pending'].includes(tx.status) ? 'st-wait' : (['processing', 'accepted'].includes(tx.status) ? 'st-proc' : 'st-done'));
-        const amountCurrency = tx.transferType === 'balance_transfer' ? 'LYD' : 'EGP';
-        const costLine = tx.costLYD ? `${Number(tx.costLYD).toFixed(2)} LYD` : '---';
-        return `
-            <div class="tx-detail-hero">
-                <div class="d-flex flex-column flex-md-row justify-content-between gap-3 mb-3">
-                    <div>
-                        <div class="small fw-bold text-muted">ملخص العملية</div>
-                        <div class="fs-5 fw-bold text-dark">${txEscape(entityName)}</div>
-                    </div>
-                    <div class="d-flex flex-wrap gap-2 align-items-start justify-content-md-end">
-                        <span class="badge-st ${statusClass}">${txEscape(txStatusLabel(tx.status))}</span>
-                        <span class="badge bg-light text-dark border px-3 py-2">${txEscape(txTypeLabel(tx))}</span>
-                    </div>
-                </div>
-                <div class="tx-detail-grid">
-                    ${renderMetric('رقم العملية', txEscape(tx.customId || tx._id || '---'), 'fa-hashtag', 'mono-num')}
-                    ${renderMetric('المبلغ', `${Number(tx.amount || 0).toFixed(2)} ${amountCurrency}`, 'fa-money-bill-transfer', 'mono-num text-success')}
-                    ${renderMetric('التاريخ', txEscape(formatDate(tx.createdAt)), 'fa-calendar-days')}
-                    ${renderMetric('الرقم / الحساب', txEscape(tx.vodafoneNumber || tx.accountNumber || '---'), 'fa-address-book', 'mono-num')}
-                    ${renderMetric('التكلفة', txEscape(costLine), 'fa-wallet', 'mono-num text-danger')}
-                    ${renderMetric('المنفذ', txEscape(tx.executorName || 'قيد الانتظار'), 'fa-user-gear')}
-                </div>
-            </div>
-        `;
-    }
-
-    function renderCustomerNotesSection(noteText) {
-        return `
-            <div class="tx-section">
-                <div class="tx-section-title"><i class="fa-regular fa-comment-dots text-primary"></i> ملاحظة العميل / الرقم المرجعي</div>
-                <div class="fw-bold small" style="white-space: pre-line; line-height: 1.7;">${txEscape(noteText || 'لا توجد ملاحظة من العميل أو رقم مرجعي محفوظ.')}</div>
-            </div>
-        `;
-    }
-
-    function renderSystemDetailsSection(tx, systemText, ledgerInfo) {
-        const ledgerRows = (ledgerInfo || []).map((item) => {
-            const amount = Number(item.amount || 0);
-            const color = amount < 0 ? 'text-danger' : 'text-success';
-            return `<div class="data-line"><span class="data-val mono-num ${color}">${amount.toFixed(2)}</span><span class="data-label">${txEscape(item.type || 'قيد مالي')} - ${txEscape(item.description || '')}</span></div>`;
-        }).join('');
-        const cancellationRows = tx.cancellationNumber ? `
-            <div class="data-line"><span class="data-val mono-num text-danger fw-bold">${txEscape(tx.cancellationNumber)}</span><span class="data-label">رقم الإلغاء:</span></div>
-            <div class="data-line"><span class="data-val">${txEscape(tx.cancellationReason || '---')}</span><span class="data-label">سبب الإلغاء:</span></div>
-        ` : '';
-        const executionNumber = tx.executorExecutionNumber || tx.executorSenderPhone || tx.executorExecutionNumberMasked;
-        const executionRows = executionNumber ? `
-            <div class="data-line align-items-center">
-                <span class="data-val mono-num text-primary fw-bold d-flex align-items-center gap-2">
-                    <span dir="ltr">${txEscape(executionNumber)}</span>
-                    <button type="button" class="btn btn-sm btn-outline-primary" data-copy="${txEscape(executionNumber)}" onclick="copyAdminDetailValue(this)" title="نسخ رقم التنفيذ">
-                        <i class="fa-regular fa-copy"></i>
-                    </button>
-                </span>
-                <span class="data-label">رقم التنفيذ كما أدخله المنفذ:</span>
-            </div>
-        ` : '';
-        const log = systemText ? `<div class="tx-system-log mt-2">${txEscape(systemText)}</div>` : '<div class="text-muted fw-bold small">لا يوجد سجل إداري إضافي.</div>';
-        return `
-            <div class="tx-section">
-                <div class="tx-section-title"><i class="fa-solid fa-clipboard-list text-secondary"></i> تفاصيل الإدارة والنظام</div>
-                ${cancellationRows}
-                ${executionRows}
-                ${ledgerRows}
-                ${log}
-            </div>
-        `;
-    }
-
-    async function copyAdminDetailValue(button) {
-        const value = button?.dataset?.copy || '';
-        if (!value) return;
-        try {
-            await navigator.clipboard.writeText(value);
-            button.innerHTML = '<i class="fa-solid fa-check"></i>';
-            setTimeout(() => { button.innerHTML = '<i class="fa-regular fa-copy"></i>'; }, 1200);
-        } catch (_) {}
-    }
-
     // 🟢 دالة عرض نافذة السجل المنبثقة (مُحدثة لتقرأ الجملة الجديدة والقديمة معاً)
     function showApiLog(btn) {
         const rawNotes = decodeURIComponent(btn.getAttribute('data-log'));
@@ -1279,97 +1560,25 @@
             .replace(/'/g, '&#039;');
     }
 
-    function txMoney(value) {
-        const amount = Number(value);
-        return Number.isFinite(amount) ? `${amount.toFixed(2)} LYD` : '---';
-    }
-
-    function renderBalanceTransferDetails(tx, ledgerInfo, pairInfo, formatDate) {
-        const transferId = pairInfo?.transferId || tx.customId.replace(/-[CD]$/, '');
-        const source = pairInfo?.source || {};
-        const target = pairInfo?.target || {};
-        const senderLedger = ledgerInfo ? ledgerInfo.find((item) => item.amount < 0) : null;
-        const receiverLedger = ledgerInfo ? ledgerInfo.find((item) => item.amount > 0) : null;
-        const sourceName = source.name || tx.accountName || tx.employeeName || '---';
-        const sourceCode = source.code || tx.accountNumber || tx.vodafoneNumber || '---';
-        const targetName = target.name || '---';
-        const targetCode = target.code || '---';
-        const sourceBefore = source.balanceBefore ?? senderLedger?.balanceBefore;
-        const sourceAfter = source.balanceAfter ?? senderLedger?.balanceAfter;
-        const targetBefore = target.balanceBefore ?? receiverLedger?.balanceBefore;
-        const targetAfter = target.balanceAfter ?? receiverLedger?.balanceAfter;
-        const noteView = splitTransactionNotes(tx);
-        const receiptButton = (tx.proofImage || (tx.proofImages && tx.proofImages.length > 0))
-            ? `<button type="button" class="btn btn-success fw-bold rounded-pill px-4 mt-3" onclick="document.getElementById('m_proof_container')?.scrollIntoView({ behavior: 'smooth', block: 'center' });"><i class="fa-solid fa-receipt me-1"></i> عرض إيصال التحويل</button>`
-            : '';
-
-        return `
-            <div class="panel-title text-primary mb-3"><i class="fa-solid fa-right-left ms-2"></i> تحويل رصيد داخلي بين الحسابات</div>
-            <div class="p-4 rounded-4 mb-4" style="background: linear-gradient(135deg, rgba(15,118,110,0.12), rgba(37,99,235,0.06)); border: 1px solid rgba(15,118,110,0.18);">
-                <div class="d-flex flex-column flex-md-row align-items-stretch gap-3">
-                    <div class="flex-fill p-3 rounded-4 text-center" style="background: var(--card-bg); border: 1px solid var(--border-glass);">
-                        <div class="small text-muted fw-bold mb-1">المرسل</div>
-                        <div class="fw-bold text-danger fs-5">${txEscape(sourceName)}</div>
-                        <div class="mono-num text-muted mt-1">${txEscape(sourceCode)}</div>
-                    </div>
-                    <div class="d-flex align-items-center justify-content-center fs-2 text-primary px-2"><i class="fa-solid fa-circle-arrow-left"></i></div>
-                    <div class="flex-fill p-3 rounded-4 text-center" style="background: var(--card-bg); border: 1px solid var(--border-glass);">
-                        <div class="small text-muted fw-bold mb-1">المستقبل</div>
-                        <div class="fw-bold text-success fs-5">${txEscape(targetName)}</div>
-                        <div class="mono-num text-muted mt-1">${txEscape(targetCode)}</div>
-                    </div>
-                </div>
-                <div class="text-center mt-4">
-                    <div class="small text-muted fw-bold">المبلغ المحول</div>
-                    <div class="display-6 fw-bold text-primary mono-num">${txMoney(tx.amount)}</div>
-                    <span class="badge bg-success px-3 py-2 rounded-pill"><i class="fa-solid fa-circle-check me-1"></i> مكتملة بنجاح</span>
-                    ${receiptButton}
-                </div>
-            </div>
-            <div class="row g-3 mb-4">
-                <div class="col-md-6">
-                    <div class="p-3 rounded-4 h-100" style="background: rgba(239,68,68,0.06); border: 1px solid rgba(239,68,68,0.14);">
-                        <div class="fw-bold text-danger mb-3"><i class="fa-solid fa-wallet me-1"></i> رصيد المرسل</div>
-                        <div class="d-flex justify-content-between mb-2"><span class="text-muted fw-bold">قبل العملية</span><strong class="mono-num">${txMoney(sourceBefore)}</strong></div>
-                        <div class="d-flex justify-content-between"><span class="text-muted fw-bold">بعد العملية</span><strong class="mono-num text-danger">${txMoney(sourceAfter)}</strong></div>
-                    </div>
-                </div>
-                <div class="col-md-6">
-                    <div class="p-3 rounded-4 h-100" style="background: rgba(16,185,129,0.06); border: 1px solid rgba(16,185,129,0.14);">
-                        <div class="fw-bold text-success mb-3"><i class="fa-solid fa-wallet me-1"></i> رصيد المستقبل</div>
-                        <div class="d-flex justify-content-between mb-2"><span class="text-muted fw-bold">قبل العملية</span><strong class="mono-num">${txMoney(targetBefore)}</strong></div>
-                        <div class="d-flex justify-content-between"><span class="text-muted fw-bold">بعد العملية</span><strong class="mono-num text-success">${txMoney(targetAfter)}</strong></div>
-                    </div>
-                </div>
-            </div>
-            <div class="data-line"><span class="data-val mono-num fw-bold text-dark">${txEscape(source.customId || `${transferId}-D`)}</span><span class="data-label">رقم عملية الخصم:</span></div>
-            <div class="data-line"><span class="data-val mono-num fw-bold text-dark">${txEscape(target.customId || `${transferId}-C`)}</span><span class="data-label">رقم عملية الإيداع:</span></div>
-            <div class="data-line"><span class="data-val text-muted">${txEscape(formatDate(tx.createdAt))}</span><span class="data-label">تاريخ العملية:</span></div>
-            <div class="data-line"><span class="data-val text-muted">${txEscape(noteView.customerText || 'لا توجد ملاحظات')}</span><span class="data-label">ملاحظة العميل:</span></div>
-        `;
+    function copyAdminDetailValue(button) {
+        const value = button?.dataset?.copy || '';
+        if (!value) return;
+        if (window.AdminOperationDetails && AdminOperationDetails.copyText) {
+            return AdminOperationDetails.copyText(value, button);
+        }
     }
 
     async function viewTransactionDetails(el) {
         const txData = JSON.parse(el.getAttribute('data-tx'));
-        
-        // Show loading state or modal loading before fetching
-        const m_detail_panel = document.getElementById('m_detail_panel');
-        m_detail_panel.innerHTML = `
-            <div class="text-center py-5">
-                <div class="spinner-border text-primary" role="status"></div>
-                <div class="text-muted mt-2 fw-bold">جاري تحميل تفاصيل العملية...</div>
-            </div>
-        `;
-        
-        // Show the modal first so the user sees it's loading
         const modalEl = document.getElementById('txModal');
         const modalInstance = bootstrap.Modal.getOrCreateInstance(modalEl);
+        if (window.AdminOperationDetails) AdminOperationDetails.showLoading(modalEl);
         modalInstance.show();
-        
+
         let tx = txData;
         let ledgerInfo = null;
         let balanceTransferPair = null;
-        
+
         try {
             const response = await fetch(`/transactions/${txData._id}/details`);
             const resData = await response.json();
@@ -1381,293 +1590,24 @@
         } catch (err) {
             console.error('Error fetching transaction details:', err);
         }
-        
-        window.currentTxToPrint = tx; 
+
+        window.currentTxToPrint = tx;
         window.currentLedgerInfo = ledgerInfo;
-        const f = (d) => d ? new Date(d).toLocaleString('en-GB', { timeZone: 'Africa/Tripoli' }).replace(',', '') : '---';
-        const entityName = (tx.companyName && tx.companyName !== 'عميل فردي') ? tx.companyName : (tx.employeeName || 'عميل فردي');
-        
+
         const executorBotsElement = document.getElementById('executorBotsData');
         const executorBots = executorBotsElement && executorBotsElement.textContent.trim() ? JSON.parse(executorBotsElement.textContent) : [];
+        const formatDate = (d) => d ? new Date(d).toLocaleString('en-GB', { timeZone: 'Africa/Tripoli' }).replace(',', '') : (window.AdminOperationDetails ? AdminOperationDetails.EMPTY_NONE : 'لا يوجد');
 
-        let isCancelled = ['rejected', 'cancelled_by_admin'].includes(tx.status);
-        let isBalanceTransfer = tx.transferType === 'balance_transfer';
-        let isDepositOrDeduction = (tx.status === 'deposit' || tx.status === 'deduction' || tx.status === 'deposit_pending') && !isBalanceTransfer;
-        const noteView = splitTransactionNotes(tx);
-        
-        // Dynamic column adjustments: Hide timeline for balance transfers and make details container full-width
-        const detailContainer = document.getElementById('m_detail_container');
-        const timelineContainer = document.getElementById('m_timeline_container');
-        if (detailContainer && timelineContainer) {
-            if (isBalanceTransfer) {
-                detailContainer.className = 'col-md-12';
-                timelineContainer.style.display = 'none';
-            } else {
-                detailContainer.className = 'col-md-7';
-                timelineContainer.style.display = 'block';
-            }
-        }
-
-        let htmlContent = renderTransactionSummary(tx, entityName, f);
-        
-        // 🔴 التنبيه الخاص بالعمليات الملغية
-        if (isCancelled) {
-            const cancellationMeta = [
-                tx.cancellationNumber ? `<span class="mono-num fw-bold text-danger">رقم الإلغاء: ${txEscape(tx.cancellationNumber)}</span>` : '',
-                tx.cancelledBy ? `<span>بواسطة: ${txEscape(tx.cancelledBy)}</span>` : '',
-                tx.cancelledAt ? `<span>تاريخ الإلغاء: ${f(tx.cancelledAt)}</span>` : ''
-            ].filter(Boolean).join(' · ');
-            htmlContent += `
-                <div class="alert alert-danger border-0 p-3 rounded-4 mb-4 d-flex align-items-center gap-3" style="background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.2) !important;">
-                    <div class="fs-2 text-danger"><i class="fa-solid fa-circle-xmark"></i></div>
-                    <div>
-                        <h6 class="fw-bold m-0 text-danger" style="font-size: 1rem;">هذه العملية ملغية / مرفوضة 🚨</h6>
-                        <div class="small fw-bold text-muted mt-1">تم إرجاع كافة الأرصدة والمديونيات المرتبطة بالعملية تلقائياً.</div>
-                        ${cancellationMeta ? `<div class="small fw-bold mt-2">${cancellationMeta}</div>` : ''}
-                        ${tx.cancellationReason ? `<div class="small text-muted mt-1">السبب: ${txEscape(tx.cancellationReason)}</div>` : ''}
-                    </div>
-                </div>
-            `;
-        }
-        
-        if (isBalanceTransfer) {
-            htmlContent += renderBalanceTransferDetails(tx, ledgerInfo, balanceTransferPair, f);
-        } else if (false) {
-            // 🔄 تصميم مخصص ومحسن لتحويل الرصيد بين العملاء
-            let senderName = tx.accountName || '---';
-            let senderCode = tx.accountNumber || tx.vodafoneNumber || '---';
-            let recipientName = '---';
-            let recipientCode = '---';
-            
-            // Find sender and receiver ledger entries to display balances
-            let senderLedger = ledgerInfo ? ledgerInfo.find(l => l.amount < 0) : null;
-            let receiverLedger = ledgerInfo ? ledgerInfo.find(l => l.amount > 0) : null;
-            
-            let senderBefore = senderLedger ? senderLedger.balanceBefore.toFixed(2) + ' LYD' : '---';
-            let senderAfter = senderLedger ? senderLedger.balanceAfter.toFixed(2) + ' LYD' : '---';
-            let receiverBefore = receiverLedger ? receiverLedger.balanceBefore.toFixed(2) + ' LYD' : '---';
-            let receiverAfter = receiverLedger ? receiverLedger.balanceAfter.toFixed(2) + ' LYD' : '---';
-            
-            // Parse recipient details from ledger description or tx notes
-            if (senderLedger && senderLedger.description) {
-                const match = /تحويل رصيد إلى\s+(.*?)\s*\((.*?)\)/.exec(senderLedger.description);
-                if (match) {
-                    recipientName = match[1].trim();
-                    recipientCode = match[2].trim();
-                }
-            }
-            if (recipientName === '---') {
-                const match = /إلى\s+(.*?)\s+-\s+ID:\s*(\w+)/.exec([tx.adminNotes, tx.notes].filter(Boolean).join('\n'));
-                if (match) {
-                    recipientName = match[1].trim();
-                    recipientCode = match[2].trim();
-                }
-            }
-            
-            const baseId = tx.customId.replace(/-[CD]$/, '');
-            const transferIdD = `${baseId}-D`;
-            const transferIdC = `${baseId}-C`;
-            
-            htmlContent += `
-                <div class="panel-title text-primary mb-3"><i class="fa-solid fa-right-left ms-2"></i> تحويل رصيد داخلي بين العملاء</div>
-                
-                <div class="d-flex align-items-center justify-content-between p-3 rounded-4 mb-4" style="background: rgba(59, 130, 246, 0.08); border: 1px solid rgba(59, 130, 246, 0.15);">
-                    <div class="text-center flex-fill">
-                        <div class="small text-muted fw-bold mb-1">المرسل (خصم)</div>
-                        <div class="fw-bold text-primary" style="font-size: 1.1rem;">${senderName}</div>
-                        <div class="small text-muted mt-1">كود: <span class="mono-num fw-bold text-dark">${senderCode}</span></div>
-                    </div>
-                    <div class="fs-3 text-primary px-3"><i class="fa-solid fa-circle-arrow-left"></i></div>
-                    <div class="text-center flex-fill">
-                        <div class="small text-muted fw-bold mb-1">المستقبل (إضافة)</div>
-                        <div class="fw-bold text-success" style="font-size: 1.1rem;">${recipientName}</div>
-                        <div class="small text-muted mt-1">كود: <span class="mono-num fw-bold text-dark">${recipientCode}</span></div>
-                    </div>
-                </div>
-                
-                <div class="row g-3 mb-4">
-                    <div class="col-md-6">
-                        <div class="p-3 rounded-4" style="background: rgba(239, 68, 68, 0.05); border: 1px solid rgba(239, 68, 68, 0.1);">
-                            <div class="fw-bold text-danger mb-2"><i class="fa-solid fa-wallet me-1"></i> رصيد المرسل:</div>
-                            <div class="d-flex justify-content-between small mb-1"><span>قبل التحويل:</span><strong class="mono-num">${senderBefore}</strong></div>
-                            <div class="d-flex justify-content-between small"><span>بعد التحويل:</span><strong class="mono-num text-danger">${senderAfter}</strong></div>
-                        </div>
-                    </div>
-                    <div class="col-md-6">
-                        <div class="p-3 rounded-4" style="background: rgba(16, 185, 129, 0.05); border: 1px solid rgba(16, 185, 129, 0.1);">
-                            <div class="fw-bold text-success mb-2"><i class="fa-solid fa-wallet me-1"></i> رصيد المستقبل:</div>
-                            <div class="d-flex justify-content-between small mb-1"><span>قبل الاستلام:</span><strong class="mono-num">${receiverBefore}</strong></div>
-                            <div class="d-flex justify-content-between small"><span>بعد الاستلام:</span><strong class="mono-num text-success">${receiverAfter}</strong></div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="p-4 rounded-4 text-center mb-4" style="background: var(--input-bg); border: 1px solid var(--border-glass);">
-                    <div class="text-muted fw-bold small mb-1">المبلغ المحول</div>
-                    <div class="fs-2 fw-bold text-danger mono-num">${tx.amount.toFixed(2)} LYD</div>
-                    <div class="small text-success mt-1 fw-bold"><i class="fa-solid fa-circle-check"></i> الحالة: مكتملة (تمت بنجاح)</div>
-                </div>
-                
-                <div class="data-line"><span class="data-val mono-num fw-bold text-dark">${transferIdD}</span><span class="data-label">رقم عملية التحويل (المرسل):</span></div>
-                <div class="data-line"><span class="data-val mono-num fw-bold text-dark">${transferIdC}</span><span class="data-label">رقم عملية الاستلام (المستقبل):</span></div>
-                <div class="data-line"><span class="data-val text-muted">${f(tx.createdAt)}</span><span class="data-label">تاريخ العملية:</span></div>
-            `;
-        } else if (isDepositOrDeduction) {
-            // 💵 تصميم مخصص للإيداعات والخصومات (تسويات مالية)
-            const typeLabel = tx.status === 'deposit' ? 'إيداع (سداد رصيد للعميل)' : tx.status === 'deposit_pending' ? 'طلب إيداع معلق' : 'خصم رصيد (تسوية)';
-            const typeClass = tx.status === 'deposit' ? 'text-success' : tx.status === 'deposit_pending' ? 'text-warning' : 'text-danger';
-            const badgeBg = tx.status === 'deposit' ? 'bg-success' : tx.status === 'deposit_pending' ? 'bg-warning text-dark' : 'bg-danger';
-            
-            htmlContent += `
-                <div class="panel-title text-success mb-3"><i class="fa-solid fa-scale-balanced ms-2"></i> تسوية مالية / إيداع وخصم</div>
-                
-                <div class="p-4 rounded-4 text-center mb-4" style="background: var(--input-bg); border: 1px solid var(--border-glass);">
-                    <div class="text-muted fw-bold small mb-1">المبلغ المالي المعتمد</div>
-                    <div class="fs-2 fw-bold ${typeClass} mono-num">${tx.amount.toFixed(2)} EGP</div>
-                    <div class="badge ${badgeBg} px-3 py-2 mt-2 fw-bold" style="font-size: 0.85rem;">
-                        ${typeLabel}
-                    </div>
-                </div>
-                
-                <div class="data-line"><span class="data-val fw-bold">${entityName}</span><span class="data-label">الجهة / العميل المستهدف:</span></div>
-                <div class="data-line"><span class="data-val">${tx.employeeName || 'الإدارة'}</span><span class="data-label">الموظف المنفذ:</span></div>
-                <div class="data-line"><span class="data-val mono-num">${tx.customId}</span><span class="data-label">رقم العملية المالي:</span></div>
-                <div class="data-line"><span class="data-val text-muted">${f(tx.createdAt)}</span><span class="data-label">تاريخ التسجيل:</span></div>
-            `;
-        } else {
-            // 📱 تصميم مخصص لتحويلات الكاش والبريد
-            let typeHtml = '';
-            if(tx.transferType === 'post_account') typeHtml = '<span class="badge bg-warning text-dark px-3 py-2 fw-bold"><i class="fa-solid fa-envelope me-1"></i> حساب بريد</span>';
-            else if(tx.transferType === 'post_card') typeHtml = '<span class="badge bg-info text-dark px-3 py-2 fw-bold"><i class="fa-solid fa-id-card me-1"></i> بطاقة عميل</span>';
-            else {
-                let numStr = tx.vodafoneNumber || tx.accountNumber || '';
-                let networkName = 'فودافون كاش';
-                let networkColor = '#dc3545';
-                if(numStr.startsWith('011')) { networkName = 'اتصالات كاش'; networkColor = '#198754'; }
-                else if(numStr.startsWith('012')) { networkName = 'اورانج كاش'; networkColor = '#fd7e14'; }
-                else if(numStr.startsWith('015')) { networkName = 'وي باي'; networkColor = '#0dcaf0'; }
-                typeHtml = `<span class="badge px-3 py-2 fw-bold text-white" style="background: ${networkColor};"><i class="fa-solid fa-mobile-screen me-1"></i> ${networkName}</span>`;
-            }
-            
-            const botOptions = executorBots
-                .filter(bot => (bot.supportedTransferTypes || ['vodafone']).includes(tx.transferType || 'vodafone'))
-                .map(bot => `<option value="${bot._id}">${bot.name} - ${bot.serviceLabel || ''}</option>`)
-                .join('');
-            
-            htmlContent += `
-                <div class="panel-title text-primary mb-3"><i class="fa-solid fa-mobile-screen ms-2"></i> تفاصيل تحويل كاش / بريد</div>
-                
-                <div class="data-line"><span class="data-val fw-bold">${entityName}</span><span class="data-label">الجهة / الشركة:</span></div>
-                <div class="data-line"><span class="data-val">${tx.employeeName || '---'}</span><span class="data-label">الموظف الطالب:</span></div>
-                
-                <div class="data-line">
-                    <span class="data-val text-primary d-flex flex-column align-items-end gap-1">
-                        <div class="d-flex align-items-center gap-2">
-                            <button id="m_bot_edit_btn" class="btn btn-sm btn-outline-warning py-0 px-2 fw-bold" style="${tx.status === 'completed' && tx.executorBotId ? 'display: inline-block' : 'display: none'}; font-size: 0.7rem; border-radius: 6px;" onclick="document.getElementById('m_bot_edit_form').style.display='block'; this.style.display='none';"><i class="fa-solid fa-right-left"></i> نقل</button>
-                            <span id="m_bot_name_text" class="fw-bold">${tx.executorBotName || (tx.executorBotId ? (allBotsMap[tx.executorBotId] || 'غير معروف') : 'غير معروف')}</span>
-                        </div>
-                        <div id="m_bot_edit_form" style="display:none; margin-top: 5px;">
-                            <form id="changeBotForm" method="POST" action="/transaction/${tx._id}/change-bot" onsubmit="return confirm('سيتم نقل العملية وتعديل أرصدة البوتات والوكلاء محاسبياً. هل أنت متأكد؟')">
-                                <div class="input-group input-group-sm">
-                                    <button type="submit" class="btn btn-success border-0 px-2"><i class="fa-solid fa-check"></i></button>
-                                    <select name="newGroupId" class="form-select border-0 fw-bold text-end" style="font-size: 0.75rem;" required>
-                                        <option value="">- اختر بوت -</option>
-                                        ${botOptions}
-                                    </select>
-                                </div>
-                            </form>
-                        </div>
-                    </span>
-                    <span class="data-label">بوت التنفيذ:</span>
-                </div>
-                
-                <div class="data-line"><span class="data-val">${typeHtml}</span><span class="data-label">نوع التحويل:</span></div>
-                <div class="data-line"><span class="data-val mono-num fs-6" style="direction: ltr;">${tx.vodafoneNumber || tx.accountNumber || '---'}</span><span class="data-label">الرقم/الحساب:</span></div>
-                <div class="data-line"><span class="data-val text-success mono-num fs-5 fw-bold">${tx.amount.toFixed(2)} EGP</span><span class="data-label">المبلغ المحول:</span></div>
-                <div class="data-line"><span class="data-val mono-num text-warning fw-bold">${tx.exchangeRate ? Number(tx.exchangeRate).toFixed(2) : (tx.costLYD ? (tx.amount / tx.costLYD).toFixed(2) : '---')}</span><span class="data-label">سعر الصرف:</span></div>
-                <div class="data-line"><span class="data-val text-danger mono-num fs-5 fw-bold">${tx.costLYD ? tx.costLYD.toFixed(2) : '---'} LYD</span><span class="data-label">إجمالي التكلفة:</span></div>
-            `;
-            
-            if (tx.accountName && tx.transferType !== 'vodafone') {
-                htmlContent += `
-                    <div class="col-12 mt-3">
-                        <div class="p-3" style="background-color: rgba(245, 158, 11, 0.1); border-right: 4px solid #f59e0b; border-radius: 8px;">
-                            <div class="fw-bold mb-2 text-warning"><i class="fa-solid fa-address-card me-2"></i> بيانات مستلم البريد:</div>
-                            <div class="fw-bold" style="line-height: 1.8; font-size: 0.95rem;">${tx.accountName.replace(/\n/g, '<br>')}</div>
-                        </div>
-                    </div>
-                `;
-            }
-        }
-        
-        htmlContent += renderCustomerNotesSection(noteView.customerText);
-        htmlContent += renderSystemDetailsSection(tx, noteView.systemText, ledgerInfo);
-        
-        // حقن المحتوى
-        document.getElementById('m_detail_panel').innerHTML = htmlContent;
-        
-        // تحديث معلومات التتبع على اليسار
-        document.getElementById('m_t_created').innerText = f(tx.createdAt);
-        document.getElementById('m_t_executor').innerText = isBalanceTransfer ? 'النظام (تلقائي)' : (tx.executorName || 'قيد الانتظار');
-        document.getElementById('m_t_accepted').innerText = tx.status !== 'pending' ? f(tx.updatedAt) : '---';
-        document.getElementById('m_t_completed').innerText = tx.status === 'completed' ? f(tx.updatedAt) : '---';
-        
-        let b = ''; const s = tx.status;
-        if(s === 'completed') b = '<span class="badge-st st-done"><i class="fa-solid fa-circle-check"></i> مكتمل</span>';
-        else if(s === 'pending') b = '<span class="badge-st st-wait"><i class="fa-solid fa-circle-pause"></i> معلق</span>';
-        else if(s === 'processing') b = '<span class="badge-st st-proc"><i class="fa-solid fa-spinner fa-spin"></i> توجيه</span>';
-        else if(s === 'accepted') b = '<span class="badge-st" style="background: rgba(139, 92, 246, 0.1); color: #8b5cf6;"><i class="fa-solid fa-user-check"></i> قيد العمل</span>';
-        else if(s === 'deposit_pending') b = '<span class="badge bg-warning text-dark px-3 py-2"><i class="fa-solid fa-hand-holding-dollar"></i> طلب إيداع</span>';
-        else if(s === 'deposit') b = '<span class="badge-st st-done"><i class="fa-solid fa-arrow-down"></i> إيداع</span>';
-        else if(s === 'deduction') b = '<span class="badge-st st-fail"><i class="fa-solid fa-arrow-up"></i> خصم</span>';
-        else b = '<span class="badge-st st-fail"><i class="fa-solid fa-ban"></i> ملغي</span>';
-        document.getElementById('m_t_status').innerHTML = b;
-
-        const container = document.getElementById('m_proof_container');
-        if(container) {
-            if (false) {
-                container.innerHTML = '<div class="text-muted text-center py-4"><i class="fa-solid fa-circle-info fs-1 d-block mb-2 opacity-25"></i> تحويل رصيد داخلي لا يتطلب إثبات صور</div>';
-            } else {
-                const officialReceipt = tx.proofImage || (tx.proofImages && tx.proofImages[0]);
-                const executorProofs = Array.isArray(tx.executorProofImages)
-                    ? tx.executorProofImages.filter(Boolean)
-                    : [];
-
-                if (officialReceipt || executorProofs.length > 0) {
-                    const officialSection = officialReceipt ? `
-                        <section class="mb-4">
-                            <div class="d-flex align-items-center justify-content-between mb-2">
-                                <strong><i class="fa-solid fa-receipt text-success me-1"></i> الإيصال النظامي المرسل للعميل</strong>
-                                <span class="badge bg-success-subtle text-success border border-success-subtle">عام للعميل</span>
-                            </div>
-                            <div class="rounded-3 border bg-light p-2 text-center">
-                                <img src="/proxy/image/${tx._id}/0" style="display:block; border-radius: 10px; max-height: 500px; max-width: 100%; margin: 0 auto; object-fit: contain;">
-                            </div>
-                        </section>
-                    ` : '';
-                    const executorOffset = officialReceipt ? 1 : 0;
-                    const executorSection = executorProofs.length ? `
-                        <section>
-                            <div class="d-flex align-items-center justify-content-between mb-2">
-                                <strong><i class="fa-solid fa-shield-halved text-primary me-1"></i> صور إثبات المنفذ</strong>
-                                <span class="badge bg-primary-subtle text-primary border border-primary-subtle">للإدارة فقط</span>
-                            </div>
-                            <div class="row g-2">
-                                ${executorProofs.map((_, index) => `
-                                    <div class="col-6 col-lg-4">
-                                        <a href="/proxy/image/${tx._id}/${executorOffset + index}" target="_blank" class="d-block rounded-3 border bg-light p-1">
-                                            <img src="/proxy/image/${tx._id}/${executorOffset + index}" alt="إثبات المنفذ ${index + 1}" style="width:100%; aspect-ratio: 1 / 1; border-radius:8px; object-fit:cover;">
-                                        </a>
-                                    </div>
-                                `).join('')}
-                            </div>
-                        </section>
-                    ` : '';
-                    container.innerHTML = officialSection + executorSection;
-                } else {
-                    container.innerHTML = '<div class="text-muted text-center"><i class="fa-solid fa-image fs-1 d-block mb-2 opacity-25"></i> لم يتم إرفاق إثبات تنفيذ بعد</div>';
-                }
-            }
+        if (window.AdminOperationDetails) {
+            AdminOperationDetails.mount(modalEl, {
+                tx,
+                ledgerInfo,
+                balanceTransferPair,
+                allBotsMap,
+                executorBots,
+                noteView: splitTransactionNotes(tx),
+                formatDate
+            });
         }
     }
 
@@ -2004,7 +1944,9 @@
         const entityName = (tx.companyName && tx.companyName !== 'عميل فردي') ? tx.companyName : (tx.employeeName || 'عميل فردي');
         let typeLabel = 'محفظة كاش'; 
         let numStrP = tx.vodafoneNumber || tx.accountNumber || '';
-        if(tx.transferType === 'post_account') typeLabel = 'حساب بريد';
+        const transferKey = String(tx.transferType || tx.canonicalServiceKey || '').toLowerCase();
+        if (transferKey === 'bank_account' || transferKey === 'bank_transfer') typeLabel = 'تحويل بنكي';
+        else if(tx.transferType === 'post_account') typeLabel = 'حساب بريد';
         else if(tx.transferType === 'post_card') typeLabel = 'بطاقة عميل'; 
         else if(tx.status === 'deposit' || tx.status === 'deduction') typeLabel = 'تسوية مالية';
         else if(numStrP.startsWith('010')) typeLabel = 'فودافون كاش';
@@ -2016,31 +1958,17 @@
         const statusText = statusMap[tx.status] || tx.status;
         const rate = tx.exchangeRate ? Number(tx.exchangeRate).toFixed(2) : (tx.costLYD ? (tx.amount / tx.costLYD).toFixed(2) : '---');
         const costLYD = tx.costLYD ? tx.costLYD.toFixed(2) : '---';
-        const accountNameHtml = tx.accountName ? `<tr><th>اسم المستلم:</th><td>${tx.accountName}</td></tr>` : '';
+        const accountNameHtml = tx.accountName ? `<tr><th>اسم المستلم:</th><td>${txEscape(tx.accountName)}</td></tr>` : '';
+        const printedBank = (tx.serviceDetails && tx.serviceDetails.bankName) || tx.bankName || '';
+        const bankHtml = printedBank ? `<tr><th>البنك:</th><td>${txEscape(printedBank)}</td></tr>` : '';
         const cancellationRows = tx.cancellationNumber ? `<tr><th>رقم الإلغاء:</th><td class="mono-num" dir="ltr">${tx.cancellationNumber}</td></tr><tr><th>سبب الإلغاء:</th><td>${tx.cancellationReason || '---'}</td></tr>` : '';
         const printWindow = window.open('', '_blank');
         printWindow.document.write(`
             <html lang="ar" dir="rtl"><head><title>فاتورة ${tx.customId || tx._id}</title><link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700;800&display=swap" rel="stylesheet"><style> * { box-sizing: border-box; } @page { size: A4; margin: 10mm; } body { font-family: 'Tajawal', sans-serif; background: #fff; color: #333; margin: 0; padding: 0; font-size: 14px; -webkit-print-color-adjust: exact; print-color-adjust: exact; } .invoice-box { width: 100%; padding: 10px; border-top: 10px solid #001a4d; } .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #eee; padding-bottom: 10px; margin-bottom: 15px; } .header .logo-text { color: #001a4d; font-size: 26px; font-weight: 800; margin: 0 0 5px 0; } 
             .header .sub-text { color: #dc3545; font-size: 13px; font-weight: 700; margin: 0; } .invoice-info table { width: 100%; font-size: 13px; text-align: left;} .invoice-info td { padding: 4px 8px; font-weight: 700; color: #444; } .invoice-info .highlight { color: #001a4d; background: #f8f9fa; border-radius: 4px; } .title-bar { background-color: #f8f9fa; padding: 6px 15px; border-right: 5px solid #d4af37; font-size: 15px; font-weight: 800; color: #001a4d; margin-bottom: 15px; page-break-after: avoid; } .content-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 14px; page-break-inside: avoid; } .content-table th, .content-table td { border: 1px solid #ddd; padding: 8px 15px; text-align: right; } .content-table th { background-color: #f8f9fa; color: #001a4d; font-weight: 800; width: 30%; } .content-table td { font-weight: 700; color: #222; } .totals-container { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; page-break-inside: avoid; } .qr-placeholder { width: 90px; height: 90px; border: 2px dashed #ccc; display: flex; align-items: center; justify-content: center; color: #aaa; font-weight: bold; border-radius: 8px; font-size: 12px; text-align: center; } .totals { width: 75%; border-collapse: collapse; } .totals th, .totals td { border: 2px solid #001a4d; padding: 8px; text-align: center; } .totals th { background-color: #001a4d; color: #fff; font-weight: 800; font-size: 14px; } .totals td { font-weight: 800; font-size: 17px; background: #fafafa; } .totals .lyd { color: #dc3545; } .totals .egp { color: #198754; } .footer { text-align: center; color: #666; border-top: 1px dashed #ccc; padding-top: 15px; font-size: 12px; font-weight: 700; margin-top: 20px; page-break-inside: avoid; }</style></head>
-            <body><div class="invoice-box"><div class="header"><div><h1 class="logo-text">شركة الأهرام</h1><p class="sub-text">لخدمات التحويلات المالية الذكية</p></div><div class="invoice-info"><table><tr><td>رقم الفاتورة:</td><td class="highlight" dir="ltr">#${tx.customId || tx._id.slice(-6)}</td></tr><tr><td>تاريخ الإصدار:</td><td class="highlight" dir="ltr">${f(tx.createdAt)}</td></tr><tr><td>حالة العملية:</td><td class="highlight" style="color:#198754;">${statusText}</td></tr></table></div></div><div class="title-bar">تفاصيل الجهة والمستفيد</div><table class="content-table"><tr><th>الجهة / العميل:</th><td>${entityName}</td></tr><tr><th>رقم الهاتف / الحساب:</th><td dir="ltr" style="text-align: right; letter-spacing: 1px;">${tx.vodafoneNumber || tx.accountNumber || '---'}</td></tr>${accountNameHtml}${cancellationRows}<tr><th>نوع التحويل:</th><td>${typeLabel}</td></tr><tr><th>الموظف المنفذ:</th><td>${tx.executorName || '---'}</td></tr><tr><th>ملاحظة العميل / الرقم المرجعي:</th><td style="color:#666; font-size: 13px;">${txEscape(printNoteView.customerText || 'لا توجد ملاحظات.')}</td></tr></table><div class="title-bar">تفاصيل المبالغ والتكلفة</div><div class="totals-container"><div class="qr-placeholder">QR Code<br>للتوثيق</div><table class="totals"><tr><th>سعر الصرف المعتمد</th><th>المبلغ المحول (مصري)</th><th>التكلفة (ليبي)</th></tr><tr><td>${rate}</td><td class="egp">${tx.amount.toFixed(2)} EGP</td><td class="lyd">${costLYD} LYD</td></tr></table></div><div class="footer">نقدر ثقتكم في خدماتنا.. شكراً لاختياركم شركة الأهرام 🚀<br><span style="font-weight: 400; color:#999; margin-top:5px; display:inline-block;">هذه الفاتورة تم إصدارها إلكترونياً ولا تحتاج إلى ختم أو توقيع.</span></div></div><script>window.onload = function() { setTimeout(function() { window.print(); window.close(); }, 500); }<\/script></body></html>
+            <body><div class="invoice-box"><div class="header"><div><h1 class="logo-text">شركة الأهرام</h1><p class="sub-text">لخدمات التحويلات المالية الذكية</p></div><div class="invoice-info"><table><tr><td>رقم الفاتورة:</td><td class="highlight" dir="ltr">#${tx.customId || tx._id.slice(-6)}</td></tr><tr><td>تاريخ الإصدار:</td><td class="highlight" dir="ltr">${f(tx.createdAt)}</td></tr><tr><td>حالة العملية:</td><td class="highlight" style="color:#198754;">${statusText}</td></tr></table></div></div><div class="title-bar">تفاصيل الجهة والمستفيد</div><table class="content-table"><tr><th>الجهة / العميل:</th><td>${entityName}</td></tr><tr><th>رقم الهاتف / الحساب:</th><td dir="ltr" style="text-align: right; letter-spacing: 1px;">${tx.vodafoneNumber || tx.accountNumber || '---'}</td></tr>${accountNameHtml}${bankHtml}${cancellationRows}<tr><th>نوع التحويل:</th><td>${typeLabel}</td></tr><tr><th>الموظف المنفذ:</th><td>${tx.executorName || '---'}</td></tr><tr><th>ملاحظة العميل / الرقم المرجعي:</th><td style="color:#666; font-size: 13px;">${txEscape(printNoteView.customerText || 'لا توجد ملاحظات.')}</td></tr></table><div class="title-bar">تفاصيل المبالغ والتكلفة</div><div class="totals-container"><div class="qr-placeholder">QR Code<br>للتوثيق</div><table class="totals"><tr><th>سعر الصرف المعتمد</th><th>المبلغ المحول (مصري)</th><th>التكلفة (ليبي)</th></tr><tr><td>${rate}</td><td class="egp">${tx.amount.toFixed(2)} EGP</td><td class="lyd">${costLYD} LYD</td></tr></table></div><div class="footer">نقدر ثقتكم في خدماتنا.. شكراً لاختياركم شركة الأهرام 🚀<br><span style="font-weight: 400; color:#999; margin-top:5px; display:inline-block;">هذه الفاتورة تم إصدارها إلكترونياً ولا تحتاج إلى ختم أو توقيع.</span></div></div><script>window.onload = function() { setTimeout(function() { window.print(); window.close(); }, 500); }<\/script></body></html>
         `);
         printWindow.document.close();
-    }
-
-    function printReport() {
-        const preferMobile = window.innerWidth <= 991;
-        const readValue = (desktopId, mobileId) => {
-            const first = document.getElementById(preferMobile ? mobileId : desktopId);
-            const fallback = document.getElementById(preferMobile ? desktopId : mobileId);
-            return (first && first.value) || (fallback && fallback.value) || '';
-        };
-        const fromD = readValue('fromDateInput', 'mobileFromDateInput');
-        const toD = readValue('toDateInput', 'mobileToDateInput');
-        const status = readValue('statusFilter', 'mobileStatusFilter');
-        const search = readValue('searchInput', 'mobileSearchInput');
-        const mobileFilterType = document.getElementById('mobileFilterTypeInput');
-        const filterType = (preferMobile && mobileFilterType) ? mobileFilterType.value : '<%= typeof filterType !== "undefined" ? filterType : "" %>';
-        window.open(`/transactions/print?` + new URLSearchParams({ fromDate: fromD, toDate: toD, status: status, search: search, filterType: filterType }).toString(), '_blank');
     }
 
     function confirmEmergencyAlert(form) {
@@ -2092,37 +2020,10 @@
 
     let currentMobileTabGroup = 'all';
 
-    function setMobileFilterType(type, btn) {
-        const input = document.getElementById('mobileFilterTypeInput');
-        if (input) input.value = type;
-        document.querySelectorAll('.mobile-filter-pill').forEach(item => item.classList.remove('active'));
-        if (btn) btn.classList.add('active');
-    }
-
     const isOperationsWorkspace = <%= operationWorkspace ? 'true' : 'false' %>;
-    const operationFilterStorageKey = 'ahram_operations_last_filters';
-    const operationFilterNames = ['search', 'status', 'fromDate', 'toDate', 'executorId'];
-    if (isOperationsWorkspace) {
-        const currentParams = new URLSearchParams(window.location.search);
-        const hasExplicitFilter = operationFilterNames.some((name) => currentParams.has(name));
-        if (hasExplicitFilter) {
-            const remembered = new URLSearchParams();
-            operationFilterNames.forEach((name) => { if (currentParams.has(name)) remembered.set(name, currentParams.get(name)); });
-            localStorage.setItem(operationFilterStorageKey, remembered.toString());
-        } else {
-            const remembered = localStorage.getItem(operationFilterStorageKey);
-            if (remembered) window.location.replace(`/transactions/operations?${remembered}`);
-        }
-        document.querySelectorAll('a[href="/transactions/operations"]').forEach((link) => {
-            link.addEventListener('click', () => localStorage.removeItem(operationFilterStorageKey));
-        });
-    }
+    if (isOperationsWorkspace) localStorage.removeItem('ahram_operations_last_filters');
     document.addEventListener('keydown', (event) => {
         const editable = ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName);
-        if (event.key === '/' && !editable) {
-            event.preventDefault();
-            (document.getElementById('searchInput') || document.getElementById('mobileSearchInput'))?.focus();
-        }
         if (event.key.toLowerCase() === 'r' && !editable) {
             event.preventDefault();
             refreshTransactionsList();
@@ -2137,6 +2038,7 @@
 
         const confirmation = String(form.dataset.confirm || '').trim();
         if (confirmation && !window.confirm(confirmation)) return;
+        if (form.querySelector('.cancel-reason-input') && !promptGlobalCancel(form)) return;
 
         const submitter = event.submitter || form.querySelector('button[type="submit"], button:not([type])');
         if (submitter?.disabled) return;

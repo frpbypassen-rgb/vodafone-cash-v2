@@ -35,14 +35,27 @@ const ensureActiveExecutor = async (decodedUser) => {
 
     const Employee = require('../models/Employee');
     const employee = await Employee.findById(decodedUser.userId)
-        .select('status groupId')
+        .select('status groupId sessionVersion')
         .populate('groupId', 'status');
-    return Boolean(
+    const accountIsActive = Boolean(
         employee
         && employee.status === 'active'
         && employee.groupId
         && employee.groupId.status === 'active'
+        && Number(employee.sessionVersion || 0) === Number(decodedUser.sessionVersion || 0)
     );
+    if (!accountIsActive) return false;
+    if (!decodedUser.sessionId) return true;
+
+    const MobileDeviceSession = require('../models/MobileDeviceSession');
+    const session = await MobileDeviceSession.exists({
+        accountId: decodedUser.userId,
+        accountType: 'executor',
+        ...(decodedUser.tenantId ? { tenantId: decodedUser.tenantId } : {}),
+        sessionId: decodedUser.sessionId,
+        active: true
+    });
+    return Boolean(session);
 };
 
 const ensureActiveCustomerSession = async (decodedUser) => {
@@ -77,14 +90,22 @@ const ensureBoundSecurityDevice = async (decodedUser, req) => {
     const state = await securityControl.getState();
     if (!state.accountDeviceEnforcementEnabled) return true;
     const deviceId = String(req.headers?.['x-device-id'] || '').trim();
-    if (!deviceId || (state.highConfidenceVpnBlockEnabled && securityControl.assessNetworkRisk(req).highRisk)) return false;
+    const cacheKey = `${decodedUser.accountType}:${decodedUser.userId}:${deviceId}`;
+    const cached = securityControl.cachedDeviceBinding(cacheKey);
+    if (cached !== undefined) return cached;
+    if (!deviceId || (state.highConfidenceVpnBlockEnabled && securityControl.assessNetworkRisk(req).highRisk)) {
+        securityControl.rememberDeviceBinding(cacheKey, false);
+        return false;
+    }
     const active = await SecurityDevice.findOne({
         principalType: decodedUser.accountType,
         principalId: String(decodedUser.userId),
         channel: 'app',
         status: 'active'
     }).select('+deviceIdHash').lean();
-    return Boolean(active && active.deviceIdHash === securityControl.hashDeviceId(deviceId));
+    const bound = Boolean(active && active.deviceIdHash === securityControl.hashDeviceId(deviceId));
+    securityControl.rememberDeviceBinding(cacheKey, bound);
+    return bound;
 };
 
 const authenticateJWT = (req, res, next) => {

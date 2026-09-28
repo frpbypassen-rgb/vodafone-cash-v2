@@ -5,6 +5,7 @@
 const { body, validationResult } = require('express-validator');
 const { sendMobileError } = require('../mappers/mobileErrorMapper');
 const { getEnabledMobileTransferServiceKeys, getTransferServiceDefinition } = require('../utils/mobileTransferServiceCatalog');
+const { normalizeStoredBank } = require('../utils/egyptianBanks');
 
 /**
  * Middleware Ù„Ù„ØªØ­Ù‚Ù‚ Ù…Ù† Ù†ØªØ§Ø¦Ø¬ Ø§Ù„Ù€ validation ÙˆØ¥Ø±Ø¬Ø§Ø¹ Ø®Ø·Ø£ Ù…ÙˆØ­Ø¯
@@ -92,12 +93,17 @@ const transferValidator = [
         .isLength({ max: 80 }).withMessage('اسم المدينة لا يتجاوز 80 حرف')
         .escape(),
     body('bankName')
-        .optional()
+        .optional({ checkFalsy: true })
         .trim()
         .isLength({ max: 100 }).withMessage('اسم البنك لا يتجاوز 100 حرف')
         .escape(),
+    body('bankCode')
+        .optional({ checkFalsy: true })
+        .trim()
+        .isLength({ max: 40 }).withMessage('رمز البنك غير صالح')
+        .matches(/^[a-z0-9_]+$/i).withMessage('رمز البنك غير صالح'),
     body().custom((body) => {
-        const { transferType, name, number, idCardImage, oldReceiptImage, serviceSubtype, city, recipientPhone, governorate, bankName } = body;
+        const { transferType, name, number, idCardImage, oldReceiptImage, serviceSubtype, city, recipientPhone, governorate, bankName, bankCode } = body;
         const service = getTransferServiceDefinition(transferType);
         if (!service || !service.mobileEnabled) {
             throw new Error('نوع التحويل غير مدعوم للموبايل');
@@ -191,11 +197,21 @@ const transferValidator = [
                     ? 'الحد الأدنى لتحويل إنستا باي هو 500 جنيه مصري'
                     : 'الحد الأدنى للتحويل البنكي هو 500 جنيه مصري');
             }
-            if (!isInstapay) {
-                if (!bankName || !String(bankName).trim()) {
-                    throw new Error('اختر اسم البنك قبل إرسال التحويل البنكي');
-                }
-            }
+            const bankError = normalizeStoredBank({
+                transferType,
+                bankCode,
+                bankName
+            }).error;
+            if (bankError) throw new Error(bankError);
+        }
+
+        if (transferType === 'bank_transfer') {
+            const bankError = normalizeStoredBank({
+                transferType,
+                bankCode,
+                bankName
+            }).error;
+            if (bankError) throw new Error(bankError);
         }
 
         if (transferType === 'sefa_niger') {
@@ -257,20 +273,20 @@ const completeTaskValidator = [
         .optional()
         .isString().withMessage('صورة الإثبات يجب أن تكون نص Base64'),
     body('executionNumber')
-        .notEmpty().withMessage('رقم التنفيذ مطلوب')
+        .optional({ checkFalsy: true })
         .trim()
-        .matches(/^\d{11}$/).withMessage('رقم التنفيذ يجب أن يتكون من 11 رقماً'),
+        .matches(/^\d{3}$|^\d{4}$|^\d{11}$/).withMessage('رقم التنفيذ يجب أن يكون 3 أو 4 أو 11 رقماً'),
     body('senderPhone')
         .optional()
         .trim()
-        .isLength({ min: 7, max: 20 }).withMessage('Ø±Ù‚Ù… Ø§Ù„Ù…Ø±Ø³Ù„ ØºÙŠØ± ØµØ§Ù„Ø­'),
+        .matches(/^\d{3}$|^\d{4}$|^\d{11}$/).withMessage('رقم المرسل يجب أن يكون 3 أو 4 أو 11 رقماً'),
     body('senderEntries')
         .optional()
         .isArray({ max: 5 }).withMessage('يمكن إدخال خمسة أرقام مرسل كحد أقصى'),
     body('senderEntries.*.phone')
         .optional()
         .trim()
-        .matches(/^\d{11}$/).withMessage('كل رقم مرسل يجب أن يتكون من 11 رقماً'),
+        .matches(/^\d{3}$|^\d{4}$|^\d{11}$/).withMessage('كل رقم مرسل يجب أن يكون 3 أو 4 أو 11 رقماً'),
     body('senderEntries.*.amount')
         .optional({ nullable: true })
         .isFloat({ min: 0.01 }).withMessage('قيمة رقم المرسل يجب أن تكون أكبر من صفر'),

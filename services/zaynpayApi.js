@@ -1,11 +1,14 @@
 const axios = require('axios');
 const { getApiProviderPreset } = require('../utils/apiProviderPresets');
+const {
+    EXTERNAL_API_DISABLED_MESSAGE,
+    isExternalApiEnabled,
+    resolveProviderBaseUrl
+} = require('../utils/runtimeControls');
 
 class ZaynPayAPI {
     constructor() {
         const preset = getApiProviderPreset('zayn_external_aggregator');
-        this.baseURL = (process.env.ZAYN_AGGREGATOR_URL || process.env.ZAYNPAY_URL || preset.apiUrl).replace(/\/$/, '');
-        if (!this.baseURL.startsWith('http')) this.baseURL = `https://${this.baseURL}`;
         this.username = process.env.ZAYN_USERNAME || process.env.ZAYNPAY_USERNAME;
         this.password = process.env.ZAYN_PASSWORD || process.env.ZAYNPAY_PASSWORD;
         this.serviceId = parseInt(process.env.ZAYN_AGGREGATOR_SERVICE_ID || process.env.ZAYNPAY_SERVICE_ID || preset.serviceId);
@@ -13,10 +16,49 @@ class ZaynPayAPI {
         this.fieldId = parseInt(process.env.ZAYN_AGGREGATOR_FIELD_ID || process.env.ZAYNPAY_FIELD_ID || preset.fieldId);
         this.machineSerial = process.env.ZAYN_AGGREGATOR_MACHINE_SERIAL || process.env.ZAYNPAY_MACHINE_SERIAL || preset.machineSerial;
         this.token = null;
+        try {
+            this.baseURL = this.resolveBaseUrl();
+        } catch (_error) {
+            this.baseURL = '';
+        }
+    }
+
+    resolveBaseUrl(env = process.env) {
+        const preset = getApiProviderPreset('zayn_external_aggregator');
+        const decision = resolveProviderBaseUrl({
+            explicitUrl: env.ZAYN_AGGREGATOR_URL || env.ZAYNPAY_URL || '',
+            presetUrl: preset.apiUrl,
+            env
+        });
+        if (decision.refused) {
+            const error = new Error(`PROVIDER_URL_REFUSED: ${decision.reason}`);
+            error.code = 'PROVIDER_URL_REFUSED';
+            throw error;
+        }
+        let baseURL = String(decision.baseUrl || '').replace(/\/$/, '');
+        if (baseURL && !baseURL.startsWith('http')) baseURL = `https://${baseURL}`;
+        return baseURL;
+    }
+
+    assertOutboundAllowed() {
+        if (!isExternalApiEnabled()) {
+            const error = new Error(EXTERNAL_API_DISABLED_MESSAGE);
+            error.code = 'EXTERNAL_API_DISABLED';
+            throw error;
+        }
+        this.baseURL = this.resolveBaseUrl();
+        if (!this.baseURL) {
+            const error = new Error('PROVIDER_URL_REFUSED: PROVIDER_URL_UNSET');
+            error.code = 'PROVIDER_URL_REFUSED';
+            throw error;
+        }
     }
 
     async login() {
         try {
+            this.assertOutboundAllowed();
+            this.username = process.env.ZAYN_USERNAME || process.env.ZAYNPAY_USERNAME;
+            this.password = process.env.ZAYN_PASSWORD || process.env.ZAYNPAY_PASSWORD;
             if (!this.username || !this.password) {
                 throw new Error('ZaynPay credentials are not configured');
             }
@@ -53,6 +95,7 @@ class ZaynPayAPI {
 
     async inquiry(walletNumber, amount) {
         try {
+            this.assertOutboundAllowed();
             const headers = await this.getHeaders();
             const payload = {
                 Fields: [
@@ -84,6 +127,7 @@ class ZaynPayAPI {
 
     async pay(paymentBillInfo, walletNumber, amount) {
         try {
+            this.assertOutboundAllowed();
             const headers = await this.getHeaders();
             const payload = {
                 Fields: [

@@ -5,8 +5,13 @@ const path = require('path');
 
 const BASE = process.env.TEST_BASE_URL || 'http://127.0.0.1:3002';
 const OUT_DIR = path.join(process.cwd(), 'artifacts', 'client-deposit-test', new Date().toISOString().replace(/[:.]/g, '-'));
-const CLIENT = { username: 'client.direct', password: '12345678' };
-const ADMIN = { username: 'admin', password: 'admin123' };
+const requiredSecret = (name) => {
+    const value = String(process.env[name] || '');
+    if (value.length < 8) throw new Error(`${name} is required and is not printed.`);
+    return value;
+};
+const CLIENT = { username: 'client.direct', password: requiredSecret('SEED_LOCAL_PASSWORD') };
+const ADMIN = { username: process.env.PANEL_USER || 'admin', password: requiredSecret('PANEL_PASS') };
 
 function ensureDir(dir) { fs.mkdirSync(dir, { recursive: true }); }
 

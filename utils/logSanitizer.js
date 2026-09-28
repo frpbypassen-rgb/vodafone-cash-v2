@@ -1,6 +1,6 @@
 'use strict';
 
-const SECRET_KEY_RE = /(?:password|passcode|otp|token|secret|authorization|cookie|api[_-]?key|private[_-]?key|signature|credential|fingerprint)/i;
+const SECRET_KEY_RE = /(?:password|passcode|otp|token|secret|authorization|cookie|api[_-]?key|private[_-]?key|signature|credential|fingerprint|wallet[_-]?pin|ussd[_-]?pin|(?:^|[_-])pin$)/i;
 const IDENTIFIER_KEY_RE = /(?:phone|mobile|vodafone|recipient|sender|execution[_-]?number|national[_-]?id|account[_-]?(?:number|no)|userId)/i;
 
 const maskIdentifier = (value) => {

@@ -10,21 +10,21 @@ cd "$REPO_DIR"
 
 log() { echo "[start] $*"; }
 
-DBPATH="/data/db"
-LOGPATH="/var/log/mongodb/mongod.log"
-PORT=27017
+node .cursor/validate-dev-target.js
+DBPATH="$REPO_DIR/.cloud-dev-data/db"
+LOGPATH="$REPO_DIR/.cloud-dev-data/mongod.log"
+PORT=27019
 
 # ---------------------------------------------------------------------------
 # 1) Ensure MongoDB is running with the rs0 replica set
 # ---------------------------------------------------------------------------
-sudo mkdir -p "$DBPATH" "$(dirname "$LOGPATH")"
-sudo chown -R "$(whoami)" "$DBPATH" "$(dirname "$LOGPATH")"
+mkdir -p "$DBPATH" "$(dirname "$LOGPATH")"
 
 if mongosh --quiet --port "$PORT" --eval 'db.adminCommand({ ping: 1 })' >/dev/null 2>&1; then
   log "MongoDB already running on port $PORT"
 else
   log "starting mongod (replSet rs0)"
-  mongod --replSet rs0 --dbpath "$DBPATH" --bind_ip 127.0.0.1 --port "$PORT" \
+  mongod --replSet clouddev --dbpath "$DBPATH" --bind_ip 127.0.0.1 --port "$PORT" \
     --logpath "$LOGPATH" --fork
   for i in $(seq 1 30); do
     if mongosh --quiet --port "$PORT" --eval 'db.adminCommand({ ping: 1 })' >/dev/null 2>&1; then
@@ -40,7 +40,7 @@ fi
 if ! mongosh --quiet --port "$PORT" --eval 'rs.status().ok' >/dev/null 2>&1; then
   log "initiating replica set rs0"
   mongosh --quiet --port "$PORT" --eval \
-    'rs.initiate({ _id: "rs0", members: [{ _id: 0, host: "127.0.0.1:27017" }] })' >/dev/null
+    'rs.initiate({ _id: "clouddev", members: [{ _id: 0, host: "127.0.0.1:27019" }] })' >/dev/null
 fi
 
 log "waiting for replica set PRIMARY"
@@ -57,7 +57,7 @@ done
 # ---------------------------------------------------------------------------
 if [ -f .env ]; then
   log "seeding local development data"
-  node .cursor/seed-dev.js || log "dev seed reported an issue (continuing)"
+  node .cursor/seed-dev.js
 else
   log ".env missing; skipping dev seed (run install first)"
 fi

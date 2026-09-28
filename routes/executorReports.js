@@ -1,9 +1,10 @@
 const express = require('express');
 const router = express.Router();
-const Employee = require('../models/Employee');
+const { invalidateExecutorAuth, loadExecutorEmployee } = require('../services/executorAuthCache');
 const mobileWebParityService = require('../services/mobileWebParityService');
 const mobileWebParityMapper = require('../mappers/mobileWebParityMapper');
 const { generateExecutorReportPdf } = require('../services/reportPdfService');
+const { snapshotCompanyBalances, workingBalanceForEmployee } = require('../services/executorBalancePoolService');
 
 const reportErrorResponse = (res, error) => {
     const messages = {
@@ -34,8 +35,14 @@ const requireExecutorAuth = async (req, res, next) => {
             : res.redirect('/login');
     }
     try {
-        const employee = await Employee.findById(req.session.executorId).populate('groupId');
+        const isRead = ['GET', 'HEAD', 'OPTIONS'].includes(req.method);
+        if (!isRead) invalidateExecutorAuth(req.session.executorId);
+        const employee = await loadExecutorEmployee(req.session.executorId, {
+            fresh: !isRead,
+            lean: isRead
+        });
         if (!employee || employee.status !== 'active' || !employee.groupId || employee.groupId.status !== 'active') {
+            invalidateExecutorAuth(req.session.executorId);
             return req.path.includes('/filter')
                 ? res.status(401).json({ success: false, error: 'حساب المنفذ غير مفعل.' })
                 : res.redirect('/login');
@@ -50,7 +57,13 @@ const requireExecutorAuth = async (req, res, next) => {
 router.get('/reports', requireExecutorAuth, async (req, res) => {
     try {
         const emp = req.executorEmployee;
-        res.render('executor/reports', { emp });
+        const companyBalances = ['manager', 'accountant'].includes(emp?.role)
+            ? await snapshotCompanyBalances(emp.groupId).catch(() => null)
+            : null;
+        const workingBalance = emp?.role === 'external'
+            ? await workingBalanceForEmployee(emp).catch(() => null)
+            : null;
+        res.render('executor/reports', { emp, companyBalances, workingBalance });
     } catch (_) { res.status(500).send('Error'); }
 });
 

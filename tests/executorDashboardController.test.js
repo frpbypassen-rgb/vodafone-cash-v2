@@ -20,12 +20,42 @@ jest.mock('../services/executorAccountService', () => ({
 }));
 jest.mock('../services/mobileWebParityService', () => ({
     deleteEmployee: jest.fn(),
-    getEmployeesWorkspace: jest.fn()
+    getEmployeesWorkspace: jest.fn(),
+    updateEmployeeExecutionPolicy: jest.fn()
+}));
+jest.mock('../services/executorBalancePoolService', () => ({
+    ExecutorBalancePoolError: class ExecutorBalancePoolError extends Error {
+        constructor(code, message, status = 400) {
+            super(message);
+            this.code = code;
+            this.status = status;
+        }
+    },
+    archivePool: jest.fn(),
+    attachMembers: jest.fn(),
+    createPool: jest.fn(),
+    detachMember: jest.fn(),
+    fundExternalExecutor: jest.fn(),
+    listExternalBalanceWorkspace: jest.fn().mockResolvedValue({
+        pools: [],
+        solos: [],
+        employees: [],
+        balances: { privateBalance: 0, totalBalance: 0, allocatedBalance: 0 }
+    }),
+    renamePool: jest.fn(),
+    snapshotCompanyBalances: jest.fn().mockResolvedValue({
+        privateBalance: 0,
+        totalBalance: 0,
+        allocatedBalance: 0
+    }),
+    workingBalanceForEmployee: jest.fn().mockResolvedValue({ kind: 'solo', balance: 0, pool: null })
 }));
 
 const Transaction = require('../models/Transaction');
+const Employee = require('../models/Employee');
 const { proofSourceUrl, streamProofImage } = require('../services/proofStorageService');
 const mobileWebParityService = require('../services/mobileWebParityService');
+const poolService = require('../services/executorBalancePoolService');
 const controller = require('../controllers/executorDashboardController');
 
 const response = () => ({
@@ -97,6 +127,114 @@ describe('Executor dashboard group ownership', () => {
         expect(payload.employees[0]).not.toHaveProperty('refreshToken');
     });
 
+    test('employees list includes shared-pool workspace fields for the manager UI', async () => {
+        mobileWebParityService.getEmployeesWorkspace.mockResolvedValue({
+            employees: [{
+                _id: 'ahmed',
+                name: 'أحمد',
+                role: 'external',
+                status: 'active',
+                webUsername: 'ahmed@ahram.com',
+                workingBalance: 900,
+                balance: 0,
+                soloBalance: 0,
+                balanceMembership: 'pool',
+                balancePool: { id: 'pool-nour', name: 'شركة النور', balance: 900 },
+                metrics: {},
+                presence: {}
+            }],
+            summary: { totalEmployees: 1 }
+        });
+        poolService.listExternalBalanceWorkspace.mockResolvedValue({
+            pools: [{ id: 'pool-nour', name: 'شركة النور', balance: 900, members: [{ id: 'ahmed', name: 'أحمد' }] }],
+            solos: [{ _id: 'mounir', name: 'منير', role: 'external', workingBalance: 400 }],
+            employees: [],
+            balances: { privateBalance: 2500, totalBalance: 3800, allocatedBalance: 1300 }
+        });
+        const req = { managerEmp: { _id: 'manager-1' } };
+        const res = response();
+
+        await controller.getEmployeesList(req, res);
+
+        const payload = res.json.mock.calls[0][0];
+        expect(payload.pools).toEqual(expect.arrayContaining([
+            expect.objectContaining({ id: 'pool-nour', name: 'شركة النور' })
+        ]));
+        expect(payload.soloExternals[0]).toEqual(expect.objectContaining({ name: 'منير' }));
+        expect(payload.summary).toEqual(expect.objectContaining({
+            privateBalance: 2500,
+            totalBalance: 3800
+        }));
+        expect(payload.employees[0]).toEqual(expect.objectContaining({
+            workingBalance: 900,
+            balanceMembership: 'pool',
+            balancePool: expect.objectContaining({ name: 'شركة النور' })
+        }));
+    });
+
+    test('funding an external executor returns recipient-only receipt flags', async () => {
+        poolService.fundExternalExecutor.mockResolvedValue({
+            customId: 'EXT-1',
+            companyPrivateBalance: 800,
+            companyTotalBalance: 1700,
+            employeeBalance: 900,
+            workingBalance: 900,
+            membership: 'pool',
+            pool: { id: 'pool-nour', name: 'شركة النور' },
+            recipientId: 'ahmed'
+        });
+        const req = {
+            params: { id: 'ahmed' },
+            body: { type: 'deposit', amount: 200, note: '' },
+            managerEmp: { _id: 'manager-1', role: 'manager', groupId: 'group-1' }
+        };
+        const res = response();
+
+        await controller.postExternalEmployeeTransaction(req, res);
+
+        expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+            success: true,
+            customId: 'EXT-1',
+            companyPrivateBalance: 800,
+            companyTotalBalance: 1700,
+            membership: 'pool',
+            recipientOnly: true,
+            recipientId: 'ahmed'
+        }));
+    });
+
+    test('creating an external executor can attach them to a named pool', async () => {
+        Employee.exists.mockResolvedValue(null);
+        Employee.create.mockResolvedValue({ _id: 'ahmed', name: 'أحمد' });
+        poolService.attachMembers.mockResolvedValue({ pools: [] });
+        const req = {
+            body: {
+                name: 'أحمد',
+                phone: '01000000000',
+                role: 'external',
+                webUsername: 'ahmed',
+                webPassword: 'secret1',
+                balancePoolId: 'pool-nour'
+            },
+            managerEmp: { _id: 'manager-1', name: 'مدير', groupId: 'group-1' },
+            session: { executorId: 'manager-1' }
+        };
+        const res = response();
+
+        await controller.postEmployeesCreate(req, res);
+
+        expect(poolService.attachMembers).toHaveBeenCalledWith({
+            manager: req.managerEmp,
+            poolId: 'pool-nour',
+            memberIds: ['ahmed']
+        });
+        expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+            success: true,
+            employeeId: 'ahmed',
+            poolAttachError: null
+        }));
+    });
+
     test('streams proof images for a transaction owned by a populated executor group', async () => {
         Transaction.findById.mockResolvedValue({
             executorGroupId: 'group-1',
@@ -127,26 +265,24 @@ describe('Executor dashboard group ownership', () => {
             executorReceivedAt: new Date(Date.now() - 130000),
             createdAt: new Date(Date.now() - 130000)
         };
-        const taskQuery = { lean: jest.fn().mockResolvedValue([task]) };
-        const alertsQuery = { lean: jest.fn().mockResolvedValue([]) };
-        const depositAlertsQuery = { lean: jest.fn().mockResolvedValue([]) };
-        const completedQuery = {
+        const chain = (result) => ({
+            select: jest.fn().mockReturnThis(),
             sort: jest.fn().mockReturnThis(),
             limit: jest.fn().mockReturnThis(),
-            select: jest.fn().mockReturnThis(),
-            lean: jest.fn().mockResolvedValue([{ customId: 'ATT-1', amount: 100 }])
-        };
+            lean: jest.fn().mockResolvedValue(result)
+        });
+        const completedQuery = chain([{ customId: 'ATT-1', amount: 100 }]);
         Transaction.find
-            .mockReturnValueOnce(taskQuery)
-            .mockReturnValueOnce(alertsQuery)
-            .mockReturnValueOnce(depositAlertsQuery)
+            .mockReturnValueOnce(chain([task]))
+            .mockReturnValueOnce(chain([]))
             .mockReturnValueOnce(completedQuery);
         Transaction.updateMany.mockResolvedValue({ modifiedCount: 1 });
         Transaction.aggregate.mockResolvedValue([{ count: 125, amount: 40000 }]);
 
         const req = {
             session: { executorId: 'employee-1' },
-            executorEmployee: { _id: 'employee-1', role: 'operator', groupId: 'group-1' }
+            executorEmployee: { _id: 'employee-1', role: 'operator', groupId: 'group-1' },
+            query: {}
         };
         const res = response();
 
@@ -156,7 +292,52 @@ describe('Executor dashboard group ownership', () => {
         expect(completedQuery.limit).toHaveBeenCalledWith(60);
         expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
             completedToday: [{ customId: 'ATT-1', amount: 100 }],
-            completedTodaySummary: { count: 125, amount: 40000 }
+            completedTodaySummary: { count: 125, amount: 40000 },
+            pollIntervalSeconds: expect.any(Number)
+        }));
+    });
+
+    test('lite live-tasks skips the completed list query', async () => {
+        const chain = (result) => ({
+            select: jest.fn().mockReturnThis(),
+            sort: jest.fn().mockReturnThis(),
+            limit: jest.fn().mockReturnThis(),
+            lean: jest.fn().mockResolvedValue(result)
+        });
+        Transaction.find
+            .mockReturnValueOnce(chain([]))
+            .mockReturnValueOnce(chain([]));
+        Transaction.aggregate.mockResolvedValue([{ count: 3, amount: 900 }]);
+
+        const req = {
+            session: { executorId: 'employee-1' },
+            executorEmployee: { _id: 'employee-1', role: 'operator', groupId: 'group-1' },
+            query: { lite: '1' }
+        };
+        const res = response();
+
+        await controller.getLiveTasks(req, res);
+
+        expect(Transaction.find).toHaveBeenCalledTimes(2);
+        expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+            completedToday: [],
+            completedTodaySummary: { count: 3, amount: 900 }
+        }));
+    });
+
+    test('refuses manager saves of per-executor execution policy overrides', async () => {
+        const req = {
+            params: { id: 'employee-2' },
+            managerEmp: { _id: 'manager-1', role: 'manager', groupId: 'group-1' },
+            body: { proofRequired: true }
+        };
+        const res = response();
+        await controller.postEmployeeExecutionPolicy(req, res);
+        expect(mobileWebParityService.updateEmployeeExecutionPolicy).not.toHaveBeenCalled();
+        expect(res.status).toHaveBeenCalledWith(403);
+        expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+            success: false,
+            code: 'ADMIN_ONLY'
         }));
     });
 });

@@ -6,6 +6,10 @@ set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_DIR"
+if [ "${CLOUD_AGENT_DEV_SETUP_ENABLED:-}" != "true" ] || [ "${NODE_ENV:-}" != "development" ]; then
+  echo "Refusing install outside an explicitly opted-in development environment." >&2
+  exit 1
+fi
 
 log() { echo "[install] $*"; }
 

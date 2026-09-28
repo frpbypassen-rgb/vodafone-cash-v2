@@ -6,12 +6,22 @@ jest.mock('../models/Employee', () => ({
 }));
 
 jest.mock('../models/Transaction', () => ({
-    find: jest.fn()
+    find: jest.fn(),
+    findOne: jest.fn(),
+    findById: jest.fn()
 }));
 
 jest.mock('../models/MobilePushDevice', () => ({
     find: jest.fn(),
     updateMany: jest.fn()
+}));
+
+jest.mock('../models/ExecutorBalancePool', () => ({
+    find: jest.fn()
+}));
+
+jest.mock('../models/ExecutorGroup', () => ({
+    findById: jest.fn()
 }));
 
 const mockLogAction = jest.fn();
@@ -22,9 +32,12 @@ jest.mock('../services/auditService', () => ({
 const Employee = require('../models/Employee');
 const Transaction = require('../models/Transaction');
 const MobilePushDevice = require('../models/MobilePushDevice');
+const ExecutorBalancePool = require('../models/ExecutorBalancePool');
+const ExecutorGroup = require('../models/ExecutorGroup');
 const {
     getEmployeesWorkspace,
-    deleteEmployee
+    deleteEmployee,
+    executeZaynPayIdempotent
 } = require('../services/mobileWebParityService');
 
 const sortedLean = (value) => ({
@@ -36,7 +49,24 @@ const sortedLean = (value) => ({
 describe('executor employee workspace', () => {
     beforeEach(() => {
         jest.clearAllMocks();
+        delete process.env.EXTERNAL_API_ENABLED;
         mockLogAction.mockResolvedValue(undefined);
+        ExecutorBalancePool.find.mockReturnValue({
+            select: jest.fn().mockReturnValue({
+                lean: jest.fn().mockResolvedValue([])
+            })
+        });
+        ExecutorGroup.findById.mockReturnValue({
+            lean: jest.fn().mockResolvedValue({
+                _id: 'group-1',
+                serviceKey: 'vodafone',
+                serviceKeys: ['vodafone'],
+                manualProofRequired: false,
+                manualAllowedPhoneLengths: [3, 4, 11],
+                maxConcurrentDevices: 1,
+                sessionTtlEnabled: false
+            })
+        });
     });
 
     test('returns server-scoped presence, current task, and daily performance', async () => {
@@ -213,5 +243,31 @@ describe('executor employee workspace', () => {
             action: 'USER_ARCHIVED',
             targetId: 'operator-1'
         }));
+    });
+
+    test('refuses a new mobile ZaynPay execution before a provider call or a save', async () => {
+        process.env.EXTERNAL_API_ENABLED = 'false';
+        const tx = {
+            status: 'accepted',
+            operatorId: 'emp-1',
+            executorGroupId: 'group-1',
+            amount: 25,
+            vodafoneNumber: '01000000000',
+            save: jest.fn()
+        };
+        Transaction.findOne.mockResolvedValue(null);
+        Transaction.findById.mockResolvedValue(tx);
+
+        await expect(executeZaynPayIdempotent({
+            executorId: 'emp-1',
+            taskId: 'tx-1',
+            req: { headers: { 'idempotency-key': 'new-pay' }, body: {}, method: 'POST', path: '/execute' }
+        })).rejects.toMatchObject({ code: 'API_EXECUTION_UNAVAILABLE' });
+
+        delete process.env.EXTERNAL_API_ENABLED;
+        expect(Transaction.findById).not.toHaveBeenCalled();
+        expect(tx.save).not.toHaveBeenCalled();
+        expect(tx.status).toBe('accepted');
+        expect(mockLogAction).not.toHaveBeenCalled();
     });
 });

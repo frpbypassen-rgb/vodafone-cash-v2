@@ -75,6 +75,7 @@ describe('Balance adjustment reversal service', () => {
         const result = await voidBalanceAdjustment({
             transactionId,
             performedBy: 'مدير الاختبار',
+            performedById: 'admin-1',
             reason: 'حذف تسوية اختبارية'
         });
 
@@ -130,6 +131,7 @@ describe('Balance adjustment reversal service', () => {
         const result = await voidBalanceAdjustment({
             transactionId,
             performedBy: 'مدير الاختبار',
+            performedById: 'admin-1',
             reason: 'استكمال إلغاء سابق'
         });
 

@@ -1,4 +1,4 @@
-<header class="bw-topbar">
+<header class="bw-topbar<%= workspace.isCompany ? ' cp-topbar' : ' cl-topbar' %>">
     <div class="bw-topbar-start">
         <button type="button" class="bw-icon-button bw-menu-button" data-sidebar-toggle aria-controls="businessSidebar" aria-expanded="false" title="فتح القائمة">
             <i class="fa-solid fa-bars-staggered"></i>
@@ -12,19 +12,19 @@
             <i class="fa-solid fa-chevron-left"></i>
             <strong><%= pageMeta.title %></strong>
         </div>
+        <% if (workspace.isCompany) { %>
+            <strong class="cp-company-name"><%= workspace.entity.name %></strong>
+        <% } %>
     </div>
     <div class="bw-topbar-actions">
-        <% if (workspace.isCompany) { %>
-            <a href="/client/company-next" class="bw-workspace-shortcut" title="معاينة واجهة الشركات الجديدة" aria-label="معاينة واجهة الشركات الجديدة">
-                <i class="fa-solid fa-wand-magic-sparkles"></i><span>الواجهة الجديدة</span>
-            </a>
-        <% } %>
+        <% if (!workspace.isCompany) { %>
         <a href="/client/services" class="bw-workspace-shortcut" title="الخدمات" aria-label="الخدمات المتاحة">
             <i class="fa-solid fa-grid-2"></i><span>الخدمات</span>
         </a>
         <a href="/client/support" class="bw-workspace-shortcut" title="الدعم والمساعدة" aria-label="الدعم والمساعدة">
             <i class="fa-solid fa-headset"></i><span>مساعدة</span>
         </a>
+        <% } %>
         <% if (workspace.permissions.canViewBalance) { %>
             <div class="bw-balance-chip" aria-label="الرصيد الحالي">
                 <span>الرصيد</span>
@@ -42,6 +42,11 @@
                 <span>آخر سعر <%= rateUpdated.toLocaleTimeString('ar-LY', { timeZone: 'Africa/Tripoli', hour: '2-digit', minute: '2-digit' }) %></span>
             </time>
         <% } %>
+        <% if (workspace.isCompany) { %>
+            <%- include('company_notifications') %>
+        <% } else { %>
+            <%- include('customer_notifications') %>
+        <% } %>
         <a href="<%= workspace.isCompany ? '/client/security' : '/client/settings' %>" class="bw-icon-button bw-topbar-link" title="أمان الحساب" aria-label="أمان الحساب">
             <i class="fa-solid fa-shield-halved"></i>
         </a>
@@ -55,10 +60,10 @@
                 <i class="fa-solid fa-sparkles bw-assistant-launcher-spark spark-one" aria-hidden="true"></i>
                 <i class="fa-solid fa-star bw-assistant-launcher-spark spark-two" aria-hidden="true"></i>
             </button>
+            <%- include('company_theme_switcher') %>
+        <% } else { %>
+        <%- include('customer_theme_switcher') %>
         <% } %>
-        <button type="button" class="bw-icon-button" data-theme-toggle title="تغيير المظهر" aria-label="تغيير المظهر">
-            <i class="fa-solid fa-moon"></i>
-        </button>
         <button type="button" class="bw-icon-button" data-privacy-toggle title="إخفاء البيانات الحساسة" aria-label="إخفاء البيانات الحساسة">
             <i class="fa-solid fa-eye-slash"></i>
         </button>

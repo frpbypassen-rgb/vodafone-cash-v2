@@ -48,6 +48,7 @@ const auditLogSchema = new mongoose.Schema({
 
     // ── بيانات إضافية متعلقة بالعملية ───────────────────────
     metadata: { type: mongoose.Schema.Types.Mixed },
+    companyId: { type: mongoose.Schema.Types.ObjectId, ref: 'ClientCompany', index: true },
 
     // ── نتيجة العملية ────────────────────────────────────────
     success: { type: Boolean, default: true },
@@ -78,5 +79,7 @@ auditLogSchema.index({ action: 1, createdAt: -1 });
 auditLogSchema.index({ targetId: 1, createdAt: -1 });
 auditLogSchema.index({ ipAddress: 1, createdAt: -1 });
 auditLogSchema.index({ createdAt: -1 }); // للتقارير اليومية
+auditLogSchema.index({ companyId: 1, createdAt: -1 });
+auditLogSchema.index({ companyId: 1, action: 1, createdAt: -1 });
 
 module.exports = mongoose.model('AuditLog', auditLogSchema);

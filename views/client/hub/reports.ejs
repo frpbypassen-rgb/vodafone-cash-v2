@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl" data-portal="customer" data-theme="<%= typeof clientTheme !== 'undefined' && clientTheme ? clientTheme : 'day' %>">
+<head>
+    <script>window.csrfToken = <%- JSON.stringify(typeof csrfToken !== 'undefined' ? csrfToken : '') %>;</script>
+    <%- include('../partials/wallet_hub_layout_head', {
+        pageTitle: 'التقارير',
+        walletHub: true,
+        extraCss: ['/css/client-hub-pages.css?v=20260920-cl-r1', '/css/client-reports-2027.css?v=20260920-cl-r1']
+    }) %>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+</head>
+<body class="cl-app cl-shell client-direct-modern client-nile-theme wallet-hub-active wallet-hub-satellite client-hub-page client-report-2027" data-customer-shell data-page="reports" data-theme="<%= typeof clientTheme !== 'undefined' && clientTheme ? clientTheme : 'day' %>">
+    <%- include('../partials/wallet_hub_mobile_header', {
+        user: user,
+        mobileKicker: 'التقارير المالية',
+        mobileTitle: 'التقارير',
+        mobileSubtitle: 'ملخص الفترة · العمليات · التصدير'
+    }) %>
+
+    <%- include('../partials/wallet_hub_hub_shell_start', {
+        user: user,
+        activePage: 'reports',
+        isSystemOpen: isSystemOpen,
+        pageKicker: 'التقارير المالية',
+        pageTitle: 'التقارير',
+        pageSubtitle: 'كشف الفترة والعمليات والتصدير — مرتبط بسجل الإدارة.',
+        pageIcon: 'fa-chart-column'
+    }) %>
+
+    <div class="client-hub-mobile-content" data-customer-reports>
+        <nav class="client-hub-tabs" aria-label="أقسام التقارير">
+            <a href="/client/reports" class="is-active"><i class="fa-solid fa-chart-column"></i> التقارير</a>
+            <a href="/client/account?tab=operations"><i class="fa-solid fa-list"></i> سجل العمليات</a>
+            <a href="/client/account?tab=summary"><i class="fa-solid fa-chart-pie"></i> ملخص مالي</a>
+            <a href="/client/account?tab=export"><i class="fa-solid fa-file-export"></i> تصدير</a>
+        </nav>
+
+        <%- include('../partials/hub_account_reports', { tab: 'operations', account: account, accountType: accountType }) %>
+    </div>
+
+    <%- include('../partials/wallet_hub_hub_shell_end') %>
+    <%- include('../partials/wallet_hub_layout_end', { walletHub: true, user: user, profile: profile, activeNav: 'reports' }) %>
+    <%- include('../partials/wallet_hub_bottom_nav', { activeNav: 'reports' }) %>
+    <script src="/js/client-hub-account.js?v=20260920-cl-r1" defer></script>
+</body>
+</html>

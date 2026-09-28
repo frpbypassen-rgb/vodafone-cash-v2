@@ -27,6 +27,7 @@ const {
     normalizeCreditLimit,
     assertCreditLimitCanCoverBalance
 } = require('./agencyCreditLimitService');
+const { agentOwnsSubAccount } = require('../utils/agencyOwnership');
 
 const escapeRegExp = (value) => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const normalizeNumber = (value) => Number(Number(value || 0).toFixed(3));
@@ -77,9 +78,7 @@ const decodeSubAccountParam = (req, res) => {
 
 const getOwnedSubAccount = async (agent, subAccountId, session) => {
     const sub = await withSession(SubAccount.findById(subAccountId), session);
-    if (!sub || sub.masterType !== 'user' || String(sub.masterId) !== String(agent._id)) {
-        return null;
-    }
+    if (!agentOwnsSubAccount(agent, sub)) return null;
     return sub;
 };
 
@@ -490,6 +489,7 @@ const executeSettlement = async (req, res) => {
             customId: txId,
             subAccountId: sub._id,
             subAccountName: sub.name,
+            isSubAccountTx: true,
             userId: agent.phone || agent.webUsername,
             amount: val,
             costLYD: 0,

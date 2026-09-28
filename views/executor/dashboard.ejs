@@ -13,6 +13,10 @@
         document.documentElement.setAttribute('data-bs-theme', savedTheme);
     </script>
 
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+    <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.rtl.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet">
@@ -121,6 +125,12 @@
         
         .task-locked { opacity: 0.55; filter: grayscale(35%); }
         .task-locked::before { background: var(--text-muted); }
+        .task-routed { border-color: rgba(14,165,233,0.35); }
+        .task-routed::before { background: var(--accent-blue); }
+        [data-theme="dark"] .task-routed { background: linear-gradient(145deg, rgba(14,165,233,0.08) 0%, var(--glass-bg) 100%); }
+        [data-theme="light"] .task-routed { background: linear-gradient(145deg, rgba(14,165,233,0.05) 0%, rgba(255,255,255,0.95) 100%); }
+        .task-waiting { border-color: rgba(245,158,11,0.35); }
+        .task-waiting::before { background: #d97706; }
 
         .task-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 14px; border-bottom: 1px dashed var(--glass-border); padding-bottom: 10px; }
         .task-id { font-size: 1rem; font-weight: 900; color: var(--text-muted); font-family: 'JetBrains Mono', monospace; }
@@ -129,6 +139,13 @@
         .badge-pending { background: rgba(212,175,55,0.1); color: var(--accent-gold); border: 1px solid rgba(212,175,55,0.2); }
         .badge-mine { background: rgba(16,185,129,0.1); color: var(--accent-green); border: 1px solid rgba(16,185,129,0.2); }
         .badge-locked { background: rgba(100,116,139,0.08); color: #7a8da6; border: 1px solid rgba(100,116,139,0.15); }
+        .badge-routed { background: rgba(14,165,233,0.12); color: var(--accent-blue); border: 1px solid rgba(14,165,233,0.25); }
+        .badge-waiting { background: rgba(245,158,11,0.12); color: #d97706; border: 1px solid rgba(245,158,11,0.28); }
+        .executor-assignee-strip { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 12px; margin: 0 0 12px; border: 1px solid rgba(14,165,233,0.22); background: rgba(14,165,233,0.08); }
+        .executor-assignee-strip.waiting { border-color: rgba(245,158,11,0.28); background: rgba(245,158,11,0.08); }
+        .executor-assignee-strip.in-progress { border-color: rgba(16,185,129,0.28); background: rgba(16,185,129,0.08); }
+        .executor-assignee-strip strong { display: block; font-size: 0.92rem; }
+        .executor-assignee-strip small { color: var(--text-muted); font-weight: 700; }
 
         .data-label { font-size: 0.78rem; color: var(--text-muted); font-weight: 700; margin-bottom: 5px; display: block; }
         
@@ -307,15 +324,15 @@
         [data-theme="dark"] .swal2-input, [data-theme="dark"] .swal2-textarea { background: rgba(255,255,255,0.04) !important; }
     </style>
     <link rel="stylesheet" href="/css/brand-ui.css?v=20260804-brand1">
-    <link rel="stylesheet" href="/css/executor-workspace.css?v=20260825-balance1">
+    <link rel="stylesheet" href="/css/executor-workspace.css?v=20260921-task-card">
     <link rel="stylesheet" href="/css/executor-2030-override.css?v=20260825-balance1">
-    <link rel="stylesheet" href="/css/executor-os.css?v=20260825-balance1">
+    <link rel="stylesheet" href="/css/executor-os.css?v=20260921-task-card">
 </head>
 <body class="executor-os executor-portal-v2 executor-page-dashboard">
 
 <%- include('partials/navigation', { emp, activePage: 'tasks' }) %>
 <div class="exo-stage">
-    <%- include('partials/command-bar', { emp }) %>
+    <%- include('partials/command-bar', { emp, companyBalances: typeof companyBalances === 'undefined' ? null : companyBalances }) %>
 </div>
 
 <div id="emergencyOverlay">
@@ -330,10 +347,27 @@
 <script>
     const myExecutorId = '<%= emp._id %>';
     const isExecutorManager = <%= emp.role === 'manager' ? 'true' : 'false' %>;
-    const executorManualPolicy = {
-        proofRequired: <%= emp.groupId?.manualProofRequired ? 'true' : 'false' %>,
-        allowedPhoneLengths: <%= JSON.stringify(Array.isArray(emp.groupId?.manualAllowedPhoneLengths) ? emp.groupId.manualAllowedPhoneLengths : [3, 4, 11]) %>,
-        splitRequiresFullPhone: <%= emp.groupId?.manualSplitRequiresFullPhone !== false ? 'true' : 'false' %>
+    const executorTaskTypeMeta = {
+        vodafone: { name: 'تحويل محفظة كاش', short: 'كاش', icon: 'fa-mobile-screen-button' },
+        post_account: { name: 'تحويل بريد حساب', short: 'بريد', icon: 'fa-envelope' },
+        post_card: { name: 'تحويل بريد بطاقة', short: 'بطاقة', icon: 'fa-id-card' },
+        bank_account: { name: 'تحويل بنكي', short: 'بنك', icon: 'fa-building-columns' },
+        sefa_niger: { name: 'سيفا النيجر', short: 'سيفا', icon: 'fa-globe' },
+        bankak_sudan: { name: 'بنكك السودان', short: 'بنكك', icon: 'fa-building' }
+    };
+    const taskTypeMeta = (transferType) => executorTaskTypeMeta[String(transferType || '').trim().toLowerCase()]
+        || { name: 'عملية تنفيذ', short: 'تنفيذ', icon: 'fa-bolt' };
+    let executorManualPolicy = {
+        proofRequired: <%= (typeof executionPolicy !== 'undefined' ? executionPolicy.proofRequired : emp.groupId?.manualProofRequired) ? 'true' : 'false' %>,
+        quickExecuteEnabled: <%= (typeof executionPolicy !== 'undefined' ? executionPolicy.quickExecuteEnabled : emp.groupId?.manualQuickExecuteEnabled) ? 'true' : 'false' %>,
+        allowedPhoneLengths: <%= JSON.stringify((typeof executionPolicy !== 'undefined' && Array.isArray(executionPolicy.allowedPhoneLengths)) ? executionPolicy.allowedPhoneLengths : (Array.isArray(emp.groupId?.manualAllowedPhoneLengths) ? emp.groupId.manualAllowedPhoneLengths : [3, 4, 11])) %>,
+        splitRequiresFullPhone: <%= (typeof executionPolicy !== 'undefined' ? executionPolicy.splitRequiresFullPhone !== false : emp.groupId?.manualSplitRequiresFullPhone !== false) ? 'true' : 'false' %>
+    };
+    let executorQuickExecute = {
+        enabled: executorManualPolicy.quickExecuteEnabled,
+        network: 'vodafone',
+        pinRequired: false,
+        pinSet: false
     };
 </script>
 
@@ -346,7 +380,17 @@
         </div>
     </div>
     <div class="nav-actions">
-        <% if (emp.role === 'manager') { %><span class="nav-btn text-success border border-success border-opacity-25" style="cursor: default; font-weight: 800;" title="المبلغ المتاح"><i class="fa-solid fa-wallet me-1"></i> <%= Number(emp.groupId?.balance || 0).toLocaleString('en-US', { maximumFractionDigits: 0 }) %> ج.م</span><% } %>
+        <% if (emp.role === 'manager') { %>
+            <% const liveRows = Array.isArray(companyBalances?.byService) ? companyBalances.byService : []; %>
+            <% if (companyBalances?.multiService && liveRows.length > 1) { %>
+                <% liveRows.forEach((row) => { %>
+                    <span class="nav-btn text-success border border-success border-opacity-25" style="cursor: default; font-weight: 800;" title="<%= row.appliesPoolModel ? row.totalLabel : row.singleLabel %>"><i class="fa-solid fa-wallet me-1"></i> <%= row.shortLabel %> <%= Number(row.appliesPoolModel ? row.totalBalance : row.privateBalance).toLocaleString('en-US', { maximumFractionDigits: 0 }) %> ج.م</span>
+                <% }); %>
+            <% } else { %>
+            <span class="nav-btn text-success border border-success border-opacity-25" style="cursor: default; font-weight: 800;" title="إجمالي الرصيد"><i class="fa-solid fa-vault me-1"></i> <%= Number(companyBalances?.totalBalance ?? emp.groupId?.balance ?? 0).toLocaleString('en-US', { maximumFractionDigits: 0 }) %> ج.م</span>
+            <span class="nav-btn text-warning border border-warning border-opacity-25" style="cursor: default; font-weight: 800;" title="الرصيد الخاص"><i class="fa-solid fa-wallet me-1"></i> <%= Number(companyBalances?.privateBalance ?? emp.groupId?.balance ?? 0).toLocaleString('en-US', { maximumFractionDigits: 0 }) %> ج.م</span>
+            <% } %>
+        <% } %>
         <button class="nav-btn btn-theme shadow-sm" onclick="toggleTheme()" title="المظهر"><i class="fa-solid fa-moon" id="themeIcon"></i></button>
         <a href="/executor-portal/logout" class="nav-btn btn-logout"><i class="fa-solid fa-power-off"></i></a>
     </div>
@@ -401,7 +445,7 @@
                     </div>
                     <h4 class="fw-bold mb-1" style="color: var(--text-main);"><%= emp.name %></h4>
                     <span class="badge bg-warning bg-opacity-10 text-warning px-3 py-1.5 rounded-pill mb-4" style="font-size: 0.8rem; border: 1px solid rgba(251,191,36,0.2);">
-                        <%= emp.role === 'manager' ? 'مدير النظام' : 'منفذ العمليات' %>
+                        <%= emp.role === 'manager' ? 'مدير تنفيذي' : (emp.role === 'accountant' ? 'محاسب' : (emp.role === 'external' ? 'منفّذ خارجي' : 'موظف تنفيذ')) %>
                     </span>
                     
                     <div class="text-start border-top pt-3" style="border-top-style: dashed !important; border-color: var(--glass-border) !important; display: flex; flex-direction: column; gap: 12px;">
@@ -483,12 +527,16 @@
                 
                 <div id="previewsGrid" class="row g-2 mb-3"></div>
 
-                <div class="mb-3">
+                <div class="mb-3" id="splitOperationBlock">
                     <div class="form-check form-switch">
                         <input class="form-check-input" type="checkbox" id="splitOperationToggle" onchange="toggleSplitOperationMode()">
                         <label class="form-check-label fw-bold" for="splitOperationToggle">تقسيم العملية على أكثر من رقم مرسل</label>
                     </div>
                     <small class="text-muted d-block mt-1" id="splitOperationHint">عند التفعيل، أدخل رقم الهاتف والمبلغ وصورة الإثبات لكل جزء حتى يساوي مجموع العملية.</small>
+                </div>
+
+                <div id="bankTransferCompletionNote" class="alert alert-info py-2 small fw-bold d-none" role="status">
+                    تحويل بنكي: أرفق صورة الإثبات فقط. تُرسل الصورة نفسها للعميل، دون رقم هاتف ودون تقسيم.
                 </div>
 
                 <div id="singleSenderBlock" class="mb-4">
@@ -514,8 +562,8 @@
     </div>
 </div>
 
-<audio id="sirenSound" src="https://assets.mixkit.co/active_storage/sfx/991/991-preview.mp3" loop preload="auto"></audio>
-<audio id="alertSound" src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3" preload="auto"></audio>
+<audio id="sirenSound" src="https://assets.mixkit.co/active_storage/sfx/991/991-preview.mp3" loop preload="none"></audio>
+<audio id="alertSound" src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3" preload="none"></audio>
 
 <!-- شريط التنقل السفلي للهواتف (App-like Bottom Navigation) -->
 <div class="bottom-nav-mobile d-md-none">
@@ -570,6 +618,7 @@
             
             topNavProfile?.classList.add('active');
             botNavProfile?.classList.add('active');
+            if (typeof refreshTasks === 'function') refreshTasks();
         } else {
             if (radarSec) radarSec.style.display = 'block';
             if (profileSec) profileSec.style.display = 'none';
@@ -608,9 +657,12 @@
     let activeTasksIds = [];
     let currentCompletingId = null; 
     let currentCompletingTransferType = '';
+    let currentCompletingBankName = '';
     let currentEmergencyId = null; 
     let selectedFilesArray = [];
     let lastTasksHash = '';
+    let liveTasksPollMs = 12000;
+    let liveTasksPollTimer = null;
     // 🚀 ذاكرة ذكية تمنع إعادة عرض أي إنذار تم إيقافه محلياً
     let dismissedAlertsIds = new Set();
     
@@ -780,9 +832,36 @@
         return '';
     }
 
+    function isBankTransferCompletion() {
+        const type = String(currentCompletingTransferType || '').trim().toLowerCase();
+        return type === 'bank_account' || type === 'bank_transfer';
+    }
+
     function updateProofRequirement() {
         const title = document.getElementById('proofRequirementTitle');
         const hint = document.getElementById('proofRequirementHint');
+        const bankTransfer = isBankTransferCompletion();
+        const splitBlock = document.getElementById('splitOperationBlock');
+        const phoneBlock = document.getElementById('singleSenderBlock');
+        const bankNote = document.getElementById('bankTransferCompletionNote');
+        if (splitBlock) splitBlock.classList.toggle('d-none', bankTransfer);
+        if (phoneBlock) phoneBlock.classList.toggle('d-none', bankTransfer);
+        if (bankNote) {
+            bankNote.classList.toggle('d-none', !bankTransfer);
+            const bank = String(currentCompletingBankName || '').trim();
+            bankNote.textContent = bank
+                ? `تحويل بنكي — ${bank}: أرفق صورة الإثبات فقط. تُرسل الصورة نفسها للعميل، دون رقم هاتف ودون تقسيم.`
+                : 'تحويل بنكي: أرفق صورة الإثبات فقط. تُرسل الصورة نفسها للعميل، دون رقم هاتف ودون تقسيم.';
+        }
+        if (bankTransfer) {
+            const splitToggle = document.getElementById('splitOperationToggle');
+            if (splitToggle) splitToggle.checked = false;
+            document.getElementById('splitSenderBlock')?.classList.add('d-none');
+            if (title) title.textContent = 'إرفاق صورة الإثبات إجباري';
+            if (hint) hint.textContent = 'تُرسل صورة الإثبات نفسها للعميل. لا يُنشأ إيصال تلقائي للتحويل البنكي.';
+            dropZone.classList.add('border-danger');
+            return;
+        }
         if (executorManualPolicy.proofRequired) {
             if (title) title.textContent = 'إرفاق الصورة إجباري';
             if (hint) hint.textContent = 'يجب إرفاق صورة إثبات لكل رقم مرسل عند تقسيم العملية، أو صورة واحدة على الأقل عند رقم واحد.';
@@ -847,7 +926,7 @@
         .replace(/'/g, '&#039;');
 
     // 📡 جلب البيانات وفرز الكروت الديناميكي (Smart Sorting FIFO)
-    let tasksRefreshInFlight = false;
+    let liveTasksRequestId = 0;
     let manualTaskRoutingEnabled = false;
 
     function renderManualRoutingControl() {
@@ -892,12 +971,15 @@
             const candidatesData = await readExecutorApiResponse(candidatesResponse);
             const candidates = Array.isArray(candidatesData.employees) ? candidatesData.employees : [];
             if (candidates.length === 0) {
-                throw new Error('لا يوجد موظف تنفيذ نشط يمكن توجيه العملية إليه.');
+                throw new Error('لا يوجد موظف تنفيذ أو منفّذ خارجي نشط يمكن توجيه العملية إليه.');
             }
-            const options = Object.fromEntries(candidates.map((employee) => [employee._id, `${employee.name} - ${employee.webUsername}`]));
+            const options = Object.fromEntries(candidates.map((employee) => {
+                const roleLabel = employee.roleLabel || (employee.role === 'external' ? 'منفّذ خارجي' : 'موظف تنفيذ');
+                return [employee._id, `${employee.name} — ${roleLabel}`];
+            }));
             const { value: employeeId } = await Swal.fire({
                 title: 'توجيه العملية',
-                text: 'اختر المنفذ الذي ستظهر له العملية ليقبلها وينفذها.',
+                text: 'اختر موظف التنفيذ أو المنفّذ الخارجي الذي ستظهر له العملية ليقبلها وينفذها.',
                 input: 'select',
                 inputOptions: options,
                 inputPlaceholder: 'اختر المنفذ',
@@ -922,13 +1004,41 @@
     }
 
     async function refreshTasks() {
-        if (document.hidden || tasksRefreshInFlight) return;
-        tasksRefreshInFlight = true;
+        if (document.hidden) return;
+        const requestId = ++liveTasksRequestId;
         try {
-            const res = await executorApiFetch('/executor-portal/api/live-tasks');
+            const profileVisible = document.getElementById('profileSection')?.style.display !== 'none';
+            const liveTasksUrl = profileVisible
+                ? '/executor-portal/api/live-tasks'
+                : '/executor-portal/api/live-tasks?lite=1';
+            const res = await executorApiFetch(liveTasksUrl);
             const data = await readExecutorApiResponse(res);
+            if (requestId !== liveTasksRequestId) return;
+            const nextPollSeconds = Number(data.pollIntervalSeconds);
+            if (Number.isFinite(nextPollSeconds) && nextPollSeconds >= 5 && nextPollSeconds <= 30) {
+                liveTasksPollMs = nextPollSeconds * 1000;
+            }
             manualTaskRoutingEnabled = Boolean(data.manualTaskRoutingEnabled);
             renderManualRoutingControl();
+            if (data.executionPolicy) {
+                executorManualPolicy = {
+                    proofRequired: Boolean(data.executionPolicy.proofRequired),
+                    quickExecuteEnabled: Boolean(data.executionPolicy.quickExecuteEnabled),
+                    allowedPhoneLengths: Array.isArray(data.executionPolicy.allowedPhoneLengths)
+                        ? data.executionPolicy.allowedPhoneLengths
+                        : (executorManualPolicy.allowedPhoneLengths || [3, 4, 11]),
+                    splitRequiresFullPhone: data.executionPolicy.splitRequiresFullPhone !== false
+                };
+                if (typeof updateProofRequirement === 'function') updateProofRequirement();
+            }
+            if (data.quickExecute) {
+                executorQuickExecute = {
+                    enabled: data.quickExecute.enabled === true,
+                    network: data.quickExecute.network || 'vodafone',
+                    pinRequired: data.quickExecute.pinRequired === true,
+                    pinSet: data.quickExecute.pinSet === true
+                };
+            }
             
             // 📊 تحديث إحصائيات المعاملات المنجزة اليوم في صفحة حسابي
             if (data.completedToday) {
@@ -942,14 +1052,8 @@
                     const txAmt = parseFloat(tx.amount) || 0;
                     if (!hasServerSummary) sum += txAmt;
                     
-                    let typeBadge = '';
-                    if (tx.transferType === 'post_account') {
-                        typeBadge = '<span class="badge bg-warning bg-opacity-10 text-warning border border-warning border-opacity-25" style="font-size: 0.72rem;"><i class="fa-solid fa-envelope me-1"></i> بريد</span>';
-                    } else if (tx.transferType === 'post_card') {
-                        typeBadge = '<span class="badge bg-info bg-opacity-10 text-info border border-info border-opacity-25" style="font-size: 0.72rem;"><i class="fa-solid fa-id-card me-1"></i> بطاقة</span>';
-                    } else {
-                        typeBadge = '<span class="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25" style="font-size: 0.72rem;"><i class="fa-solid fa-mobile-screen me-1"></i> كاش</span>';
-                    }
+                    const typeMeta = taskTypeMeta(tx.transferType);
+                    const typeBadge = `<span class="badge bg-warning bg-opacity-10 text-warning border border-warning border-opacity-25" style="font-size: 0.72rem;"><i class="fa-solid ${typeMeta.icon} me-1"></i> ${typeMeta.short}</span>`;
                     
                     const timeStr = tx.updatedAt ? new Date(tx.updatedAt).toLocaleTimeString('ar-LY', { timeZone: 'Africa/Tripoli', hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '---';
                     
@@ -1055,42 +1159,84 @@
             activeTasksIds = data.tasks.map(t => t._id);
             
             // 🔒 فحص الـ Hash لمنع إعادة الرسم والوميض
-            const currentTasksHash = JSON.stringify(data.tasks);
+            const currentTasksHash = Array.isArray(data.tasks)
+                ? data.tasks.map((task) => [
+                    task._id,
+                    task.status,
+                    task.amount,
+                    task.operatorId || '',
+                    task.assignedExecutorId || '',
+                    task.assignedExecutorName || '',
+                    task.routingState || '',
+                    task.recipientNumber || '',
+                    task.emergencyAlert || '',
+                    task.notes || ''
+                ].join(':')).join('|')
+                : '';
             if (currentTasksHash !== lastTasksHash) {
                 lastTasksHash = currentTasksHash;
                 
                 // 🚀 الفرز الذكي (Smart Sorting FIFO) - نظام الطابور المطور
                 let myTasks = [];
+                let routedToMeTasks = [];
                 let pendingTasks = [];
                 let othersTasks = [];
 
                 data.tasks.forEach(t => {
-                    if (t.operatorId === myExecutorId && t.status === 'accepted') myTasks.push(t);
-                    else if (t.status === 'processing') pendingTasks.push(t); 
-                    else othersTasks.push(t); 
+                    const ownedByMe = t.isOwnedByCurrentExecutor === true
+                        || (t.operatorId === myExecutorId && t.status === 'accepted');
+                    const routedToMe = t.isAssignedToCurrentExecutor === true || (
+                        String(t.assignedExecutorId || '') === myExecutorId && t.status !== 'accepted'
+                    );
+                    if (ownedByMe) myTasks.push(t);
+                    else if (routedToMe) routedToMeTasks.push(t);
+                    else if (t.status === 'processing' || t.status === 'pending') pendingTasks.push(t);
+                    else othersTasks.push(t);
                 });
                 
-                const smartSortedTasks = [...myTasks, ...pendingTasks, ...othersTasks];
+                const smartSortedTasks = [...myTasks, ...routedToMeTasks, ...pendingTasks, ...othersTasks];
                 let html = '';
                 
                 smartSortedTasks.forEach(t => {
-                    const isMine = t.operatorId === myExecutorId;
+                    const isMine = t.isOwnedByCurrentExecutor === true
+                        || (t.operatorId === myExecutorId && t.status === 'accepted');
+                    const routedToMe = !isMine && (
+                        t.isAssignedToCurrentExecutor === true
+                        || (String(t.assignedExecutorId || '') === myExecutorId && t.status !== 'accepted')
+                    );
                     const acceptedByOther = t.status === 'accepted' && !isMine;
-                    const canRoute = isExecutorManager && manualTaskRoutingEnabled && t.status === 'processing';
+                    const quickExecuteEnabled = executorManualPolicy.quickExecuteEnabled || executorQuickExecute.enabled;
+                    const showQuickExecute = quickExecuteEnabled && (
+                        t.canQuickExecute === true
+                        || t.canClaimThenQuickExecute === true
+                        || ((t.transferType || '') === 'vodafone' && (isMine || routedToMe))
+                    );
+                    const canRoute = isExecutorManager && manualTaskRoutingEnabled && (t.status === 'processing' || t.status === 'pending');
+                    const routingState = t.routingState || (t.status === 'accepted' ? 'in_progress' : (t.assignedExecutorId ? 'pending_with_assignee' : 'unassigned'));
+                    const routingStateLabel = t.routingStateLabel
+                        || (routingState === 'in_progress' ? 'بدأ التنفيذ' : (routingState === 'pending_with_assignee' ? 'معلّقة عنده' : 'متاح'));
+                    const assigneeName = t.assignedExecutorName || t.executorName || '';
                     const recipientIsVisible = t.recipientRevealed === true && isMine;
                     const recipientDisplay = t.recipientNumber || t.recipientPrefix || '---';
                     const encodedRecipient = encodeURIComponent(recipientDisplay);
                     const recipientLabel = recipientIsVisible ? 'الرقم / الحساب:' : 'بادئة الرقم / الحساب:';
                     const formattedAmount = Number(t.amount || 0).toLocaleString('en-US', { maximumFractionDigits: 0 });
 
-                    let cardClass = isMine ? 'task-mine' : (acceptedByOther ? 'task-locked' : 'task-pending');
-                    let badgeClass = isMine ? 'badge-mine' : (acceptedByOther ? 'badge-locked' : 'badge-pending');
-                    let badgeText = isMine ? '<i class="fa-solid fa-bolt me-1"></i> معك' : (acceptedByOther ? '<i class="fa-solid fa-lock me-1"></i> لزميل' : '<i class="fa-solid fa-circle-dot fa-fade me-1"></i> متاح');
+                    let cardClass = isMine ? 'task-mine' : (routedToMe ? 'task-routed' : (acceptedByOther ? 'task-locked' : (routingState === 'pending_with_assignee' ? 'task-waiting' : 'task-pending')));
+                    let badgeClass = isMine ? 'badge-mine' : (routedToMe ? 'badge-routed' : (acceptedByOther ? 'badge-locked' : (routingState === 'pending_with_assignee' ? 'badge-waiting' : 'badge-pending')));
+                    let badgeText = isMine
+                        ? '<i class="fa-solid fa-bolt me-1"></i> بدأ التنفيذ'
+                        : (routedToMe
+                            ? '<i class="fa-solid fa-inbox me-1"></i> موجهة إليك'
+                            : (acceptedByOther
+                                ? '<i class="fa-solid fa-lock me-1"></i> بدأ التنفيذ'
+                                : (routingState === 'pending_with_assignee'
+                                    ? '<i class="fa-solid fa-hourglass-half me-1"></i> معلّقة عنده'
+                                    : '<i class="fa-solid fa-circle-dot fa-fade me-1"></i> متاح')));
 
-                    const taskTypeName = t.transferType === 'post_account' ? 'تحويل بريد حساب' :
-                        (t.transferType === 'post_card' ? 'تحويل بريد بطاقة' : 'تحويل محفظة كاش');
-                    const taskTypeIcon = t.transferType === 'post_account' ? 'fa-envelope' :
-                        (t.transferType === 'post_card' ? 'fa-id-card' : 'fa-mobile-screen-button');
+                    const typeMeta = taskTypeMeta(t.transferType);
+                    const taskTypeName = typeMeta.name;
+                    const taskTypeIcon = typeMeta.icon;
 
                     let displayNote = t.notes || '';
                     displayNote = displayNote.split('--- سجل الـ API')[0].trim();
@@ -1101,6 +1247,9 @@
                     }).join('\n');
                     const safeDisplayNote = escapeTaskHtml(displayNote).replace(/\n/g, '<br>');
                     const safeAccountName = escapeTaskHtml(t.accountName || '').replace(/\n/g, '<br>');
+                    const safeBankName = escapeTaskHtml(t.bankName || '');
+                    const showBankName = Boolean(safeBankName) && (t.transferType === 'bank_account' || t.transferType === 'bank_transfer');
+                    const encodedBankName = encodeURIComponent(t.bankName || '');
 
                     const taskArrivalAt = t.executorReceivedAt || t.createdAt;
                     html += `
@@ -1138,20 +1287,49 @@
 
                                     ${safeDisplayNote ? `<div class="tx-notes"><i class="fa-solid fa-comment-dots me-1 opacity-50"></i> ${safeDisplayNote}</div>` : ''}
                                     ${safeAccountName && t.transferType !== 'vodafone' ? `<div class="tx-beneficiary"><i class="fa-solid fa-user me-1 opacity-50"></i> ${safeAccountName}</div>` : ''}
+                                    ${showBankName ? `<div class="tx-beneficiary"><i class="fa-solid fa-building-columns me-1 opacity-50"></i> ${safeBankName}</div>` : ''}
                                     ${recipientIsVisible ? '' : '<div class="executor-task-privacy"><i class="fa-solid fa-shield-halved"></i><span>يظهر الرقم كاملًا بعد قبول المهمة للمنفذ الذي سحبها فقط.</span></div>'}
+                                    ${(isExecutorManager || routedToMe) && assigneeName ? `
+                                    <div class="executor-assignee-strip ${routingState === 'in_progress' ? 'in-progress' : (routingState === 'pending_with_assignee' ? 'waiting' : '')}">
+                                        <i class="fa-solid ${routingState === 'in_progress' ? 'fa-play' : 'fa-user-check'}"></i>
+                                        <div>
+                                            <small>${escapeTaskHtml(routingStateLabel)}</small>
+                                            <strong>${escapeTaskHtml(assigneeName)}</strong>
+                                        </div>
+                                    </div>` : ''}
+                                    ${isExecutorManager && routingState === 'pending_with_assignee' ? `
+                                    <div class="executor-sla-hint" hidden data-assigned-at="${escapeTaskHtml(t.assignedExecutorAt || '')}">
+                                        <i class="fa-solid fa-hourglass-half"></i>
+                                        <span>معلّقة عنده — إذا تجاوز الانتظار قد تحتاج إعادة توجيه</span>
+                                    </div>` : ''}
                                 </div>
                                 
                                 <div class="action-zone border-0">
-                                    ${canRoute ? `<button onclick="routeTask('${t._id}')" class="btn-accept-start"><i class="fa-solid fa-route me-1"></i> توجيه إلى منفذ</button>` :
-                                      acceptedByOther ? `<div class="p-2 rounded-3 text-center fw-bold text-muted border w-100 small" style="background: rgba(0,0,0,0.05);"><i class="fa-solid fa-user-gear me-1"></i> يُنفذ بواسطة: ${escapeTaskHtml(t.executorName || t.assignedExecutorName || 'منفذ آخر')}</div>` :
+                                    ${canRoute ? `<button onclick="routeTask('${t._id}')" class="btn-accept-start"><i class="fa-solid fa-route me-1"></i> ${assigneeName ? 'إعادة التوجيه' : 'توجيه إلى منفذ'}</button>` :
+                                      acceptedByOther ? `<div class="p-2 rounded-3 text-center fw-bold text-muted border w-100 small" style="background: rgba(0,0,0,0.05);"><i class="fa-solid fa-user-gear me-1"></i> بدأ التنفيذ: ${escapeTaskHtml(assigneeName || 'منفذ آخر')}</div>` :
                                       isMine ? `
-                                         <button onclick="openUpload('${t._id}', '${t.transferType || ''}', ${Number(t.amount || 0)})" class="btn-cyber-main mb-1"><i class="fa-solid fa-check-double"></i> إنهاء العملية</button>
+                                         <div class="complete-actions-row">
+                                            <button onclick="openUpload('${t._id}', '${t.transferType || ''}', ${Number(t.amount || 0)}, '${encodedBankName}')" class="btn-cyber-main mb-0"><i class="fa-solid fa-check-double"></i> إنهاء العملية</button>
+                                            ${showQuickExecute ? `
+                                            <button type="button" onclick="quickExecuteDial('${t._id}')" class="btn-quick-execute" title="تنفيذ سريع" aria-label="تنفيذ سريع">
+                                                <i class="fa-solid fa-phone-flip"></i>
+                                                <span>تنفيذ سريع</span>
+                                            </button>` : ''}
+                                         </div>
                                          <div class="horizontal-actions">
                                             <button onclick="editAmount('${t._id}')" class="btn-cyber-sub btn-warning-neon" title="تعديل المبلغ"><i class="fa-solid fa-pen-to-square"></i> <span class="btn-text-hide ms-1">تعديل</span></button>
                                             <button onclick="returnTask('${t._id}')" class="btn-cyber-sub btn-info-neon" title="إرجاع الطلب للإدارة"><i class="fa-solid fa-reply"></i> <span class="btn-text-hide ms-1">إرجاع</span></button>
                                             <button onclick="cancelTask('${t._id}')" class="btn-cyber-sub btn-danger-neon" title="إلغاء لخطأ في الرقم"><i class="fa-solid fa-xmark"></i> <span class="btn-text-hide ms-1">إلغاء</span></button>
                                          </div>
-                                        ` : `<button onclick="acceptTask('${t._id}')" class="btn-accept-start"><i class="fa-solid fa-bolt me-1"></i> اسحب ونفذ فوراً</button>`
+                                        ` : `
+                                         <div class="complete-actions-row">
+                                            <button onclick="acceptTask('${t._id}')" class="btn-accept-start mb-0"><i class="fa-solid fa-bolt me-1"></i> ${routedToMe ? 'اسحب المهمة الموجهة إليك' : 'اسحب ونفذ فوراً'}</button>
+                                            ${showQuickExecute ? `
+                                            <button type="button" onclick="quickExecuteDial('${t._id}')" class="btn-quick-execute" title="تنفيذ سريع" aria-label="تنفيذ سريع">
+                                                <i class="fa-solid fa-phone-flip"></i>
+                                                <span>تنفيذ سريع</span>
+                                            </button>` : ''}
+                                         </div>`
                                     }
                                 </div>
                             </div>
@@ -1160,12 +1338,11 @@
                 container.innerHTML = html || `<div class="col-12"><div class="executor-empty-state-live"><div><img src="/images/executor-3d-alert.png" alt="في انتظار عمليات جديدة"><h2>غرفة العمليات هادئة</h2><p>سيظهر الطلب هنا فور وصول عملية جديدة.</p></div></div></div>`;
             }
         } catch(e) {
-        } finally {
-            tasksRefreshInFlight = false;
         }
     }
 
     // ⏱️ تحديث العدادات الزمنية بشكل حي في الشاشة
+    const STUCK_ASSIGNEE_SLA_SECONDS = 90;
     setInterval(() => {
         document.querySelectorAll('.live-timer').forEach(el => {
             const createdTime = new Date(el.getAttribute('data-time')).getTime();
@@ -1182,6 +1359,22 @@
                 else if (diffSec >= 60) { el.style.color = 'var(--accent-gold)'; el.classList.remove('fa-fade'); } 
                 else { el.style.color = 'var(--text-main)'; el.classList.remove('fa-fade'); }
             }
+        });
+        document.querySelectorAll('.executor-sla-hint[data-assigned-at]').forEach((el) => {
+            const assignedMs = new Date(el.getAttribute('data-assigned-at')).getTime();
+            if (!Number.isFinite(assignedMs)) {
+                el.hidden = true;
+                return;
+            }
+            const waited = Math.floor((Date.now() - assignedMs) / 1000);
+            if (waited < STUCK_ASSIGNEE_SLA_SECONDS) {
+                el.hidden = true;
+                return;
+            }
+            const minutes = Math.max(1, Math.round(waited / 60));
+            const label = el.querySelector('span');
+            if (label) label.textContent = `معلّقة عنده منذ ${minutes} د — قد تحتاج إعادة توجيه`;
+            el.hidden = false;
         });
     }, 1000);
 
@@ -1201,6 +1394,137 @@
 
 
 
+    function encodeQuickExecuteTelUri(ussdOrUri) {
+        const raw = String(ussdOrUri || '').trim();
+        const payload = raw.replace(/^tel:/i, '')
+            .replace(/%2a/gi, '*')
+            .replace(/%23/g, '#');
+        return 'tel:' + payload.replace(/\*/g, '%2A').replace(/#/g, '%23');
+    }
+
+    function launchQuickExecuteTel(telUri) {
+        const href = encodeQuickExecuteTelUri(telUri);
+        try {
+            const anchor = document.createElement('a');
+            anchor.setAttribute('href', href);
+            anchor.setAttribute('rel', 'noopener');
+            document.body.appendChild(anchor);
+            anchor.click();
+            anchor.remove();
+            return true;
+        } catch (_error) {
+            try {
+                window.location.href = href;
+                return true;
+            } catch (_fallback) {
+                return false;
+            }
+        }
+    }
+
+    async function copyQuickExecuteUssd(ussd) {
+        const text = String(ussd || '');
+        if (!text) return;
+        try {
+            if (navigator.clipboard && window.isSecureContext) {
+                await navigator.clipboard.writeText(text);
+                return;
+            }
+        } catch (_error) {}
+        const area = document.createElement('textarea');
+        area.value = text;
+        area.style.position = 'fixed';
+        area.style.left = '-9999px';
+        document.body.appendChild(area);
+        area.focus();
+        area.select();
+        try { document.execCommand('copy'); } catch (_error) {}
+        area.remove();
+    }
+
+    async function showQuickExecuteCopyFallback(ussd, telUri) {
+        const code = String(ussd || '').trim();
+        const result = await Swal.fire({
+            icon: 'info',
+            title: 'تعذر فتح الاتصال',
+            html: `<p class="mb-2">انسخ كود USSD واتصل يدوياً إذا لم يفتح الهاتف شاشة الاتصال.</p>
+                   <code dir="ltr" class="d-block p-2 rounded-3" style="background:rgba(0,0,0,0.06);font-size:1.05rem;">${escapeTaskHtml(code)}</code>`,
+            showCancelButton: true,
+            confirmButtonText: 'نسخ الكود',
+            cancelButtonText: 'إعادة المحاولة',
+            reverseButtons: true
+        });
+        if (result.isConfirmed) {
+            await copyQuickExecuteUssd(code);
+        } else if (result.dismiss === Swal.DismissReason.cancel) {
+            launchQuickExecuteTel(telUri || code);
+        }
+    }
+
+    async function quickExecuteDial(taskId) {
+        const needsPinPrompt = executorQuickExecute.pinRequired && !executorQuickExecute.pinSet;
+        let pin = '';
+        if (needsPinPrompt) {
+            const prompt = await Swal.fire({
+                title: 'رقم سر المحفظة',
+                html: '<p class="small text-end mb-2">هذه الشبكة تتطلب رقم السر. سيظهر في شاشة الاتصال ولن يُحفظ ما لم تحفظه من الإعدادات.</p>',
+                input: 'password',
+                inputAttributes: { maxlength: 8, inputmode: 'numeric', autocomplete: 'new-password', dir: 'ltr' },
+                showCancelButton: true,
+                confirmButtonText: 'فتح الاتصال',
+                cancelButtonText: 'إلغاء',
+                preConfirm: (value) => {
+                    const digits = String(value || '').replace(/\D/g, '');
+                    if (digits.length < 4 || digits.length > 8) {
+                        Swal.showValidationMessage('رقم السر من 4 إلى 8 أرقام.');
+                        return false;
+                    }
+                    return digits;
+                }
+            });
+            if (!prompt.isConfirmed) return;
+            pin = prompt.value;
+        } else if (executorQuickExecute.pinRequired) {
+            const confirmed = await Swal.fire({
+                icon: 'warning',
+                title: 'تنفيذ سريع',
+                text: 'سيظهر رقم سر المحفظة في شاشة الاتصال لهذه الشبكة. لا تشارك الشاشة أثناء الاتصال.',
+                showCancelButton: true,
+                confirmButtonText: 'فتح الاتصال',
+                cancelButtonText: 'إلغاء'
+            });
+            if (!confirmed.isConfirmed) return;
+        }
+
+        try {
+            const response = await executorApiFetch('/executor-portal/api/quick-execute/dial/' + taskId, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(pin ? { pin } : {})
+            });
+            const data = await readExecutorApiResponse(response);
+            const telUri = data.telUri || encodeQuickExecuteTelUri(data.ussd || '');
+            if (!telUri || telUri === 'tel:') throw new Error('تعذر تجهيز كود الاتصال.');
+            const launched = launchQuickExecuteTel(telUri);
+            if (data.acceptedNow) await refreshTasks();
+            if (!launched) await showQuickExecuteCopyFallback(data.ussd || '', telUri);
+        } catch (error) {
+            const message = error.message || 'فشل تجهيز الاتصال.';
+            const needsSettings = /رقم سر|PIN/i.test(message);
+            const goSettings = await Swal.fire({
+                icon: 'error',
+                title: 'تعذر التنفيذ السريع',
+                text: message,
+                showCancelButton: true,
+                confirmButtonText: needsSettings ? 'الإعدادات' : 'حسناً',
+                cancelButtonText: 'إغلاق'
+            });
+            if (goSettings.isConfirmed && needsSettings) {
+                window.location.assign('/executor-portal/settings');
+            }
+        }
+    }
+
     async function acceptTask(id) {
         try {
             const response = await executorApiFetch('/executor-portal/api/accept-task/' + id, { method: 'POST' });
@@ -1211,16 +1535,22 @@
             await refreshTasks();
         }
     }
-    function openUpload(id, transferType, amount = 0) {
+    function openUpload(id, transferType, amount = 0, bankName = '') {
         currentCompletingId = id;
         currentCompletingTransferType = String(transferType || '').toLowerCase();
         currentCompletingAmount = Number(amount || 0);
+        try {
+            currentCompletingBankName = decodeURIComponent(String(bankName || ''));
+        } catch (_error) {
+            currentCompletingBankName = '';
+        }
         resetUploadModal();
         new bootstrap.Modal(document.getElementById('uploadModal')).show();
     }
 
     document.getElementById('btnFinish').onclick = async function() {
-        const splitEnabled = document.getElementById('splitOperationToggle').checked;
+        const bankTransfer = isBankTransferCompletion();
+        const splitEnabled = !bankTransfer && document.getElementById('splitOperationToggle').checked;
         const btn = this;
         btn.disabled = true;
         btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> ضغط وإرسال...';
@@ -1255,9 +1585,9 @@
                     senderEntries
                 };
             } else {
-                const executionNumber = document.getElementById('senderPhoneInput').value.trim();
+                const executionNumber = bankTransfer ? '' : document.getElementById('senderPhoneInput').value.trim();
                 const executionDigits = executionNumber.replace(/\D/g, '');
-                if (executionDigits) {
+                if (!bankTransfer && executionDigits) {
                     const phoneError = validateSenderPhoneInput(executionDigits, false);
                     if (phoneError) throw new Error(phoneError);
                 }
@@ -1265,14 +1595,16 @@
                 for (let i = 0; i < selectedFilesArray.length; i++) {
                     compressedImagesBase64.push(await compressSingleImagePromise(selectedFilesArray[i]));
                 }
-                if (executorManualPolicy.proofRequired && compressedImagesBase64.length === 0) {
-                    throw new Error('إرفاق صورة الإثبات إجباري لهذا المنفذ.');
+                if ((bankTransfer || executorManualPolicy.proofRequired) && compressedImagesBase64.length === 0) {
+                    throw new Error(bankTransfer
+                        ? 'إرفاق صورة إثبات التحويل البنكي إجباري.'
+                        : 'إرفاق صورة الإثبات إجباري لهذا المنفذ.');
                 }
                 payload = {
                     imageBase64: compressedImagesBase64[0],
-                    imagesBase64: compressedImagesBase64,
-                    executionNumber: executionNumber
+                    imagesBase64: compressedImagesBase64
                 };
+                if (!bankTransfer) payload.executionNumber = executionNumber;
             }
 
             const res = await executorApiFetch('/executor-portal/api/complete-task/' + currentCompletingId, {
@@ -1409,10 +1741,24 @@
     const refreshVisibleExecutorTasks = () => {
         if (!document.hidden) refreshTasks();
     };
-    // التحديث الفوري يصل عبر الإشعارات؛ نستخدم فحصاً احتياطياً أخف.
-    setInterval(refreshVisibleExecutorTasks, 8000);
-    document.addEventListener('visibilitychange', refreshVisibleExecutorTasks);
+    const scheduleLiveTasksPoll = () => {
+        window.clearTimeout(liveTasksPollTimer);
+        liveTasksPollTimer = window.setTimeout(async () => {
+            await refreshVisibleExecutorTasks();
+            scheduleLiveTasksPoll();
+        }, liveTasksPollMs);
+    };
+    // التحديث الفوري يصل عبر الإشعارات؛ نستخدم فحصاً احتياطياً أخف أثناء الهدوء.
+    document.addEventListener('visibilitychange', () => {
+        if (document.hidden) {
+            window.clearTimeout(liveTasksPollTimer);
+            return;
+        }
+        refreshVisibleExecutorTasks();
+        scheduleLiveTasksPoll();
+    });
     refreshVisibleExecutorTasks();
+    scheduleLiveTasksPoll();
 </script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 </body>

@@ -1,7 +1,7 @@
 // routes/clientPortal.js
 const express = require('express');
 const router = express.Router();
-const { isWalletHubSession } = require('../utils/walletHubHelper');
+const { isWalletHubSession, canRequestRetailDeposit } = require('../utils/walletHubHelper');
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
@@ -15,6 +15,10 @@ const SubAccount = require('../models/SubAccount');
 const AgentEmployee = require('../models/AgentEmployee');
 const Notification = require('../models/Notification');
 const { resolveClientNotificationUserIds } = require('../services/clientNotificationService');
+const { presentInbox } = require('../services/companyNotificationInboxService');
+const companyWebPushService = require('../services/companyWebPushService');
+const { normalizeCompanyTheme } = require('../utils/companyPortalTheme');
+const { normalizeClientTheme, buildClientThemePreferenceUpdate } = require('../utils/clientPortalTheme');
 const { setPortalSupportReplyChannel } = require('../services/whatChimpSupportService');
 const WebPushSubscription = require('../models/WebPushSubscription');
 const Settings = require('../models/Settings');
@@ -70,16 +74,22 @@ const isActiveClientSession = async (req) => {
     if (!req.session.isClientLoggedIn || !req.session.clientId) return false;
 
     if (req.session.accountType === 'company') {
-        const employee = await ClientEmployee.findById(req.session.clientId).select('status companyId').lean();
+        const employee = await ClientEmployee.findById(req.session.clientId).select('status companyId sessionVersion mustChangePassword').lean();
         if (!employee || employee.status !== 'active') return false;
+        if (Number(employee.sessionVersion || 0) !== Number(req.session.clientSessionVersion || 0)) {
+            return false;
+        }
 
         const company = await ClientCompany.findById(employee.companyId).select('status').lean();
+        req.companyMustChangePassword = employee.mustChangePassword === true;
+        req.companyEmployee = employee;
         return Boolean(company && company.status === 'active');
     }
 
     if (req.session.accountType === 'sub_client') {
-        const subAccount = await SubAccount.findById(req.session.clientId).select('status').lean();
-        return Boolean(subAccount && subAccount.status === 'active');
+        const subAccount = await SubAccount.findById(req.session.clientId).select('status sessionVersion').lean();
+        if (!subAccount || subAccount.status !== 'active') return false;
+        return Number(subAccount.sessionVersion || 0) === Number(req.session.clientSessionVersion || 0);
     }
 
     if (req.session.accountType === 'agent_staff') {
@@ -90,8 +100,9 @@ const isActiveClientSession = async (req) => {
         return Boolean(agent && agent.status === 'active' && agent.role === 'agent');
     }
 
-    const user = await User.findById(req.session.clientId).select('status').lean();
-    return Boolean(user && user.status === 'active');
+    const user = await User.findById(req.session.clientId).select('status sessionVersion').lean();
+    if (!user || user.status !== 'active') return false;
+    return Number(user.sessionVersion || 0) === Number(req.session.clientSessionVersion || 0);
 };
 
 const requireClientAuth = async (req, res, next) => {
@@ -103,8 +114,21 @@ const requireClientAuth = async (req, res, next) => {
             return res.redirect('/executor-portal/dashboard');
         }
         if (req.session?.mfaEnrollmentRequired) return res.redirect('/security/mfa-enroll');
-        if (await isActiveClientSession(req)) return next();
-        return endUnauthorizedClientSession(req, res);
+        if (!(await isActiveClientSession(req))) return endUnauthorizedClientSession(req, res);
+        if (req.session.accountType === 'company' && req.companyMustChangePassword) {
+            const path = String(req.path || '');
+            const allowed = path === '/security'
+                || path === '/settings/password'
+                || path === '/logout'
+                || path === '/profile-photo';
+            if (!allowed) {
+                if (req.xhr || (req.headers.accept && req.headers.accept.includes('application/json'))) {
+                    return res.status(403).json({ success: false, error: 'MUST_CHANGE_PASSWORD' });
+                }
+                return res.redirect('/client/security?settingsError=must_change');
+            }
+        }
+        return next();
     } catch (_error) {
         return endUnauthorizedClientSession(req, res);
     }
@@ -158,7 +182,7 @@ const clientDocumentUpload = multer({
             callback(null, `client-document-${crypto.randomUUID()}${extension}`);
         }
     }),
-    limits: { fileSize: 5 * 1024 * 1024, files: 1 },
+    limits: { fileSize: 5 * 1024 * 1024, files: 1, fieldArrayIndexLimit: 16 },
     fileFilter: (_req, file, callback) => {
         const allowed = new Set(['image/jpeg', 'image/jpg', 'image/png', 'image/webp']);
         if (!allowed.has(file.mimetype)) return callback(new Error('INVALID_DOCUMENT_TYPE'));
@@ -168,7 +192,7 @@ const clientDocumentUpload = multer({
 
 router.get('/', (req, res) => {
     if (req.session.isClientLoggedIn && req.session.clientId) {
-        return res.redirect('/client/dashboard');
+        return res.redirect(businessPortalService.resolveClientPostLoginHref(req.session.accountType));
     }
     return res.redirect('/login?portal=client');
 });
@@ -178,7 +202,7 @@ router.get('/', (req, res) => {
 // ===============================================
 router.get('/login', (req, res) => {
     if (req.session.isClientLoggedIn && req.session.clientId) {
-        return res.redirect('/client/dashboard');
+        return res.redirect(businessPortalService.resolveClientPostLoginHref(req.session.accountType));
     }
     return res.redirect('/login?portal=client');
 });
@@ -189,12 +213,18 @@ router.post('/register', clientAuthController.postRegister);
 router.get('/verify', clientAuthController.getVerify);
 router.post('/verify', otpVerifyLimiter, clientAuthController.postVerify);
 router.get('/logout', clientAuthController.logout);
+router.get('/sw.js', (_req, res) => {
+    res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Service-Worker-Allowed', '/client/');
+    return res.sendFile(path.join(__dirname, '../public/company-portal-sw.js'));
+});
 
 // ===============================================
 // 📊 Dashboard Routes
 // ===============================================
 router.get('/dashboard', requireClientAuth, clientDashboardController.getDashboard);
-router.get('/company-next', requireClientAuth, clientWorkspaceController.renderCompanyNext);
+router.get('/company-next', (_req, res) => res.redirect(302, '/client/services'));
 router.get('/account', requireClientAuth, clientHubController.getAccount);
 router.get('/transfers', requireClientAuth, clientHubController.getTransfers);
 router.get('/deposits', requireClientAuth, clientDepositController.getDepositsPage);
@@ -235,6 +265,12 @@ router.post('/customers/:id/credit-limit', requireClientAuth, clientWorkspaceCon
 router.post('/customers/:id/pricing', requireClientAuth, clientWorkspaceController.postUpdateCustomerPricing);
 router.post('/settings/profile', requireClientAuth, clientWorkspaceController.postUpdateSettings);
 router.post('/settings/password', requireClientAuth, clientWorkspaceController.postChangePassword);
+router.post('/settings/theme', requireClientAuth, (req, res) => {
+    if (req.session.accountType === 'company') {
+        return clientWorkspaceController.postCompanyTheme(req, res);
+    }
+    return clientWorkspaceController.postClientTheme(req, res);
+});
 router.get('/company/staff', requireClientAuth, clientCompanyController.getStaffManagement);
 router.post('/company/staff/add', requireClientAuth, clientCompanyController.postAddStaff);
 router.post('/company/staff/:id/toggle', requireClientAuth, clientCompanyController.postToggleStaff);
@@ -262,10 +298,121 @@ router.get('/api/notifications/unread', requireClientAuth, async (req, res) => {
             type: { $ne: 'rate_change' }
         }).sort({ createdAt: -1 }).limit(10).lean();
 
-        return res.json({ success: true, count: notifications.length, notifications });
+        const inbox = presentInbox(notifications);
+        return res.json({ success: true, count: inbox.unreadCount, notifications, groups: inbox.groups, unreadCount: inbox.unreadCount });
     } catch (e) {
         return res.status(500).json({ success: false, error: 'Internal Server Error' });
     }
+});
+
+router.get('/api/notifications', requireClientAuth, async (req, res) => {
+    try {
+        const userIds = await resolveClientNotificationUserIds({
+            accountType: req.session.accountType,
+            clientId: req.session.clientId
+        });
+        if (!userIds.length) return res.json(presentInbox([]));
+        const notifications = await Notification.find({
+            userId: { $in: userIds },
+            audience: { $in: ['client', 'all'] },
+            type: { $ne: 'rate_change' }
+        }).sort({ createdAt: -1 }).limit(40).lean();
+        return res.json(presentInbox(notifications));
+    } catch (_error) {
+        return res.status(500).json({ success: false, error: 'NOTIFICATION_INBOX_FAILED' });
+    }
+});
+
+router.get('/api/web-push/status', requireClientAuth, async (req, res) => {
+    try {
+        if (req.session.accountType !== 'company') {
+            return res.status(403).json({ success: false, error: 'COMPANY_PUSH_ONLY' });
+        }
+        const status = await companyWebPushService.getCompanyWebPushStatus(req.session.clientId);
+        return res.json({ success: true, ...status });
+    } catch (_error) {
+        return res.status(500).json({ success: false, error: 'تعذر فحص إشعارات المتصفح.' });
+    }
+});
+
+router.post('/api/web-push/subscribe', requireClientAuth, async (req, res) => {
+    try {
+        if (req.session.accountType !== 'company') {
+            return res.status(403).json({ success: false, error: 'COMPANY_PUSH_ONLY' });
+        }
+        await companyWebPushService.upsertCompanySubscription({
+            userId: req.session.clientId,
+            accountType: 'company',
+            subscription: req.body?.subscription
+        });
+        return res.json({ success: true, subscribed: true });
+    } catch (_error) {
+        return res.status(400).json({ success: false, error: 'بيانات اشتراك الإشعارات غير صالحة.' });
+    }
+});
+
+router.post('/api/web-push/unsubscribe', requireClientAuth, async (req, res) => {
+    if (req.session.accountType !== 'company') {
+        return res.status(403).json({ success: false, error: 'COMPANY_PUSH_ONLY' });
+    }
+    await companyWebPushService.disableCompanySubscription({
+        userId: req.session.clientId,
+        endpoint: req.body?.endpoint
+    });
+    return res.json({ success: true, subscribed: false });
+});
+
+router.post('/api/web-push/test', requireClientAuth, async (req, res) => {
+    try {
+        if (req.session.accountType !== 'company') {
+            return res.status(403).json({ success: false, error: 'COMPANY_PUSH_ONLY' });
+        }
+        const result = await companyWebPushService.sendCompanyWebPushTest(req.session.clientId);
+        if (!result.configured) {
+            return res.status(503).json({ success: false, error: 'مفاتيح Web Push غير مضبوطة. راجع WEB_PUSH_* في البيئة.' });
+        }
+        if (!result.attempted) return res.status(409).json({ success: false, error: 'لا يوجد متصفح مسجل لاستقبال الاختبار.' });
+        if (!result.sent) return res.status(502).json({ success: false, error: 'رفض مزود الإشعارات رسالة الاختبار.' });
+        return res.json({ success: true, ...result });
+    } catch (_error) {
+        return res.status(500).json({ success: false, error: 'تعذر إرسال إشعار الاختبار.' });
+    }
+});
+
+router.post('/api/theme', requireClientAuth, async (req, res) => {
+    if (req.session.accountType === 'company') {
+        const theme = normalizeCompanyTheme(req.body?.theme);
+        if (!theme) {
+            return res.status(400).json({ success: false, error: 'INVALID_THEME' });
+        }
+        req.session.companyTheme = theme;
+        try {
+            await ClientEmployee.updateOne(
+                { _id: req.session.clientId, companyId: { $exists: true } },
+                { $set: { 'preferences.companyTheme': theme } }
+            );
+        } catch (_error) {
+            /* session still holds the preference */
+        }
+        return res.json({ success: true, theme });
+    }
+    const theme = normalizeClientTheme(req.body?.theme);
+    if (!theme) {
+        return res.status(400).json({ success: false, error: 'INVALID_THEME' });
+    }
+    req.session.clientTheme = theme;
+    const Model = req.session.accountType === 'agent_staff'
+        ? AgentEmployee
+        : (req.session.accountType === 'sub_client' ? SubAccount : User);
+    try {
+        await Model.updateOne(
+            { _id: req.session.clientId },
+            { $set: buildClientThemePreferenceUpdate(theme) }
+        );
+    } catch (_error) {
+        /* session still holds the preference */
+    }
+    return res.json({ success: true, theme });
 });
 
 router.get('/api/service-requests', requireClientAuth, async (req, res) => {
@@ -436,7 +583,16 @@ router.get('/support', requireClientAuth, async (req, res) => {
             try {
                 const { account } = await getSupportIdentity(req);
                 const walletHub = isWalletHubSession(req.session.accountType, account.role);
-                return res.render('client/support', { account, accountType: req.session.accountType, walletHub, user: account });
+                const { clientThemeLocals } = require('../utils/clientPortalTheme');
+                return res.render('client/support', {
+                    account,
+                    accountType: req.session.accountType,
+                    walletHub,
+                    user: account,
+                    canRequestDeposit: canRequestRetailDeposit(req.session.accountType, account.role),
+                    csrfToken: req.session.csrfToken || '',
+                    ...clientThemeLocals(account, req.session.clientTheme)
+                });
             } catch (e) {
                 console.error('[Support] identity/render failed:', e);
                 return res.redirect('/client/dashboard?supportError=1');
@@ -518,7 +674,8 @@ router.post('/api/support/messages', requireClientAuth, async (req, res) => {
         const { account, entityType } = await getSupportIdentity(req);
         if (!account) return res.status(401).json({ success: false, error: 'Unauthorized' });
 
-        if (businessPortalService.isCompanyDepositCreateIntent(text)) {
+        const companyDepositRequest = businessPortalService.isCompanyDepositCreateIntent(text);
+        if (companyDepositRequest) {
             const workspace = await businessPortalService.resolveWorkspace(req);
             if (!businessPortalService.canCreateCompanyDepositRequest(workspace)) {
                 return res.status(403).json({
@@ -558,6 +715,14 @@ router.post('/api/support/messages', requireClientAuth, async (req, res) => {
             createdAt: new Date()
         };
         ticket.messages.push(newMessage);
+        if (companyDepositRequest) {
+            ticket.category = 'deposit';
+            ticket.priority = ticket.priority === 'urgent' ? ticket.priority : 'high';
+            const metadata = ticket.metadata && typeof ticket.metadata === 'object' ? { ...ticket.metadata } : {};
+            if (!metadata.type) metadata.type = 'company_deposit';
+            ticket.metadata = metadata;
+            if (typeof ticket.markModified === 'function') ticket.markModified('metadata');
+        }
         setPortalSupportReplyChannel(ticket);
         ticket.status = 'open';
         ticket.unreadAdmin = (ticket.unreadAdmin || 0) + 1;

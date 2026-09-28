@@ -63,7 +63,7 @@ const findOriginalLedger = async (transaction, session) => {
     return withSession(Ledger.findOne(filter).sort({ createdAt: 1 }), session);
 };
 
-const voidBalanceAdjustment = async ({ transactionId, performedBy, reason }) => runWithOptionalTransaction(async (session) => {
+const voidBalanceAdjustment = async ({ transactionId, performedBy, performedById, reason }) => runWithOptionalTransaction(async (session) => {
     const token = crypto.randomUUID();
     const voidStartedAt = new Date();
     const staleVoidBefore = new Date(voidStartedAt.getTime() - (2 * 60 * 1000));
@@ -133,7 +133,9 @@ const voidBalanceAdjustment = async ({ transactionId, performedBy, reason }) => 
             );
 
         const voidedAt = new Date();
-        const voidedBy = String(performedBy || 'الإدارة').trim().slice(0, 160);
+        const voidedBy = String(performedBy || '').trim().slice(0, 160);
+        const voidedById = String(performedById || '').trim().slice(0, 160);
+        if (!voidedBy || !voidedById) throw new Error('ADJUSTMENT_ACTOR_REQUIRED');
         const finalized = await withSession(Transaction.findOneAndUpdate(
             { _id: claimed._id, 'balanceAdjustment.voidToken': token },
             {
@@ -142,6 +144,7 @@ const voidBalanceAdjustment = async ({ transactionId, performedBy, reason }) => 
                     cancellationNumber: voidNumber,
                     cancellationReason: normalizedReason,
                     cancelledBy: voidedBy,
+                    cancelledByAdminId: voidedById,
                     cancelledAt: voidedAt,
                     'balanceAdjustment.entityModel': entityModel,
                     'balanceAdjustment.entityId': entityId,

@@ -1,0 +1,170 @@
+/* Day — real corporate SaaS colors for the customer portal.
+   Indigo primary, teal accents, cool blue canvas. Not grayscale. */
+html[data-theme="day"] {
+    color-scheme: light;
+    --cl-sand: #E8EEFA;
+    --cl-stone: #1E1B4B;
+    --cl-gold: #C2410C;
+    --cl-turquoise: #0F766E;
+    --cl-brick: #BE123C;
+    --cl-ink: #0F172A;
+    --cl-muted: #475569;
+    --cl-surface: #FFFFFF;
+    --cl-surface-soft: #F4F7FF;
+    --cl-surface-strong: #DDE6FB;
+    --cl-line: #C7D4F0;
+    --cl-line-strong: #7C93C9;
+    --cl-icon: #3730A3;
+    --cl-on-accent: #FFFFFF;
+    --cl-sidebar: #F7F8FF;
+    --cl-sidebar-soft: #E7ECFF;
+    --cl-sidebar-text: #1E1B4B;
+    --cl-sidebar-muted: #4C5180;
+    --cl-shadow: 0 1px 2px rgba(30, 27, 75, .06), 0 12px 28px rgba(55, 48, 163, .08);
+    --cl-shadow-lg: 0 18px 40px rgba(15, 23, 42, .12);
+    --cl-glow: rgba(55, 48, 163, .18);
+    --cl-hero-wash: linear-gradient(135deg, #FFFFFF 0%, #E8F7F4 48%, #E4EBFF 100%);
+    --cl-chart-1: #3730A3;
+    --cl-chart-2: #0F766E;
+    --cl-chart-3: #0284C7;
+    --cl-chart-4: #C2410C;
+    --cl-success: #047857;
+    --cl-warning: #C2410C;
+    --cl-danger: #BE123C;
+    --cl-info: #0284C7;
+    --cl-indigo: #3730A3;
+    --bw-bg: var(--cl-sand);
+    --bw-surface: var(--cl-surface);
+    --bw-surface-soft: var(--cl-surface-soft);
+    --bw-surface-strong: var(--cl-surface-strong);
+    --bw-border: var(--cl-line);
+    --bw-border-strong: var(--cl-line-strong);
+    --bw-text: var(--cl-ink);
+    --bw-muted: var(--cl-muted);
+    --bw-strong: var(--cl-stone);
+    --bw-sidebar: var(--cl-sidebar);
+    --bw-sidebar-soft: var(--cl-sidebar-soft);
+    --bw-sidebar-text: var(--cl-sidebar-text);
+    --bw-sidebar-muted: var(--cl-sidebar-muted);
+    --bw-green: var(--cl-success);
+    --bw-green-soft: color-mix(in srgb, var(--cl-success) 16%, var(--cl-surface));
+    --bw-blue: var(--cl-info);
+    --bw-blue-soft: color-mix(in srgb, var(--cl-info) 14%, var(--cl-surface));
+    --bw-amber: var(--cl-warning);
+    --bw-amber-soft: color-mix(in srgb, var(--cl-warning) 14%, var(--cl-surface));
+    --bw-gold: var(--cl-warning);
+    --bw-gold-soft: color-mix(in srgb, var(--cl-warning) 14%, var(--cl-surface));
+    --bw-red: var(--cl-danger);
+    --bw-red-soft: color-mix(in srgb, var(--cl-danger) 14%, var(--cl-surface));
+    --bw-cyan: var(--cl-turquoise);
+    --bw-cyan-soft: color-mix(in srgb, var(--cl-turquoise) 16%, var(--cl-surface));
+    --bw-shadow-sm: var(--cl-shadow);
+    --bw-shadow-md: var(--cl-shadow-lg);
+}
+
+html[data-theme="day"] body.cl-app,
+html[data-theme="day"][data-portal="customer"] {
+    background:
+        radial-gradient(circle at 10% -10%, rgba(55, 48, 163, .22), transparent 22rem),
+        radial-gradient(circle at 92% 0%, rgba(15, 118, 110, .16), transparent 20rem),
+        linear-gradient(180deg, #C9D6F5 0, #DCE6FA 160px, #E8EEFA 100%);
+    color: var(--cl-ink);
+}
+
+html[data-theme="day"] .cl-glyph-shimmer,
+html[data-theme="day"] .cl-sand-dust,
+html[data-theme="day"] .cl-pyramid-art {
+    display: none;
+}
+
+html[data-theme="day"] .cl-sidebar,
+html[data-theme="day"] body.cl-app .bw-sidebar,
+html[data-theme="day"] body.cl-app .client-os-sidebar {
+    background: linear-gradient(180deg, #E4E8FF 0%, #F4F6FF 28%, #F7F8FF 100%);
+    border-inline-end: 1px solid #B8C4EE;
+    box-shadow: 10px 0 28px rgba(55, 48, 163, .07);
+}
+
+html[data-theme="day"] .cl-sidebar .bw-brand,
+html[data-theme="day"] .client-os-mark {
+    background: linear-gradient(180deg, rgba(55, 48, 163, .08), transparent);
+}
+
+html[data-theme="day"] .cl-sidebar .bw-entity-card,
+html[data-theme="day"] .client-os-account-mini {
+    background: #FFFFFF;
+    border-color: color-mix(in srgb, #3730A3 18%, #C7D4F0);
+    box-shadow: 0 8px 20px rgba(55, 48, 163, .06);
+}
+
+html[data-theme="day"] .cl-sidebar .bw-entity-icon,
+html[data-theme="day"] .client-os-avatar,
+html[data-theme="day"] .client-os-mark-icon {
+    color: #FFFFFF;
+    background: #3730A3;
+}
+
+html[data-theme="day"] .cl-sidebar .bw-nav-link:hover,
+html[data-theme="day"] .client-os-nav-link:hover {
+    background: color-mix(in srgb, #3730A3 10%, transparent);
+}
+
+html[data-theme="day"] .cl-sidebar .bw-nav-link.active,
+html[data-theme="day"] .client-os-nav-link.is-active {
+    background: linear-gradient(90deg, color-mix(in srgb, #3730A3 16%, #FFFFFF), #FFFFFF);
+    color: #312E81;
+}
+
+html[data-theme="day"] .cl-sidebar .bw-nav-icon {
+    color: #3730A3;
+    background: color-mix(in srgb, #3730A3 12%, #FFFFFF);
+}
+
+html[data-theme="day"] .cl-sidebar .bw-nav-link.active .bw-nav-icon {
+    color: #FFFFFF;
+    background: #3730A3;
+}
+
+html[data-theme="day"] .cl-topbar,
+html[data-theme="day"] body.cl-app .bw-topbar,
+html[data-theme="day"] .client-os-topbar {
+    background: rgba(255, 255, 255, .86);
+    border-bottom: 1px solid #C7D4F0;
+    backdrop-filter: blur(16px);
+}
+
+html[data-theme="day"] .cl-balance-hero,
+html[data-theme="day"] .client-os-balance-panel,
+html[data-theme="day"] .client-os-mobile-balance {
+    background: var(--cl-hero-wash);
+    border: 1px solid color-mix(in srgb, #0F766E 22%, #C7D4F0);
+    color: var(--cl-ink);
+}
+
+html[data-theme="day"] .cl-dock,
+html[data-theme="day"] .client-hub-bottom-nav,
+html[data-theme="day"] body.cl-app .bw-mobile-dock {
+    background: rgba(255, 255, 255, .94);
+    border-top: 1px solid #C7D4F0;
+}
+
+html[data-theme="day"] .cl-dock a.active,
+html[data-theme="day"] .client-hub-bottom-nav .active,
+html[data-theme="day"] body.cl-app .bw-mobile-dock a.active {
+    color: #312E81;
+    background: color-mix(in srgb, #3730A3 12%, #FFFFFF);
+}
+
+html[data-theme="day"] .bw-button.primary,
+html[data-theme="day"] .client-os-create,
+html[data-theme="day"] .client-os-workbench-action.is-primary {
+    background: linear-gradient(135deg, #3730A3, #0F766E);
+    color: #FFFFFF;
+    border: 0;
+}
+
+html[data-theme="day"] .bw-status.success,
+html[data-theme="day"] .st-done { color: #047857; background: #D1FAE5; }
+html[data-theme="day"] .bw-status.warning,
+html[data-theme="day"] .st-wait { color: #C2410C; background: #FFEDD5; }
+html[data-theme="day"] .bw-status.danger { color: #BE123C; background: #FFE4E6; }

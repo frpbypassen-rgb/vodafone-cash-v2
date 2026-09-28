@@ -86,4 +86,20 @@ describe('executor sender entries', () => {
             policy: { allowedPhoneLengths: [11], splitRequiresFullPhone: true, proofRequired: true }
         })).toThrow(expect.objectContaining({ code: 'PROOF_REQUIRED' }));
     });
+
+    test('rejects a 4-digit sender when the policy allows only 3 digits', () => {
+        expect(() => normalizeExecutorSenderEntries({
+            operationAmount: 100,
+            requestedSenderEntries: [{ phone: '2258' }],
+            policy: { allowedPhoneLengths: [3], splitRequiresFullPhone: true, proofRequired: false }
+        })).toThrow(expect.objectContaining({ code: 'INVALID_SENDER_PHONE' }));
+    });
+
+    test('allows an 11-digit sender when the policy is 11-only', () => {
+        expect(normalizeExecutorSenderEntries({
+            operationAmount: 100,
+            requestedSenderEntries: [{ phone: '01108172258' }],
+            policy: { allowedPhoneLengths: [11], splitRequiresFullPhone: true, proofRequired: false }
+        })).toEqual([{ phone: '01108172258', amount: 100, proofImage: null }]);
+    });
 });

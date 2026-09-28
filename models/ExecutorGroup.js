@@ -6,13 +6,19 @@ const executorGroupSchema = new mongoose.Schema({
     status: { type: String, default: 'active' }, // active, inactive, paused, archived
     balance: { type: Number, default: 0 },
     serviceKey: { type: String, enum: EXECUTOR_SERVICE_KEYS, default: 'vodafone' },
+    serviceKeys: { type: [String], enum: EXECUTOR_SERVICE_KEYS, default: undefined },
+    serviceBalances: { type: Map, of: Number, default: undefined },
     manualReceiptPrefix: { type: String, trim: true, match: /^\d{3}$/ },
     // When enabled, only the manager can distribute incoming tasks to operators.
     manualTaskRoutingEnabled: { type: Boolean, default: false },
-    // Manual executor completion policies (admin-controlled).
+    // Manual executor completion policies (admin/manager-controlled, overridable per employee).
     manualProofRequired: { type: Boolean, default: false },
+    manualQuickExecuteEnabled: { type: Boolean, default: false },
     manualAllowedPhoneLengths: { type: [Number], default: [3, 4, 11] },
     manualSplitRequiresFullPhone: { type: Boolean, default: true },
+    maxConcurrentDevices: { type: Number, min: 1, max: 20, default: 1 },
+    sessionTtlEnabled: { type: Boolean, default: false },
+    sessionTtlSeconds: { type: Number, min: 0, default: null },
 
     archivedAt: { type: Date, default: null },
     archivedBy: { type: String, default: '' },

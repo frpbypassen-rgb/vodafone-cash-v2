@@ -1,7 +1,17 @@
 <!DOCTYPE html>
-<html lang="ar" dir="rtl">
+<html lang="ar" dir="rtl"<% if (workspace.isCompany) { %> data-portal="company" data-company-role="<%= workspace.canonicalRole || (workspace.permissions && workspace.permissions.canonicalRole) || (workspace.persona === 'accountant' ? 'accountant' : (workspace.permissions && workspace.permissions.owner ? 'owner' : 'employee')) %>" data-theme="<%= typeof companyTheme !== 'undefined' && companyTheme ? companyTheme : 'day' %>"<% } else { %> data-portal="customer" data-theme="<%= typeof clientTheme !== 'undefined' && clientTheme ? clientTheme : 'day' %>"<% } %>>
 <%- include('partials/workspace_head') %>
-<body class="bw-body<%= workspace.isCompany ? ' bw-company-os' : '' %>" data-page="<%= page %>" data-persona="<%= workspace.persona %>" data-portal="<%= workspace.type %>">
+<body class="bw-body<%= workspace.isCompany ? ' bw-company-os cp-shell cp-app' : ' cl-app cl-shell' %>" data-page="<%= page %>" data-persona="<%= workspace.persona %>" data-portal="<%= workspace.type %>"<% if (workspace.isCompany) { %> data-company-shell data-company-role="<%= workspace.canonicalRole || (workspace.permissions && workspace.permissions.canonicalRole) || 'employee' %>" data-theme="<%= typeof companyTheme !== 'undefined' && companyTheme ? companyTheme : 'day' %>"<% } else { %> data-customer-shell data-theme="<%= typeof clientTheme !== 'undefined' && clientTheme ? clientTheme : 'day' %>"<% } %>>
+    <% if (workspace.isCompany) { %>
+        <%- include('partials/company_icons') %>
+        <span class="cp-sand-dust" aria-hidden="true"></span>
+        <span class="cp-pyramid-art" aria-hidden="true"></span>
+        <span class="cp-glyph-shimmer" aria-hidden="true"></span>
+    <% } else { %>
+        <span class="cl-sand-dust" aria-hidden="true"></span>
+        <span class="cl-pyramid-art" aria-hidden="true"></span>
+        <span class="cl-glyph-shimmer" aria-hidden="true"></span>
+    <% } %>
     <div class="bw-offline-banner" data-offline-banner hidden><i class="fa-solid fa-wifi"></i><span><strong>الاتصال متوقف</strong> البيانات المعروضة قديمة، وتم إيقاف إرسال التحويلات حتى عودة الشبكة.</span></div>
     <div class="bw-privacy-shield" data-privacy-shield hidden><i class="fa-solid fa-eye-slash"></i><strong>تم إخفاء البيانات الحساسة</strong><button type="button" data-privacy-restore>إظهار</button></div>
     <%- include('partials/workspace_sidebar') %>
@@ -9,7 +19,7 @@
 
     <div class="bw-frame">
         <%- include('partials/workspace_topbar') %>
-        <main class="bw-main" id="mainContent">
+        <main class="bw-main cp-main" id="mainContent">
             <% if (!workspace.isCompany) { %>
             <header class="bw-page-header">
                 <div>
@@ -80,41 +90,11 @@
             <% } %>
         </main>
 
-        <% const mobileKeys = workspace.isCompany
-            ? (workspace.persona === 'manager'
-                ? ['overview', 'services', 'transactions', 'reports']
-                : workspace.persona === 'accountant'
-                    ? ['finance', 'reports', 'transactions', 'deposits']
-                    : ['services', 'transactions', 'smart_transfer', 'support'])
-            : ['overview', 'services', 'transactions', 'reports'];
-           const mobileNavigation = mobileKeys.map(key => navigation.find(item => item.key === key)).filter(Boolean); %>
-        <nav class="bw-mobile-dock" aria-label="التنقل السريع">
-            <% mobileNavigation.forEach(item => { %>
-                <a href="<%= item.href %>" class="<%= item.active ? 'active' : '' %>">
-                    <i class="fa-solid <%= item.icon %>"></i>
-                    <span><%= item.label
-                        .replace('الخدمات والتحويل', 'تحويل')
-                        .replace('إنشاء تحويل', 'تحويل')
-                        .replace('المعاملات', 'العمليات')
-                        .replace('سجل العمليات', 'العمليات')
-                        .replace('الموظفون والصلاحيات', 'الفريق')
-                        .replace('فريق الشركة', 'الفريق')
-                        .replace('الحركات المالية', 'المالية')
-                        .replace('كشف الحركات', 'المالية')
-                        .replace('كشوف الحساب', 'الكشوف')
-                        .replace('إدارة الحساب', 'الحساب')
-                        .replace('أمان حسابي', 'أماني')
-                        .replace('أمان الحساب', 'أماني')
-                        .replace('بيانات المنشأة', 'البيانات')
-                        .replace('التحويل الذكي', 'ذكي')
-                        .replace('طلب إيداع', 'إيداع')
-                        .replace('متابعة الإيداع', 'متابعة')
-                        .replace('كشف الحساب', 'الكشف')
-                        .replace('دفتر الحركات', 'المالية')
-                        .replace('مكتب المحاسبة', 'المالية') %></span>
-                </a>
-            <% }) %>
-        </nav>
+        <% if (workspace.isCompany) { %>
+            <%- include('partials/company_bottom_nav') %>
+        <% } else { %>
+            <%- include('partials/customer_mobile_dock') %>
+        <% } %>
     </div>
 
     <dialog class="bw-dialog bw-transaction-dialog" id="transactionDetailsDialog" aria-labelledby="transactionDetailsTitle">
@@ -128,6 +108,12 @@
         <div class="bw-dialog-body" id="transactionDetailsBody">
             <div class="bw-loading"><i class="fa-solid fa-circle-notch fa-spin"></i><span>جارٍ تحميل التفاصيل...</span></div>
         </div>
+    </dialog>
+
+    <dialog class="bw-receipt-lightbox" id="receiptLightbox" aria-label="صورة الإثبات">
+        <button type="button" class="bw-receipt-lightbox-close" data-lightbox-close aria-label="إغلاق"><i class="fa-solid fa-xmark"></i></button>
+        <img id="receiptLightboxImage" alt="صورة الإثبات">
+        <p class="bw-receipt-lightbox-caption" id="receiptLightboxCaption">صورة الإثبات</p>
     </dialog>
 
     <dialog class="bw-dialog bw-assistant-dialog" id="businessAssistantDialog" aria-label="المساعد الذكي">
@@ -149,18 +135,18 @@
         </form>
     </dialog>
 
-    <dialog class="bw-dialog cos-seal-dialog" id="companyWelcomeDialog" aria-label="ترحيب الشركة">
-        <div class="cos-seal-modal">
-            <div class="cos-logo-3d"><span class="cos-rings"></span><img src="/images/logo.jpeg" alt="شعار الأهرام" onerror="this.onerror=null;this.src='/images/logo.jpg'"></div>
+    <dialog class="bw-dialog cp-dialog" id="companyWelcomeDialog" aria-label="ترحيب الشركة">
+        <div class="cp-dialog-body">
+            <span class="cp-dialog-mark" aria-hidden="true"><img src="/images/logo.jpeg" alt="" onerror="this.onerror=null;this.src='/images/logo.jpg'"></span>
             <h2 id="companyWelcomeTitle"><%= workspace.entity.name %></h2>
             <p id="companyWelcomeCopy">مرحباً <%= workspace.actor.name %>. أنت تدخل ك<%= workspace.roleLabel %>. <%= systemOpen ? 'الخدمة متاحة الآن.' : 'الخدمة متوقفة مؤقتاً.' %></p>
             <button type="button" class="bw-button primary wide" data-dialog-close>دخول الغرفة</button>
         </div>
     </dialog>
 
-    <dialog class="bw-dialog cos-seal-dialog" id="companyMessageDialog" aria-labelledby="companyMessageTitle">
-        <div class="cos-seal-modal">
-            <div class="cos-logo-3d"><span class="cos-rings"></span><img src="/images/logo.jpeg" alt="" onerror="this.onerror=null;this.src='/images/logo.jpg'"></div>
+    <dialog class="bw-dialog cp-dialog" id="companyMessageDialog" aria-labelledby="companyMessageTitle">
+        <div class="cp-dialog-body">
+            <span class="cp-dialog-mark" aria-hidden="true"><img src="/images/logo.jpeg" alt="" onerror="this.onerror=null;this.src='/images/logo.jpg'"></span>
             <h2 id="companyMessageTitle">رسالة من الإدارة</h2>
             <p id="companyMessageCopy"></p>
             <div class="bw-dialog-actions">
@@ -170,9 +156,9 @@
         </div>
     </dialog>
 
-    <dialog class="bw-dialog cos-seal-dialog" id="companyLowBalanceDialog" aria-labelledby="companyLowBalanceTitle">
-        <div class="cos-seal-modal">
-            <div class="cos-logo-3d"><span class="cos-rings"></span><img src="/images/logo.jpeg" alt="" onerror="this.onerror=null;this.src='/images/logo.jpg'"></div>
+    <dialog class="bw-dialog cp-dialog" id="companyLowBalanceDialog" aria-labelledby="companyLowBalanceTitle">
+        <div class="cp-dialog-body">
+            <span class="cp-dialog-mark" aria-hidden="true"><img src="/images/logo.jpeg" alt="" onerror="this.onerror=null;this.src='/images/logo.jpg'"></span>
             <h2 id="companyLowBalanceTitle">تنبيه الرصيد</h2>
             <p id="companyLowBalanceCopy"></p>
             <div class="bw-dialog-actions">
@@ -184,9 +170,9 @@
         </div>
     </dialog>
 
-    <dialog class="bw-dialog<%= workspace.isCompany ? ' cos-seal-dialog' : '' %>" id="transferConfirmDialog" aria-labelledby="transferConfirmTitle">
+    <dialog class="bw-dialog<%= workspace.isCompany ? ' cp-dialog' : '' %>" id="transferConfirmDialog" aria-labelledby="transferConfirmTitle">
         <% if (workspace.isCompany) { %>
-        <div class="cos-seal-modal">
+        <div class="cp-dialog-body">
             <span class="bw-section-kicker">مراجعة قبل الإرسال</span>
             <h2 id="transferConfirmTitle">تأكيد العملية</h2>
             <div class="bw-dialog-body" id="transferConfirmBody"></div>
@@ -211,9 +197,13 @@
         <% } %>
     </dialog>
 
-    <dialog class="bw-dialog cos-seal-dialog" id="transferSuccessDialog" aria-labelledby="transferSuccessTitle">
-        <div class="cos-seal-modal">
-            <div class="cos-logo-3d"><span class="cos-rings"></span><img src="/images/logo.jpeg" alt="" onerror="this.onerror=null;this.src='/images/logo.jpg'"></div>
+    <dialog class="bw-dialog cp-dialog" id="transferSuccessDialog" aria-labelledby="transferSuccessTitle">
+        <div class="cp-dialog-body">
+            <% if (workspace.isCompany) { %>
+            <span class="cp-mark" aria-hidden="true"><svg class="cp-icon"><use href="#cp-icon-horus"></use></svg></span>
+            <% } else { %>
+            <span class="cp-dialog-mark" aria-hidden="true"><img src="/images/logo.jpeg" alt="" onerror="this.onerror=null;this.src='/images/logo.jpg'"></span>
+            <% } %>
             <h2 id="transferSuccessTitle">تم استلام العملية</h2>
             <p id="transferSuccessCopy">يمكنك متابعة الحالة من غرفة العمليات.</p>
             <p class="bw-mono" id="transferSuccessRef" hidden></p>
@@ -225,9 +215,9 @@
         </div>
     </dialog>
 
-    <dialog class="bw-dialog cos-seal-dialog" id="companyPinDialog" aria-labelledby="companyPinTitle">
-        <form class="cos-seal-modal" id="companyPinForm">
-            <div class="cos-logo-3d"><span class="cos-rings"></span><img src="/images/logo.jpeg" alt="" onerror="this.onerror=null;this.src='/images/logo.jpg'"></div>
+    <dialog class="bw-dialog cp-dialog" id="companyPinDialog" aria-labelledby="companyPinTitle">
+        <form class="cp-dialog-body" id="companyPinForm">
+            <span class="cp-dialog-mark" aria-hidden="true"><img src="/images/logo.jpeg" alt="" onerror="this.onerror=null;this.src='/images/logo.jpg'"></span>
             <h2 id="companyPinTitle">رمز العمليات</h2>
             <p>أدخل الرمز من 4 إلى 6 أرقام لتأكيد التحويل. لا يُحفظ الرمز في المتصفح.</p>
             <label class="bw-field">
@@ -242,9 +232,9 @@
         </form>
     </dialog>
 
-    <dialog class="bw-dialog cos-seal-dialog" id="companyActionDialog" aria-labelledby="companyActionTitle">
-        <div class="cos-seal-modal">
-            <div class="cos-logo-3d"><span class="cos-rings"></span><img src="/images/logo.jpeg" alt="" onerror="this.onerror=null;this.src='/images/logo.jpg'"></div>
+    <dialog class="bw-dialog cp-dialog" id="companyActionDialog" aria-labelledby="companyActionTitle">
+        <div class="cp-dialog-body">
+            <span class="cp-dialog-mark" aria-hidden="true"><img src="/images/logo.jpeg" alt="" onerror="this.onerror=null;this.src='/images/logo.jpg'"></span>
             <h2 id="companyActionTitle">تأكيد الإجراء</h2>
             <p id="companyActionCopy">هل تريد المتابعة؟</p>
             <div class="bw-dialog-actions">
@@ -254,9 +244,9 @@
         </div>
     </dialog>
 
-    <dialog class="bw-dialog cos-seal-dialog" id="companyLogoutDialog" aria-labelledby="companyLogoutTitle">
-        <div class="cos-seal-modal">
-            <div class="cos-logo-3d"><span class="cos-rings"></span><img src="/images/logo.jpeg" alt="" onerror="this.onerror=null;this.src='/images/logo.jpg'"></div>
+    <dialog class="bw-dialog cp-dialog" id="companyLogoutDialog" aria-labelledby="companyLogoutTitle">
+        <div class="cp-dialog-body">
+            <span class="cp-dialog-mark" aria-hidden="true"><img src="/images/logo.jpeg" alt="" onerror="this.onerror=null;this.src='/images/logo.jpg'"></span>
             <h2 id="companyLogoutTitle">إغلاق يوم العمل</h2>
             <p>سيتم تسجيل خروجك بأمان من غرفة الشركات. يمكنك العودة لاحقاً بنفس حسابك.</p>
             <div class="bw-dialog-actions">
@@ -295,7 +285,8 @@
             entityName: workspace.entity.name,
             roleLabel: workspace.roleLabel,
             availableBalance: workspace.permissions.canViewBalance ? Number(workspace.entity.balance || 0) : null,
-            selectedService: typeof servicePage !== 'undefined' ? servicePage.selectedService : 'vodafone'
+            selectedService: typeof servicePage !== 'undefined' ? servicePage.selectedService : 'vodafone',
+            commandCenterChart: typeof commandCenterChart !== 'undefined' ? commandCenterChart : null
         }).replace(/</g, '\\u003c') %>;
         window.rateAlertInitial = <%- JSON.stringify(pendingRateUpdate || null).replace(/</g, '\\u003c') %>;
         window.rateAlertPushPublicKey = <%- JSON.stringify(process.env.WEB_PUSH_PUBLIC_KEY || '').replace(/</g, '\\u003c') %>;
@@ -349,6 +340,12 @@
             }
         })();
     </script>
-    <script src="/js/client-workspace.js?v=20260918-simple-mobile-2" defer></script>
+    <script src="/js/client-workspace.js?v=20260920-cp-m1" defer></script>
+    <% if (workspace.isCompany) { %>
+    <% if (page === 'overview') { %><script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script><% } %>
+    <script src="/js/company-portal.js?v=20260920-cp-m1" defer></script>
+    <% } else { %>
+    <script src="/js/client-portal.js?v=20260920-cl-m2" defer></script>
+    <% } %>
 </body>
 </html>

@@ -20,7 +20,13 @@ const { createClientNotifications, notifyBalanceAdjustment } = require('../servi
 const { createDepositReceiptProof } = require('../services/depositReceiptService');
 const { voidBalanceAdjustment } = require('../services/balanceAdjustmentService');
 const { logAction } = require('../services/auditService');
+const { requireAdminActor, isAdminActorError, performedFields } = require('../utils/adminActor');
 const { loadAdminAccountDirectory } = require('../services/adminAccountDirectoryService');
+const { findCompanyLoginOwner } = require('../services/adminAccountManagementService');
+const {
+    adminAccountFindQuery,
+    loadAdminAccountHistory
+} = require('../services/adminAccountVisibilityService');
 const {
     SERVICE_RATE_KEYS,
     COMPANY_RATE_INPUT_FIELDS,
@@ -43,7 +49,7 @@ const {
     resolvePublicApiOrigin
 } = require('../services/accountIntegrationPdfService');
 const { provisionSandboxMerchant } = require('../services/sandboxMerchantProvisioningService');
-const { tenantScope, tenantWriteId } = require('../utils/tenantScope');
+const { adminAccountScope, tenantWriteId } = require('../utils/tenantScope');
 
 const accountCodeErrorQuery = (error) => {
     if (error.message === 'ACCOUNT_CODE_DUPLICATE') return 'duplicate';
@@ -262,6 +268,7 @@ const runDbTransaction = async (callback) => {
 };
 
 const balanceErrorQuery = (error) => {
+    if (isAdminActorError(error) || error.message === 'ADJUSTMENT_ACTOR_REQUIRED') return 'actor';
     if (error.message === 'INSUFFICIENT_BALANCE') return 'insufficient';
     if (error.message === 'ACCOUNT_NOT_FOUND') return 'notfound';
     return 'failed';
@@ -320,10 +327,18 @@ router.get('/clients', requireAuth, async (req, res) => {
 });
 
 router.get('/user/:id', requireAuth, async (req, res) => {
-    const user = await User.findOne({ _id: req.params.id, ...tenantScope(req), ...visibleAccountFilter });
-    if (!user) return res.redirect('/clients?section=users&deleteError=notfound');
-    const transactions = await Transaction.find({ ...tenantScope(req), userId: user.phone || user.webUsername, companyId: null }).sort({ createdAt: -1 }).limit(50);
-    const reversibleSettlements = await reversibleSettlementIds({ transactions, entityModel: 'User', entityId: user._id });
+    const user = await User.findOne(adminAccountFindQuery(req, { _id: req.params.id }));
+    if (!user) return res.redirect(`/clients?section=${req.query.section === 'agents' ? 'agents' : 'users'}&deleteError=notfound`);
+    const kind = user.role === 'agent' ? 'agent' : 'user';
+    const { transactions } = await loadAdminAccountHistory(
+        { Transaction },
+        { kind, account: user, tenant: adminAccountScope(req), limit: 50 }
+    );
+    const reversibleSettlements = await reversibleSettlementIds({
+        transactions,
+        entityModel: 'User',
+        entityId: user._id
+    });
     const hasSubAccounts = await SubAccount.exists({ masterType: 'user', masterId: user._id, ...visibleAccountFilter });
     res.render('user_details', {
         user,
@@ -336,15 +351,30 @@ router.get('/user/:id', requireAuth, async (req, res) => {
 });
 
 router.get('/company/:id', requireAuth, async (req, res) => {
-    const company = await ClientCompany.findOne({ _id: req.params.id, ...tenantScope(req), ...visibleAccountFilter });
+    const company = await ClientCompany.findOne(adminAccountFindQuery(req, { _id: req.params.id }));
     if (!company) return res.redirect('/clients?section=companies&deleteError=notfound');
-    const [transactions, settings] = await Promise.all([
-        Transaction.find({ ...tenantScope(req), companyId: company._id }).sort({ createdAt: -1 }).limit(50),
+    const [{ transactions }, settings] = await Promise.all([
+        loadAdminAccountHistory(
+            { Transaction },
+            { kind: 'company', account: company, tenant: adminAccountScope(req), limit: 50 }
+        ),
         Settings.findOne({}).lean()
     ]);
-    const reversibleSettlements = await reversibleSettlementIds({ transactions, entityModel: 'ClientCompany', entityId: company._id });
+    const reversibleSettlements = await reversibleSettlementIds({
+        transactions,
+        entityModel: 'ClientCompany',
+        entityId: company._id
+    });
+    const companyOwnerAccount = await findCompanyLoginOwner(company._id).catch(() => null);
+    const companyOwner = companyOwnerAccount ? {
+        name: companyOwnerAccount.name || '',
+        webUsername: companyOwnerAccount.webUsername || '',
+        email: companyOwnerAccount.email || '',
+        otpDeliveryChannel: companyOwnerAccount.otpDeliveryChannel === 'email' ? 'email' : 'whatsapp'
+    } : null;
     res.render('company_details', {
         company,
+        companyOwner,
         transactions,
         reversibleSettlements,
         accountCodeLength: CODE_LENGTHS.company,
@@ -357,7 +387,7 @@ router.get('/company/:id', requireAuth, async (req, res) => {
 
 router.get('/company/:id/integration-guide.pdf', requireAuth, requireMaster, async (req, res) => {
     try {
-        const company = await ClientCompany.findOne({ _id: req.params.id, ...visibleAccountFilter });
+        const company = await ClientCompany.findOne(adminAccountFindQuery(req, { _id: req.params.id }));
         if (!company) return res.status(404).send('الحساب غير موجود.');
         return await sendIntegrationDocument(req, res, { account: company, accountType: 'company' });
     } catch (error) {
@@ -371,11 +401,7 @@ router.get('/company/:id/integration-guide.pdf', requireAuth, requireMaster, asy
 
 router.get('/user/:id/integration-guide.pdf', requireAuth, requireMaster, async (req, res) => {
     try {
-        const agent = await User.findOne({
-            _id: req.params.id,
-            role: 'agent',
-            ...visibleAccountFilter
-        }).select('+apiToken');
+        const agent = await User.findOne(adminAccountFindQuery(req, { _id: req.params.id, role: 'agent' })).select('+apiToken');
         if (!agent) return res.status(404).send('حساب الوكيل غير موجود.');
         return await sendIntegrationDocument(req, res, { account: agent, accountType: 'agent' });
     } catch (error) {
@@ -391,7 +417,7 @@ router.get('/user/:id/integration-guide.pdf', requireAuth, requireMaster, async 
 // المطابقة الدقيقة للمفتاح المخزن، لذا لا يبقى للمفتاح السابق أي صلاحية.
 router.post('/company/:id/rotate-api-token', requireAuth, requireMaster, async (req, res) => {
     try {
-        const company = await ClientCompany.findOne({ _id: req.params.id, ...visibleAccountFilter });
+        const company = await ClientCompany.findOne(adminAccountFindQuery(req, { _id: req.params.id }));
         if (!company) return res.redirect('/clients?section=companies&apiTokenError=notfound');
 
         const rotation = await rotateIntegrationApiKey(company, 'token');
@@ -426,7 +452,7 @@ router.post('/company/:id/rotate-api-token', requireAuth, requireMaster, async (
 
 router.get('/company/:id/sandbox-api-guide.pdf', requireAuth, requireMaster, async (req, res) => {
     try {
-        const company = await ClientCompany.findOne({ _id: req.params.id, ...visibleAccountFilter });
+        const company = await ClientCompany.findOne(adminAccountFindQuery(req, { _id: req.params.id }));
         if (!company) return res.status(404).send('الحساب غير موجود.');
         return await sendSandboxIntegrationDocument(req, res, { account: company, accountType: 'company' });
     } catch (error) {
@@ -446,11 +472,7 @@ router.get('/company/:id/sandbox-api-guide.pdf', requireAuth, requireMaster, asy
 
 router.get('/user/:id/sandbox-api-guide.pdf', requireAuth, requireMaster, async (req, res) => {
     try {
-        const agent = await User.findOne({
-            _id: req.params.id,
-            role: 'agent',
-            ...visibleAccountFilter
-        });
+        const agent = await User.findOne(adminAccountFindQuery(req, { _id: req.params.id, role: 'agent' }));
         if (!agent) return res.status(404).send('حساب الوكيل غير موجود.');
         return await sendSandboxIntegrationDocument(req, res, { account: agent, accountType: 'agent' });
     } catch (error) {
@@ -470,12 +492,13 @@ router.get('/user/:id/sandbox-api-guide.pdf', requireAuth, requireMaster, async 
 
 router.post('/user/:id/add-balance', requireAuth, async (req, res) => {
     try {
+        const actor = requireAdminActor(req);
         const amount = parseFloat(req.body.amount);
         const notes = req.body.notes ? req.body.notes.trim() : '';
         if (!Number.isFinite(amount) || amount === 0) return res.redirect(`/user/${req.params.id}?balanceError=invalid`);
 
         const { user, tx, balanceAfter } = await runDbTransaction(async (session) => {
-            const accountQuery = User.findOne({ _id: req.params.id, ...tenantScope(req) });
+            const accountQuery = User.findOne(adminAccountFindQuery(req, { _id: req.params.id }));
             const account = session ? await accountQuery.session(session) : await accountQuery;
             if (!account) throw new Error('ACCOUNT_NOT_FOUND');
 
@@ -499,6 +522,7 @@ router.post('/user/:id/add-balance', requireAuth, async (req, res) => {
                 companyName: 'عميل فردي',
                 employeeName: amount > 0 ? 'الإدارة (إيداع)' : 'الإدارة (خصم)',
                 notes,
+                ...performedFields(actor),
                 balanceAdjustment: {
                     entityModel: 'User',
                     entityId: account._id,
@@ -518,9 +542,9 @@ router.post('/user/:id/add-balance', requireAuth, async (req, res) => {
 
             await logAction({
                 action: 'BALANCE_ADJUSTMENT_CREATED', req,
-                performedById: req.session.adminId,
+                performedById: actor.id,
                 performedByModel: 'Admin',
-                performedByName: req.session.adminName || 'الإدارة',
+                performedByName: actor.name,
                 targetId: account._id, targetModel: 'User',
                 oldData: { balance: balanceResult.balanceBefore },
                 newData: { balance: balanceResult.balanceAfter, delta: amount },
@@ -550,12 +574,12 @@ router.post('/user/:id/add-balance', requireAuth, async (req, res) => {
 });
 
 router.post('/user/:id/toggle-status', requireAuth, requireMaster, async (req, res) => {
-    const user = await User.findOne({ _id: req.params.id, ...tenantScope(req) }); if (!user) return res.status(404).send('الحساب غير موجود'); user.status = user.status === 'active' ? 'banned' : 'active'; await user.save(); res.redirect(`/user/${user._id}`);
+    const user = await User.findOne(adminAccountFindQuery(req, { _id: req.params.id })); if (!user) return res.status(404).send('الحساب غير موجود'); user.status = user.status === 'active' ? 'banned' : 'active'; await user.save(); res.redirect(`/user/${user._id}`);
 });
 
 router.post('/user/:id/delete', requireAuth, requireMaster, async (req, res) => {
     try {
-        const user = await User.findOne({ _id: req.params.id, ...tenantScope(req), ...visibleAccountFilter }).select('_id role');
+        const user = await User.findOne(adminAccountFindQuery(req, { _id: req.params.id })).select('_id role');
         if (!user) return res.redirect('/clients?section=users&deleteError=notfound');
         const returnSection = user.role === 'agent' ? 'agents' : 'users';
 
@@ -589,7 +613,7 @@ router.post('/user/:id/update-limit', requireAuth, requireMaster, async (req, re
 
 router.post('/user/:id/update-account-code', requireAuth, requireMaster, async (req, res) => {
     try {
-        const user = await User.findOne({ _id: req.params.id, ...tenantScope(req) });
+        const user = await User.findOne(adminAccountFindQuery(req, { _id: req.params.id }));
         const hasSubAccounts = await SubAccount.exists({ masterType: 'user', masterId: user._id });
         await saveAccountCode({
             Model: User,
@@ -614,12 +638,13 @@ router.post('/user/:id/update-account-code', requireAuth, requireMaster, async (
 
 router.post('/company/:id/add-balance', requireAuth, async (req, res) => {
     try {
+        const actor = requireAdminActor(req);
         const amount = parseFloat(req.body.amount);
         const notes = req.body.notes ? req.body.notes.trim() : '';
         if (!Number.isFinite(amount) || amount === 0) return res.redirect(`/company/${req.params.id}?balanceError=invalid`);
 
         const { company, tx, balanceAfter } = await runDbTransaction(async (session) => {
-            const accountQuery = ClientCompany.findOne({ _id: req.params.id, ...tenantScope(req) });
+            const accountQuery = ClientCompany.findOne(adminAccountFindQuery(req, { _id: req.params.id }));
             const account = session ? await accountQuery.session(session) : await accountQuery;
             if (!account) throw new Error('ACCOUNT_NOT_FOUND');
 
@@ -644,6 +669,7 @@ router.post('/company/:id/add-balance', requireAuth, async (req, res) => {
                 companyName: account.name,
                 employeeName: amount > 0 ? 'الإدارة (إيداع)' : 'الإدارة (خصم)',
                 notes,
+                ...performedFields(actor),
                 balanceAdjustment: {
                     entityModel: 'ClientCompany',
                     entityId: account._id,
@@ -663,9 +689,9 @@ router.post('/company/:id/add-balance', requireAuth, async (req, res) => {
 
             await logAction({
                 action: 'BALANCE_ADJUSTMENT_CREATED', req,
-                performedById: req.session.adminId,
+                performedById: actor.id,
                 performedByModel: 'Admin',
-                performedByName: req.session.adminName || 'الإدارة',
+                performedByName: actor.name,
                 targetId: account._id, targetModel: 'ClientCompany',
                 oldData: { balance: balanceResult.balanceBefore },
                 newData: { balance: balanceResult.balanceAfter, delta: amount },
@@ -696,11 +722,12 @@ router.post('/company/:id/add-balance', requireAuth, async (req, res) => {
 
 router.post('/transaction/:id/void-balance-adjustment', requireAuth, async (req, res) => {
     try {
-        if (!await Transaction.exists({ _id: req.params.id, ...tenantScope(req) })) return res.status(404).send('الحركة غير موجودة');
-        const performedBy = req.session.adminName || req.session.adminUsername || 'الإدارة';
+        if (!await Transaction.exists({ _id: req.params.id, ...adminAccountScope(req) })) return res.status(404).send('الحركة غير موجودة');
+        const actor = requireAdminActor(req);
         const result = await voidBalanceAdjustment({
             transactionId: req.params.id,
-            performedBy,
+            performedBy: actor.name,
+            performedById: actor.id,
             reason: req.body.reason || 'حذف التسوية من الإدارة'
         });
         const originalStatus = result.transaction.balanceAdjustment?.originalStatus;
@@ -725,9 +752,9 @@ router.post('/transaction/:id/void-balance-adjustment', requireAuth, async (req,
         await logAction({
             action: 'BALANCE_ADJUSTMENT_VOIDED',
             req,
-            performedById: req.session.adminId,
+            performedById: actor.id,
             performedByModel: 'Admin',
-            performedByName: performedBy,
+            performedByName: actor.name,
             targetId: result.entityId,
             targetModel: result.entityModel,
             oldData: { status: originalStatus, balance: result.balanceBefore },
@@ -758,7 +785,9 @@ router.post('/transaction/:id/void-balance-adjustment', requireAuth, async (req,
             ADJUSTMENT_ALREADY_VOIDED: 'already',
             ADJUSTMENT_NOT_REVERSIBLE: 'unsupported',
             ADJUSTMENT_LEDGER_NOT_FOUND: 'unsupported',
-            ADJUSTMENT_VOID_CONFLICT: 'conflict'
+            ADJUSTMENT_VOID_CONFLICT: 'conflict',
+            ADMIN_ACTOR_REQUIRED: 'actor',
+            ADJUSTMENT_ACTOR_REQUIRED: 'actor'
         };
         return res.redirect(`/transactions?filterType=deposit_deduction&voidError=${knownErrors[error.message] || 'failed'}`);
     }
@@ -766,7 +795,7 @@ router.post('/transaction/:id/void-balance-adjustment', requireAuth, async (req,
 
 router.post('/company/:id/update-rate', requireAuth, requireMaster, async (req, res) => {
     try {
-        const company = await ClientCompany.findOne({ _id: req.params.id, ...visibleAccountFilter }).lean();
+        const company = await ClientCompany.findOne(adminAccountFindQuery(req, { _id: req.params.id })).lean();
         if (!company) return res.redirect('/clients?section=companies&rateError=notfound');
 
         const settings = await Settings.findOne({}).lean() || {};
@@ -846,12 +875,12 @@ router.post('/company/:id/update-rate', requireAuth, requireMaster, async (req, 
 });
 
 router.post('/company/:id/toggle-status', requireAuth, requireMaster, async (req, res) => {
-    const comp = await ClientCompany.findOne({ _id: req.params.id, ...tenantScope(req) }); if (!comp) return res.status(404).send('الشركة غير موجودة'); comp.status = comp.status === 'active' ? 'inactive' : 'active'; await comp.save(); res.redirect(`/company/${comp._id}`);
+    const comp = await ClientCompany.findOne(adminAccountFindQuery(req, { _id: req.params.id })); if (!comp) return res.status(404).send('الشركة غير موجودة'); comp.status = comp.status === 'active' ? 'inactive' : 'active'; await comp.save(); res.redirect(`/company/${comp._id}`);
 });
 
 router.post('/company/:id/delete', requireAuth, requireMaster, async (req, res) => {
     try {
-        const company = await ClientCompany.findOne({ _id: req.params.id, ...visibleAccountFilter }).select('_id');
+        const company = await ClientCompany.findOne(adminAccountFindQuery(req, { _id: req.params.id })).select('_id');
         if (!company) return res.redirect('/clients?section=companies&deleteError=notfound');
 
         const subAccounts = await SubAccount.find({ masterType: 'company', masterId: company._id, ...visibleAccountFilter }).select('_id').lean();
@@ -914,24 +943,24 @@ router.post('/sub-account/:id/update-account-code', requireAuth, requireMaster, 
             code: req.body.accountCode,
             expectedLength: CODE_LENGTHS.subAccount
         });
-        res.redirect('/clients?section=subaccounts&codeSaved=1');
+        res.redirect('/clients?section=agents&codeSaved=1');
     } catch (error) {
-        res.redirect(`/clients?section=subaccounts&codeError=${accountCodeErrorQuery(error)}`);
+        res.redirect(`/clients?section=agents&codeError=${accountCodeErrorQuery(error)}`);
     }
 });
 
 router.post('/sub-account/:id/delete', requireAuth, requireMaster, async (req, res) => {
     try {
         const subAccount = await SubAccount.findOne({ _id: req.params.id, ...visibleAccountFilter }).select('_id');
-        if (!subAccount) return res.redirect('/clients?section=subaccounts&deleteError=notfound');
+        if (!subAccount) return res.redirect('/clients?section=agents&deleteError=notfound');
 
         await releaseAccountCodeReservation({ modelName: 'SubAccount', id: subAccount._id });
         await SubAccount.updateOne({ _id: subAccount._id }, deletedAccountUpdate(req), { strict: false });
 
-        res.redirect('/clients?section=subaccounts&deleted=1');
+        res.redirect('/clients?section=agents&deleted=1');
     } catch (error) {
         console.error('[clients/delete-sub-account] خطأ في حذف حساب عميل الوكيل:', error.message);
-        res.redirect('/clients?section=subaccounts&deleteError=1');
+        res.redirect('/clients?section=agents&deleteError=1');
     }
 });
 

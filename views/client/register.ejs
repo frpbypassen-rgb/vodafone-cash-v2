@@ -546,7 +546,7 @@
                         <i class="fa-solid fa-phone-volume input-icon"></i>
                     </div>
                     <div class="form-floating position-relative">
-                        <input type="email" class="form-control" id="companyEmail" name="companyEmail" placeholder="الايميل الرسمي للشركة" dir="ltr">
+                        <input type="text" inputmode="email" autocapitalize="none" spellcheck="false" class="form-control" id="companyEmail" name="companyEmail" placeholder="الايميل الرسمي للشركة" dir="ltr" maxlength="254">
                         <label for="companyEmail">الايميل الرسمي للشركة</label>
                         <i class="fa-solid fa-envelope input-icon"></i>
                     </div>
@@ -682,7 +682,7 @@
                         <i class="fa-solid fa-map-location-dot input-icon"></i>
                     </div>
                     <div class="form-floating position-relative">
-                        <input type="email" class="form-control" id="agentEmail" name="agentEmail" placeholder="البريد الرسمي للوكيل" dir="ltr">
+                        <input type="text" inputmode="email" autocapitalize="none" spellcheck="false" class="form-control" id="agentEmail" name="agentEmail" placeholder="البريد الرسمي للوكيل" dir="ltr" maxlength="254">
                         <label for="agentEmail">البريد الرسمي للوكيل</label>
                         <i class="fa-solid fa-envelope input-icon"></i>
                     </div>
@@ -770,8 +770,18 @@
             return /^[a-zA-Z0-9_]{3,20}@ahram\.com$/.test(normalizedUsername(value));
         }
 
+        function normalizeEmailField(id) {
+            const field = document.getElementById(id);
+            const api = window.AhramEmailAddress;
+            if (!field || !api) return '';
+            const normalized = api.normalizeEmailAddress(field.value);
+            if (field.value !== normalized) field.value = normalized;
+            return normalized;
+        }
+
         function isValidEmail(value) {
-            return /^\S+@\S+\.\S+$/.test(String(value || '').trim());
+            const api = window.AhramEmailAddress;
+            return Boolean(api && api.isValidEmailAddress(value));
         }
 
         function validateRegisterForm() {
@@ -793,7 +803,7 @@
                 if (!valueOf('companyName')) return showRegisterError('يرجى إدخال اسم الشركة القانوني.', 'companyName');
                 if (!valueOf('companyContact')) return showRegisterError('يرجى إدخال اسم مدير الشركة.', 'companyContact');
                 if (!isValidPhone(valueOf('companyPhone'))) return showRegisterError('يرجى إدخال رقم تواصل صحيح للشركة.', 'companyPhone');
-                if (!isValidEmail(valueOf('companyEmail'))) return showRegisterError('يرجى إدخال البريد الإلكتروني الرسمي بشكل صحيح.', 'companyEmail');
+                if (!isValidEmail(normalizeEmailField('companyEmail'))) return showRegisterError('يرجى إدخال البريد الإلكتروني الرسمي بشكل صحيح.', 'companyEmail');
                 if (!isValidUsername(valueOf('companyUsername'))) return showRegisterError('اسم المستخدم يجب أن يكون بالإنجليزية من 3 إلى 20 حرفًا وبدون مسافات.', 'companyUsername');
                 if (valueOf('companyPassword').length < 6) return showRegisterError('كلمة المرور يجب أن تكون 6 أحرف على الأقل.', 'companyPassword');
                 if (valueOf('companyPassword') !== valueOf('companyPasswordConfirm')) return showRegisterError('تأكيد كلمة المرور غير مطابق.', 'companyPasswordConfirm');
@@ -823,7 +833,7 @@
                 if (!isTripleName(valueOf('agentFullName'))) return showRegisterError('يرجى إدخال اسم الوكيل الثلاثي.', 'agentFullName');
                 if (!isValidPhone(valueOf('agentPhone'))) return showRegisterError('يرجى إدخال رقم هاتف صحيح.', 'agentPhone');
                 if (!valueOf('agentAddress')) return showRegisterError('يرجى إدخال العنوان.', 'agentAddress');
-                if (!isValidEmail(valueOf('agentEmail'))) return showRegisterError('يرجى إدخال بريد إلكتروني رسمي صحيح.', 'agentEmail');
+                if (!isValidEmail(normalizeEmailField('agentEmail'))) return showRegisterError('يرجى إدخال بريد إلكتروني رسمي صحيح.', 'agentEmail');
                 if (!isValidUsername(valueOf('agentUsername'))) return showRegisterError('اسم المستخدم يجب أن يكون بالإنجليزية من 3 إلى 20 حرفًا وبدون مسافات.', 'agentUsername');
                 if (valueOf('agentPassword').length < 6) return showRegisterError('كلمة المرور يجب أن تكون 6 أحرف على الأقل.', 'agentPassword');
                 if (valueOf('agentPassword') !== valueOf('agentPasswordConfirm')) return showRegisterError('تأكيد كلمة المرور غير مطابق.', 'agentPasswordConfirm');
@@ -1096,5 +1106,6 @@
 
         restoreRegisterFormData();
     </script>
+<%- include('../partials/required_owner_email_script') %>
 </body>
 </html>

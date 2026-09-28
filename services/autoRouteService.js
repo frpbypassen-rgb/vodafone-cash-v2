@@ -3,8 +3,10 @@
 const ExecutorGroup = require('../models/ExecutorGroup');
 const Transaction = require('../models/Transaction');
 const logger = require('../utils/logger');
-const { executorSupportsTransferType } = require('../utils/executorServiceCatalog');
+const { executorSupportsTransferType, normalizeExecutorServiceKey } = require('../utils/executorServiceCatalog');
+const { ledgerServiceKeyForTransaction, servicePrivateBalance } = require('../utils/executorServiceLedger');
 const eventBus = require('./eventBus');
+const { apiQueueExecutionBlock } = require('../utils/runtimeControls');
 
 const getParentGroupId = (group) => group?.parentGroupId || group?.parentBotId || null;
 const OPEN_TASK_STATUSES = Object.freeze(['processing', 'accepted']);
@@ -38,6 +40,11 @@ const queryAggregate = async (pipeline, session) => {
     return query;
 };
 
+const reservedForService = (rows, serviceKey) => (Array.isArray(rows) ? rows : []).reduce((sum, row) => {
+    const key = ledgerServiceKeyForTransaction(row, serviceKey);
+    return key === serviceKey ? sum + positiveNumber(row.amount) : sum;
+}, 0);
+
 const getSmartRoutingMetrics = async (executorIds, parentIds, session) => {
     const now = new Date();
     const recentSince = new Date(now.getTime() - SMART_ROUTE_WINDOW_MS);
@@ -56,6 +63,19 @@ const getSmartRoutingMetrics = async (executorIds, parentIds, session) => {
                 },
                 reservedAmount: {
                     $sum: { $cond: [{ $in: ['$status', OPEN_TASK_STATUSES] }, '$amount', 0] }
+                },
+                openLedger: {
+                    $push: {
+                        $cond: [
+                            { $in: ['$status', OPEN_TASK_STATUSES] },
+                            {
+                                transferType: '$transferType',
+                                canonicalServiceKey: '$canonicalServiceKey',
+                                amount: '$amount'
+                            },
+                            '$$REMOVE'
+                        ]
+                    }
                 },
                 completed24h: {
                     $sum: {
@@ -90,13 +110,34 @@ const getSmartRoutingMetrics = async (executorIds, parentIds, session) => {
                     status: { $in: OPEN_TASK_STATUSES }
                 }
             },
-            { $group: { _id: '$managerGroupId', reservedAmount: { $sum: '$amount' } } }
+            {
+                $group: {
+                    _id: {
+                        parent: '$managerGroupId',
+                        transferType: '$transferType',
+                        canonicalServiceKey: '$canonicalServiceKey'
+                    },
+                    reservedAmount: { $sum: '$amount' }
+                }
+            }
         ], session)
         : [];
 
+    const reservedByParentService = new Map();
+    (parentRows || []).forEach((row) => {
+        const parentId = idOf(row?._id?.parent || row?._id);
+        const serviceKey = ledgerServiceKeyForTransaction(
+            row?._id && typeof row._id === 'object' ? row._id : row,
+            'vodafone'
+        );
+        if (!parentId || !serviceKey) return;
+        const mapKey = `${parentId}:${serviceKey}`;
+        reservedByParentService.set(mapKey, positiveNumber(reservedByParentService.get(mapKey)) + positiveNumber(row.reservedAmount));
+    });
+
     return {
         byExecutor: new Map((metricRows || []).map((row) => [idOf(row._id), row])),
-        reservedByParent: new Map((parentRows || []).map((row) => [idOf(row._id), positiveNumber(row.reservedAmount)]))
+        reservedByParentService
     };
 };
 
@@ -133,7 +174,8 @@ const resolveSmartAutoRouteExecutor = async (settings, transferType, amount, ses
         ? await runQuery(ExecutorGroup.find({ _id: { $in: parentIds }, status: 'active' }), session)
         : [];
     const parentsById = new Map((parentGroups || []).map((group) => [idOf(group), group]));
-    const { byExecutor, reservedByParent } = await getSmartRoutingMetrics(
+    const serviceKey = normalizeExecutorServiceKey(transferType);
+    const { byExecutor, reservedByParentService } = await getSmartRoutingMetrics(
         compatible.map((group) => group._id),
         parentIds,
         session
@@ -141,12 +183,15 @@ const resolveSmartAutoRouteExecutor = async (settings, transferType, amount, ses
 
     const eligible = compatible.map((group) => {
         const metrics = byExecutor.get(idOf(group)) || {};
-        const reservedAmount = positiveNumber(metrics.reservedAmount);
-        const availableBalance = positiveNumber(group.balance) - reservedAmount;
+        const reservedAmount = Array.isArray(metrics.openLedger) && metrics.openLedger.length
+            ? reservedForService(metrics.openLedger, serviceKey)
+            : positiveNumber(metrics.reservedAmount);
+        const availableBalance = positiveNumber(servicePrivateBalance(group, serviceKey)) - reservedAmount;
         const parentId = idOf(getParentGroupId(group));
         const parent = parentId ? parentsById.get(parentId) : null;
         const parentAvailableBalance = parent
-            ? positiveNumber(parent.balance) - positiveNumber(reservedByParent.get(parentId))
+            ? positiveNumber(servicePrivateBalance(parent, serviceKey))
+                - positiveNumber(reservedByParentService.get(`${parentId}:${serviceKey}`))
             : Number.POSITIVE_INFINITY;
 
         return {
@@ -222,6 +267,7 @@ const resolveAutoRouteExecutor = async (settings, transferType = 'vodafone', ses
 
 const applyAutoRouteFields = (tx, executorGroup) => {
     if (!tx || !executorGroup) return tx;
+    if (executorGroup.isApiBot && apiQueueExecutionBlock()) return tx;
 
     tx.executorGroupId = executorGroup._id;
     tx.managerGroupId = getParentGroupId(executorGroup);
@@ -234,6 +280,32 @@ const applyAutoRouteFields = (tx, executorGroup) => {
 };
 
 const enqueueAutoRouteIfNeeded = async (tx, executorGroup) => {
+    if (executorGroup && executorGroup.isApiBot) {
+        const blocked = apiQueueExecutionBlock();
+        if (blocked) {
+            logger.warn('Auto-route API execution refused', {
+                code: blocked.code,
+                reason: blocked.reason,
+                txId: tx ? (tx.customId || String(tx._id || '')) : '',
+                executorGroupId: String(executorGroup._id || '')
+            });
+            return { queued: false, code: blocked.code, reason: blocked.reason };
+        }
+    }
+    const {
+        UNRESOLVED_CODE,
+        automaticPaymentBlocked,
+        guardAutomaticProviderRedispatch
+    } = require('./providerDispatchClaimService');
+    if (tx && automaticPaymentBlocked(tx)) {
+        await guardAutomaticProviderRedispatch(tx._id);
+        logger.warn('Auto-route refused unresolved provider dispatch', {
+            txId: tx.customId || String(tx._id),
+            code: UNRESOLVED_CODE
+        });
+        return { queued: false, code: UNRESOLVED_CODE };
+    }
+
     if (tx && executorGroup) {
         eventBus.publish('executor:task-available', { tx, source: 'auto-route' });
     }

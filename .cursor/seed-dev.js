@@ -9,10 +9,12 @@ require('dotenv').config({ path: process.env.DOTENV_CONFIG_PATH || '.env' });
 
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
+const { assertDevTarget } = require('./validate-dev-target');
 
 const clean = (value) => String(value || '').trim();
 
 const run = async () => {
+    assertDevTarget(process.env);
     const mongoUri = clean(process.env.MONGO_URI);
     if (!mongoUri || mongoUri.toLowerCase() === 'demo') {
         throw new Error('MONGO_URI must point to a real MongoDB instance for the dev seed.');

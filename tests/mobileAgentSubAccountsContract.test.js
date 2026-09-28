@@ -578,4 +578,34 @@ describe('Mobile Agent SubAccounts Contract', () => {
 
         expect(walletService.updateBalanceWithLedger).not.toHaveBeenCalled();
     });
+
+    it('rejects settlement when the client belongs to another agency', async () => {
+        const mockAgent = {
+            _id: 'agent-user-id-123',
+            name: 'Agent User',
+            role: 'agent',
+            status: 'active'
+        };
+        const foreignClient = {
+            _id: 'foreign-sub-id',
+            masterType: 'user',
+            masterId: 'other-agent-id',
+            name: 'Foreign Shop',
+            status: 'active',
+            balance: 80
+        };
+
+        User.findById.mockResolvedValue(mockAgent);
+        SubAccount.findById.mockResolvedValue(foreignClient);
+
+        const res = await request(app)
+            .post(`/api/mobile/agent/sub-accounts/${foreignClient._id}/settlements`)
+            .set('Idempotency-Key', '55555555-5555-5555-5555-555555555555')
+            .send({ type: 'deposit', amount: 20 });
+
+        expect(res.status).toBe(404);
+        expect(res.body.code).toBe('SUB_ACCOUNT_NOT_FOUND');
+        expect(walletService.updateBalanceWithLedger).not.toHaveBeenCalled();
+        expect(Transaction.create).not.toHaveBeenCalled();
+    });
 });

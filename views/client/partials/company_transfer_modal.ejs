@@ -36,6 +36,12 @@
                             <label class="form-label fw-bold small text-muted">اسم المستفيد</label>
                             <input type="text" class="form-control" name="name" autocomplete="off">
                         </div>
+                        <div class="col-12" id="companyBankField" hidden>
+                            <label class="form-label fw-bold small text-muted" for="companyTransferBank">البنك</label>
+                            <select class="form-select" name="bankCode" id="companyTransferBank">
+                                <%- include('../../partials/egyptian_bank_options') %>
+                            </select>
+                        </div>
                         <div class="col-md-6">
                             <label class="form-label fw-bold small text-muted">رقم إضافي / حساب</label>
                             <input type="text" class="form-control mono-num text-center" name="number" dir="ltr" autocomplete="off">

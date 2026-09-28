@@ -6,6 +6,9 @@
   "engines": {
     "node": ">=20.19.0"
   },
+  "overrides": {
+    "uuid": "11.1.1"
+  },
   "scripts": {
     "start": "node app.js",
     "dev": "nodemon app.js",
@@ -13,6 +16,7 @@
     "check:mongo-transactions": "node scripts/checkMongoTransactionSupport.js",
     "repair:env": "node scripts/repairProductionEnv.js .env --apply",
     "rotate:admin": "node scripts/rotateAdminCredentials.js",
+    "rotate:leaked-seed-account": "node scripts/rotateLeakedSeedAccount.js",
     "authorize:admin-device": "node scripts/authorizeAdminDevice.js",
     "migrate:tenant": "node scripts/migrateTenantIsolation.js",
     "backfill:reports": "node scripts/backfillUnifiedReports.js",
@@ -56,8 +60,9 @@
     "ioredis": "^5.11.1",
     "jsonwebtoken": "^9.0.3",
     "mongoose": "^9.9.3",
-    "multer": "^2.2.0",
+    "multer": "^2.4.0",
     "node-cron": "^4.2.1",
+    "nodemailer": "^10.0.10",
     "puppeteer": "^25.8.0",
     "redlock": "^5.0.0-beta.2",
     "socket.io": "^4.8.3",
@@ -81,6 +86,7 @@
     "eslint-plugin-node": "^11.1.0",
     "globals": "^17.11.0",
     "jest": "^29.7.0",
+    "mongodb-memory-server": "^10.2.3",
     "nodemon": "^3.1.14",
     "supertest": "^7.2.2",
     "ts-jest": "^29.4.12",

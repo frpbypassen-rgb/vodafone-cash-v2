@@ -16,8 +16,10 @@ const {
     taskOwnershipFilter,
     acceptExecutorTask,
     routeExecutorTask,
+    listRouteCandidates,
     isTaskOwnedByExecutor,
-    findOwnedAcceptedExecutorTask
+    findOwnedAcceptedExecutorTask,
+    ROUTABLE_EXECUTOR_ROLES
 } = require('../services/executorTaskRoutingService');
 
 const manager = {
@@ -33,6 +35,19 @@ const operator = {
     role: 'operator',
     groupId: { _id: 'group-1', manualTaskRoutingEnabled: true }
 };
+
+const external = {
+    _id: 'external-1',
+    name: 'منفّذ خارجي',
+    role: 'external',
+    groupId: { _id: 'group-1', manualTaskRoutingEnabled: true }
+};
+
+const queryChain = (result) => ({
+    select: jest.fn().mockReturnThis(),
+    sort: jest.fn().mockReturnThis(),
+    lean: jest.fn().mockResolvedValue(result)
+});
 
 describe('executor task routing service', () => {
     beforeEach(() => {
@@ -307,5 +322,104 @@ describe('executor task routing service', () => {
             expect.any(Object),
             { new: true }
         );
+    });
+
+    test('lists active operators and externals as manual-routing candidates', async () => {
+        Employee.find.mockReturnValue(queryChain([
+            { _id: 'operator-1', name: 'منفذ داخلي', webUsername: 'op@ahram.com', role: 'operator' },
+            { _id: 'external-1', name: 'منفّذ خارجي', webUsername: 'ext@ahram.com', role: 'external' }
+        ]));
+
+        const employees = await listRouteCandidates({ groupId: 'group-1' });
+
+        expect(Employee.find).toHaveBeenCalledWith({
+            groupId: 'group-1',
+            status: 'active',
+            role: { $in: [...ROUTABLE_EXECUTOR_ROLES] }
+        });
+        expect(employees).toEqual([
+            expect.objectContaining({
+                _id: 'operator-1',
+                role: 'operator',
+                roleLabel: 'موظف تنفيذ'
+            }),
+            expect.objectContaining({
+                _id: 'external-1',
+                role: 'external',
+                roleLabel: 'منفّذ خارجي'
+            })
+        ]);
+    });
+
+    test('directs a processing task to an external executor', async () => {
+        Employee.findOne.mockResolvedValue(external);
+        Transaction.exists.mockResolvedValue(false);
+        Transaction.findOneAndUpdate.mockResolvedValue({ _id: 'tx-ext' });
+
+        const result = await routeExecutorTask({
+            transactionId: 'tx-ext',
+            manager,
+            employeeId: 'external-1'
+        });
+
+        expect(Employee.findOne).toHaveBeenCalledWith(expect.objectContaining({
+            _id: 'external-1',
+            role: { $in: [...ROUTABLE_EXECUTOR_ROLES] }
+        }));
+        expect(result.ok).toBe(true);
+        expect(result.employee).toBe(external);
+        expect(Transaction.findOneAndUpdate).toHaveBeenCalledWith(
+            expect.any(Object),
+            expect.objectContaining({
+                $set: expect.objectContaining({
+                    assignedExecutorId: 'external-1',
+                    assignedExecutorName: 'منفّذ خارجي'
+                })
+            }),
+            { new: true }
+        );
+    });
+
+    test('rejects routing a task to a non-executable role', async () => {
+        Employee.findOne.mockResolvedValue(null);
+
+        const result = await routeExecutorTask({
+            transactionId: 'tx-3',
+            manager,
+            employeeId: 'accountant-1'
+        });
+
+        expect(result).toEqual({ ok: false, code: 'INVALID_OPERATOR' });
+        expect(Transaction.findOneAndUpdate).not.toHaveBeenCalled();
+    });
+
+    test('does not direct a task to an external who already has an accepted task', async () => {
+        Employee.findOne.mockResolvedValue(external);
+        Transaction.exists.mockResolvedValue(true);
+
+        const result = await routeExecutorTask({
+            transactionId: 'tx-busy',
+            manager,
+            employeeId: 'external-1'
+        });
+
+        expect(result).toEqual({ ok: false, code: 'ACTIVE_TASK_EXISTS' });
+        expect(Transaction.findOneAndUpdate).not.toHaveBeenCalled();
+    });
+
+    test('shows an external only its own accepted or routed tasks when manual routing is enabled', () => {
+        const filter = taskOwnershipFilter(external);
+        expect(filter.$and[1].$or).toEqual([
+            {
+                $or: [
+                    { status: 'accepted', operatorId: 'external-1' },
+                    { status: 'accepted', assignedExecutorId: 'external-1' }
+                ]
+            },
+            {
+                status: { $in: ['processing', 'pending'] },
+                assignedExecutorId: 'external-1'
+            }
+        ]);
     });
 });

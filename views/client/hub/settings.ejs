@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ar" dir="rtl">
+<html lang="ar" dir="rtl" data-portal="customer" data-theme="<%= typeof clientTheme !== 'undefined' && clientTheme ? clientTheme : 'day' %>">
 <head>
     <%- include('../partials/wallet_hub_layout_head', {
         pageTitle: 'الإعدادات',
@@ -7,7 +7,7 @@
         extraCss: ['/css/client-hub-pages.css?v=20260905-hub1']
     }) %>
 </head>
-<body class="client-direct-modern client-nile-theme wallet-hub-active wallet-hub-satellite client-hub-page">
+<body class="cl-app cl-shell client-direct-modern client-nile-theme wallet-hub-active wallet-hub-satellite client-hub-page" data-customer-shell data-theme="<%= typeof clientTheme !== 'undefined' && clientTheme ? clientTheme : 'day' %>">
     <%- include('../partials/wallet_hub_mobile_header', {
         user: user,
         mobileKicker: 'حسابك',

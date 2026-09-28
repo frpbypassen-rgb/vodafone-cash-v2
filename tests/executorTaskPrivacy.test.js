@@ -3,6 +3,8 @@
 const Transaction = require('../models/Transaction');
 const {
     buildExecutorTaskRecipient,
+    stuckAssigneeSlaHint,
+    STUCK_ASSIGNEE_SLA_SECONDS,
     toExecutorPortalTaskDto
 } = require('../utils/executorTaskPrivacy');
 
@@ -56,6 +58,76 @@ describe('executor task recipient privacy', () => {
         expect(dto).not.toHaveProperty('serviceDetails');
         expect(JSON.stringify(dto)).not.toContain('01099998888');
         expect(JSON.stringify(dto)).not.toContain('123456789012345');
+    });
+
+    test('maps routed vs accepted tasks to manager-facing Arabic routing states', () => {
+        const routed = toExecutorPortalTaskDto(task({
+            assignedExecutorId: 'external-1',
+            assignedExecutorName: 'أحمد الخارجي'
+        }), 'manager-1');
+        expect(routed).toEqual(expect.objectContaining({
+            routingState: 'pending_with_assignee',
+            routingStateLabel: 'معلّقة عنده',
+            assignedExecutorId: 'external-1',
+            assignedExecutorName: 'أحمد الخارجي',
+            isAssignedToCurrentExecutor: false
+        }));
+
+        const assignedToExternal = toExecutorPortalTaskDto(task({
+            assignedExecutorId: 'external-1',
+            assignedExecutorName: 'أحمد الخارجي'
+        }), 'external-1');
+        expect(assignedToExternal.isAssignedToCurrentExecutor).toBe(true);
+        expect(assignedToExternal.routingStateLabel).toBe('معلّقة عنده');
+        expect(assignedToExternal.canClaimThenQuickExecute).toBe(true);
+        expect(assignedToExternal.canQuickExecute).toBe(false);
+        expect(assignedToExternal.isOwnedByCurrentExecutor).toBe(false);
+
+        const owned = toExecutorPortalTaskDto(task({
+            status: 'accepted',
+            operatorId: 'employee-1'
+        }), 'employee-1');
+        expect(owned.canQuickExecute).toBe(true);
+        expect(owned.isOwnedByCurrentExecutor).toBe(true);
+        expect(owned.canClaimThenQuickExecute).toBe(false);
+
+        const inProgress = toExecutorPortalTaskDto(task({
+            status: 'accepted',
+            operatorId: 'external-1',
+            assignedExecutorId: 'external-1',
+            assignedExecutorName: 'أحمد الخارجي',
+            executorName: 'أحمد الخارجي'
+        }), 'manager-1');
+        expect(inProgress).toEqual(expect.objectContaining({
+            routingState: 'in_progress',
+            routingStateLabel: 'بدأ التنفيذ',
+            isAssignedToCurrentExecutor: false
+        }));
+    });
+
+    test('SLA hint appears only after a routed task stays pending with the assignee', () => {
+        const assignedAt = new Date('2026-09-21T12:00:00.000Z');
+        expect(stuckAssigneeSlaHint({
+            routingState: 'pending_with_assignee',
+            assignedExecutorAt: assignedAt,
+            now: assignedAt.getTime() + 30 * 1000
+        })).toBeNull();
+
+        const stuck = stuckAssigneeSlaHint({
+            routingState: 'pending_with_assignee',
+            assignedExecutorAt: assignedAt,
+            now: assignedAt.getTime() + (STUCK_ASSIGNEE_SLA_SECONDS + 5) * 1000
+        });
+        expect(stuck).toEqual(expect.objectContaining({
+            waitedSeconds: STUCK_ASSIGNEE_SLA_SECONDS + 5
+        }));
+        expect(stuck.labelAr).toContain('معلّقة عنده');
+        expect(stuck.labelAr).toContain('إعادة توجيه');
+        expect(stuckAssigneeSlaHint({
+            routingState: 'in_progress',
+            assignedExecutorAt: assignedAt,
+            now: assignedAt.getTime() + 600 * 1000
+        })).toBeNull();
     });
 
     test('raw execution number is private by default in the transaction schema', () => {

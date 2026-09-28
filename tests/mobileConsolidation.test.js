@@ -78,10 +78,30 @@ jest.mock('../models/Admin', () => {
 
 jest.mock('../models/ExecutorGroup', () => {
     const M = jest.fn();
-    M.findById = jest.fn();
+    M.findById = jest.fn(() => ({
+        lean: jest.fn().mockResolvedValue(null)
+    }));
     M.findByIdAndUpdate = jest.fn();
     M.modelName = 'ExecutorGroup';
     return M;
+});
+
+jest.mock('../models/MobileDeviceSession', () => {
+    const activeSessionsQuery = () => {
+        const query = {
+            sort: jest.fn(() => query),
+            select: jest.fn(() => query),
+            lean: jest.fn().mockResolvedValue([])
+        };
+        return query;
+    };
+    return {
+        create: jest.fn().mockResolvedValue({ _id: 'device-session-id' }),
+        find: jest.fn(() => activeSessionsQuery()),
+        findOne: jest.fn(),
+        updateOne: jest.fn().mockResolvedValue({ modifiedCount: 1 }),
+        updateMany: jest.fn().mockResolvedValue({ modifiedCount: 1 })
+    };
 });
 
 jest.mock('../models/RegistrationRequest', () => {
@@ -260,7 +280,13 @@ describe('📱 Automated Tests: Mobile API Consolidation & Safety', () => {
                 groupId: {
                     _id: 'group-id-200',
                     name: 'Tripoli Executor Group',
-                    balance: 15000
+                    balance: 15000,
+                    status: 'active',
+                    // Present on every populated ExecutorGroup since the policy
+                    // fields landed; without it login refetches the group.
+                    manualProofRequired: false,
+                    sessionTtlEnabled: false,
+                    maxConcurrentDevices: 1
                 }
             };
 
@@ -320,6 +346,8 @@ describe('📱 Automated Tests: Mobile API Consolidation & Safety', () => {
             expect(res.body.data[0].recipientPrefix).toBe('010');
             expect(res.body.data[0].recipientRevealed).toBe(false);
             expect(res.body.data[0].amount).toBe(500);
+            expect(res.body.pollIntervalSeconds).toBeGreaterThanOrEqual(8);
+            expect(Transaction.find).toHaveBeenCalledTimes(1);
         });
 
         test('accountant executor cannot read execution tasks', async () => {

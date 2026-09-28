@@ -6,6 +6,9 @@ process.env.JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || 'r'.repeat(32
 jest.mock('../models/Employee', () => ({
     findById: jest.fn()
 }));
+jest.mock('../models/MobileDeviceSession', () => ({
+    exists: jest.fn()
+}));
 
 const Employee = require('../models/Employee');
 const { ensureActiveExecutor, tokenMatchesRequestTenant } = require('../middlewares/jwtAuth');
@@ -42,10 +45,21 @@ describe('JWT executor status guard', () => {
             .resolves.toBe(false);
     });
 
-    test('does not add a database lookup for non-executor accounts', async () => {
-        await expect(ensureActiveExecutor({ accountType: 'company', userId: 'company-1' }))
-            .resolves.toBe(true);
-        expect(Employee.findById).not.toHaveBeenCalled();
+    test('rejects an executor session revoked by the device limit', async () => {
+        Employee.findById.mockReturnValue(employeeQuery({
+            status: 'active',
+            groupId: { status: 'active' },
+            sessionVersion: 0
+        }));
+        const MobileDeviceSession = require('../models/MobileDeviceSession');
+        MobileDeviceSession.exists.mockResolvedValue(null);
+
+        await expect(ensureActiveExecutor({
+            accountType: 'executor',
+            userId: 'employee-1',
+            sessionId: 'kicked-session',
+            sessionVersion: 0
+        })).resolves.toBe(false);
     });
 });
 

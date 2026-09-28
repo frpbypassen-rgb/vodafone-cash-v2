@@ -4,12 +4,14 @@ const SubAccount = require('../models/SubAccount');
 const AgentEmployee = require('../models/AgentEmployee');
 const RegistrationRequest = require('../models/RegistrationRequest');
 const { getTodayString } = require('../utils/helpers');
-const { verifyOtp } = require('../utils/otp');
+const { normalizeSubmittedOtp, verifyOtp } = require('../utils/otp');
 const { establishAuthenticatedSession } = require('../utils/sessionSecurity');
 const { logAction } = require('../services/auditService');
 const securityControl = require('../services/securityControlService');
 const { isPasskeyRequired } = require('../config/securityPolicy');
 const { checkRegistrationIdentityAvailability } = require('../services/registrationIdentityService');
+const { classifyEmailAddress } = require('../utils/emailAddress');
+const { resolveClientPostLoginHref } = require('../services/businessPortalService');
 
 const LIBYAN_CITIES = [
     'طرابلس', 'بنغازي', 'مصراتة', 'الزاوية', 'زليتن', 'الخمس', 'سبها', 'سرت', 'درنة', 'طبرق',
@@ -77,12 +79,12 @@ const renderRegisterError = (req, res, error, data = {}) => renderRegister(res, 
 });
 
 exports.getLogin = (req, res) => {
-    if (req.session.isClientLoggedIn) return res.redirect('/client/dashboard');
+    if (req.session.isClientLoggedIn) return res.redirect(resolveClientPostLoginHref(req.session.accountType));
     res.redirect('/login');
 };
 
 exports.getRegister = (req, res) => {
-    if (req.session.isClientLoggedIn) return res.redirect('/client/dashboard');
+    if (req.session.isClientLoggedIn) return res.redirect(resolveClientPostLoginHref(req.session.accountType));
     res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
     renderRegister(res);
 };
@@ -226,7 +228,7 @@ exports.postRegister = async (req, res) => {
             const fullName = getField(req.body.agentFullName).trim();
             const phone = getField(req.body.agentPhone).trim();
             const address = getField(req.body.agentAddress).trim();
-            const companyEmail = getField(req.body.agentEmail).trim();
+            const companyEmail = classifyEmailAddress(getField(req.body.agentEmail));
             let username = getField(req.body.agentUsername).trim();
             if (username && !username.includes('@')) username += '@ahram.com';
             const password = getField(req.body.agentPassword);
@@ -236,7 +238,7 @@ exports.postRegister = async (req, res) => {
             if (!fullName || fullName.split(/\s+/).length < 3) return fail('يرجى إدخال اسم الوكيل الثلاثي كاملاً.');
             if (!phone || phone.length < 10) return fail('يرجى إدخال رقم هاتف صحيح.');
             if (!address) return fail('يرجى إدخال العنوان.');
-            if (!companyEmail || !/^\S+@\S+\.\S+$/.test(companyEmail)) return fail('يرجى إدخال بريد إلكتروني رسمي صحيح.');
+            if (!companyEmail.ok) return fail(companyEmail.code === 'required' ? 'يرجى إدخال بريد إلكتروني رسمي صحيح.' : companyEmail.message);
             if (!username || !/^[a-zA-Z0-9_]{3,20}@ahram\.com$/.test(username)) return fail('اسم المستخدم يجب أن يكون باللغة الإنجليزية وبدون مسافات.');
             if (!password || password.length < 6) return fail('الرقم السري يجب أن يكون 6 أحرف على الأقل.');
             if (password !== passwordConfirm) return fail('الرقم السري غير متطابق.');
@@ -245,7 +247,7 @@ exports.postRegister = async (req, res) => {
             if (!identityCheck.success) return fail(identityCheck.message);
 
             const regRequest = await RegistrationRequest.create({
-                accountType, companyName, fullName, phone, address, companyEmail, username, password,
+                accountType, companyName, fullName, phone, address, companyEmail: companyEmail.email, username, password,
                 tenantId: (req.tenant && req.tenant._id) || undefined,
                 ...identityCheck.requestMetadata,
                 ipAddress: req.ip || req.headers['x-forwarded-for'] || 'unknown',
@@ -268,7 +270,7 @@ exports.postRegister = async (req, res) => {
             const companyName = getField(req.body.companyName).trim();
             const companyContact = getField(req.body.companyContact).trim();
             const companyPhone = getField(req.body.companyPhone).trim();
-            const companyEmail = getField(req.body.companyEmail).trim();
+            const companyEmail = classifyEmailAddress(getField(req.body.companyEmail));
             let username = getField(req.body.username).trim();
             if (username && !username.includes('@')) username += '@ahram.com';
             const password = getField(req.body.password);
@@ -277,7 +279,7 @@ exports.postRegister = async (req, res) => {
             if (!companyName) return fail('يرجى إدخال اسم الشركة القانوني.');
             if (!companyContact) return fail('يرجى إدخال اسم مدير الشركة.');
             if (!companyPhone || companyPhone.length < 10) return fail('يرجى إدخال رقم تواصل صحيح للشركة.');
-            if (!companyEmail || !/^\S+@\S+\.\S+$/.test(companyEmail)) return fail('يرجى إدخال بريد إلكتروني رسمي صحيح.');
+            if (!companyEmail.ok) return fail(companyEmail.code === 'required' ? 'يرجى إدخال بريد إلكتروني رسمي صحيح.' : companyEmail.message);
             if (!username || !/^[a-zA-Z0-9_]{3,20}@ahram\.com$/.test(username)) return fail('اسم المستخدم يجب أن يكون باللغة الإنجليزية وبدون مسافات.');
             if (!password || password.length < 6) return fail('الرقم السري يجب أن يكون 6 أحرف على الأقل.');
             if (password !== passwordConfirm) return fail('الرقم السري غير متطابق.');
@@ -286,7 +288,7 @@ exports.postRegister = async (req, res) => {
             if (!identityCheck.success) return fail(identityCheck.message);
 
             const regRequest = await RegistrationRequest.create({
-                accountType, companyName, companyContact, companyPhone, companyEmail, username, password,
+                accountType, companyName, companyContact, companyPhone, companyEmail: companyEmail.email, username, password,
                 tenantId: (req.tenant && req.tenant._id) || undefined,
                 ...identityCheck.requestMetadata,
                 ipAddress: req.ip || req.headers['x-forwarded-for'] || 'unknown',
@@ -323,7 +325,7 @@ exports.getVerify = (req, res) => {
 
 exports.postVerify = async (req, res) => {
     try {
-        const otp = String(req.body.otp || '').trim();
+        const otp = normalizeSubmittedOtp(req.body.otp);
         const accountId = req.session.tempClientId;
         const accountType = req.session.tempAccountType;
         const otpChallengeId = String(req.session.otpChallengeId || '');
@@ -398,7 +400,8 @@ exports.postVerify = async (req, res) => {
             res,
             principal,
             accountClass: 'account',
-            allowFirstDevice: true
+            allowFirstDevice: true,
+            verifiedLogin: true
         });
         if (!authorization.allowed) {
             return res.render('client/verify', { error: authorization.message });
@@ -424,9 +427,16 @@ exports.postVerify = async (req, res) => {
             clientId: account._id,
             accountType,
             clientName: principal.principalName,
-            pendingSecurityLocation: pendingLocation
+            pendingSecurityLocation: pendingLocation,
+            clientSessionVersion: Number(account.sessionVersion || 0),
+            companyTheme: accountType === 'company'
+                ? (account.preferences && account.preferences.companyTheme) || account.uiTheme || undefined
+                : undefined,
+            clientTheme: accountType === 'company'
+                ? undefined
+                : (account.preferences && account.preferences.clientTheme) || undefined
         });
-        await securityControl.applySessionSecurity(req, principal, 'account');
+        await securityControl.applySessionSecurity(req, principal, 'account', res);
         delete req.session.pendingSecurityLocation;
         delete req.session.pendingSecurityUsername;
 
@@ -438,8 +448,11 @@ exports.postVerify = async (req, res) => {
             performedByName: account.name,
             metadata: { accountType, via: 'OTP' }
         });
-        return req.session.save(() => res.redirect('/client/dashboard'));
-    } catch (e) { res.redirect('/login'); }
+        return req.session.save(() => res.redirect(resolveClientPostLoginHref(accountType)));
+    } catch (e) {
+        console.error('[Client OTP] verify failed:', e.message);
+        return res.render('client/verify', { error: 'تعذر إكمال التحقق. أعد المحاولة.' });
+    }
 };
 
 exports.logout = async (req, res) => {

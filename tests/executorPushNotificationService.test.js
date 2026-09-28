@@ -82,6 +82,22 @@ describe('executor push notification audience', () => {
         expect(ids).toEqual(['operator-2']);
     });
 
+    test('notifies an assigned external executor in manual routing mode', async () => {
+        Employee.find.mockReturnValue(queryResult([
+            { _id: 'manager-1', role: 'manager' },
+            { _id: 'operator-1', role: 'operator' },
+            { _id: 'external-1', role: 'external' }
+        ]));
+        ExecutorGroup.findById.mockReturnValue(queryResult({ manualTaskRoutingEnabled: true }));
+
+        const ids = await resolveAudienceEmployeeIds(
+            { audience: { type: 'task_group', groupId: 'group-1' } },
+            { executorGroupId: 'group-1', assignedExecutorId: 'external-1', status: 'processing' }
+        );
+
+        expect(ids).toEqual(['external-1']);
+    });
+
     test('excludes an executor who already has an accepted operation', async () => {
         Employee.find.mockReturnValue(queryResult([
             { _id: 'manager-1', role: 'manager' },

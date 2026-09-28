@@ -15,6 +15,15 @@ const {
 } = require('../services/accountCodeService');
 const { prepareRegistrationIdentityForApproval } = require('../services/registrationIdentityService');
 const { createRegisteredExecutorAccount } = require('../services/executorAccountService');
+const { classifyEmailAddress, normalizeEmailAddress } = require('../utils/emailAddress');
+
+const registrationContactEmail = (value) => normalizeEmailAddress(value);
+
+const LOGIN_EMAIL_ACCOUNT_TYPES = new Set(['direct', 'new', 'company', 'agent']);
+
+const submittedOwnerEmail = (regReq, body = {}) => registrationContactEmail(
+    body.ownerEmail || body.email || regReq.companyEmail
+);
 
 const visibleRequestStatuses = new Set(['pending', 'pending_agent', 'approved', 'rejected']);
 const appendAdminNote = (current, note) => [current, String(note || '').trim()].filter(Boolean).join('\n');
@@ -74,6 +83,16 @@ router.post('/registration-requests/:id/approve', requireAuth, requireMaster, as
         });
 
         const tenantId = regReq.tenantId || (req.tenant && req.tenant._id) || undefined;
+        let ownerEmail = '';
+        if (LOGIN_EMAIL_ACCOUNT_TYPES.has(regReq.accountType)) {
+            const parsedOwnerEmail = classifyEmailAddress(submittedOwnerEmail(regReq, req.body));
+            if (!parsedOwnerEmail.ok) {
+                const errorCode = parsedOwnerEmail.code === 'required' ? 'email_required' : 'email_invalid';
+                return res.redirect(`/registration-requests?error=${errorCode}`);
+            }
+            ownerEmail = parsedOwnerEmail.email;
+            regReq.companyEmail = ownerEmail;
+        }
 
         // ─── إنشاء الحساب حسب نوع الطلب ───
         if (regReq.accountType === 'direct') {
@@ -89,6 +108,8 @@ router.post('/registration-requests/:id/approve', requireAuth, requireMaster, as
                 balance: 0,
                 status: 'active',
                 role: 'user',
+                businessProfile: { email: ownerEmail },
+                otpDeliveryChannel: 'email',
                 tenantId
             });
 
@@ -106,6 +127,8 @@ router.post('/registration-requests/:id/approve', requireAuth, requireMaster, as
                 balance: 0,
                 status: 'active',
                 role: 'user',
+                businessProfile: { email: ownerEmail },
+                otpDeliveryChannel: 'email',
                 tenantId
             });
 
@@ -117,6 +140,7 @@ router.post('/registration-requests/:id/approve', requireAuth, requireMaster, as
                 tier: 3,
                 balance: 0,
                 status: 'active',
+                businessProfile: { email: ownerEmail },
                 tenantId
             });
 
@@ -127,6 +151,8 @@ router.post('/registration-requests/:id/approve', requireAuth, requireMaster, as
                 webUsername: regReq.username,
                 webPassword: regReq.password,
                 role: 'owner',
+                email: ownerEmail,
+                otpDeliveryChannel: 'email',
                 canViewAllReports: true,
                 canManageCompany: true,
                 canCreateCompanyStaff: true,
@@ -147,6 +173,8 @@ router.post('/registration-requests/:id/approve', requireAuth, requireMaster, as
                 balance: 0,
                 status: 'active',
                 role: 'agent',
+                businessProfile: { email: ownerEmail },
+                otpDeliveryChannel: 'email',
                 tenantId
             });
             const accountCode = await assignGeneratedAccountCode({

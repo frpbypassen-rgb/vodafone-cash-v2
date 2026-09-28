@@ -5,11 +5,10 @@ const ClientCompany = require('../models/ClientCompany');
 const Employee = require('../models/Employee');
 const ExecutorGroup = require('../models/ExecutorGroup');
 const Ledger = require('../models/Ledger');
-const SubAccount = require('../models/SubAccount');
 const { findReportTransactions } = require('./unifiedReportService');
 const User = require('../models/User');
 const { systemDateKey, systemDayStart, systemDayEnd } = require('../config/systemTime');
-const { tenantScope } = require('../utils/tenantScope');
+const { adminAccountScope } = require('../utils/tenantScope');
 const { buildReportSummary } = require('../utils/adminReportCalculations');
 const {
     EXECUTOR_LEDGER_MODELS,
@@ -95,7 +94,7 @@ const buildScopeMetadata = (transaction = {}) => ({
 const resolveReportScope = async ({ mainCategory, subId, subType = 'all', tenantId = null }) => {
     if (!mainCategory || !subId) throw new Error('REPORT_SCOPE_REQUIRED');
 
-    const scopedTenant = tenantScope(tenantId);
+    const scopedTenant = adminAccountScope(tenantId);
     const baseQuery = { ...scopedTenant };
     const entityInfo = {
         name: '---',
@@ -129,6 +128,7 @@ const resolveReportScope = async ({ mainCategory, subId, subType = 'all', tenant
         const company = await ClientCompany.findOne({ _id: subId, ...scopedTenant }).lean();
         if (!company) throw new Error('REPORT_ENTITY_NOT_FOUND');
         baseQuery.companyId = subId;
+        baseQuery.isSubAccountTx = { $ne: true };
         Object.assign(entityInfo, {
             name: company.name || '---',
             phone: company.phone || '---',
@@ -145,36 +145,20 @@ const resolveReportScope = async ({ mainCategory, subId, subType = 'all', tenant
         const master = await User.findOne({ _id: subId, ...scopedTenant }).lean()
             || await ClientCompany.findOne({ _id: subId, ...scopedTenant }).lean();
         if (!master) throw new Error('REPORT_ENTITY_NOT_FOUND');
-        if (!subType || subType === 'all') {
-            const agentSubs = await SubAccount.find({ masterId: subId, ...scopedTenant }).select('_id').lean();
-            const subIds = agentSubs.map((sub) => sub._id);
-            const identifiers = [String(master._id), master.phone, master.webUsername].filter(Boolean);
-            baseQuery.$or = [
-                { subAccountId: { $in: subIds } },
-                { userId: { $in: identifiers }, isSubAccountTx: { $ne: true } },
-                { companyId: subId, isSubAccountTx: { $ne: true } }
-            ];
-            Object.assign(entityInfo, {
-                name: master.name || '---',
-                phone: master.phone || '---',
-                username: master.webUsername || '---',
-                joinDate: master.createdAt,
-                status: 'وكالة'
-            });
-            auditScope.identifiers = identifiers;
-            auditScope.subAccountIds = subIds.map(String);
-        } else {
-            const subAccount = await SubAccount.findOne({ _id: subType, ...scopedTenant }).lean();
-            if (!subAccount || String(subAccount.masterId) !== String(subId)) throw new Error('REPORT_ENTITY_NOT_FOUND');
-            baseQuery.subAccountId = subType;
-            Object.assign(entityInfo, {
-                name: subAccount.name || '---',
-                phone: subAccount.phone || '---',
-                username: subAccount.webUsername || '---',
-                joinDate: subAccount.createdAt,
-                status: `عميل تابع لوكالة (${master.name || '---'})`
-            });
-        }
+        if (subType && subType !== 'all') throw new Error('REPORT_ENTITY_NOT_FOUND');
+        const identifiers = [String(master._id), master.phone, master.webUsername].filter(Boolean);
+        baseQuery.$or = [
+            { userId: { $in: identifiers }, isSubAccountTx: { $ne: true } },
+            { companyId: subId, isSubAccountTx: { $ne: true } }
+        ];
+        Object.assign(entityInfo, {
+            name: master.name || '---',
+            phone: master.phone || '---',
+            username: master.webUsername || '---',
+            joinDate: master.createdAt,
+            status: 'وكالة'
+        });
+        auditScope.identifiers = identifiers;
     } else if (mainCategory === 'executor' || mainCategory === 'api_executor') {
         const group = await ExecutorGroup.findOne({ _id: subId, ...scopedTenant }).lean();
         if (!group) throw new Error('REPORT_ENTITY_NOT_FOUND');

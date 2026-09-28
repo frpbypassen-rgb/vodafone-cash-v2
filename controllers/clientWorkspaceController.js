@@ -3,7 +3,21 @@
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 
+const { loadWalletHubAccount, buildHubRenderContext } = require('../services/clientHubContextService');
 const businessPortalService = require('../services/businessPortalService');
+const {
+    loadCompanyAccess,
+    assertCapability
+} = require('../services/companyAccessService');
+const { applyOwnPasswordChange } = require('../services/companyPasswordService');
+const {
+    normalizeCompanyTheme,
+    buildThemePreferenceUpdate
+} = require('../utils/companyPortalTheme');
+const {
+    normalizeClientTheme,
+    buildClientThemePreferenceUpdate
+} = require('../utils/clientPortalTheme');
 const centralReportService = require('../services/centralReportService');
 const { generateAdminReportPdf } = require('../services/reportPdfService');
 const ClientCompany = require('../models/ClientCompany');
@@ -24,7 +38,8 @@ const {
 } = require('../services/walletService');
 const { notifyBalanceAdjustment } = require('../services/clientNotificationService');
 const { createDepositReceiptProof } = require('../services/depositReceiptService');
-const { buildClientReceiptImages } = require('../services/clientReceiptService');
+const { presentClientVisibleReceipts } = require('../services/clientReceiptService');
+const { assertCompanyOwnsProofTransaction } = require('../services/clientProofAccessService');
 const { logAction } = require('../services/auditService');
 const { customerNoteFromTransaction } = require('../utils/transactionNotes');
 const { sanitizeStatementText } = require('../utils/accountStatementPrivacy');
@@ -136,26 +151,18 @@ exports.renderPage = (page) => async (req, res, next) => {
     }
 };
 
-// Parallel company portal preview. It deliberately reuses the same workspace
-// service as the current portal so both interfaces read identical balances,
-// permissions and transaction data while the new UI is being completed.
-exports.renderCompanyNext = async (req, res, next) => {
-    try {
-        const context = await businessPortalService.loadCompanyNextContext(req);
-        res.set('Cache-Control', 'no-store');
-        return res.render('client/company_next', context);
-    } catch (error) {
-        if (['NOT_BUSINESS_PORTAL', 'NOT_COMPANY_PORTAL'].includes(error.message) && typeof next === 'function') return next();
-        if (error.message === 'FORBIDDEN_PAGE') {
-            return businessPortalService.redirectForbiddenPage(req, res);
-        }
-        console.error('[Company Next] preview render failed:', error.message);
-        return res.redirect('/client/dashboard?portalError=preview');
-    }
-};
-
 exports.getCurrentRates = async (req, res) => {
     try {
+        const hub = await loadWalletHubAccount(req);
+        if (hub) {
+            const context = await buildHubRenderContext(req);
+            res.set('Cache-Control', 'no-store');
+            return res.json({
+                success: true,
+                serviceRates: context?.serviceRates || {},
+                updatedAt: null
+            });
+        }
         const workspace = await businessPortalService.resolveWorkspace(req);
         const { serviceRates, ratesUpdatedAt } = await businessPortalService.getSettingsAndRates(workspace, req.app);
         res.set('Cache-Control', 'no-store');
@@ -548,7 +555,10 @@ exports.postUpdateCustomerPricing = async (req, res) => {
 exports.postUpdateSettings = async (req, res) => {
     try {
         const workspace = await businessPortalService.resolveWorkspace(req);
-        if (!workspace.permissions.canEditSettings) {
+        if (workspace.isCompany) {
+            const companyCtx = await loadCompanyAccess(req);
+            assertCapability(companyCtx.access, 'canManageCompanyProfile');
+        } else if (!workspace.permissions.canEditSettings) {
             return redirectWithMessage(res, '/client/settings', 'settingsError', 'forbidden');
         }
         const Model = workspace.isCompany ? ClientCompany : User;
@@ -596,6 +606,18 @@ exports.postChangePassword = async (req, res) => {
         const currentPassword = String(req.body.currentPassword || '');
         const newPassword = String(req.body.newPassword || '');
         const passwordConfirm = String(req.body.passwordConfirm || '');
+        if (workspace.isCompany) {
+            const result = await applyOwnPasswordChange({
+                actor,
+                currentPassword,
+                newPassword,
+                passwordConfirm,
+                req,
+                portal: workspace.type
+            });
+            req.session.clientSessionVersion = result.sessionVersion;
+            return redirectWithMessage(res, passwordPageHref(workspace), 'settingsSuccess', 'password');
+        }
         if (!actor || !await bcrypt.compare(currentPassword, actor.webPassword || '')) {
             return redirectWithMessage(res, passwordPageHref(workspace), 'settingsError', 'current_password');
         }
@@ -617,9 +639,72 @@ exports.postChangePassword = async (req, res) => {
         });
         return redirectWithMessage(res, passwordPageHref(workspace), 'settingsSuccess', 'password');
     } catch (error) {
+        if (error.code === 'CURRENT_PASSWORD') {
+            return redirectWithMessage(res, passwordPageHref(workspace), 'settingsError', 'current_password');
+        }
+        if (error.code === 'NEW_PASSWORD') {
+            return redirectWithMessage(res, passwordPageHref(workspace), 'settingsError', 'new_password');
+        }
         console.error('[Business Portal] password update failed:', error.message);
         return redirectWithMessage(res, passwordPageHref(workspace), 'settingsError', 'server');
     }
+};
+
+exports.postCompanyTheme = async (req, res) => {
+    try {
+        const ctx = await loadCompanyAccess(req);
+        const theme = normalizeCompanyTheme(req.body?.theme);
+        if (!theme) {
+            if (req.xhr || (req.headers.accept && req.headers.accept.includes('application/json'))) {
+                return res.status(400).json({ success: false, error: 'INVALID_THEME' });
+            }
+            return redirectWithMessage(res, '/client/settings', 'settingsError', 'theme');
+        }
+        req.session.companyTheme = theme;
+        await ClientEmployee.updateOne(
+            { _id: ctx.account._id, companyId: ctx.companyId },
+            { $set: buildThemePreferenceUpdate(theme) }
+        );
+        if (req.xhr || (req.headers.accept && req.headers.accept.includes('application/json'))) {
+            return res.json({ success: true, theme });
+        }
+        return redirectWithMessage(res, req.body.returnTo || '/client/settings', 'settingsSuccess', 'theme');
+    } catch (error) {
+        const status = error.statusCode || 403;
+        if (req.xhr || (req.headers.accept && req.headers.accept.includes('application/json'))) {
+            return res.status(status).json({ success: false, error: error.code || 'FORBIDDEN' });
+        }
+        return redirectWithMessage(res, '/client/settings', 'settingsError', 'forbidden');
+    }
+};
+
+exports.postClientTheme = async (req, res) => {
+    const theme = normalizeClientTheme(req.body?.theme);
+    const fail = (status, error) => {
+        if (req.xhr || (req.headers.accept && req.headers.accept.includes('application/json'))) {
+            return res.status(status).json({ success: false, error });
+        }
+        return redirectWithMessage(res, '/client/settings', 'settingsError', 'theme');
+    };
+    if (!theme) return fail(400, 'INVALID_THEME');
+    if (req.session.accountType === 'company') return fail(403, 'COMPANY_THEME_ONLY');
+
+    req.session.clientTheme = theme;
+    const Model = req.session.accountType === 'agent_staff'
+        ? AgentEmployee
+        : (req.session.accountType === 'sub_client' ? SubAccount : User);
+    try {
+        await Model.updateOne(
+            { _id: req.session.clientId },
+            { $set: buildClientThemePreferenceUpdate(theme) }
+        );
+    } catch (_error) {
+        /* session still holds the preference */
+    }
+    if (req.xhr || (req.headers.accept && req.headers.accept.includes('application/json'))) {
+        return res.json({ success: true, theme });
+    }
+    return redirectWithMessage(res, req.body.returnTo || '/client/settings', 'settingsSuccess', 'theme');
 };
 
 exports.getTransactionDetails = async (req, res) => {
@@ -633,7 +718,13 @@ exports.getTransactionDetails = async (req, res) => {
         }
         const transaction = await Transaction.findOne({ $and: conditions }).lean();
         if (!transaction) return res.status(404).json({ success: false, error: 'العملية غير موجودة.' });
-        const receiptImages = buildClientReceiptImages(transaction);
+        if (workspace.isCompany) {
+            assertCompanyOwnsProofTransaction({
+                companyId: workspace.entity._id,
+                status: workspace.actor.status || 'active'
+            }, transaction);
+        }
+        const receipts = presentClientVisibleReceipts(transaction);
         const service = businessPortalService.SERVICE_CATALOG.find((item) => item.key === transaction.transferType);
 
         return res.json({
@@ -664,8 +755,8 @@ exports.getTransactionDetails = async (req, res) => {
                 cancellationReason: sanitizeStatementText(transaction.cancellationReason, transaction.cancellationReason ? 'تم إلغاء العملية' : ''),
                 createdAt: transaction.createdAt,
                 updatedAt: transaction.updatedAt,
-                hasProof: receiptImages.length > 0,
-                receiptImages,
+                hasProof: receipts.hasProof,
+                receiptImages: receipts.receiptImages,
                 hasIdentityImage: Boolean(transaction.idCardImage)
             }
         });

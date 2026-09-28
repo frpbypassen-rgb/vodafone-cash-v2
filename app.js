@@ -46,7 +46,7 @@ const storage = multer.diskStorage({
 
 const upload = multer({ 
     storage: storage,
-    limits: { fileSize: 5 * 1024 * 1024 },
+    limits: { fileSize: 5 * 1024 * 1024, fieldArrayIndexLimit: 16 },
     fileFilter: (req, file, cb) => {
         const allowedMimeTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif'];
         if (allowedMimeTypes.includes(file.mimetype)) {
@@ -57,6 +57,7 @@ const upload = multer({
     }
 });
 
+const { mongoSessionStoreOptions } = require('./config/sessionStore');
 const connectDB = require('./config/database');
 const { initRedis, isRedis } = require('./config/redis');
 const { requireAuth, requireMaster } = require('./middlewares/auth');
@@ -70,7 +71,10 @@ const {
 } = require('./middlewares/operationalAccess');
 const csrfProtection = require('./middlewares/csrfProtection');
 const logger = require('./utils/logger');
-const { startApiCompletionMonitor } = require('./services/apiExecutionLifecycleService');
+const {
+    startApiCompletionMonitor,
+    warnProviderPaidAwaitingCompletion
+} = require('./services/apiExecutionLifecycleService');
 const {
     ensureApiReconciliationIndexes,
     startApiProviderReturnMonitor
@@ -81,6 +85,13 @@ const { closeEligibleDailySettlement } = require('./services/settlementService')
 const systemMonitor = require('./services/systemMonitorService');
 const { restorePendingRateActivation, startRateChangeActivationMonitor } = require('./services/rateChangeService');
 const { startExecutorPushNotificationWorker } = require('./services/executorPushNotificationService');
+const {
+    isBullmqWorkersEnabled,
+    isFinancialSchedulersEnabled,
+    logDisabledRuntimeSubsystems
+} = require('./utils/runtimeControls');
+const { assertStagingStartupSafe } = require('./utils/stagingStartupGuard');
+require('./services/companyPortalEventHooks');
 const { ensureUnifiedReportInfrastructure } = require('./services/unifiedReportService');
 
 // 🟢 استدعاء طابور المهام الجديد (Queue System)
@@ -308,17 +319,10 @@ try {
         console.warn('⚠️ Session Store: MemoryStore (SESSION_STORE=memory)');
     } else {
         const { MongoStore } = require('connect-mongo');
-        sessionStore = MongoStore.create({
+        sessionStore = MongoStore.create(mongoSessionStoreOptions({
             mongoUrl: process.env.MONGO_URI,
-            ttl: Math.ceil(sessionMaxAgeMs / 1000),
-            autoRemove: 'native',
-            mongoOptions: {
-                retryWrites: false,
-                serverSelectionTimeoutMS: 120000,
-                connectTimeoutMS: 120000,
-                socketTimeoutMS: 120000
-            }
-        });
+            ttl: Math.ceil(sessionMaxAgeMs / 1000)
+        }));
         sessionStore.on('error', (error) => {
             app.locals.sessionStoreHealthy = false;
             logger.error('Session store error', { error: error.message });
@@ -425,11 +429,16 @@ const {
 app.use(enforceSecuritySession);
 app.use(enforceEmergencyLockdown);
 
+const { adminHrefVisible } = require('./config/adminRoles');
+const { EGYPTIAN_BANKS, bankLabelForTransaction } = require('./utils/egyptianBanks');
 app.use((req, res, next) => {
+    res.locals.egyptianBanks = EGYPTIAN_BANKS;
+    res.locals.bankLabelForTransaction = bankLabelForTransaction;
     res.locals.adminName = req.session.adminName || 'مدير';
     // ✅ إصلاح: استخدام adminRole (وليس role) بما يتوافق مع auth middleware
     res.locals.role = req.session.adminRole || null;
     res.locals.tenant = req.tenant || null;
+    res.locals.adminHrefVisible = (href) => adminHrefVisible(req.session?.adminRole, href);
     next();
 });
 
@@ -440,6 +449,7 @@ const { syncBotBalance } = require('./services/balanceService');
 // ==========================================
 app.use('/client', require('./routes/clientPortal'));
 app.use('/client', require('./routes/clientReports')); // Reports for clients
+app.use('/corporate', require('./routes/corporate'));
 app.use('/executor-portal', require('./routes/executorPortal'));
 app.use('/executor-portal', require('./routes/executorReports')); // Reports for executors
 app.use('/api/mobile', require('./routes/mobileApi'));
@@ -448,11 +458,13 @@ app.use('/api/v1/merchant', require('./routes/merchantApi'));
 app.use('/', require('./routes/merchantWebhooks'));
 
 app.use('/', require('./routes/auth'));
+app.use('/', require('./routes/adminAliases'));
 app.use('/admin/security', require('./routes/securityAdmin'));
 app.use(enforceAdminPermissions);
 app.use('/', require('./routes/dashboard'));
-app.use('/', require('./routes/adminTransactions'));
 app.use('/', require('./routes/liveOperations'));
+app.use('/', require('./routes/adminDeposits'));
+app.use('/', require('./routes/adminTransactions'));
 app.use('/', require('./routes/financialMovements'));
 app.use('/', require('./routes/executors'));
 app.use('/', require('./routes/clients'));
@@ -469,13 +481,18 @@ app.use('/', require('./routes/reports'));
 
 
 
-// 📚 Swagger API Documentation
-const swaggerUi = require('swagger-ui-express');
-const swaggerSpec = require('./config/swagger');
-app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
-    customCss: '.swagger-ui .topbar { display: none }',
-    customSiteTitle: 'Al-Ahram Pay API Docs'
-}));
+// Swagger is a development/sandbox surface. Production stays closed unless
+// ENABLE_SWAGGER=true is set explicitly on the host.
+const swaggerEnabled = process.env.NODE_ENV !== 'production'
+    || ['1', 'true', 'yes', 'on'].includes(String(process.env.ENABLE_SWAGGER || '').trim().toLowerCase());
+if (swaggerEnabled) {
+    const swaggerUi = require('swagger-ui-express');
+    const swaggerSpec = require('./config/swagger');
+    app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
+        customCss: '.swagger-ui .topbar { display: none }',
+        customSiteTitle: 'Al-Ahram Pay API Docs'
+    }));
+}
 
 app.use(notFoundHandler);
 
@@ -487,6 +504,16 @@ app.use(errorHandler);
 
 const PORT = process.env.PORT || 3000;
 Promise.all([connectDB(), initRedis()]).then(async () => {
+    logDisabledRuntimeSubsystems(logger);
+    await assertStagingStartupSafe({
+        env: process.env,
+        db: mongoose.connection && mongoose.connection.db,
+        processTitle: process.title
+    });
+    const { initBullMQ } = require('./services/bullQueueService');
+    if (isBullmqWorkersEnabled() && !initBullMQ()) {
+        logger.warn('BullMQ API transfer worker is not ready; API routing will use in-process queue');
+    }
     const merchantWebhookService = require('./services/merchantWebhookService');
     await Promise.all([
         ensureApiReconciliationIndexes(),
@@ -495,22 +522,26 @@ Promise.all([connectDB(), initRedis()]).then(async () => {
         ensureUnifiedReportInfrastructure(),
         merchantWebhookService.ensureMerchantWebhookIndexes()
     ]);
-    await restorePendingRateActivation({ app });
-    startRateChangeActivationMonitor({ app });
-    startApiCompletionMonitor();
-    startApiProviderReturnMonitor();
+    if (isFinancialSchedulersEnabled()) {
+        await restorePendingRateActivation({ app });
+        startRateChangeActivationMonitor({ app });
+        startApiCompletionMonitor();
+        startApiProviderReturnMonitor();
+        closeEligibleDailySettlement().catch((error) => {
+            logger.error('Initial financial day close failed', { error: error.message });
+        });
+        cron.schedule('*/15 * * * *', () => {
+            closeEligibleDailySettlement().catch((error) => {
+                logger.error('Scheduled financial day close failed', { error: error.message });
+            });
+        }, { timezone: SYSTEM_TIME_ZONE });
+    } else {
+        await warnProviderPaidAwaitingCompletion(logger);
+    }
     merchantWebhookService.startMerchantWebhookWorker();
     await startExecutorPushNotificationWorker().catch((error) => {
         logger.error('Executor push notification worker failed to start', { error: error.message });
     });
-    closeEligibleDailySettlement().catch((error) => {
-        logger.error('Initial financial day close failed', { error: error.message });
-    });
-    cron.schedule('*/15 * * * *', () => {
-        closeEligibleDailySettlement().catch((error) => {
-            logger.error('Scheduled financial day close failed', { error: error.message });
-        });
-    }, { timezone: SYSTEM_TIME_ZONE });
     // 🟢 التأكد من وجود الإعدادات الافتراضية في قاعدة البيانات لتفادي أخطاء null pointer
     server.listen(PORT, () => {
         logger.info(`🟢 Al-Ahram Pay v2.0 running on port ${PORT}`, { port: PORT, env: process.env.NODE_ENV || 'development' });

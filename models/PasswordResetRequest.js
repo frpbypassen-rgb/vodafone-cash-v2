@@ -18,11 +18,13 @@ const passwordResetRequestSchema = new mongoose.Schema({
     masterName: { type: String },
     status: {
         type: String,
-        enum: ['otp_sent', 'otp_verified', 'pending_admin', 'approved', 'rejected', 'expired'],
+        enum: ['otp_sent', 'otp_verified', 'completing', 'pending_admin', 'approved', 'rejected', 'expired', 'completed'],
         default: 'otp_sent'
     },
+    otpPurpose: { type: String, enum: ['password_reset'], default: 'password_reset' },
     otpCode: { type: String },
     otpExpires: { type: Date },
+    otpAttempts: { type: Number, default: 0 },
     otpVerifiedAt: { type: Date },
     pendingPasswordHash: { type: String },
     accountSnapshot: { type: mongoose.Schema.Types.Mixed, default: {} },

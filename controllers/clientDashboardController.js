@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 
-const { isWalletHubSession } = require('../utils/walletHubHelper');
+const { isWalletHubSession, canRequestRetailDeposit } = require('../utils/walletHubHelper');
+const { buildClientProfile } = require('../services/clientHubContextService');
 const User = require('../models/User');
 const ClientEmployee = require('../models/ClientEmployee');
 const ClientCompany = require('../models/ClientCompany');
@@ -17,12 +18,14 @@ const clientCompanyController = require('./clientCompanyController');
 const clientWorkspaceController = require('./clientWorkspaceController');
 const businessPortalService = require('../services/businessPortalService');
 const { sanitizeStatementTransaction } = require('../utils/accountStatementPrivacy');
+const { presentClientVisibleReceipts } = require('../services/clientReceiptService');
 const { sanitizeStatementText } = require('../utils/accountStatementPrivacy');
 const { normalizeCreditLimit } = require('../services/agencyCreditLimitService');
 const { logAction } = require('../services/auditService');
 const { saveProfilePhoto, streamProfilePhoto, removeProfilePhoto } = require('../services/profilePhotoStorageService');
 const { activatePendingRateUpdate } = require('../services/rateChangeService');
 const { buildPendingRateAlertForClient } = require('../services/rateAlerts/rateAlertAudienceService');
+const { clientThemeLocals } = require('../utils/clientPortalTheme');
 
 const renderBusinessOverview = clientWorkspaceController.renderPage('overview');
 const escapeRegExp = (value) => String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -33,7 +36,8 @@ const normalizeDashboardSearch = (value) => String(value || '').trim().slice(0, 
 const toClientTransactionDto = (transaction, { canViewBalance = true } = {}) => {
     const safe = sanitizeStatementTransaction(transaction);
     const details = safe.serviceDetails || {};
-    const hasProof = Boolean(safe.proofImage || (safe.proofImages || []).length);
+    const receipts = presentClientVisibleReceipts(transaction);
+    const hasProof = receipts.hasProof;
     return {
         _id: safe._id,
         customId: safe.customId,
@@ -54,6 +58,7 @@ const toClientTransactionDto = (transaction, { canViewBalance = true } = {}) => 
         serviceDetails: {
             subtype: details.subtype || '',
             city: details.city || '',
+            bankCode: details.bankCode || '',
             bankName: details.bankName || '',
             destinationLabel: details.destinationLabel || '',
             amountCurrency: details.amountCurrency || '',
@@ -63,11 +68,10 @@ const toClientTransactionDto = (transaction, { canViewBalance = true } = {}) => 
         cancellationReason: safe.cancellationReason || '',
         createdAt: safe.createdAt,
         updatedAt: safe.updatedAt,
-        hasProof: hasProof,
-        // الواجهة القديمة تعتمد على وجود هذا الحقل فقط لإظهار زر الإيصال؛
-        // لا نكشف اسم أو مسار ملف التخزين.
-        proofImage: hasProof ? 'protected' : '',
-        proofImages: hasProof ? ['protected'] : [],
+        hasProof,
+        proofImage: receipts.proofImage,
+        proofImages: receipts.proofImages,
+        receiptImages: receipts.receiptImages,
         wasAdjusted: /تعديل/i.test(String(transaction.adminNotes || ''))
     };
 };
@@ -85,11 +89,12 @@ exports.getDashboard = async (req, res) => {
         if (account.status && account.status !== 'active') return res.redirect('/client/logout');
 
         if (req.session.accountType === 'company') {
-            if (req.query.legacy !== '1') {
-                return clientWorkspaceController.renderCompanyNext(req, res);
-            }
+            const wantsWorkspaceHome = req.query.home === '1' || req.query.legacy === '1';
             try {
                 const workspace = await businessPortalService.resolveWorkspace(req);
+                if (!wantsWorkspaceHome) {
+                    return res.redirect(businessPortalService.resolvePortalHomeHref(workspace));
+                }
                 if (workspace.permissions.employee) {
                     const forbidden = req.query.portalError ? `?portalError=${encodeURIComponent(String(req.query.portalError))}` : '';
                     return res.redirect(`/client/services${forbidden}`);
@@ -224,54 +229,27 @@ exports.getDashboard = async (req, res) => {
 
         const currentHour = new Date().getHours();
         const isSystemOpen = currentHour >= 8 && currentHour < 23; // From 8 AM to 11 PM
-
-        // Build detailed profile for mobile client card
-        let accountTypeName = 'عميل مباشر';
-        let accountTypeDetail = '';
-        let userRoleLabel = 'عميل فردي';
-        let profileMaster = null;
-
-        if (isSubAccount) {
-            accountTypeName = 'عميل جديد';
-            profileMaster = account.masterType === 'user' ? await User.findById(account.masterId) : await ClientCompany.findById(account.masterId);
-            accountTypeDetail = profileMaster ? profileMaster.name : 'غير معروف';
-            userRoleLabel = 'نقطة بيع فرعية';
-        } else if (req.session.accountType === 'company') {
-            accountTypeName = 'شركة';
-            const company = await ClientCompany.findById(account.companyId);
-            accountTypeDetail = company ? company.name : 'غير معروف';
-            userRoleLabel = account.canViewAllReports ? 'مدير' : 'موظف';
-        } else if (account.role === 'agent') {
-            accountTypeName = 'وكيل';
-            accountTypeDetail = account.name;
-            userRoleLabel = 'مدير';
-        } else if (account.role === 'accountant') {
-            accountTypeName = 'عميل مباشر';
-            userRoleLabel = 'محاسب';
-        } else {
-            accountTypeName = 'عميل مباشر';
-            userRoleLabel = 'عميل فردي';
-        }
-
-        const profile = {
-            name: account.name,
-            phone: account.phone || 'غير مسجل',
-            username: account.webUsername,
-            accountCode,
-            agentAccountCode: isSubAccount && profileMaster && profileMaster.role === 'agent'
-                ? (profileMaster.agentCode || profileMaster.accountCode || '')
-                : '',
-            address: account.address || (account.businessProfile && (account.businessProfile.address || account.businessProfile.city)) || 'غير مسجل',
-            joinedAt: account.createdAt,
-            accountStatus: account.status || 'active',
-            profilePhotoUpdatedAt: account.profilePhotoUpdatedAt || null,
-            hasProfilePhoto: Boolean(account.profilePhotoKey),
-            canEditProfile: req.session.accountType === 'user' || isSubAccount,
-            systemStatus: isSystemOpen ? 'تعمل' : 'خارج اوقات العمل',
-            accountTypeName,
-            accountTypeDetail,
-            userRoleLabel
-        };
+        const canRequestDeposit = canRequestRetailDeposit(req.session.accountType, account.role);
+        const profile = isWalletHubUser
+            ? await buildClientProfile(req, account, isSubAccount)
+            : {
+                name: account.name,
+                phone: account.phone || 'غير مسجل',
+                username: account.webUsername,
+                accountCode,
+                agentAccountCode: '',
+                address: account.address || (account.businessProfile && (account.businessProfile.address || account.businessProfile.city)) || 'غير مسجل',
+                joinedAt: account.createdAt,
+                accountStatus: account.status || 'active',
+                profilePhotoUpdatedAt: account.profilePhotoUpdatedAt || null,
+                hasProfilePhoto: Boolean(account.profilePhotoKey),
+                canEditProfile: req.session.accountType === 'user' || isSubAccount,
+                systemStatus: isSystemOpen ? 'تعمل' : 'خارج اوقات العمل',
+                accountTypeName: req.session.accountType === 'company' ? 'شركة' : (account.role === 'agent' ? 'وكيل' : 'عميل مباشر'),
+                accountTypeDetail: account.role === 'agent' ? account.name : '',
+                userRoleLabel: account.role === 'accountant' ? 'محاسب' : (account.role === 'agent' ? 'مدير' : 'عميل فردي')
+            };
+        if (profile && !profile.accountCode) profile.accountCode = accountCode;
 
         const canViewBalance = req.session.accountType !== 'company' || account.canViewAllReports;
 
@@ -298,12 +276,15 @@ exports.getDashboard = async (req, res) => {
         const showMfaNotice = Boolean(req.session.showMfaEnableNotice);
         delete req.session.showMfaEnableNotice;
         res.render('client/dashboard', {
-            user: { name: account.name, phone: account.phone || account.webUsername, balance, role: account.role || 'user', accountType: req.session.accountType, accountCode, canViewBalance },
+            user: { name: account.name, phone: account.phone || account.webUsername, balance, role: account.role || 'user', accountType: req.session.accountType, accountCode, canViewBalance, canRequestDeposit },
             isSubAccount, isMaster: !isSubAccount, masterTotalProfit, transactions: sanitizedTransactions, transactionsTruncated, recentTransactions, todayStats, walletHub: isWalletHubUser, currentRate, serviceRates, totals, targetDate, dateLabel, showMonth, search, query: req.query, storeCatalog,
             isSystemOpen,
             profile,
             pendingRateUpdate,
-            showMfaNotice
+            showMfaNotice,
+            canRequestDeposit,
+            csrfToken: req.session.csrfToken || '',
+            ...clientThemeLocals(account, req.session.clientTheme)
         });
     } catch (error) {
         console.error("Dashboard Render Error:", error);
@@ -475,6 +456,8 @@ exports.postSettleSubAccount = async (req, res) => {
             await Transaction.create({
                 customId: txId,
                 subAccountId: sub._id,
+                subAccountName: sub.name,
+                isSubAccountTx: true,
                 userId: parentUserId,
                 companyId: parentClientCompanyId,
                 amount: Math.abs(val),
