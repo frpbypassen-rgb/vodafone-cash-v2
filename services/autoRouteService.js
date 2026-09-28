@@ -6,6 +6,7 @@ const logger = require('../utils/logger');
 const { executorSupportsTransferType, normalizeExecutorServiceKey } = require('../utils/executorServiceCatalog');
 const { ledgerServiceKeyForTransaction, servicePrivateBalance } = require('../utils/executorServiceLedger');
 const eventBus = require('./eventBus');
+const { apiQueueExecutionBlock } = require('../utils/runtimeControls');
 
 const getParentGroupId = (group) => group?.parentGroupId || group?.parentBotId || null;
 const OPEN_TASK_STATUSES = Object.freeze(['processing', 'accepted']);
@@ -266,6 +267,7 @@ const resolveAutoRouteExecutor = async (settings, transferType = 'vodafone', ses
 
 const applyAutoRouteFields = (tx, executorGroup) => {
     if (!tx || !executorGroup) return tx;
+    if (executorGroup.isApiBot && apiQueueExecutionBlock()) return tx;
 
     tx.executorGroupId = executorGroup._id;
     tx.managerGroupId = getParentGroupId(executorGroup);
@@ -278,6 +280,32 @@ const applyAutoRouteFields = (tx, executorGroup) => {
 };
 
 const enqueueAutoRouteIfNeeded = async (tx, executorGroup) => {
+    if (executorGroup && executorGroup.isApiBot) {
+        const blocked = apiQueueExecutionBlock();
+        if (blocked) {
+            logger.warn('Auto-route API execution refused', {
+                code: blocked.code,
+                reason: blocked.reason,
+                txId: tx ? (tx.customId || String(tx._id || '')) : '',
+                executorGroupId: String(executorGroup._id || '')
+            });
+            return { queued: false, code: blocked.code, reason: blocked.reason };
+        }
+    }
+    const {
+        UNRESOLVED_CODE,
+        automaticPaymentBlocked,
+        guardAutomaticProviderRedispatch
+    } = require('./providerDispatchClaimService');
+    if (tx && automaticPaymentBlocked(tx)) {
+        await guardAutomaticProviderRedispatch(tx._id);
+        logger.warn('Auto-route refused unresolved provider dispatch', {
+            txId: tx.customId || String(tx._id),
+            code: UNRESOLVED_CODE
+        });
+        return { queued: false, code: UNRESOLVED_CODE };
+    }
+
     if (tx && executorGroup) {
         eventBus.publish('executor:task-available', { tx, source: 'auto-route' });
     }

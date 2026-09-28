@@ -64,6 +64,8 @@ describe('Executor web transaction completion', () => {
 
     beforeEach(() => {
         jest.clearAllMocks();
+        delete process.env.EXTERNAL_API_ENABLED;
+        delete process.env.BULLMQ_WORKERS_ENABLED;
         jest.spyOn(fs, 'existsSync').mockReturnValue(true);
         jest.spyOn(fs, 'writeFileSync').mockImplementation(() => {});
         jest.spyOn(fs, 'unlinkSync').mockImplementation(() => {});
@@ -300,6 +302,53 @@ describe('Executor web transaction completion', () => {
         expect(tx.save).not.toHaveBeenCalled();
     });
 
+    test('records each split part for its own proof and does not create a combined receipt or financial movement', async () => {
+        tx.amount = 2500;
+        tx.costLYD = 180.5;
+        tx.commission = 4.25;
+        tx.vodafoneNumber = '01011112222';
+        req.body = {
+            senderEntries: [
+                { phone: '01108172258', amount: 1000 },
+                { phone: '01000926306', amount: 1500 }
+            ]
+        };
+
+        await controller.postCompleteTask(req, res);
+
+        expect(reserveManualExecutorReceiptReference).not.toHaveBeenCalled();
+        expect(generateManualExecutorReceiptBase64).not.toHaveBeenCalled();
+        expect(tx.status).toBe('completed');
+        expect(tx.amount).toBe(2500);
+        expect(tx.costLYD).toBe(180.5);
+        expect(tx.commission).toBe(4.25);
+        expect(tx.proofImages).toEqual([]);
+        expect(tx.proofImage).toBeUndefined();
+        expect(tx.executorSenderEntries).toEqual([
+            expect.objectContaining({
+                partId: '1',
+                phone: '01108172258',
+                amount: 1000,
+                status: 'success',
+                customerProof: expect.objectContaining({ key: 'tx-1:1', status: 'pending' })
+            }),
+            expect.objectContaining({
+                partId: '2',
+                phone: '01000926306',
+                amount: 1500,
+                status: 'success',
+                customerProof: expect.objectContaining({ key: 'tx-1:2', status: 'pending' })
+            })
+        ]);
+        expect(tx.executorSenderEntries[0].confirmedAt).toBeInstanceOf(Date);
+        expect(tx.executorSenderEntries[1].confirmedAt).toEqual(tx.executorSenderEntries[0].confirmedAt);
+        expect(syncBotBalance).toHaveBeenCalledWith('group-1');
+        expect(syncBotBalance).toHaveBeenCalledWith('parent-1');
+        expect(eventBus.publish).toHaveBeenCalledWith('transfer:completed', { tx, emp: req.executorEmployee });
+        expect(tx.save).toHaveBeenCalledTimes(1);
+        expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ success: true }));
+    });
+
     test('rejects splitting a bank transfer into more than one payment', async () => {
         tx.transferType = 'bank_transfer';
         tx.amount = 250;
@@ -320,5 +369,33 @@ describe('Executor web transaction completion', () => {
         });
         expect(tx.save).not.toHaveBeenCalled();
         expect(generateManualExecutorReceiptBase64).not.toHaveBeenCalled();
+    });
+
+    test('refuses ZaynPay execution before any read or ledger write when the provider switch is off', async () => {
+        process.env.EXTERNAL_API_ENABLED = 'false';
+        const before = tx.status;
+        await controller.executeViaZaynPay(req, res);
+        delete process.env.EXTERNAL_API_ENABLED;
+
+        expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+            success: false,
+            code: 'API_EXECUTION_UNAVAILABLE'
+        }));
+        expect(Transaction.findById).not.toHaveBeenCalled();
+        expect(tx.save).not.toHaveBeenCalled();
+        expect(tx.status).toBe(before);
+    });
+
+    test('does not block direct ZaynPay execution only because BullMQ workers are off', async () => {
+        process.env.BULLMQ_WORKERS_ENABLED = 'false';
+        delete process.env.EXTERNAL_API_ENABLED;
+        await controller.executeViaZaynPay(req, res);
+        delete process.env.BULLMQ_WORKERS_ENABLED;
+
+        expect(res.json).not.toHaveBeenCalledWith(expect.objectContaining({
+            code: 'API_EXECUTION_UNAVAILABLE'
+        }));
+        expect(tx.save).not.toHaveBeenCalled();
+        expect(tx.status).toBe('accepted');
     });
 });

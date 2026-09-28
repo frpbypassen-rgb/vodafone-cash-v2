@@ -7,6 +7,11 @@
 const { isRedis, createBullMQConnection } = require('../config/redis');
 const queueService = require('./queueService');
 const logger = require('../utils/logger');
+const {
+    UNRESOLVED_CODE,
+    guardAutomaticProviderRedispatch
+} = require('./providerDispatchClaimService');
+const { isBullmqWorkersEnabled } = require('../utils/runtimeControls');
 
 // طوابير المهام
 let apiTransferQueue = null;
@@ -37,6 +42,8 @@ const resetBullMQState = () => {
     bullmqReady = false;
 };
 
+const bullWorkersDisabled = () => !isBullmqWorkersEnabled();
+
 const isApiTransferWorkerReady = () => Boolean(
     isRedis() && bullmqReady && apiTransferQueue && apiTransferWorker
 );
@@ -47,6 +54,7 @@ const isApiTransferWorkerReady = () => Boolean(
  * عمليات API في Redis بلا عامل.
  */
 const initBullMQ = () => {
+    if (bullWorkersDisabled()) return false;
     if (isApiTransferWorkerReady()) return true;
     if (!isRedis()) return false;
 
@@ -64,6 +72,16 @@ const initBullMQ = () => {
         const nextApiTransferWorker = new Worker('api-transfers-queue', async (job) => {
             const { txId, apiGroupId } = job.data;
             logger.info(`[BullMQ Worker] Processing job ${job.id} for transaction ${txId}`);
+            const guard = await guardAutomaticProviderRedispatch(txId);
+            if (guard.handled) {
+                logger.warn('[BullMQ Worker] retry skipped provider Payment', {
+                    jobId: job.id,
+                    txId,
+                    reason: guard.reason,
+                    code: guard.code || UNRESOLVED_CODE
+                });
+                return { skipped: true, code: guard.code || UNRESOLVED_CODE };
+            }
             await queueService.processSingleJob(txId, apiGroupId);
         }, {
             connection: workerConnection,
@@ -72,10 +90,9 @@ const initBullMQ = () => {
 
         notificationQueue = new Queue('notifications-queue', { connection: queueConnection });
         notificationWorker = new Worker('notifications-queue', async (job) => {
-            const { userId, title, message, type } = job.data;
+            const { userId, title, message, type, dedupeKey } = job.data || {};
             logger.info(`[BullMQ Worker] Sending notification to ${userId}`);
-            const Notification = require('../models/Notification');
-            await Notification.create({ userId, title, message, type: type || 'system_alert' });
+            await recordInAppNotification({ userId, title, message, type, dedupeKey });
         }, {
             connection: workerConnection,
             concurrency: 10
@@ -151,6 +168,17 @@ const initBullMQ = () => {
  * في الذاكرة داخل نفس العملية حتى لا تبقى العملية في حالة «توجيه».
  */
 const addTransferJob = async (txId, apiGroupId) => {
+    if (bullWorkersDisabled()) return;
+    const guard = await guardAutomaticProviderRedispatch(txId);
+    if (guard.handled) {
+        logger.warn('[BullMQ] refused to enqueue unresolved provider dispatch', {
+            txId,
+            apiGroupId,
+            reason: guard.reason,
+            code: guard.code || UNRESOLVED_CODE
+        });
+        return { queued: false, code: guard.code || UNRESOLVED_CODE };
+    }
     initBullMQ();
     if (isApiTransferWorkerReady()) {
         try {
@@ -172,24 +200,88 @@ const addTransferJob = async (txId, apiGroupId) => {
 /**
  * إضافة إشعار للمعالجة الخلفية
  */
-const addNotificationJob = async (userId, title, message, type) => {
+const explicitNotificationKey = (dedupeKey) => {
+    const key = String(dedupeKey || '').trim();
+    return key || '';
+};
+
+const recordInAppNotification = async ({ userId, title, message, type, dedupeKey }) => {
+    const Notification = require('../models/Notification');
+    const key = explicitNotificationKey(dedupeKey);
+    // No explicit key: same insert as main. Identical text is a new row.
+    // An explicit key uses one upsert. Sequential calls keep a single row
+    // without a unique index. Overlapping calls can insert more than one row
+    // until notifications.dedupeKey_1 exists. A duplicate-key error is ignored
+    // only when that index rejects the second insert. No wallet is changed.
+    if (!key) {
+        await Notification.create({
+            userId,
+            title,
+            message,
+            type: type || 'system_alert'
+        });
+        return;
+    }
+    try {
+        await Notification.updateOne(
+            { dedupeKey: key },
+            {
+                $setOnInsert: {
+                    userId,
+                    title,
+                    message,
+                    type: type || 'system_alert',
+                    dedupeKey: key,
+                    isRead: false
+                }
+            },
+            { upsert: true }
+        );
+    } catch (error) {
+        if (error && (error.code === 11000 || error.code === 11001)) return;
+        throw error;
+    }
+};
+
+const addNotificationJob = async (userId, title, message, type, dedupeKey) => {
+    const key = explicitNotificationKey(dedupeKey);
+    const payload = {
+        userId,
+        title,
+        message,
+        type: type || 'system_alert'
+    };
+    if (key) payload.dedupeKey = key;
+    // In-app notifications are not dropped when workers are off. An explicit
+    // event key is what a later worker shares with that direct write. Jobs
+    // without a key are plain inserts and are not given a dedupe jobId.
+    // Queued jobs are not deleted. WhatsApp, SMTP, and push stay on their
+    // existing paths.
+    if (bullWorkersDisabled()) {
+        await recordInAppNotification(payload).catch(() => {});
+        return;
+    }
     initBullMQ();
     if (isRedis() && notificationQueue) {
         try {
-            await notificationQueue.add(`notify_${userId}_${Date.now()}`, { userId, title, message, type });
+            if (key) {
+                await notificationQueue.add(`notify_${key}`, payload, { jobId: key });
+            } else {
+                await notificationQueue.add(`notify_${userId}_${Date.now()}`, payload);
+            }
             return;
         } catch (err) {
             logger.warn('Failed to add notification to BullMQ', { error: err.message });
         }
     }
-    const Notification = require('../models/Notification');
-    await Notification.create({ userId, title, message, type: type || 'system_alert' }).catch(()=>{});
+    await recordInAppNotification(payload).catch(() => {});
 };
 
 /**
  * إضافة مهمة توليد تسوية أو تقرير
  */
 const addReportJob = async (action, date) => {
+    if (bullWorkersDisabled()) return;
     if (isRedis() && reportQueue) {
         try {
             await reportQueue.add(`report_${action}_${Date.now()}`, { action, date });
@@ -208,6 +300,7 @@ const addReportJob = async (action, date) => {
  * إضافة مهمة نسخ احتياطي خلفية
  */
 const addBackupJob = async () => {
+    if (bullWorkersDisabled()) return;
     if (isRedis() && backupQueue) {
         try {
             await backupQueue.add(`backup_${Date.now()}`, {});
@@ -222,6 +315,7 @@ const addBackupJob = async () => {
  * إضافة مهمة مطابقة مالية
  */
 const addReconciliationJob = async (date) => {
+    if (bullWorkersDisabled()) return;
     if (isRedis() && reconciliationQueue) {
         try {
             await reconciliationQueue.add(`reconciliation_${Date.now()}`, { date });
@@ -237,9 +331,12 @@ const addReconciliationJob = async (date) => {
 module.exports = {
     addTransferJob,
     addNotificationJob,
+    explicitNotificationKey,
+    recordInAppNotification,
     addReportJob,
     addBackupJob,
     addReconciliationJob,
     initBullMQ,
-    isApiTransferWorkerReady
+    isApiTransferWorkerReady,
+    resetBullMQState
 };

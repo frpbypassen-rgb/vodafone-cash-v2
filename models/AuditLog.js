@@ -24,7 +24,7 @@ const auditLogSchema = new mongoose.Schema({
     },
     performedByModel: {
         type: String,
-        enum: ['Employee', 'ClientEmployee', 'AgentEmployee', 'User', 'SubAccount', 'Admin', 'System']
+        enum: ['Employee', 'ClientEmployee', 'AgentEmployee', 'User', 'ClientCompany', 'SubAccount', 'Admin', 'System']
     },
     performedByName: { type: String }, // نسخة من الاسم لحماية السجل
 

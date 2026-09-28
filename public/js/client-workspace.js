@@ -1322,6 +1322,27 @@
         `;
     };
 
+    const renderPartProofDetails = (transaction) => {
+        const parts = Array.isArray(transaction.partProofs) ? transaction.partProofs : [];
+        if (parts.length < 2) return '';
+        return `
+            <section class="bw-receipt-section">
+                <header class="bw-receipt-section-head">
+                    <div><span>أجزاء التحويل</span><strong>إثبات كل جزء</strong></div>
+                </header>
+                <div class="bw-detail-grid">
+                    ${parts.map((part) => `
+                        ${detailItem(`الجزء ${part.partId}`, part.proofAvailable ? 'ناجح' : (part.proofStatus || part.status || ''))}
+                        ${detailItem('مبلغ الجزء', formatNumber(part.amount, 0), true)}
+                        ${detailItem('المحفظة المرسلة', part.senderWallet, true)}
+                        ${detailItem('رقم المستلم', part.recipient, true)}
+                        ${detailItem('المرجع', part.partReference || part.reference, true)}
+                    `).join('')}
+                </div>
+            </section>
+        `;
+    };
+
     const renderTransactionDetails = (transaction) => {
         const serviceDetails = transaction.serviceDetails || {};
         const statusTone = ['completed', 'deposit'].includes(transaction.status)
@@ -1345,6 +1366,7 @@
                 </div>
             </div>
             ${renderReceiptGallery(transaction)}
+            ${renderPartProofDetails(transaction)}
             <div class="bw-detail-grid">
                 ${detailItem('الخدمة', transaction.serviceLabel)}
                 ${detailItem('المبلغ', `${formatNumber(transaction.amount, 0)} ${transaction.amountCurrencyLabel || 'EGP'}`, true)}

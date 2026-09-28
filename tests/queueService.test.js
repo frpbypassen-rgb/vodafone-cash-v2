@@ -8,6 +8,10 @@ jest.mock('../models/ExecutorGroup', () => ({
     findById: jest.fn()
 }));
 
+jest.mock('../models/Ledger', () => ({
+    findOne: jest.fn().mockReturnValue({ lean: () => Promise.resolve(null) })
+}));
+
 jest.mock('../services/externalApiService', () => ({
     executeTransferViaApi: jest.fn(),
     saveApiReceiptProof: jest.fn()

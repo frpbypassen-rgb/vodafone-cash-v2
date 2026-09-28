@@ -1,13 +1,23 @@
 'use strict';
 
+const fs = require('fs');
+const path = require('path');
+const ejs = require('ejs');
 const nodemailer = require('nodemailer');
 const logger = require('../utils/logger');
+const { getBrandContact, isLoginOtpEmailTemplateV2Enabled } = require('../utils/brandContact');
+const { normalizeSubmittedOtp } = require('../utils/otp');
 const { isValidOtpEmail, normalizeOtpEmail } = require('../utils/otpDeliveryChannel');
+const legacyTemplate = require('./emailOtpTemplateLegacy');
 
-const DEFAULT_FROM = 'Ahram Pay <noreply@ahrampay.com>';
+const DEFAULT_FROM = legacyTemplate.DEFAULT_FROM;
+const LOGIN_OTP_LOGO_URL = 'https://ahrampay.com/images/login-otp-logo.jpg';
+const LOGIN_OTP_TEMPLATE_PATH = path.join(__dirname, '../views/emails/login-otp.ejs');
 const TIMEOUT_CODES = new Set(['ETIMEDOUT', 'ESOCKET', 'ECONNECTION', 'ECONNRESET', 'ECONNREFUSED']);
+const TRIPOLI_TIME_ZONE = 'Africa/Tripoli';
 
 let transportCache = { key: '', transport: null };
+let templateCache = '';
 
 const isEnabledFlag = (value) => ['1', 'true', 'yes', 'on'].includes(String(value || '').trim().toLowerCase());
 
@@ -21,7 +31,10 @@ const getSmtpConfig = (env = process.env) => {
     const secure = rawSecure === '' ? port === 465 : isEnabledFlag(rawSecure);
     const user = String(env.SMTP_USER || '').trim();
     const pass = env.SMTP_PASS == null ? '' : String(env.SMTP_PASS);
-    const from = String(env.SMTP_FROM || '').trim() || DEFAULT_FROM;
+    const fromOverride = String(env.SMTP_FROM || '').trim();
+    const from = fromOverride || (
+        isLoginOtpEmailTemplateV2Enabled(env) ? getBrandContact(env).from : DEFAULT_FROM
+    );
     return { host, port, secure, user, pass, from };
 };
 
@@ -57,264 +70,287 @@ const getTransport = (config) => {
 };
 
 const LOGIN_OTP_SUBJECT = 'رمز التحقق لتسجيل الدخول — أهرام باي';
-const TRIPOLI_TIME_ZONE = 'Africa/Tripoli';
 
 const COPY = Object.freeze({
-    brandAr: 'أهرام باي',
-    brandEn: 'Ahram Pay',
-    kicker: 'دخول آمن',
-    heading: 'رمز الدخول الآمن',
-    body: 'استخدم الرمز التالي لإكمال تسجيل الدخول إلى حسابك.',
-    otpLabel: 'رمز التحقق',
-    ribbon: 'لا تشارك الرمز مع أحد',
-    ignore: 'إذا لم تحاول تسجيل الدخول، تجاهل هذه الرسالة.',
-    address: 'ليبيا / مصراتة، سوق الاستثمار / أمام المسجد العالي',
+    body: 'تلقينا محاولة تسجيل دخول إلى حسابك. استخدم رمز التحقق التالي لإكمال العملية بأمان.',
     phoneLabel: 'هاتف',
-    phone: '+218 940719000',
-    phoneHref: 'tel:+218940719000',
-    email: 'support@ahrampay.com',
-    site: 'https://ahrampay.com',
-    signOff: 'مع أطيب التحيات ، فريق أهرام باي',
-    footer: '© 2027 شركة الاهرام للاتصالات والتقنية. جميع الحقوق محفوظة.'
+    warning: 'لا تشارك الرمز مع أي شخص، حتى لو ادعى أنه من فريق الدعم.'
 });
 
-const escapeHtml = (value) => String(value)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
+const OTP_COUNT_PHRASES = Object.freeze({
+    1: 'الرقم',
+    2: 'الرقمين',
+    3: 'الأرقام الثلاثة',
+    4: 'الأرقام الأربعة',
+    5: 'الأرقام الخمسة',
+    6: 'الأرقام الستة',
+    7: 'الأرقام السبعة',
+    8: 'الأرقام الثمانية',
+    9: 'الأرقام التسعة',
+    10: 'الأرقام العشرة'
+});
 
-const cleanInline = (value) => String(value == null ? '' : value).replace(/[\r\n]+/g, ' ').trim();
+const cleanInline = (value) => String(value == null ? '' : value).replace(/[\r\n\t]+/g, ' ').trim();
 
-const formatLoginOtpExpiresAt = (value) => {
+const formatArabicMinutes = (value) => {
+    const minutes = Math.round(Number(value));
+    if (!Number.isFinite(minutes)) return '';
+    const count = Math.abs(minutes);
+    if (count === 1) return 'دقيقة واحدة';
+    if (count === 2) return 'دقيقتين';
+    if (count >= 3 && count <= 10) return `${count} دقائق`;
+    return `${count} دقيقة`;
+};
+
+const resolveExpiresMinutes = (value) => {
+    const minutes = Number(value);
+    if (!Number.isInteger(minutes) || minutes <= 0) return 5;
+    return minutes;
+};
+
+const describeOtpDigits = (otp) => {
+    const length = String(otp || '').length;
+    if (OTP_COUNT_PHRASES[length]) return OTP_COUNT_PHRASES[length];
+    if (length >= 11) return `${length} رقماً`;
+    return 'الأرقام';
+};
+
+const formatLoginAttemptTime = (value) => {
+    if (value == null || value === '') return '';
     const date = value instanceof Date ? value : new Date(value);
     if (Number.isNaN(date.getTime())) return '';
-    const parts = new Intl.DateTimeFormat('en-GB', {
+    return new Intl.DateTimeFormat('ar-LY', {
         timeZone: TRIPOLI_TIME_ZONE,
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long',
         year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
         hour: '2-digit',
         minute: '2-digit',
         hourCycle: 'h23'
-    }).formatToParts(date);
-    const pick = (type) => {
-        const part = parts.find((item) => item.type === type);
-        return part ? part.value : '';
-    };
-    const hour = pick('hour') === '24' ? '00' : pick('hour');
-    return `${pick('day')}-${pick('month')}-${pick('year')} ${hour}:${pick('minute')}`;
+    }).format(date);
 };
 
-const resolveExpiresDate = ({ expiresAt, expiresMinutes, now = new Date() } = {}) => {
-    if (expiresAt) {
-        const date = expiresAt instanceof Date ? expiresAt : new Date(expiresAt);
-        if (!Number.isNaN(date.getTime())) return date;
+const detectBrowser = (ua) => {
+    if (/EdgA?\//.test(ua) || /Edge\//.test(ua)) return 'Edge';
+    if (/OPR\/|Opera\//.test(ua)) return 'Opera';
+    if (/SamsungBrowser\//.test(ua)) return 'Samsung Internet';
+    if (/Firefox\/|FxiOS\//.test(ua)) return 'Firefox';
+    if (/CriOS\//.test(ua) || /Chrome\//.test(ua)) return 'Chrome';
+    if (/Safari\//.test(ua) && /Version\//.test(ua)) return 'Safari';
+    return '';
+};
+
+const detectOs = (ua) => {
+    if (/Windows/.test(ua)) return 'Windows';
+    if (/iPhone|iPad|iPod/.test(ua)) return 'iOS';
+    if (/Android/.test(ua)) return 'Android';
+    if (/Mac OS X|Macintosh/.test(ua)) return 'macOS';
+    if (/CrOS/.test(ua)) return 'ChromeOS';
+    if (/Linux/.test(ua)) return 'Linux';
+    return '';
+};
+
+const summarizeLoginUserAgent = (value) => {
+    const ua = cleanInline(value);
+    if (!ua) return '';
+    const browser = detectBrowser(ua);
+    const os = detectOs(ua);
+    if (browser && os) return `${browser} على ${os}`;
+    if (browser) return browser;
+    if (os) return os;
+    return '';
+};
+
+const maskLoginAccount = (value) => {
+    const cleaned = cleanInline(value);
+    if (!cleaned) return '';
+    if (cleaned.includes('@')) {
+        const at = cleaned.indexOf('@');
+        const local = cleaned.slice(0, at);
+        const domain = cleaned.slice(at + 1).toLowerCase();
+        if (!local || !domain || /[\s@]/.test(domain)) return '';
+        const keep = local.length >= 3 ? 3 : 1;
+        return `${local.slice(0, keep).toLowerCase()}***@${domain}`;
     }
-    const minutes = Math.max(1, Number(expiresMinutes) || 5);
-    const base = now instanceof Date && !Number.isNaN(now.getTime()) ? now : new Date();
-    return new Date(base.getTime() + (minutes * 60 * 1000));
+    const compact = cleaned.replace(/[\s().-]/g, '');
+    const phoneBody = compact.replace(/^\+/, '');
+    if (/^\d{8,15}$/.test(phoneBody)) {
+        return `${phoneBody.slice(0, 3)}${'*'.repeat(phoneBody.length - 6)}${phoneBody.slice(-3)}`;
+    }
+    if (cleaned.length < 2) return '';
+    const keep = cleaned.length >= 4 ? 3 : 1;
+    return `${cleaned.slice(0, keep)}***`;
 };
 
-const buildLoginOtpContent = ({ otp, expiresMinutes, expiresAt, accountName, now } = {}) => {
-    const name = cleanInline(accountName);
-    const code = String(otp == null ? '' : otp).replace(/[\r\n]+/g, '');
-    const expiresText = formatLoginOtpExpiresAt(resolveExpiresDate({ expiresAt, expiresMinutes, now }));
+const resolveLoginOtpLogo = (brand) => ({ src: brand.logoUrl, alt: brand.name });
+
+const LRM = '\u200E';
+const LRI = '\u2066';
+const PDI = '\u2069';
+
+const embedPlainLtr = (value) => `${LRM}${LRI}${value}${PDI}`;
+
+const buildAttemptRows = ({ attemptAt, userAgent, loginAccount } = {}) => {
+    const rows = [];
+    const time = formatLoginAttemptTime(attemptAt);
+    const device = summarizeLoginUserAgent(userAgent);
+    const account = maskLoginAccount(loginAccount);
+    if (time) rows.push({ label: 'وقت المحاولة', value: time, ltr: true });
+    if (device) rows.push({ label: 'الجهاز', value: device, ltr: true });
+    if (account) rows.push({ label: 'الحساب', value: account, ltr: true });
+    return rows;
+};
+
+const buildLoginOtpView = (input = {}) => {
+    const brand = getBrandContact();
+    const accountName = cleanInline(input.accountName);
+    const otp = normalizeSubmittedOtp(input.otp);
+    const expiresMinutes = resolveExpiresMinutes(input.expiresMinutes);
+    const expiresPhrase = formatArabicMinutes(expiresMinutes);
+    const logo = Object.prototype.hasOwnProperty.call(input, 'logo') ? input.logo : resolveLoginOtpLogo(brand);
+    const year = input.year == null || input.year === '' ? new Date().getFullYear() : input.year;
     return {
-        ...COPY,
-        greeting: name ? `مرحباً ${name}،` : 'مرحباً،',
-        otp: code,
-        expiresText,
-        expiryLine: `تنتهي صلاحية هذا الرمز في ${expiresText}`
+        brand: brand.name,
+        accountName,
+        greeting: accountName ? `مرحبًا ${accountName}،` : 'مرحبًا بك،',
+        body: input.purpose === 'password_reset'
+            ? 'طلبت استعادة كلمة المرور. استخدم رمز التحقق التالي لاختيار كلمة مرور جديدة.'
+            : COPY.body,
+        otp,
+        expiresMinutes,
+        expiresPhrase,
+        otpDigitsPhrase: describeOtpDigits(otp),
+        attemptRows: buildAttemptRows(input),
+        contactEmail: brand.supportEmail,
+        contactPhone: brand.phoneDisplay,
+        contactPhoneLink: brand.phoneHref,
+        websiteUrl: brand.website,
+        websiteHost: brand.websiteHost,
+        websiteLabel: brand.website,
+        contactAddress: brand.address,
+        warning: COPY.warning,
+        phoneLabel: COPY.phoneLabel,
+        pageTitle: input.purpose === 'password_reset'
+            ? `استعادة كلمة المرور | ${brand.name}`
+            : `رمز التحقق لتسجيل الدخول | ${brand.name}`,
+        kicker: input.purpose === 'password_reset' ? 'استعادة كلمة المرور' : 'التحقق بخطوتين',
+        headline: input.purpose === 'password_reset' ? 'اختر كلمة مرور جديدة' : 'أكمل تسجيل الدخول إلى حسابك',
+        introRest: input.purpose === 'password_reset'
+            ? 'طلبت استعادة كلمة المرور. استخدم رمز التحقق التالي لاختيار كلمة مرور جديدة.'
+            : 'تلقينا محاولة تسجيل دخول إلى حسابك. استخدم رمز التحقق التالي لإكمال العملية بأمان.',
+        step1: input.purpose === 'password_reset'
+            ? `ارجع إلى نافذة استعادة كلمة المرور في موقع أو تطبيق ${brand.name}.`
+            : `ارجع إلى شاشة تسجيل الدخول المفتوحة في موقع أو تطبيق ${brand.name}.`,
+        step2: `أدخل ${describeOtpDigits(otp)} في خانة «رمز التحقق» بنفس الترتيب الظاهر أعلاه.`,
+        step3: input.purpose === 'password_reset'
+            ? 'اختر كلمة المرور الجديدة. لا يمكن استخدام الرمز مرة أخرى بعد نجاح التغيير.'
+            : 'اضغط «تأكيد الدخول». لا يمكن استخدام الرمز مرة أخرى بعد نجاح التحقق.',
+        closingTip: input.purpose === 'password_reset'
+            ? 'إذا لم تطلب استعادة كلمة المرور، تجاهل هذه الرسالة وتواصل معنا فورًا.'
+            : 'إذا لم تبدأ محاولة الدخول، غيّر كلمة المرور وتواصل معنا فورًا.',
+        year,
+        logoSrc: logo && logo.src ? logo.src : '',
+        logoAlt: logo && logo.alt ? logo.alt : brand.name
     };
 };
 
-const buildLoginOtpText = (input = {}) => {
-    const content = buildLoginOtpContent(input);
-    return [
-        content.brandAr,
-        content.brandEn,
-        '',
-        content.kicker,
-        content.heading,
-        '',
-        content.greeting,
-        '',
-        content.body,
-        '',
-        content.otpLabel,
-        content.otp,
-        '',
-        content.expiryLine,
-        '',
-        content.ribbon,
-        content.ignore,
-        '',
-        content.address,
-        `${content.phoneLabel} ${content.phone}`,
-        content.email,
-        content.site,
-        '',
-        content.signOff,
-        '',
-        content.footer
-    ].join('\n');
+const renderLoginOtpTemplate = (view) => {
+    if (!templateCache) templateCache = fs.readFileSync(LOGIN_OTP_TEMPLATE_PATH, 'utf8');
+    return ejs.render(templateCache, view, { filename: LOGIN_OTP_TEMPLATE_PATH });
 };
 
-const EMAIL_FONT = 'Tahoma,Arial,sans-serif';
-const OTP_TILE_LIMIT = 8;
+const buildLoginOtpHtmlV2 = (input = {}) => renderLoginOtpTemplate(buildLoginOtpView(input));
 
-const buildPyramidMark = () => {
-    const tiers = [
-        [10, '#E0B44A'],
-        [22, '#C9A227'],
-        [36, '#E0B44A'],
-        [52, '#C9A227']
+const buildLoginOtpTextV2 = (input = {}) => {
+    const view = buildLoginOtpView(input);
+    const lines = [
+        view.brand,
+        '',
+        view.greeting,
+        '',
+        view.body,
+        '',
+        'رمز التحقق',
+        embedPlainLtr(view.otp),
+        '',
+        `ينتهي خلال ${view.expiresPhrase}`,
+        ''
     ];
-    const rows = tiers.map(([width, color], index) => {
-        const gap = index === 0
-            ? ''
-            : '<tr><td height="3" style="height:3px;font-size:0;line-height:3px;mso-line-height-rule:exactly;">&nbsp;</td></tr>';
-        return `${gap}<tr><td align="center"><table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" style="border-collapse:collapse;mso-table-lspace:0;mso-table-rspace:0;"><tr><td width="${width}" height="7" bgcolor="${color}" style="width:${width}px;height:7px;background:${color};font-size:0;line-height:7px;mso-line-height-rule:exactly;">&nbsp;</td></tr></table></td></tr>`;
-    }).join('');
-    return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" style="border-collapse:collapse;mso-table-lspace:0;mso-table-rspace:0;">${rows}</table>`;
-};
-
-const buildOtpDigits = (otp) => {
-    const chars = Array.from(String(otp || ''));
-    const tileStyle = `background:#FFFDF8;border:1px solid #C9A227;color:#1A1510;font-family:${EMAIL_FONT};font-size:26px;font-weight:700;line-height:54px;mso-line-height-rule:exactly;text-align:center;`;
-    if (chars.length > 0 && chars.length <= OTP_TILE_LIMIT) {
-        const cells = chars.map((ch, index) => {
-            const spacer = index === 0
-                ? ''
-                : '<td width="8" style="width:8px;font-size:0;line-height:0;mso-line-height-rule:exactly;">&nbsp;</td>';
-            return `${spacer}<td width="44" height="54" align="center" valign="middle" bgcolor="#FFFDF8" style="width:44px;height:54px;${tileStyle}">${escapeHtml(ch)}</td>`;
-        }).join('');
-        return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" dir="ltr" style="border-collapse:separate;border-spacing:0;mso-table-lspace:0;mso-table-rspace:0;"><tr>${cells}</tr></table>`;
+    if (view.attemptRows.length) {
+        lines.push('تفاصيل المحاولة');
+        view.attemptRows.forEach((row) => {
+            const value = row.ltr ? embedPlainLtr(row.value) : row.value;
+            lines.push(`${row.label}: ${value}`);
+        });
+        lines.push('');
     }
-    return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" dir="ltr" style="border-collapse:separate;mso-table-lspace:0;mso-table-rspace:0;"><tr><td align="center" bgcolor="#FFFDF8" style="background:#FFFDF8;border:2px solid #C9A227;padding:14px 28px;color:#1A1510;font-family:${EMAIL_FONT};font-size:28px;font-weight:700;letter-spacing:4px;line-height:1.2;text-align:center;">${escapeHtml(otp)}</td></tr></table>`;
+    lines.push(
+        'طريقة استخدام الرمز',
+        `1. ${view.step1}`,
+        `2. ${view.step2}`,
+        `3. ${view.step3}`,
+        '',
+        'نصائح لحماية حسابك',
+        view.warning,
+        'لن نطلب منك الرمز عبر الهاتف أو الرسائل أو روابط خارجية.',
+        `تأكد أن عنوان الموقع يبدأ بـ ${embedPlainLtr(view.websiteHost)} قبل إدخال الرمز.`,
+        view.closingTip,
+        '',
+        view.contactAddress,
+        `${view.phoneLabel} ${embedPlainLtr(view.contactPhone)}`,
+        embedPlainLtr(view.contactEmail),
+        embedPlainLtr(view.websiteUrl),
+        '',
+        `${embedPlainLtr(`© ${view.year}`)} ${view.brand}. جميع الحقوق محفوظة.`
+    );
+    return lines.join('\n');
 };
 
-const buildLoginOtpHtml = (input = {}) => {
-    const content = buildLoginOtpContent(input);
-    const font = EMAIL_FONT;
-    const greeting = escapeHtml(content.greeting);
-    const expiresLine = escapeHtml(content.expiryLine);
-    return `<!DOCTYPE html>
-<html lang="ar" dir="rtl">
-<head>
-<meta charset="utf-8">
-<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="x-apple-disable-message-reformatting">
-<title>${escapeHtml(LOGIN_OTP_SUBJECT)}</title>
-</head>
-<body style="margin:0;padding:0;background:#F7F1E8;">
-<div style="display:none;max-height:0;overflow:hidden;mso-hide:all;font-size:1px;line-height:1px;color:#F7F1E8;">${escapeHtml(content.heading)} — ${escapeHtml(content.brandAr)}. ${escapeHtml(content.ribbon)}</div>
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" dir="rtl" bgcolor="#F7F1E8" style="background:#F7F1E8;border-collapse:collapse;mso-table-lspace:0;mso-table-rspace:0;">
-<tr>
-<td align="center" style="padding:28px 12px;">
-<table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" dir="rtl" bgcolor="#C9A227" style="width:600px;max-width:600px;background:#C9A227;border-collapse:separate;mso-table-lspace:0;mso-table-rspace:0;">
-<tr>
-<td style="padding:1px;background:#C9A227;">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" dir="rtl" bgcolor="#FFFDF8" style="width:100%;background:#FFFDF8;border-collapse:collapse;mso-table-lspace:0;mso-table-rspace:0;">
-<tr>
-<td height="3" bgcolor="#C9A227" style="height:3px;background:#C9A227;font-size:0;line-height:3px;mso-line-height-rule:exactly;">&nbsp;</td>
-</tr>
-<tr>
-<td align="center" style="padding:28px 32px 0;">
-${buildPyramidMark()}
-</td>
-</tr>
-<tr>
-<td align="center" style="padding:10px 32px 0;">
-<table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" style="border-collapse:separate;mso-table-lspace:0;mso-table-rspace:0;">
-<tr>
-<td width="48" height="48" align="center" valign="middle" bgcolor="#FFFDF8" style="width:48px;height:48px;background:#FFFDF8;border:1px solid #C9A227;color:#C9A227;font-family:${font};font-size:24px;font-weight:700;line-height:48px;mso-line-height-rule:exactly;text-align:center;">أ</td>
-</tr>
-</table>
-</td>
-</tr>
-<tr>
-<td align="center" dir="rtl" style="padding:14px 32px 0;color:#1A1510;font-family:${font};font-size:22px;font-weight:700;line-height:1.4;text-align:center;">${escapeHtml(content.brandAr)}</td>
-</tr>
-<tr>
-<td align="center" dir="ltr" style="padding:2px 32px 0;color:#C9A227;font-family:${font};font-size:12px;letter-spacing:1px;line-height:1.4;text-align:center;">${escapeHtml(content.brandEn)}</td>
-</tr>
-<tr>
-<td style="padding:16px 80px 0;">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;mso-table-lspace:0;mso-table-rspace:0;">
-<tr>
-<td height="1" bgcolor="#E0B44A" style="height:1px;background:#E0B44A;font-size:0;line-height:1px;mso-line-height-rule:exactly;">&nbsp;</td>
-</tr>
-</table>
-</td>
-</tr>
-<tr>
-<td align="center" dir="rtl" style="padding:18px 36px 0;color:#C9A227;font-family:${font};font-size:12px;line-height:1.6;text-align:center;">${escapeHtml(content.kicker)}</td>
-</tr>
-<tr>
-<td align="center" dir="rtl" style="padding:6px 36px 0;color:#1A1510;font-family:${font};font-size:28px;font-weight:700;line-height:1.45;text-align:center;">${escapeHtml(content.heading)}</td>
-</tr>
-<tr>
-<td align="center" dir="rtl" style="padding:14px 36px 0;color:#1A1510;font-family:${font};font-size:16px;font-weight:700;line-height:1.6;text-align:center;">${greeting}</td>
-</tr>
-<tr>
-<td align="center" dir="rtl" style="padding:6px 40px 0;color:#6B5E4E;font-family:${font};font-size:14px;line-height:1.8;text-align:center;">${escapeHtml(content.body)}</td>
-</tr>
-<tr>
-<td align="center" dir="rtl" style="padding:22px 24px 0;color:#8A7340;font-family:${font};font-size:13px;font-weight:700;line-height:1.5;text-align:center;">${escapeHtml(content.otpLabel)}</td>
-</tr>
-<tr>
-<td align="center" dir="ltr" style="padding:10px 12px 0;">
-${buildOtpDigits(content.otp)}
-</td>
-</tr>
-<tr>
-<td align="center" dir="rtl" style="padding:14px 32px 0;color:#6B5E4E;font-family:${font};font-size:13px;line-height:1.7;text-align:center;">${expiresLine}</td>
-</tr>
-<tr>
-<td bgcolor="#FFFDF8" style="padding:18px 0 0;background:#FFFDF8;">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" dir="rtl" bgcolor="#F8E8C4" style="background:#F8E8C4;border-top:1px solid #E0B44A;border-bottom:1px solid #E0B44A;border-collapse:collapse;mso-table-lspace:0;mso-table-rspace:0;">
-<tr>
-<td align="center" dir="rtl" style="padding:12px 16px;color:#6B5420;font-family:${font};font-size:15px;font-weight:700;line-height:1.6;text-align:center;">${escapeHtml(content.ribbon)}</td>
-</tr>
-</table>
-</td>
-</tr>
-<tr>
-<td align="center" dir="rtl" style="padding:14px 36px 0;color:#6B5E4E;font-family:${font};font-size:13px;line-height:1.7;text-align:center;">${escapeHtml(content.ignore)}</td>
-</tr>
-<tr>
-<td align="center" dir="rtl" style="padding:18px 36px 0;color:#1A1510;font-family:${font};font-size:14px;line-height:1.7;text-align:center;">${escapeHtml(content.signOff)}</td>
-</tr>
-<tr>
-<td bgcolor="#F7F1E8" style="padding:20px 28px 8px;background:#F7F1E8;border-top:1px solid #E4D3B0;">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" dir="rtl" style="border-collapse:collapse;mso-table-lspace:0;mso-table-rspace:0;">
-<tr>
-<td align="center" dir="rtl" style="color:#6B5E4E;font-family:${font};font-size:13px;line-height:1.9;text-align:center;">
-${escapeHtml(content.address)}<br>
-${escapeHtml(content.phoneLabel)} <a href="${content.phoneHref}" dir="ltr" style="color:#8A6420;text-decoration:underline;">${escapeHtml(content.phone)}</a><br>
-<a href="mailto:${content.email}" dir="ltr" style="color:#8A6420;text-decoration:underline;">${escapeHtml(content.email)}</a><br>
-<a href="${content.site}" dir="ltr" style="color:#8A6420;text-decoration:underline;">${escapeHtml(content.site)}</a>
-</td>
-</tr>
-</table>
-</td>
-</tr>
-<tr>
-<td align="center" bgcolor="#F7F1E8" dir="rtl" style="background:#F7F1E8;padding:4px 24px 18px;color:#8A7B68;font-family:${font};font-size:11px;line-height:1.6;text-align:center;">${escapeHtml(content.footer)}</td>
-</tr>
-</table>
-</td>
-</tr>
-</table>
-</td>
-</tr>
-</table>
-</body>
-</html>`;
+const useLoginOtpTemplateV2 = () => isLoginOtpEmailTemplateV2Enabled();
+
+const buildLoginOtpHtml = (input = {}) => (
+    useLoginOtpTemplateV2() ? buildLoginOtpHtmlV2(input) : legacyTemplate.buildLoginOtpHtml(input)
+);
+
+const buildLoginOtpText = (input = {}) => (
+    useLoginOtpTemplateV2() ? buildLoginOtpTextV2(input) : legacyTemplate.buildLoginOtpText(input)
+);
+
+const redactLoginOtp = (value, otp) => {
+    let text = String(value == null ? '' : value);
+    const secrets = [otp, normalizeSubmittedOtp(otp)]
+        .map((item) => String(item || '').trim())
+        .filter((item) => item.length > 0);
+    secrets.forEach((secret) => {
+        text = text.split(secret).join('[REDACTED]');
+    });
+    return text.slice(0, 400);
+};
+
+const passwordResetSubject = () => `استعادة كلمة المرور — ${getBrandContact().name}`;
+
+const renderLoginOtpForSend = (content) => {
+    const reset = content && content.purpose === 'password_reset';
+    const current = () => ({
+        subject: reset ? passwordResetSubject() : LOGIN_OTP_SUBJECT,
+        text: legacyTemplate.buildLoginOtpText(content),
+        html: legacyTemplate.buildLoginOtpHtml(content)
+    });
+    if (!useLoginOtpTemplateV2()) return current();
+    try {
+        return {
+            subject: reset ? passwordResetSubject() : `رمز التحقق لتسجيل الدخول — ${getBrandContact().name}`,
+            text: buildLoginOtpTextV2(content),
+            html: buildLoginOtpHtmlV2(content)
+        };
+    } catch (error) {
+        logger.security('login email otp template fallback', {
+            code: 'LOGIN_OTP_TEMPLATE_V2_RENDER_FAILED',
+            detail: redactLoginOtp(error && error.message, content && content.otp)
+        });
+        return current();
+    }
 };
 
 const failure = (code) => ({
@@ -324,7 +360,17 @@ const failure = (code) => ({
     code
 });
 
-const sendLoginOtpEmail = async ({ to, otp, expiresMinutes = 5, expiresAt, accountName = '' } = {}) => {
+const sendLoginOtpEmail = async ({
+    to,
+    otp,
+    expiresMinutes = 5,
+    expiresAt,
+    accountName = '',
+    attemptAt,
+    userAgent,
+    loginAccount,
+    year
+} = {}) => {
     const email = normalizeOtpEmail(to);
     if (!isValidOtpEmail(email)) return failure('EMAIL_OTP_ADDRESS_INVALID');
 
@@ -338,14 +384,27 @@ const sendLoginOtpEmail = async ({ to, otp, expiresMinutes = 5, expiresAt, accou
         return failure('SMTP_CONFIG_MISSING');
     }
 
+    const content = {
+        otp,
+        expiresMinutes,
+        expiresAt,
+        accountName,
+        attemptAt,
+        userAgent,
+        loginAccount,
+        year
+    };
+
+    const rendered = renderLoginOtpForSend(content);
+
     try {
         const transport = getTransport(config);
         const info = await transport.sendMail({
             from: config.from,
             to: email,
-            subject: LOGIN_OTP_SUBJECT,
-            text: buildLoginOtpText({ otp, expiresMinutes, expiresAt, accountName }),
-            html: buildLoginOtpHtml({ otp, expiresMinutes, expiresAt, accountName })
+            subject: rendered.subject,
+            text: rendered.text,
+            html: rendered.html
         });
         return {
             success: true,
@@ -361,14 +420,73 @@ const sendLoginOtpEmail = async ({ to, otp, expiresMinutes = 5, expiresAt, accou
     }
 };
 
+const sendPasswordResetEmail = async ({
+    to,
+    otp,
+    expiresMinutes = 10,
+    accountName = '',
+    year
+} = {}) => {
+    const email = normalizeOtpEmail(to);
+    if (!isValidOtpEmail(email)) return failure('EMAIL_OTP_ADDRESS_INVALID');
+
+    const config = getSmtpConfig();
+    const missing = getMissingSmtpSettings(config);
+    if (missing.length) {
+        logger.security('password reset email config missing', {
+            code: 'SMTP_CONFIG_MISSING',
+            missing
+        });
+        return failure('SMTP_CONFIG_MISSING');
+    }
+
+    const content = {
+        purpose: 'password_reset',
+        otp,
+        expiresMinutes,
+        accountName,
+        year
+    };
+    const rendered = renderLoginOtpForSend(content);
+
+    try {
+        const transport = getTransport(config);
+        const info = await transport.sendMail({
+            from: config.from,
+            to: email,
+            subject: rendered.subject,
+            text: rendered.text,
+            html: rendered.html
+        });
+        return {
+            success: true,
+            provider: 'smtp',
+            channel: 'email',
+            messageId: info && info.messageId ? String(info.messageId) : ''
+        };
+    } catch (error) {
+        const smtpCode = error && error.code ? String(error.code).slice(0, 40) : '';
+        const code = TIMEOUT_CODES.has(smtpCode) ? 'EMAIL_OTP_TIMEOUT' : 'EMAIL_OTP_SEND_FAILED';
+        logger.security('password reset email failed', { code, smtpCode });
+        return failure(code);
+    }
+};
+
 module.exports = {
     DEFAULT_FROM,
+    LOGIN_OTP_LOGO_URL,
     LOGIN_OTP_SUBJECT,
     buildLoginOtpHtml,
+    buildLoginOtpHtmlV2,
     buildLoginOtpText,
-    formatLoginOtpExpiresAt,
+    buildLoginOtpTextV2,
+    formatArabicMinutes,
+    formatLoginAttemptTime,
     getMissingSmtpSettings,
     getSmtpConfig,
+    maskLoginAccount,
     resetEmailTransport,
-    sendLoginOtpEmail
+    sendLoginOtpEmail,
+    sendPasswordResetEmail,
+    summarizeLoginUserAgent
 };

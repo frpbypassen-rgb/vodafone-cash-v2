@@ -814,6 +814,16 @@ export class TransferService {
             return { success: false, statusCode: 429, code: 'LOCK_TIMEOUT', message: 'الرجاء الانتظار، العملية قيد المعالجة حالياً' };
         }
 
+        const { refundBlockedByUnresolvedProvider } = require('../../../services/providerDispatchClaimService');
+        try {
+            const heldPreview = await Transaction.findById(taskId);
+            const previewBlock = refundBlockedByUnresolvedProvider(heldPreview);
+            if (previewBlock) {
+                await releaseLock(lock);
+                return previewBlock;
+            }
+        } catch (_) {}
+
         const session = await mongoose.startSession();
         session.startTransaction();
 
@@ -823,6 +833,13 @@ export class TransferService {
                 tx = await Transaction.findOne({ _id: taskId, tenantId: req.tenant._id }).session(session);
             } else {
                 tx = await Transaction.findById(taskId).session(session);
+            }
+
+            const unresolvedBlock = refundBlockedByUnresolvedProvider(tx);
+            if (unresolvedBlock) {
+                await session.abortTransaction();
+                session.endSession();
+                return unresolvedBlock;
             }
 
             const empQuery: any = { webUsername: userId };

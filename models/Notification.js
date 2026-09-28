@@ -12,6 +12,10 @@ const notificationSchema = new mongoose.Schema({
     message: { type: String, required: true },
     txId: { type: String },
     metadata: { type: Object },
+    // Stored for explicit-key upserts. The unique sparse index is not declared
+    // here: autoIndex, createIndexes, and syncIndexes must not build it.
+    // scripts/createNotificationDedupeIndex.js is the only create path.
+    dedupeKey: { type: String },
     isRead: { type: Boolean, default: false, index: true }
 }, { timestamps: true });
 

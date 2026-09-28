@@ -260,6 +260,7 @@ describe('financial tenant safety', () => {
             { tenantId: tenantB._id },
             { tenantId: null }
         )).not.toThrow();
+        process.env.FINANCIAL_AUDIT_IN_TRANSACTION = 'true';
         const result = await executeBalanceTransfer({
             source: { modelName: 'ClientCompany', doc: await ClientCompany.findById(company._id) },
             targetCode: '4441',
@@ -269,6 +270,11 @@ describe('financial tenant safety', () => {
         expect(result.success).toBe(true);
         expect((await ClientCompany.findById(company._id)).balance).toBe(288);
         expect((await User.findById(agent._id)).balance).toBe(92);
+        const audit = await AuditLog.findOne({ 'newData.customId': result.transferId }).lean();
+        expect(audit).toEqual(expect.objectContaining({
+            action: 'TRANSFER_CREATED', performedByModel: 'ClientCompany'
+        }));
+        expect(String(audit.performedBy)).toBe(String(company._id));
     });
 
     test('in-tenant transfer is balanced and the balance matches the ledger', async () => {

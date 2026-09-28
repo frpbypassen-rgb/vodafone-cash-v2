@@ -16,6 +16,41 @@ const {
 const eventBus = require('./eventBus');
 const logger = require('../utils/logger');
 const { executorSupportsTransferType } = require('../utils/executorServiceCatalog');
+const {
+    UNRESOLVED_CODE,
+    isProviderResultUnresolved,
+    needsUnresolvedHold,
+    markProviderResultUnresolved,
+    guardAutomaticProviderRedispatch
+} = require('./providerDispatchClaimService');
+
+const holdProviderAcceptedWithoutReference = (tx, executorGroup, { note, detailedLog } = {}) => {
+    const now = new Date();
+    tx.status = 'processing';
+    tx.executorGroupId = executorGroup._id;
+    tx.executorName = executorGroup.name;
+    appendAdminNote(tx, note);
+    if (detailedLog) appendAdminNote(tx, detailedLog);
+    tx.apiResultData = {
+        ...(tx.apiResultData || {}),
+        providerDispatchResult: 'pending_reference',
+        providerResultUnresolved: true,
+        providerResultUnresolvedAt: now,
+        providerResultUnresolvedReason: String(note || 'provider accepted without a reference').slice(0, 500),
+        providerResultUnresolvedCode: UNRESOLVED_CODE
+    };
+    if (typeof tx.markModified === 'function') tx.markModified('apiResultData');
+};
+
+const releaseFailedApiExecutionToPending = async (tx, { failureNote, detailedLog } = {}) => {
+    tx.status = 'pending';
+    if (failureNote) appendAdminNote(tx, failureNote);
+    if (detailedLog) appendAdminNote(tx, detailedLog);
+    tx.executorGroupId = undefined;
+    tx.executorName = undefined;
+    await tx.save();
+    return tx;
+};
 
 const appendNoteText = (current, note) => {
     const cleanNote = String(note || '').trim();
@@ -43,11 +78,32 @@ class ApiTransferQueue {
     }
 
     async addJob(txId, apiGroupId) {
+        const guard = await guardAutomaticProviderRedispatch(txId);
+        if (guard.handled) {
+            logger.warn('In-memory API job refused for unresolved provider dispatch', {
+                txId,
+                apiGroupId,
+                reason: guard.reason,
+                code: guard.code || UNRESOLVED_CODE
+            });
+            return { queued: false, code: guard.code || UNRESOLVED_CODE };
+        }
         this.queue.push({ txId, apiGroupId });
         this.processQueue();
+        return { queued: true };
     }
 
     async processSingleJob(txId, apiGroupId) {
+        const guard = await guardAutomaticProviderRedispatch(txId);
+        if (guard.handled) {
+            logger.warn('API transfer job held before provider dispatch', {
+                txId,
+                apiGroupId,
+                reason: guard.reason,
+                code: guard.code || UNRESOLVED_CODE
+            });
+            return { skipped: true, code: guard.code || UNRESOLVED_CODE };
+        }
         return withApiExecutorSerialization(apiGroupId, () => this.processSingleJobSerialized(txId, apiGroupId));
     }
 
@@ -63,6 +119,21 @@ class ApiTransferQueue {
                     hasTx: Boolean(tx),
                     hasExecutorGroup: Boolean(executorGroup),
                     status: tx ? tx.status : null
+                });
+                return;
+            }
+
+            if (needsUnresolvedHold(tx) || isProviderResultUnresolved(tx)) {
+                if (needsUnresolvedHold(tx)) {
+                    await markProviderResultUnresolved({
+                        txId: tx._id,
+                        reason: 'queue worker found a provider dispatch without a definitive result',
+                        source: 'queue-worker'
+                    });
+                }
+                logger.warn('API transfer job held: provider result is unresolved', {
+                    txId: tx.customId,
+                    code: UNRESOLVED_CODE
                 });
                 return;
             }
@@ -110,6 +181,19 @@ class ApiTransferQueue {
                 });
             }
 
+            if (apiResult && (apiResult.success === 'unresolved' || apiResult.code === UNRESOLVED_CODE)) {
+                await markProviderResultUnresolved({
+                    txId: tx._id,
+                    reason: apiResult.message || 'provider result unresolved',
+                    source: 'provider-response'
+                });
+                logger.error('API provider result unresolved; holding executor and skipping debit', {
+                    txId: tx.customId,
+                    code: UNRESOLVED_CODE
+                });
+                return;
+            }
+
             const balanceLog = balanceAudit
                 ? `\n--- مطابقة رصيد المزود ---\nالحالة: ${balanceAudit.checkStatus}\nقبل: ${balanceAudit.beforeCheck?.availableBalance ?? '---'}\nبعد: ${balanceAudit.afterCheck?.availableBalance ?? '---'}\nالفرق عن المتوقع: ${balanceAudit.debitDifference ?? '---'}`
                 : '';
@@ -152,50 +236,59 @@ class ApiTransferQueue {
                     return;
                 }
 
-                tx.status = 'pending';
-                tx.executorGroupId = executorGroup._id;
-                tx.executorName = 'في انتظار رقم مرجعي (API)';
-                appendCustomerReference(tx, 'الرقم المرجعي', exactRefNumber);
-                appendAdminNote(tx, '[في الانتظار - تم تنفيذ طلب API بدون رقم مرجعي واضح]');
-                if (detailedLog) appendAdminNote(tx, detailedLog);
-                if (typeof tx.set === 'function') {
-                    tx.set('isApiReview', undefined, { strict: false });
-                    tx.set('apiResultData', undefined, { strict: false });
-                    tx.set('originalApiGroupId', undefined, { strict: false });
-                }
+                holdProviderAcceptedWithoutReference(tx, executorGroup, {
+                    note: '[PROVIDER_RESULT_UNRESOLVED] المزود قبل الدفعة دون رقم مرجعي. لا استرجاع ولا إعادة إرسال حتى المراجعة اليدوية.',
+                    detailedLog
+                });
                 await tx.save();
-
-                logger.info('API Execution Pending Verification', { txId: tx.customId });
-
-                try {
-                    const { sendWhatsAppAlert } = require('./whatsappService');
-                    await sendWhatsAppAlert(tx, apiResult);
-                } catch (waErr) {
-                    logger.error('[API WhatsApp Alert Error]:', waErr.message);
-                }
+                logger.error('API provider accepted payment without a reference; holding as unresolved', {
+                    txId: tx.customId,
+                    code: UNRESOLVED_CODE
+                });
             } else if (apiResult.success === 'pending') {
-                tx.status = 'pending';
-                appendCustomerReference(tx, 'الرقم المرجعي', apiResult.external_transaction_id);
-                appendAdminNote(tx, `[العملية معلقة بانتظار شبكة المحمول | المرجع: ${apiResult.external_transaction_id}]`);
-                if (detailedLog) appendAdminNote(tx, detailedLog);
-                tx.executorGroupId = executorGroup._id;
-                tx.executorName = executorGroup.name;
+                holdProviderAcceptedWithoutReference(tx, executorGroup, {
+                    note: '[PROVIDER_RESULT_UNRESOLVED] المزود أعاد قبول الدفعة دون رقم مرجعي. لا استرجاع ولا إعادة إرسال حتى المراجعة اليدوية.',
+                    detailedLog
+                });
                 await tx.save();
-
-                logger.info('API Execution Network Pending', { txId: tx.customId });
+                logger.error('API provider payment pending without a reference; holding as unresolved', {
+                    txId: tx.customId,
+                    code: UNRESOLVED_CODE
+                });
+            } else if (needsUnresolvedHold(tx) || isProviderResultUnresolved(tx)) {
+                await markProviderResultUnresolved({
+                    txId: tx._id,
+                    reason: apiResult && apiResult.message || 'provider dispatch has no definitive result',
+                    source: 'queue-failure-guard'
+                });
+                logger.error('API Execution held unresolved instead of returning to pending', {
+                    txId: tx.customId,
+                    code: UNRESOLVED_CODE
+                });
             } else {
-                tx.status = 'pending';
-                appendAdminNote(tx, `[فشل التنفيذ الآلي: ${apiResult.message}]`);
-                if (detailedLog) appendAdminNote(tx, detailedLog);
-                tx.executorGroupId = undefined;
-                tx.executorName = undefined;
-                await tx.save();
+                await releaseFailedApiExecutionToPending(tx, {
+                    failureNote: `[فشل التنفيذ الآلي: ${apiResult.message}]`,
+                    detailedLog
+                });
 
                 logger.error('API Execution Failed', { txId: tx.customId, error: apiResult.message });
             }
         } catch (error) {
             try {
                 const tx = await Transaction.findById(txId);
+                if (tx && (needsUnresolvedHold(tx) || isProviderResultUnresolved(tx))) {
+                    await markProviderResultUnresolved({
+                        txId: tx._id,
+                        reason: error.message,
+                        source: 'queue-exception'
+                    });
+                    logger.error('API Queue Processing Error held unresolved', {
+                        txId: tx.customId,
+                        code: UNRESOLVED_CODE,
+                        error: error.message
+                    });
+                    return;
+                }
                 if (tx) {
                     tx.status = 'pending';
                     tx.executorGroupId = undefined;
@@ -220,4 +313,6 @@ class ApiTransferQueue {
     }
 }
 
-module.exports = new ApiTransferQueue();
+const apiTransferQueue = new ApiTransferQueue();
+apiTransferQueue.releaseFailedApiExecutionToPending = releaseFailedApiExecutionToPending;
+module.exports = apiTransferQueue;

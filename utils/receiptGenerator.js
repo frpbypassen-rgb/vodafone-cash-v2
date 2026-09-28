@@ -1,6 +1,10 @@
 const { createCanvas } = require('canvas');
+const { getBrandContact } = require('./brandContact');
 
-const SUPPORT_PHONE = '01108172258';
+const officialSupportPhone = () => {
+    const phone = String(getBrandContact().phoneDisplay || '').replace(/[^\d+]/g, '');
+    return phone || '0913731533';
+};
 
 const BRAND = {
     navy: '#101828',
@@ -227,7 +231,7 @@ async function generateReceiptBase64(data) {
     ctx.fillText('الدعم الفني واتساب فقط', width / 2, 936);
     ctx.fillStyle = BRAND.teal;
     setFont(27, '900', 'Arial, sans-serif');
-    ctx.fillText(SUPPORT_PHONE, width / 2, 974);
+    ctx.fillText(officialSupportPhone(), width / 2, 974);
 
     ctx.strokeStyle = BRAND.line;
     ctx.lineWidth = 1.5;

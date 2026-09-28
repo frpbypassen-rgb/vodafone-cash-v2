@@ -21,16 +21,32 @@ const receiptFields = (tx) => {
     };
 };
 
-const mapSenderEntries = (tx) => (
-    Array.isArray(tx.executorSenderEntries)
-        ? tx.executorSenderEntries.map((entry) => ({
+const mapSenderEntries = (tx) => {
+    const entries = Array.isArray(tx.executorSenderEntries) ? tx.executorSenderEntries : [];
+    const customerImages = entries
+        .filter((entry) => entry?.status === 'success' && entry?.customerProof?.imageId)
+        .map((entry) => String(entry.customerProof.imageId));
+    return entries.map((entry) => {
+        const imageId = String(entry?.customerProof?.imageId || '');
+        const receiptIndex = imageId ? customerImages.indexOf(imageId) : -1;
+        return {
             phone: entry.phone || null,
             amount: entry.amount === undefined || entry.amount === null ? null : Number(entry.amount),
             proofImage: entry.proofImage || null,
-            proofImageUrl: entry.proofImage ? `/executor-portal/proxy/image/${entry.proofImage}` : null
-        }))
-        : []
-);
+            proofImageUrl: entry.proofImage ? `/executor-portal/proxy/image/${entry.proofImage}` : null,
+            ...(entry.partId ? {
+                partId: String(entry.partId),
+                status: entry.status || null,
+                confirmedAt: entry.confirmedAt || null,
+                recipient: tx.vodafoneNumber || tx.accountNumber || null,
+                reference: tx.customId && entry.partId ? `${tx.customId}:${entry.partId}` : null,
+                customerProofStatus: entry.customerProof?.status || null,
+                customerProofAttempts: Number(entry.customerProof?.attempts || 0),
+                customerProofUrl: receiptIndex >= 0 ? `/executor-portal/proxy/image/${tx._id}/${receiptIndex}` : null
+            } : {})
+        };
+    });
+};
 
 const managerExecutorEvidence = (tx, canView) => {
     if (!canView) return {};

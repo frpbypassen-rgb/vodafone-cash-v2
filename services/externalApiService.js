@@ -6,6 +6,18 @@ const path = require('path');
 const { loadPuppeteer } = require('../utils/puppeteerLoader');
 const { SYSTEM_TIME_ZONE } = require('../config/systemTime');
 const { getApiProviderPreset } = require('../utils/apiProviderPresets');
+const {
+    UNRESOLVED_CODE,
+    claimProviderDispatch,
+    releaseProviderDispatchClaim,
+    classifyPaymentTransportError
+} = require('./providerDispatchClaimService');
+const {
+    blockedProviderResult,
+    EXTERNAL_API_DISABLED_MESSAGE,
+    isExternalApiEnabled,
+    resolveProviderBaseUrl
+} = require('../utils/runtimeControls');
 
 const SUPPORT_PHONE = '01108172258';
 
@@ -89,13 +101,26 @@ const escapeHtml = (value) => String(value ?? '')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#039;');
 
-const resolveApiProviderConfig = (apiBot = {}) => {
+const explicitProviderUrl = (apiBot = {}, env = process.env) => [
+    apiBot.apiUrl,
+    env.ZAYN_AGGREGATOR_URL,
+    env.ZAYNPAY_URL
+].map((value) => String(value || '').trim()).find(Boolean) || '';
+
+const resolveApiProviderConfig = (apiBot = {}, env = process.env) => {
     const preset = getApiProviderPreset(apiBot.apiProviderKey);
-    const baseUrl = normalizeBaseUrl(apiBot.apiUrl || process.env.ZAYN_AGGREGATOR_URL || process.env.ZAYNPAY_URL || preset.apiUrl);
+    const decision = resolveProviderBaseUrl({
+        explicitUrl: explicitProviderUrl(apiBot, env),
+        presetUrl: preset.apiUrl,
+        env
+    });
+    const baseUrl = decision.refused ? '' : normalizeBaseUrl(decision.baseUrl);
 
     return {
         preset,
         baseUrl,
+        providerUrlRefused: decision.refused,
+        providerUrlRefusal: decision.reason,
         apiUsername: apiBot.apiUsername || process.env.ZAYN_USERNAME || process.env.ZAYNPAY_USERNAME,
         apiPassword: apiBot.apiPassword || process.env.ZAYN_PASSWORD || process.env.ZAYNPAY_PASSWORD,
         staticToken: (apiBot.apiToken || process.env.ZAYN_API_TOKEN || process.env.ZAYNPAY_API_TOKEN || '').replace(/^Bearer\s+/i, '').trim(),
@@ -112,7 +137,24 @@ const resolveApiProviderConfig = (apiBot = {}) => {
     };
 };
 
+const providerCallBlock = (env = process.env) => {
+    if (!isExternalApiEnabled(env)) return blockedProviderResult('EXTERNAL_API_DISABLED', EXTERNAL_API_DISABLED_MESSAGE);
+    return null;
+};
+
+const refuseResolvedProvider = (config) => {
+    if (config && config.providerUrlRefused) {
+        return blockedProviderResult('PROVIDER_URL_REFUSED', `PROVIDER_URL_REFUSED: ${config.providerUrlRefusal || 'PROVIDER_URL_REFUSED'}`);
+    }
+    return null;
+};
+
 const authorizeApiProvider = async (config, addLog) => {
+    const blocked = providerCallBlock() || refuseResolvedProvider(config);
+    if (blocked) {
+        addLog(blocked.code, blocked.message);
+        return { success: false, message: blocked.message, code: blocked.code };
+    }
     const authPayload = {
         UserName: config.apiUsername,
         Password: config.apiPassword,
@@ -196,6 +238,8 @@ const buildInquiryPayload = (config, targetNumber, amount) => ({
 });
 
 const getApiProviderBalanceWithAuth = async (config, headers, addLog) => {
+    const blocked = providerCallBlock() || refuseResolvedProvider(config);
+    if (blocked) return { success: false, message: blocked.message, code: blocked.code };
     addLog('BALANCE', 'Checking available provider balance');
     const balanceRes = await axios.post(`${config.baseUrl}/api/Account/GetBalance`, {}, { headers, timeout: 20000 });
     const responseData = balanceRes.data || {};
@@ -225,6 +269,8 @@ const getApiProviderBalanceWithAuth = async (config, headers, addLog) => {
 
 // Validates the exact inquiry request used for a real transfer without calling Payment.
 const runApiTransferPreflight = async (apiBot, input = {}) => {
+    const blocked = providerCallBlock();
+    if (blocked) return blocked;
     const processLog = [];
     const addLog = (step, detail) => {
         const timeStr = new Date().toLocaleTimeString('en-GB', { timeZone: SYSTEM_TIME_ZONE, hour12: false });
@@ -235,6 +281,8 @@ const runApiTransferPreflight = async (apiBot, input = {}) => {
 
     try {
         const config = resolveApiProviderConfig(apiBot || {});
+        const refused = refuseResolvedProvider(config);
+        if (refused) return { ...refused, processLog: processLog.join('\n') };
         const targetNumber = normalizeApiTargetNumber(input.phone || input.targetNumber);
         const amount = Number(input.amount);
         const configurationIssues = getApiConfigurationIssues(config);
@@ -316,6 +364,8 @@ const runApiTransferPreflight = async (apiBot, input = {}) => {
 };
 
 const executeTransferViaApi = async (tx, apiBot) => {
+    const blocked = providerCallBlock();
+    if (blocked) return blocked;
     let processLog = [];
     const addLog = (step, detail) => {
         const timeStr = new Date().toLocaleTimeString('en-GB', { timeZone: SYSTEM_TIME_ZONE, hour12: false });
@@ -326,6 +376,8 @@ const executeTransferViaApi = async (tx, apiBot) => {
         const targetNumber = normalizeApiTargetNumber(tx.vodafoneNumber || tx.accountNumber || tx.serviceDetails?.clientPhone);
         const amount = Number(tx.amount);
         const config = resolveApiProviderConfig(apiBot || {});
+        const refused = refuseResolvedProvider(config);
+        if (refused) return refused;
         const { preset, baseUrl, serviceId, providerId, fieldId, machineSerial } = config;
         const configurationIssues = getApiConfigurationIssues(config);
         if (!targetNumber || targetNumber.length < 5 || targetNumber.length > 20) {
@@ -359,7 +411,19 @@ const executeTransferViaApi = async (tx, apiBot) => {
         
         addLog("INQUIRY_SUCCESS", "الرقم سليم ومتاح للتحويل.");
         addLog("PAYMENT", `جاري إرسال الدفعة النهائية بقيمة [${amount} EGP]...`);
-        
+
+        const claim = await claimProviderDispatch(tx);
+        if (!claim.claimed) {
+            addLog('PAYMENT_BLOCKED', 'لم تُرسل الدفعة: مطالبة الإرسال غير متاحة أو موجودة مسبقاً');
+            return {
+                success: 'unresolved',
+                code: UNRESOLVED_CODE,
+                message: 'نتيجة المزود غير محسومة: توجد مطالبة إرسال دون نتيجة نهائية',
+                dispatchAttemptId: claim.attemptId || null,
+                processLog: processLog.join('\n')
+            };
+        }
+
         const paymentPayload = {
             Fields: [{ Id: fieldId, Value: targetNumber }],
             CurrentServiceProviderId: providerId,
@@ -368,7 +432,36 @@ const executeTransferViaApi = async (tx, apiBot) => {
             Amount: amount,
             MachineSerial: machineSerial
         };
-        const paymentRes = await axios.post(`${baseUrl}/api/V1/Transactions/Payment`, paymentPayload, { headers, timeout: 180000 });
+        let paymentRes;
+        try {
+            paymentRes = await axios.post(`${baseUrl}/api/V1/Transactions/Payment`, paymentPayload, { headers, timeout: 180000 });
+        } catch (paymentError) {
+            const message = errorMessage(paymentError, 'خطأ في الاتصال بسيرفر الشركة');
+            addLog('SYSTEM_ERROR', message);
+            const classification = classifyPaymentTransportError(paymentError);
+            if (classification === 'before_send') {
+                try {
+                    await releaseProviderDispatchClaim(tx, claim.attemptId);
+                } catch (releaseError) {
+                    addLog('CLAIM_RELEASE_FAIL', releaseError.message);
+                    return {
+                        success: 'unresolved',
+                        code: UNRESOLVED_CODE,
+                        message,
+                        dispatchAttemptId: claim.attemptId,
+                        processLog: processLog.join('\n')
+                    };
+                }
+                return { success: false, message, processLog: processLog.join('\n'), dispatchReleased: true };
+            }
+            return {
+                success: 'unresolved',
+                code: UNRESOLVED_CODE,
+                message,
+                dispatchAttemptId: claim.attemptId,
+                processLog: processLog.join('\n')
+            };
+        }
 
         const paymentData = paymentRes.data || {};
         const pd = paymentData.Data || {};
@@ -405,7 +498,13 @@ const executeTransferViaApi = async (tx, apiBot) => {
             if (!refTxNum || refTxNum.trim() === '') {
                 addLog("PAYMENT_PENDING", `تم إرسال الدفعة ولكن لم يتم استلام المرجع من الشبكة.`);
                 addLog("API_FULL_RESPONSE", prettyLog);
-                return { success: 'pending', external_transaction_id: extRef, message: 'قيد الانتظار', processLog: processLog.join('\n') };
+                return {
+                    success: 'pending',
+                    external_transaction_id: extRef,
+                    message: 'قيد الانتظار',
+                    dispatchAttemptId: claim.attemptId,
+                    processLog: processLog.join('\n')
+                };
             }
             addLog("PAYMENT_SUCCESS", `اكتملت العملية بنجاح! رقم المرجع: ${extRef}`);
             addLog("API_FULL_RESPONSE", prettyLog);
@@ -420,23 +519,48 @@ const executeTransferViaApi = async (tx, apiBot) => {
                 balance_after: pd.BalanceAfter,
                 transaction_time: pd.TransactionTime || new Date().toLocaleString('ar-LY', { timeZone: SYSTEM_TIME_ZONE }),
                 status: pd.Status || providerMessage(paymentData, 'عمليه ناجحه'),
+                dispatchAttemptId: claim.attemptId,
                 processLog: processLog.join('\n')
             };
         } else {
             const message = providerMessage(paymentData, 'تم رفض تنفيذ الدفعة من المزود');
             addLog("PAYMENT_FAIL", message);
             addLog("API_FULL_RESPONSE", prettyLog);
-            return { success: false, message, processLog: processLog.join('\n') };
+            try {
+                await releaseProviderDispatchClaim(tx, claim.attemptId);
+            } catch (releaseError) {
+                addLog('CLAIM_RELEASE_FAIL', releaseError.message);
+                return {
+                    success: 'unresolved',
+                    code: UNRESOLVED_CODE,
+                    message,
+                    dispatchAttemptId: claim.attemptId,
+                    processLog: processLog.join('\n')
+                };
+            }
+            return { success: false, message, processLog: processLog.join('\n'), dispatchReleased: true };
         }
 
     } catch (error) {
         const message = errorMessage(error, 'خطأ في الاتصال بسيرفر الشركة');
         addLog("SYSTEM_ERROR", message);
+        const attemptId = tx && tx.apiResultData && tx.apiResultData.providerDispatchAttemptId;
+        if (attemptId) {
+            return {
+                success: 'unresolved',
+                code: UNRESOLVED_CODE,
+                message,
+                dispatchAttemptId: attemptId,
+                processLog: processLog.join('\n')
+            };
+        }
         return { success: false, message, processLog: processLog.join('\n') };
     }
 };
 
 const getApiProviderBalance = async (apiBot) => {
+    const blocked = providerCallBlock();
+    if (blocked) return blocked;
     const processLog = [];
     const addLog = (step, detail) => {
         const timeStr = new Date().toLocaleTimeString('en-GB', { timeZone: SYSTEM_TIME_ZONE, hour12: false });
@@ -445,9 +569,11 @@ const getApiProviderBalance = async (apiBot) => {
 
     try {
         const config = resolveApiProviderConfig(apiBot || {});
+        const refused = refuseResolvedProvider(config);
+        if (refused) return { ...refused, processLog: processLog.join('\n') };
         const auth = await authorizeApiProvider(config, addLog);
         if (!auth.success) {
-            return { success: false, message: auth.message, processLog: processLog.join('\n') };
+            return { success: false, message: auth.message, code: auth.code, processLog: processLog.join('\n') };
         }
 
         const result = await getApiProviderBalanceWithAuth(config, auth.headers, addLog);
@@ -460,6 +586,8 @@ const getApiProviderBalance = async (apiBot) => {
 };
 
 const getApiProviderTransactions = async (apiBot, transactionNumbers = []) => {
+    const blocked = providerCallBlock();
+    if (blocked) return blocked;
     const processLog = [];
     const addLog = (step, detail) => {
         const timeStr = new Date().toLocaleTimeString('en-GB', { timeZone: SYSTEM_TIME_ZONE, hour12: false });
@@ -477,9 +605,11 @@ const getApiProviderTransactions = async (apiBot, transactionNumbers = []) => {
 
     try {
         const config = resolveApiProviderConfig(apiBot || {});
+        const refused = refuseResolvedProvider(config);
+        if (refused) return refused;
         const auth = await authorizeApiProvider(config, addLog);
         if (!auth.success) {
-            return { success: false, message: auth.message, operations: [], processLog: processLog.join('\n') };
+            return { success: false, message: auth.message, code: auth.code, operations: [], processLog: processLog.join('\n') };
         }
 
         const operations = [];

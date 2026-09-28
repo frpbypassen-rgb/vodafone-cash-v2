@@ -5,6 +5,8 @@ const https = require('https');
 const Transaction = require('../models/Transaction');
 const Ledger = require('../models/Ledger');
 const { createBalanceTransferReceiptProof } = require('../services/balanceTransferReceiptService');
+const { describeSplitPartProofs } = require('../utils/splitPartProofs');
+const { retrySplitPartProof } = require('../services/splitPartProofService');
 const ExecutorGroup = require('../models/ExecutorGroup');
 const ClientCompany = require('../models/ClientCompany');
 const Employee = require('../models/Employee');
@@ -12,7 +14,8 @@ const ClientEmployee = require('../models/ClientEmployee');
 const Admin = require('../models/Admin');
 const Notification = require('../models/Notification');
 const SupportTicket = require('../models/SupportTicket');
-const { requireAuth } = require('../middlewares/auth');
+const { requireAuth, requirePermission } = require('../middlewares/auth');
+const { PROVIDER_RESOLUTION_PERMISSION } = require('../services/providerResolutionService');
 const { systemDateKey, systemDateRange } = require('../config/systemTime');
 const { syncBotBalance } = require('../utils/helpers');
 const { escapeRegex } = require('../middlewares/sanitize');
@@ -53,6 +56,7 @@ const {
 
 // 🚀 استدعاء محرك الـ API 
 const { reversalService } = require('../src/Application/Services/ReversalService');
+const { apiQueueExecutionBlock } = require('../utils/runtimeControls');
 
 router.use(requireAuth);
 
@@ -558,6 +562,15 @@ router.post('/transaction/:id/assign-executor', async (req, res) => {
     try {
         const actor = requireAdminActor(req);
         const txId = req.params.id; const executorGroupId = req.body.executorGroupId || req.body.executorBotId; const tx = await Transaction.findOne(adminTxById(req, txId));
+        const { refundBlockedByUnresolvedProvider } = require('../services/providerDispatchClaimService');
+        const unresolvedAssignBlock = refundBlockedByUnresolvedProvider(tx);
+        if (unresolvedAssignBlock) {
+            return respondTransactionAction(req, res, 409, {
+                success: false,
+                code: unresolvedAssignBlock.code,
+                message: unresolvedAssignBlock.message
+            });
+        }
         if (!tx || tx.status !== 'pending') {
             return respondTransactionAction(req, res, 409, {
                 success: false,
@@ -573,6 +586,17 @@ router.post('/transaction/:id/assign-executor', async (req, res) => {
             && !executorGroup.isManagerBot
             && executorSupportsTransferType(executorGroup, tx.transferType)
         ) {
+            if (executorGroup.isApiBot) {
+                const blocked = apiQueueExecutionBlock();
+                if (blocked) {
+                    return respondTransactionAction(req, res, 409, {
+                        success: false,
+                        code: blocked.code,
+                        reason: blocked.reason,
+                        message: blocked.message
+                    }, '/transactions?routeError=api_execution_unavailable');
+                }
+            }
             const routedAt = actor.at;
             const assignment = {
                 status: 'processing',
@@ -677,6 +701,15 @@ router.post('/transaction/:id/pull-task', async (req, res) => {
             return respondTransactionAction(req, res, 409, {
                 success: false,
                 message: 'هذه العملية ليست موجهة حالياً ولا يمكن سحبها.'
+            });
+        }
+        const { refundBlockedByUnresolvedProvider } = require('../services/providerDispatchClaimService');
+        const unresolvedBlock = refundBlockedByUnresolvedProvider(tx);
+        if (unresolvedBlock) {
+            return respondTransactionAction(req, res, 409, {
+                success: false,
+                code: unresolvedBlock.code,
+                message: unresolvedBlock.message
             });
         }
         const oldGroupId = tx.executorGroupId; const displayId = tx.customId || tx._id.toString();
@@ -903,6 +936,37 @@ router.post('/transaction/:id/edit-data', async (req, res) => {
     }
 });
 
+router.post('/transaction/:id/resolve-provider-result', requirePermission(PROVIDER_RESOLUTION_PERMISSION), async (req, res) => {
+    try {
+        const actor = requireAdminActor(req);
+        const { resolveProviderResult } = require('../services/providerResolutionService');
+        const result = await resolveProviderResult({
+            transactionId: req.params.id,
+            outcome: req.body?.outcome,
+            evidenceReference: req.body?.evidenceReference,
+            note: req.body?.note,
+            confirm: req.body?.confirm === true || req.body?.confirm === 'true',
+            expectedUpdatedAt: req.body?.expectedUpdatedAt,
+            actor: {
+                id: actor.id,
+                name: actor.name,
+                role: actor.role || req.session.adminRole,
+                permissions: req.session.adminPermissions || []
+            },
+            req
+        });
+        return respondTransactionAction(req, res, result.statusCode || (result.success ? 200 : 400), result);
+    } catch (error) {
+        if (isAdminActorError(error)) return respondActorRequired(req, res, operationsListReturnUrl(req));
+        console.error('[adminTransactions/resolve-provider-result] failed:', error.message);
+        return respondTransactionAction(req, res, 500, {
+            success: false,
+            code: 'PROVIDER_RESOLUTION_FAILED',
+            message: 'تعذر حسم نتيجة المزود حالياً.'
+        });
+    }
+});
+
 router.post('/transaction/:id/global-cancel', async (req, res) => {
     const redirectUrl = operationsListReturnUrl(req);
     try {
@@ -918,6 +982,7 @@ router.post('/transaction/:id/global-cancel', async (req, res) => {
         if (!result.success) {
             return respondTransactionAction(req, res, result.statusCode || 400, {
                 success: false,
+                code: result.code,
                 message: result.message || 'تعذر إلغاء العملية.'
             }, redirectUrl);
         }
@@ -1002,6 +1067,28 @@ router.post('/admin/kyc/review', async (req, res) => {
 });
 
 // 🔍 الحصول على تفاصيل العملية الشاملة + قيود الدفتر المالي (Ledger)
+router.post('/transaction/:id/retry-part-proof/:partId', async (req, res) => {
+    try {
+        requireAdminActor(req);
+        const tx = await Transaction.findOne(adminTxById(req, req.params.id));
+        if (!tx) return res.status(404).json({ success: false, error: 'العملية غير موجودة' });
+        const result = await retrySplitPartProof(tx._id, req.params.partId);
+        return res.status(result.ok ? 200 : 409).json({
+            success: Boolean(result.ok),
+            code: result.code,
+            partId: result.partId,
+            proofStatus: result.proofStatus || null,
+            duplicate: Boolean(result.duplicate)
+        });
+    } catch (error) {
+        if (isAdminActorError(error)) {
+            return res.status(error.statusCode || 403).json({ success: false, error: error.message || ACTOR_MESSAGE });
+        }
+        console.error('[adminTransactions/retry-part-proof] failed:', error.message);
+        return res.status(500).json({ success: false, error: 'تعذر إعادة إرسال إثبات الجزء.' });
+    }
+});
+
 router.get('/transactions/:id/details', async (req, res) => {
     try {
         const tx = await Transaction.findOne(adminTxById(req, req.params.id)).select('+executorExecutionNumber');
@@ -1068,7 +1155,10 @@ router.get('/transactions/:id/details', async (req, res) => {
             };
         }
         
-        res.json({ success: true, transaction: tx, ledgerInfo, balanceTransferPair });
+        const transaction = typeof tx.toObject === 'function' ? tx.toObject() : tx;
+        const partProofs = describeSplitPartProofs(tx);
+        if (partProofs.length) transaction.partProofs = partProofs;
+        res.json({ success: true, transaction, ledgerInfo, balanceTransferPair });
     } catch (e) {
         console.error('[adminTransactions/GET details] خطأ:', e.message);
         res.status(500).json({ success: false, error: 'حدث خطأ أثناء تحميل تفاصيل العملية.' });

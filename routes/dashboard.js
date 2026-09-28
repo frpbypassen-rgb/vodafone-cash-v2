@@ -13,6 +13,7 @@ const RegistrationRequest = require('../models/RegistrationRequest');
 const { requireAuth } = require('../middlewares/auth');
 const { syncBotBalance } = require('../utils/helpers');
 const { proofSourceUrl, streamProofImage } = require('../services/proofStorageService');
+const { getClientReceiptProofIds } = require('../services/clientReceiptService');
 const { reversalService } = require('../src/Application/Services/ReversalService');
 const { repriceTransaction, editTransactionAmount } = require('../services/adminFinancialMutationService');
 const {
@@ -42,15 +43,11 @@ router.get(['/proxy/image/:id', '/proxy/image/:id/:index'], requireAuth, async (
         if (!tx) return res.status(404).send('لا توجد صورة إثبات');
 
         const index = req.params.index ? parseInt(req.params.index) : 0;
-        const officialReceipt = String(
-            tx.proofImage
-            || (Array.isArray(tx.proofImages) ? tx.proofImages[0] : '')
-            || ''
-        ).trim();
-        const adminProofs = [
-            ...(officialReceipt ? [officialReceipt] : []),
-            ...(Array.isArray(tx.executorProofImages) ? tx.executorProofImages : [])
-        ].filter(Boolean);
+        const customerProofs = getClientReceiptProofIds(tx);
+        const executorProofs = (Array.isArray(tx.executorProofImages) ? tx.executorProofImages : [])
+            .map((value) => String(value || '').trim())
+            .filter((value) => value && !customerProofs.includes(value));
+        const adminProofs = [...customerProofs, ...executorProofs];
         const photoId = adminProofs[index];
 
         if (!photoId) return res.status(404).send('لا توجد صورة إثبات');
@@ -367,7 +364,11 @@ router.post('/api/complaints/:id/cancel', requireAuth, async (req, res) => {
             const result = await reversalService.reverseTransaction(txId, reason, actor.name, { status: 'cancelled_by_admin' });
 
             if (!result.success) {
-                return res.status(400).json({ error: result.message });
+                return res.status(result.statusCode || 400).json({
+                    success: false,
+                    code: result.code,
+                    error: result.message
+                });
             }
 
             await Transaction.updateOne(

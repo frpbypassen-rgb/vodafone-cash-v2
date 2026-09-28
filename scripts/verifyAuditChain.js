@@ -10,11 +10,16 @@ const mongoose = require('mongoose');
 const AuditLog = require('../models/AuditLog');
 const { calculateHash } = require('../services/auditService');
 
-const MONGO_URI = process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/vodafone_cash_system';
+const MONGO_URI = String(process.env.MONGO_URI || '').trim();
 
 async function verifyAuditChain() {
+    if (!MONGO_URI) {
+        console.error('MONGO_URI is required. The connection string is not printed.');
+        process.exitCode = 1;
+        return;
+    }
     console.log('\n🔍 بدء فحص وتدقيق سلسلة السجلات المشفرة (Hash Chain Verification)...');
-    console.log(`🔗 الاتصال بـ: ${MONGO_URI}\n`);
+    console.log('Connecting with MONGO_URI from the environment. The URI is not printed.\n');
 
     try {
         await mongoose.connect(MONGO_URI);
@@ -69,7 +74,7 @@ async function verifyAuditChain() {
         }
 
     } catch (error) {
-        console.error('❌ خطأ أثناء التحقق من السلسلة:', error.message);
+        console.error('❌ خطأ أثناء التحقق من السلسلة:', String(error.message || '').replace(/(?:mongodb(?:\+srv)?:\/\/)\S+/gi, '[redacted]'));
     } finally {
         await mongoose.disconnect();
         process.exit(0);

@@ -149,7 +149,7 @@
         <form action="/client/verify" method="POST">
             <input type="hidden" name="_csrf" value="<%= typeof csrfToken !== 'undefined' ? csrfToken : '' %>">
             <div class="mb-4">
-                <input type="text" name="otp" class="form-control otp-input" placeholder="------" maxlength="6" autocomplete="off" required dir="ltr">
+                <input type="text" name="otp" class="form-control otp-input" placeholder="------" maxlength="32" inputmode="numeric" autocomplete="one-time-code" data-login-otp required dir="ltr">
             </div>
 
             <button type="submit" class="btn-verify w-100 mb-3">تأكيد الرمز والدخول <i class="fa-solid fa-check ms-1"></i></button>
@@ -158,5 +158,6 @@
         </form>
         </div>
     </div>
+    <%- include('../partials/login_otp_field_script') %>
 </body>
 </html>

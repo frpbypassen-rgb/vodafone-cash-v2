@@ -11,12 +11,14 @@ jest.mock('../models/ExecutorGroup', () => ({
 
 const Counter = require('../models/Counter');
 const ExecutorGroup = require('../models/ExecutorGroup');
+const { createCanvas } = require('canvas');
 const {
     ManualExecutionNumberError,
     maskManualExecutionNumber,
     tripoliDateTimeParts,
     generateManualExecutorReceiptBase64
 } = require('../utils/manualExecutorReceipt');
+const { generateReceiptBase64 } = require('../utils/receiptGenerator');
 const {
     reserveManualExecutorReceiptPrefix,
     reserveManualExecutorReceiptReference
@@ -58,6 +60,56 @@ describe('Manual executor receipt data', () => {
 
         expect(image).toMatch(/^data:image\/jpeg;base64,/);
         expect(Buffer.from(image.split(',')[1], 'base64').length).toBeGreaterThan(1000);
+    });
+
+    test('prints the official support phone in the footer and the part wallet in its own field', async () => {
+        const previousDisplay = process.env.BRAND_PHONE_DISPLAY;
+        const previousTel = process.env.BRAND_PHONE_TEL;
+        delete process.env.BRAND_PHONE_DISPLAY;
+        delete process.env.BRAND_PHONE_TEL;
+        const proto = Object.getPrototypeOf(createCanvas(1, 1).getContext('2d'));
+        const original = proto.fillText;
+        const drawn = [];
+        proto.fillText = function fillText(text, ...rest) {
+            drawn.push(String(text));
+            return original.call(this, text, ...rest);
+        };
+        try {
+            const partWallet = '01108172258';
+            const image = await generateManualExecutorReceiptBase64({
+                customerPhone: '01055550099',
+                executionNumber: partWallet,
+                executionNumberLabel: 'المحفظة المرسلة',
+                amount: 1000,
+                customId: 'TEST-REF-2500',
+                executorReference: 'TEST-REF-2500:1',
+                executionReferenceLabel: 'المرجع والجزء',
+                completedAt: new Date('2026-09-26T09:15:00.000Z'),
+                status: 'completed'
+            });
+            const legacy = await generateReceiptBase64({
+                walletNumber: '01055550099',
+                amount: 1000,
+                customId: 'TEST-REF-2500',
+                referenceNumber: 'TEST-REF-2500:1',
+                date: '2026/09/26'
+            });
+
+            const supportAt = drawn.indexOf('الدعم الفني واتساب فقط');
+            expect(supportAt).toBeGreaterThan(-1);
+            expect(drawn[supportAt + 1]).toBe('0913731533');
+            expect(drawn).toContain(partWallet);
+            expect(drawn.filter((text) => text === '0913731533').length).toBeGreaterThanOrEqual(2);
+            expect(partWallet).not.toBe('0913731533');
+            expect(image).toMatch(/^data:image\/jpeg;base64,/);
+            expect(legacy).toMatch(/^data:image\/jpeg;base64,/);
+        } finally {
+            proto.fillText = original;
+            if (previousDisplay === undefined) delete process.env.BRAND_PHONE_DISPLAY;
+            else process.env.BRAND_PHONE_DISPLAY = previousDisplay;
+            if (previousTel === undefined) delete process.env.BRAND_PHONE_TEL;
+            else process.env.BRAND_PHONE_TEL = previousTel;
+        }
     });
 
     test('generates the same receipt layout for a cancelled operation', async () => {

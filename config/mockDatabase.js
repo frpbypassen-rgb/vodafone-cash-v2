@@ -182,7 +182,7 @@ const seedDemoData = async () => {
 
     // ── 7. موظفو التنفيذ ──
     const execEmpPass = await bcrypt.hash('test123', 12);
-    const zaynApiPass = await bcrypt.hash('MyKids0124', 12);
+    const zaynApiPass = execEmpPass;
 
     const execEmp1 = await Employee.create({
         telegramId: 'exec_emp_tg_001',

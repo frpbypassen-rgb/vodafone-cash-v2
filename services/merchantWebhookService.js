@@ -9,11 +9,13 @@ const MerchantWebhookDelivery = require('../models/MerchantWebhookDelivery');
 const User = require('../models/User');
 const { decrypt } = require('../utils/encryption');
 const logger = require('../utils/logger');
+const { tenantMode } = require('../middlewares/tenantResolver');
+const { isMerchantWebhookWorkerEnabled } = require('../utils/runtimeControls');
+const { LOCK_TIMEOUT_MS, pendingWebhookFilter } = require('../utils/merchantWebhookDeliveryQuery');
 
 const EVENTS = Object.freeze(['transfer.created', 'transfer.completed', 'transfer.cancelled']);
 const MAX_ATTEMPTS = 6;
 const RETRY_DELAYS_MS = [60_000, 5 * 60_000, 30 * 60_000, 2 * 60 * 60_000, 6 * 60 * 60_000, 24 * 60 * 60_000];
-const LOCK_TIMEOUT_MS = 2 * 60_000;
 
 const isPrivateAddress = (address) => {
     if (!address) return true;
@@ -105,7 +107,10 @@ const claimDelivery = (id) => MerchantWebhookDelivery.findOneAndUpdate({
     $inc: { attemptCount: 1 }
 }, { returnDocument: 'after' });
 
+const webhookHttpDisabled = () => !isMerchantWebhookWorkerEnabled();
+
 const deliverWebhook = async (deliveryId) => {
+    if (webhookHttpDisabled()) return { skipped: true, reason: 'MERCHANT_WEBHOOK_DISABLED' };
     const delivery = await claimDelivery(deliveryId);
     if (!delivery) return null;
     const endpoint = await MerchantWebhookEndpoint.findOne({ _id: delivery.endpointId, enabled: true }).select('+secretEncrypted');
@@ -125,6 +130,7 @@ const deliverWebhook = async (deliveryId) => {
                 'content-type': 'application/json',
                 'user-agent': 'AhramPay-Webhooks/1.0',
                 'x-ahrampay-event': delivery.eventType,
+                'x-ahrampay-event-id': String(delivery.eventId || ''),
                 'x-ahrampay-delivery': String(delivery._id),
                 'x-ahrampay-timestamp': timestamp,
                 'x-ahrampay-signature': `sha256=${signature}`
@@ -170,9 +176,12 @@ const enqueueTransactionWebhook = async (eventType, transaction) => {
     const owner = await resolveOwner(transaction);
     if (!owner) return [];
     const endpointQuery = { ...owner, enabled: true, events: eventType };
-    // Legacy transactions may not contain a tenant id. Ownership remains the
-    // mandatory boundary, while tenant scoping is applied whenever available.
-    if (transaction.tenantId) endpointQuery.tenantId = transaction.tenantId;
+    // Single-tenant production often resolves a new DEFAULT_TENANT while the
+    // endpoint still carries an older tenantId or none. ownerModel + ownerId
+    // stay the mandatory boundary there. Multi-tenant keeps a strict tenant
+    // match, including a transaction with no tenantId, so it cannot attach
+    // to another tenant's endpoint. Delivery is at-least-once.
+    if (tenantMode() === 'multi') endpointQuery.tenantId = transaction.tenantId || null;
     const endpoints = await MerchantWebhookEndpoint.find(endpointQuery).lean();
     if (!endpoints.length) return [];
     const payload = buildPayload(eventType, transaction);
@@ -199,15 +208,15 @@ const ensureMerchantWebhookIndexes = () => Promise.all([
 ]);
 
 const processPendingWebhooks = async (limit = 50) => {
-    const rows = await MerchantWebhookDelivery.find({
-        status: { $in: ['pending', 'failed'] }, nextAttemptAt: { $lte: new Date() }, attemptCount: { $lt: MAX_ATTEMPTS }
-    }).sort({ nextAttemptAt: 1 }).limit(limit).select('_id').lean();
+    const rows = await MerchantWebhookDelivery.find(pendingWebhookFilter(new Date(), process.env, MAX_ATTEMPTS))
+        .sort({ nextAttemptAt: 1 }).limit(limit).select('_id').lean();
     await Promise.allSettled(rows.map((row) => deliverWebhook(row._id)));
     return rows.length;
 };
 
 let workerTimer = null;
 const startMerchantWebhookWorker = () => {
+    if (webhookHttpDisabled()) return null;
     if (workerTimer) return workerTimer;
     workerTimer = setInterval(() => {
         processPendingWebhooks().catch((error) => logger.error('Merchant webhook worker failed', { error: error.message }));
