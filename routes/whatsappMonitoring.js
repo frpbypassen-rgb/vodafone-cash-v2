@@ -15,7 +15,7 @@ const {
     countDeliveries,
     previewFailedRetries,
     retryFailedDeliveries,
-    scopeListedDeliveries
+    deliveryFilterForTenant
 } = require('../services/whatsappFailedDeliveryRetryService');
 
 const DELIVERY_STATUSES = ['pending', 'sending', 'sent', 'delivered', 'read', 'failed', 'skipped'];
@@ -45,14 +45,14 @@ router.get('/', requireAuth, async (req, res, next) => {
         const bulkRetrySummary = req.session?.whatsappBulkRetryResult || null;
         if (req.session && bulkRetrySummary) delete req.session.whatsappBulkRetryResult;
 
-        const [rawDeliveries, pendingCount, failedCount, deliveredCount, readCount] = await Promise.all([
-            WhatsAppDelivery.find(filter).sort({ updatedAt: -1 }).limit(250).lean(),
+        const scopedFilter = await deliveryFilterForTenant(filter, tenantFilter);
+        const [deliveries, pendingCount, failedCount, deliveredCount, readCount] = await Promise.all([
+            WhatsAppDelivery.find(scopedFilter).sort({ updatedAt: -1 }).limit(250).lean(),
             countDeliveries({ status: { $in: ['pending', 'sending'] } }, tenantFilter),
             countDeliveries({ status: STOPPED_STATUS }, tenantFilter),
             countDeliveries({ status: 'delivered' }, tenantFilter),
             countDeliveries({ status: 'read' }, tenantFilter)
         ]);
-        const deliveries = await scopeListedDeliveries(rawDeliveries, tenantFilter);
         const baseConfiguration = await getWhatChimpTemplateReadiness().catch(() => ({
             receiptReady: false,
             receiptOperational: false,

@@ -39,6 +39,7 @@ jest.mock('../models/JournalEvent', () => ({
 }));
 
 jest.mock('../models/BulkJobLock', () => ({
+    collection: { findOne: jest.fn(), deleteMany: jest.fn() },
     findOneAndUpdate: jest.fn(),
     create: jest.fn(),
     updateOne: jest.fn(),
@@ -146,6 +147,13 @@ describe('failed WhatsApp delivery eligibility', () => {
         expect(ineligibilityReason(failed, context)).toBe('ALREADY_SUCCEEDED');
     });
 
+    test.each(['WHATCHIMP_TIMEOUT', 'WHATCHIMP_REQUEST_FAILED', 'RETRY_SEND_FAILED',
+        'RECEIPT_DELIVERY_FAILED', 'PART_PROOF_SEND_FAILED', 'RETRY_SUPERSEDED'])(
+        'does not resend an unresolved provider outcome: %s', (failureCode) => {
+            expect(ineligibilityReason(delivery({ failureCode }), baseContext())).toBe('PROVIDER_RESULT_UNRESOLVED');
+        }
+    );
+
     test('retries a different split part and skips the part that already succeeded', () => {
         const context = baseContext({
             successes: [{
@@ -214,14 +222,16 @@ describe('failed WhatsApp delivery bulk retry', () => {
         transactions.set('tx-1', { _id: 'tx-1', tenantId: 'tenant-a', executorSenderEntries: [] });
         logAction.mockResolvedValue(undefined);
         BulkJobLock.findOneAndUpdate.mockResolvedValue(null);
+        BulkJobLock.collection.findOne.mockResolvedValue(null);
+        BulkJobLock.collection.deleteMany.mockResolvedValue({ deletedCount: 0 });
         BulkJobLock.create.mockResolvedValue({ key: 'whatsapp-monitor-failed-retry' });
         BulkJobLock.updateOne.mockResolvedValue({ matchedCount: 1 });
         BulkJobLock.deleteOne.mockResolvedValue({ deletedCount: 1 });
         WhatsAppDelivery.find.mockImplementation((query) => ({
             sort() { return this; },
-            limit() { return this; },
+            limit(value) { this.cap = value; return this; },
             select() { return this; },
-            lean: async () => [...records.values()].filter((row) => matchesQuery(row, query)).map(clone)
+            async lean() { return [...records.values()].filter((row) => matchesQuery(row, query)).slice(0, this.cap).map(clone); }
         }));
         WhatsAppDelivery.countDocuments.mockImplementation(async (query) => (
             [...records.values()].filter((row) => matchesQuery(row, query)).length
@@ -255,7 +265,7 @@ describe('failed WhatsApp delivery bulk retry', () => {
         });
         Transaction.find.mockImplementation((query) => ({
             select: () => ({
-                lean: async () => (query._id?.$in || []).map(String).filter((id) => {
+                lean: async () => (query._id?.$in || [...transactions.keys()]).map(String).filter((id) => {
                     const transaction = transactions.get(id);
                     if (!transaction) return false;
                     if (query.tenantId && String(transaction.tenantId) !== String(query.tenantId)) return false;
@@ -422,6 +432,47 @@ describe('failed WhatsApp delivery bulk retry', () => {
         expect(summary.accepted.map((item) => item.id)).toEqual(['mine']);
         expect(JSON.stringify(summary)).not.toContain('theirs');
         expect(JSON.stringify(summary)).not.toContain('tx-b');
+    });
+
+    test('scopes the database query before its 1000-record candidate limit', async () => {
+        transactions.set('tx-b', { _id: 'tx-b', tenantId: 'tenant-b' });
+        for (let index = 0; index < 1001; index += 1) {
+            remember(delivery({ _id: `foreign-${index}`, transactionId: 'tx-b' }));
+        }
+        remember(delivery({ _id: 'mine' }));
+        const preview = await previewFailedRetries({ tenantFilter: { tenantId: 'tenant-a' }, window: '72h' });
+        expect(preview.willAttempt).toBe(1);
+        expect(WhatsAppDelivery.find).toHaveBeenCalledWith(expect.objectContaining({
+            transactionId: { $in: ['tx-1'] }
+        }));
+    });
+
+    test('uncertain provider outcomes are not sent or claimed', async () => {
+        remember(delivery({ failureCode: 'WHATCHIMP_TIMEOUT' }));
+        const summary = await retryFailedDeliveries({ tenantFilter: {}, window: '72h', actor, req: request, throttleMs: 0 });
+        expect(summary.attempted).toBe(0);
+        expect(WhatsAppDelivery.findOneAndUpdate).not.toHaveBeenCalled();
+        expect(sendCompletedTransactionReceipt).not.toHaveBeenCalled();
+    });
+
+    test('batch locks use the mandatory unique MongoDB identifier', async () => {
+        await retryFailedDeliveries({ tenantFilter: {}, window: '72h', actor, req: request, throttleMs: 0 });
+        expect(BulkJobLock.create).toHaveBeenCalledWith(expect.objectContaining({
+            _id: 'whatsapp-monitor-failed-retry'
+        }));
+        expect(BulkJobLock.deleteOne).toHaveBeenCalledWith(expect.objectContaining({
+            _id: 'whatsapp-monitor-failed-retry'
+        }));
+    });
+
+    test('waits for an active lock created by the older release', async () => {
+        BulkJobLock.collection.findOne.mockResolvedValue({ ownerId: 'old-worker' });
+        remember(delivery());
+        const summary = await retryFailedDeliveries({ tenantFilter: {}, window: '72h', actor, req: request, throttleMs: 0 });
+        expect(summary.code).toBe('BULK_RETRY_BUSY');
+        expect(BulkJobLock.collection.deleteMany).not.toHaveBeenCalled();
+        expect(BulkJobLock.create).not.toHaveBeenCalled();
+        expect(sendCompletedTransactionReceipt).not.toHaveBeenCalled();
     });
 
     test('two parallel runs retry each failed record once', async () => {
