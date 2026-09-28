@@ -7,6 +7,7 @@
     <script>
         const savedTheme = localStorage.getItem('ahram_theme') || 'dark';
         document.documentElement.setAttribute('data-theme', savedTheme);
+        document.documentElement.setAttribute('data-bs-theme', savedTheme);
     </script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.rtl.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
@@ -46,6 +47,13 @@
         .trail-step.active { border-right: 3px solid #f59e0b; }
         .trail-step.waiting { border-right: 3px solid #94a3b8; }
         .empty-state { text-align: center; padding: 65px 18px; color: var(--text-muted); background: var(--card-bg); border: 1px solid var(--border-glass); border-radius: 12px; font-weight: 700; }
+        .monitor-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+        .bulk-retry-note { color: var(--text-muted); font-weight: 700; line-height: 1.7; }
+        .bulk-retry-warning { border-radius: 10px; padding: 12px 14px; background: rgba(245,158,11,.12); color: #a16207; font-weight: 800; line-height: 1.7; }
+        [data-theme="dark"] .bulk-retry-warning { color: #fbbf24; }
+        .bulk-retry-counts { border: 1px solid var(--border-glass); border-radius: 10px; padding: 12px 14px; background: var(--input-bg); font-weight: 800; color: var(--text-main); }
+        .modal-content { background: var(--card-bg); color: var(--text-main); border: 1px solid var(--border-glass); }
+        .modal-header, .modal-footer { border-color: var(--border-glass); }
         @media (max-width: 1100px) { .delivery-main { grid-template-columns: repeat(2, minmax(0,1fr)); } .details-toggle { justify-self: end; } }
         @media (max-width: 576px) { .monitor-header { align-items: flex-start; } .monitor-header h3 { font-size: 1.15rem; } .monitor-subtitle { font-size: .8rem; } .delivery-main { grid-template-columns: 1fr; gap: 10px; } .details-toggle { position: absolute; left: 14px; top: 14px; } .delivery-card { position: relative; } .trail-step { width: 100%; } }
     </style>
@@ -84,7 +92,14 @@
                     <p class="monitor-subtitle">تتبع إيصالات العمليات وإشعارات تغيير السعر وتحديد المرحلة المتوقفة وسببها.</p>
                 </div>
             </div>
-            <a href="/settings#whatsapp-integration" class="btn btn-outline-primary fw-bold"><i class="fa-solid fa-gear me-1"></i> إعدادات الربط</a>
+            <div class="monitor-actions">
+                <% if (typeof canBulkRetry !== 'undefined' && canBulkRetry) { %>
+                    <button type="button" class="btn btn-danger fw-bold bulk-retry-button" data-bs-toggle="modal" data-bs-target="#bulkRetryModal">
+                        <i class="fa-solid fa-rotate-right me-1"></i> إعادة محاولة الرسائل غير الناجحة
+                    </button>
+                <% } %>
+                <a href="/settings#whatsapp-integration" class="btn btn-outline-primary fw-bold"><i class="fa-solid fa-gear me-1"></i> إعدادات الربط</a>
+            </div>
         </header>
 
         <section class="row g-3">
@@ -119,6 +134,22 @@
         <% if (typeof query !== 'undefined' && query && query.retry) { %>
             <div class="alert <%= query.retry === 'success' ? 'alert-success' : 'alert-danger' %> fw-bold"><%= query.retry === 'success' ? 'تمت إعادة محاولة إرسال الإيصال.' : 'تعذرت إعادة إرسال الإيصال. راجع مرحلة التوقف وحالة القالب.' %></div>
         <% } %>
+        <% if (typeof bulkRetrySummary !== 'undefined' && bulkRetrySummary) { %>
+            <div class="alert <%= bulkRetrySummary.success ? 'alert-success' : 'alert-warning' %> fw-bold">
+                <% if (bulkRetrySummary.code === 'BULK_RETRY_BUSY') { %>
+                    إعادة المحاولة الجماعية قيد التشغيل بالفعل. انتظر اكتمالها ثم أعد المحاولة حتى لا يُرسل الإيصال مرتين.
+                <% } else { %>
+                    <div>نتيجة إعادة المحاولة خلال <%= bulkRetrySummary.window || '72h' %>:</div>
+                    <div>تمت المحاولة: <%= bulkRetrySummary.attempted || 0 %> — قُبلت الآن: <%= (bulkRetrySummary.accepted || []).length %> — فشلت مرة أخرى: <%= Object.values(bulkRetrySummary.failedAgain || {}).reduce((sum, items) => sum + (items || []).length, 0) %> — تم التجاوز: <%= (bulkRetrySummary.skipped || []).length %> — المتبقي: <%= bulkRetrySummary.remaining || 0 %></div>
+                    <% if ((bulkRetrySummary.accepted || []).length) { %>
+                        <div class="small mt-1">معرفات القبول: <span dir="ltr"><%= bulkRetrySummary.accepted.map((item) => item.messageId || item.reference || item.id).filter(Boolean).slice(0, 12).join(' · ') %></span></div>
+                    <% } %>
+                    <% Object.keys(bulkRetrySummary.failedAgain || {}).forEach((code) => { %>
+                        <div class="small">فشل <span dir="ltr"><%= code %></span>: <%= bulkRetrySummary.failedAgain[code].length %></div>
+                    <% }) %>
+                <% } %>
+            </div>
+        <% } %>
 
         <% deliveries.forEach((delivery, index) => { const info = statusInfo[delivery.status] || statusInfo.pending; const stages = Array.isArray(delivery.stages) && delivery.stages.length ? delivery.stages : [fallbackStage(delivery)]; const currentStage = stages[stages.length - 1] || fallbackStage(delivery); %>
             <article class="delivery-card">
@@ -137,6 +168,35 @@
     </div>
 </main>
 
+<% if (typeof canBulkRetry !== 'undefined' && canBulkRetry) { %>
+<div class="modal fade" id="bulkRetryModal" tabindex="-1" aria-labelledby="bulkRetryTitle" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <form class="modal-content" method="POST" action="/whatsapp-monitor/failed-retries" id="bulk-retry-form">
+            <div class="modal-header">
+                <h5 class="modal-title fw-bold" id="bulkRetryTitle">إعادة محاولة الرسائل غير الناجحة</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="إغلاق"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" name="_csrf" value="<%= csrfToken || '' %>">
+                <p class="bulk-retry-note">تُعاد فقط الرسائل المتوقفة. عداد «رسائل متوقفة» يحسب الحالة failed وحدها، أي التوقف النهائي بعد فشل الإرسال. لا تُعاد الرسائل التي قبلتها المنصة أو تم تسليمها أو قراءتها أو ما زالت قيد الإرسال، حتى لا يتكرر الإيصال. وإذا كانت العملية تملك تسليماً ناجحاً من نفس النوع أو نفس الجزء فلن تُعاد.</p>
+                <p class="bulk-retry-warning">إذا لم يُعالج سبب الفشل فقد تفشل هذه الرسائل مرة أخرى. إشعارات تغيير السعر غير مشمولة وتُترك لفحص منفصل.</p>
+                <label class="form-label fw-bold mt-3" for="bulk-retry-window">النطاق الزمني حسب آخر تحديث</label>
+                <select class="form-select" id="bulk-retry-window" name="window">
+                    <option value="24h">آخر 24 ساعة</option>
+                    <option value="72h" selected>آخر 72 ساعة</option>
+                    <option value="7d">آخر 7 أيام</option>
+                </select>
+                <div class="bulk-retry-counts mt-3" id="bulk-retry-counts">جارٍ حساب الرسائل المؤهلة...</div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary fw-bold" data-bs-dismiss="modal">إلغاء</button>
+                <button type="submit" class="btn btn-danger fw-bold" id="bulk-retry-confirm" disabled>تأكيد إعادة المحاولة</button>
+            </div>
+        </form>
+    </div>
+</div>
+<% } %>
+
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script>
     function toggleSidebar() {
@@ -144,5 +204,46 @@
         document.querySelector('.sidebar-overlay')?.classList.toggle('active');
     }
 </script>
+<% if (typeof canBulkRetry !== 'undefined' && canBulkRetry) { %>
+<script>
+    const bulkRetryModal = document.getElementById('bulkRetryModal');
+    const bulkRetryCounts = document.getElementById('bulk-retry-counts');
+    const bulkRetryWindow = document.getElementById('bulk-retry-window');
+    const bulkRetryConfirm = document.getElementById('bulk-retry-confirm');
+
+    const renderBulkPreview = (summary) => {
+        const receiptCount = summary?.byKind?.receipt || 0;
+        const partCount = summary?.byKind?.part_receipt || 0;
+        bulkRetryCounts.textContent = `إيصالات عادية: ${receiptCount} — إثباتات الأجزاء: ${partCount} — سيُحاول الآن: ${summary?.willAttempt || 0} — المتبقي بعد الحد: ${summary?.remaining || 0}`;
+        if (bulkRetryConfirm) bulkRetryConfirm.disabled = !(summary?.willAttempt > 0);
+    };
+
+    const loadBulkPreview = async () => {
+        if (!bulkRetryCounts || !bulkRetryWindow) return;
+        if (bulkRetryConfirm) bulkRetryConfirm.disabled = true;
+        bulkRetryCounts.textContent = 'جارٍ حساب الرسائل المؤهلة...';
+        try {
+            const response = await fetch(`/whatsapp-monitor/failed-retries/preview?window=${encodeURIComponent(bulkRetryWindow.value)}`, {
+                headers: { Accept: 'application/json' }
+            });
+            const summary = await response.json();
+            if (!response.ok) throw new Error(summary?.error || 'تعذر حساب الرسائل');
+            renderBulkPreview(summary);
+        } catch (_error) {
+            bulkRetryCounts.textContent = 'تعذر حساب الرسائل المؤهلة. أعد فتح النافذة.';
+            if (bulkRetryConfirm) bulkRetryConfirm.disabled = true;
+        }
+    };
+
+    bulkRetryModal?.addEventListener('shown.bs.modal', loadBulkPreview);
+    bulkRetryWindow?.addEventListener('change', loadBulkPreview);
+    document.getElementById('bulk-retry-form')?.addEventListener('submit', () => {
+        if (bulkRetryConfirm) {
+            bulkRetryConfirm.disabled = true;
+            bulkRetryConfirm.textContent = 'جارٍ الإرسال...';
+        }
+    });
+</script>
+<% } %>
 </body>
 </html>
