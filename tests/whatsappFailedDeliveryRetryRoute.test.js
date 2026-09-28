@@ -39,7 +39,7 @@ jest.mock('../services/whatsappFailedDeliveryRetryService', () => ({
     countDeliveries: jest.fn(async () => 0),
     previewFailedRetries: jest.fn(),
     retryFailedDeliveries: jest.fn(),
-    scopeListedDeliveries: jest.fn(async (rows) => rows)
+    deliveryFilterForTenant: jest.fn(async (match) => match)
 }));
 
 const { retryFailedDeliveries, previewFailedRetries } = require('../services/whatsappFailedDeliveryRetryService');
