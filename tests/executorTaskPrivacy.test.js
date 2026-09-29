@@ -60,6 +60,17 @@ describe('executor task recipient privacy', () => {
         expect(JSON.stringify(dto)).not.toContain('123456789012345');
     });
 
+    test('portal DTO exposes the bank delivery method without returning nested service details', () => {
+        const dto = toExecutorPortalTaskDto(task({
+            transferType: 'bank_account',
+            accountNumber: '01012345678',
+            serviceDetails: { bankMethod: 'mobile' }
+        }), 'employee-1');
+
+        expect(dto.bankMethod).toBe('mobile');
+        expect(dto).not.toHaveProperty('serviceDetails');
+    });
+
     test('maps routed vs accepted tasks to manager-facing Arabic routing states', () => {
         const routed = toExecutorPortalTaskDto(task({
             assignedExecutorId: 'external-1',

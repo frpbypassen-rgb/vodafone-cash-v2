@@ -45,12 +45,13 @@ const TRANSFER_SERVICE_RULES = Object.freeze({
     bank_account: Object.freeze({
         destinationRequired: true,
         destinationInputMode: 'text',
-        destinationError: 'أدخل رقم الحساب البنكي أو IBAN.',
+        destinationError: 'أدخل بيانات المستلم وفق طريقة التحويل المختارة.',
         beneficiaryRequired: true,
-        beneficiaryMinWords: 3,
+        beneficiaryMinWords: 2,
         beneficiaryLabel: 'اسم المستفيد',
-        beneficiaryPlaceholder: 'أدخل اسم المستفيد',
+        beneficiaryPlaceholder: 'الاسم الأول والثاني على الأقل',
         requiresBank: true,
+        requiresDataEntryAcknowledgement: true,
         minAmount: 500,
         amountStep: '0.01'
     }),
@@ -102,6 +103,7 @@ const validateTransferInput = ({
     hasIdentityImage,
     enforceDataEntryAcknowledgement = false,
     dataEntryAcknowledged,
+    bankMethod,
     bank,
     bankCode,
     bankName
@@ -120,7 +122,16 @@ const validateTransferInput = ({
     }
     if (rules.integerAmount && !Number.isInteger(numericAmount)) return 'خدمة سيفا لا تقبل كسورًا في قيمة السيفا.';
 
-    const normalizedDestination = String(destination || '').trim();
+    let normalizedDestination = String(destination || '').trim();
+    if (canonicalKey === 'bank_account') {
+        normalizedDestination = normalizedDestination.replace(/\s+/g, '');
+        if (!['mobile', 'ipa', 'account', 'iban', 'card'].includes(bankMethod)) return 'اختر طريقة التحويل البنكي.';
+        if (bankMethod === 'card') return 'التحويل بالبطاقة البنكية غير متاح حالياً.';
+        if (bankMethod === 'mobile' && !/^\d{11}$/.test(normalizedDestination)) return 'رقم الهاتف يجب أن يتكون من 11 رقماً.';
+        if (bankMethod === 'ipa' && !/^[A-Za-z0-9._-]{3,64}(?:@[A-Za-z0-9.-]{2,253})?$/.test(normalizedDestination)) return 'عنوان الدفع IPA غير صحيح.';
+        if (bankMethod === 'account' && !/^\d{5,34}$/.test(normalizedDestination)) return 'رقم الحساب البنكي يجب أن يتكون من 5 إلى 34 رقماً.';
+        if (bankMethod === 'iban' && !/^(?=.*[A-Za-z])(?=.*\d)[A-Za-z0-9]{5,34}$/.test(normalizedDestination)) return 'الحساب المصرفي الدولي يجب أن يتكون من 5 إلى 34 حرفاً إنجليزياً ورقماً.';
+    }
     if (rules.destinationRequired && !normalizedDestination) return rules.destinationError || 'أدخل بيانات المستلم.';
     if (rules.destinationPattern && !new RegExp(rules.destinationPattern).test(normalizedDestination)) {
         return rules.destinationError || 'بيانات المستلم غير صحيحة.';
@@ -129,7 +140,8 @@ const validateTransferInput = ({
     const normalizedName = String(beneficiaryName || '').trim();
     if (rules.beneficiaryRequired && !normalizedName) return 'اسم المستفيد مطلوب.';
     if (rules.beneficiaryMinWords && countWords(normalizedName) < rules.beneficiaryMinWords) {
-        return `اسم المستفيد يجب أن يكون ${rules.beneficiaryMinWords === 3 ? 'ثلاثيًا' : 'رباعيًا'} لهذه الخدمة.`;
+        const wordCountLabel = { 2: 'ثنائيًا', 3: 'ثلاثيًا', 4: 'رباعيًا' }[rules.beneficiaryMinWords] || `${rules.beneficiaryMinWords} كلمات`;
+        return `اسم المستفيد يجب أن يكون ${wordCountLabel} لهذه الخدمة.`;
     }
 
     const normalizedSubtype = String(subtype || '').trim();
@@ -141,7 +153,9 @@ const validateTransferInput = ({
     const acknowledged = dataEntryAcknowledged === true
         || ['true', '1', 'on', 'yes'].includes(String(dataEntryAcknowledged || '').trim().toLowerCase());
     if (enforceDataEntryAcknowledgement && rules.requiresDataEntryAcknowledgement && !acknowledged) {
-        return 'يجب تأكيد مسؤوليتك عن صحة بيانات تحويل سيفا قبل الإرسال.';
+        return canonicalKey === 'bank_account'
+            ? 'يجب الإقرار بصحة بيانات التحويل البنكي قبل الإرسال.'
+            : 'يجب تأكيد مسؤوليتك عن صحة بيانات تحويل سيفا قبل الإرسال.';
     }
 
     if (rules.requiresNationalId && !new RegExp(`^\\d{${rules.nationalIdLength || 14}}$`).test(String(nationalId || '').trim())) {
@@ -150,7 +164,7 @@ const validateTransferInput = ({
     if (rules.requiresGovernorate && !String(governorate || '').trim()) return 'اختر المحافظة.';
     if (rules.requiresIdentityImage && !hasIdentityImage) return 'أرفق صورة البطاقة من الأمام.';
 
-    if (rules.requiresBank) {
+    if (canonicalKey === 'bank_account' && ['account', 'iban'].includes(bankMethod)) {
         const bankError = normalizeStoredBank({
             transferType: canonicalKey,
             bank,

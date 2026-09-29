@@ -15,6 +15,17 @@
                 <input type="text" name="phone" id="transferDestination" class="bw-input bw-mono" dir="ltr" inputmode="numeric" autocomplete="off" required>
                 <small id="destinationFieldHint">أدخل رقم المستلم بدقة.</small>
             </label>
+            <label class="bw-field span-2" data-bank-method-field hidden>
+                <span>طريقة التحويل البنكي</span>
+                <select name="bankMethod" id="transferBankMethod">
+                    <option value="">اختر طريقة التحويل</option>
+                    <option value="mobile">رقم موبايل</option>
+                    <option value="ipa">عنوان الدفع (IPA)</option>
+                    <option value="account">حساب بنكي</option>
+                    <option value="iban">حساب مصرفي دولي</option>
+                    <option value="card" disabled>بطاقة بنكية (غير متاح حالياً)</option>
+                </select>
+            </label>
             <label class="bw-field span-2" data-beneficiary-field hidden>
                 <span id="beneficiaryFieldLabel">اسم المستفيد</span>
                 <input type="text" name="name" id="transferBeneficiary" autocomplete="off" maxlength="160" placeholder="أدخل اسم المستفيد">
@@ -40,8 +51,8 @@
             <div class="bw-sefa-disclaimer span-2" data-sefa-acknowledgement-field hidden>
                 <div class="bw-sefa-disclaimer-icon"><i class="fa-solid fa-shield-halved"></i></div>
                 <div class="bw-sefa-disclaimer-copy">
-                    <strong>تأكيد صحة بيانات سيفا</strong>
-                    <p>العميل مسؤول عن صحة الاسم ورقم الحساب والمدينة المدخلة. لا تتحمل الشركة مسؤولية أي خطأ ناتج من بيانات أدخلها العميل.</p>
+                    <strong data-ack-title>تأكيد صحة بيانات سيفا</strong>
+                    <p data-ack-copy>العميل مسؤول عن صحة الاسم ورقم الحساب والمدينة المدخلة. لا تتحمل الشركة مسؤولية أي خطأ ناتج من بيانات أدخلها العميل.</p>
                     <label class="bw-sefa-acknowledgement"><input type="checkbox" name="dataEntryAcknowledged" id="transferSefaAcknowledgement" value="true"><span>أقر بمراجعتي للبيانات وتحمل مسؤوليتي عن صحتها قبل الإرسال.</span></label>
                 </div>
             </div>

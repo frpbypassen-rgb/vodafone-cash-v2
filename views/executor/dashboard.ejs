@@ -1249,6 +1249,8 @@
                     const safeAccountName = escapeTaskHtml(t.accountName || '').replace(/\n/g, '<br>');
                     const safeBankName = escapeTaskHtml(t.bankName || '');
                     const showBankName = Boolean(safeBankName) && (t.transferType === 'bank_account' || t.transferType === 'bank_transfer');
+                    const bankMethodLabels = { mobile: 'تحويل إلى رقم موبايل', ipa: 'تحويل إلى عنوان دفع IPA', account: 'تحويل إلى حساب بنكي', iban: 'تحويل إلى IBAN' };
+                    const bankMethodLabel = bankMethodLabels[t.bankMethod] || '';
                     const encodedBankName = encodeURIComponent(t.bankName || '');
 
                     const taskArrivalAt = t.executorReceivedAt || t.createdAt;
@@ -1288,6 +1290,7 @@
                                     ${safeDisplayNote ? `<div class="tx-notes"><i class="fa-solid fa-comment-dots me-1 opacity-50"></i> ${safeDisplayNote}</div>` : ''}
                                     ${safeAccountName && t.transferType !== 'vodafone' ? `<div class="tx-beneficiary"><i class="fa-solid fa-user me-1 opacity-50"></i> ${safeAccountName}</div>` : ''}
                                     ${showBankName ? `<div class="tx-beneficiary"><i class="fa-solid fa-building-columns me-1 opacity-50"></i> ${safeBankName}</div>` : ''}
+                                    ${bankMethodLabel ? `<div class="tx-beneficiary bank-transfer-method"><i class="fa-solid fa-route me-1 opacity-50"></i> ${escapeTaskHtml(bankMethodLabel)}</div>` : ''}
                                     ${recipientIsVisible ? '' : '<div class="executor-task-privacy"><i class="fa-solid fa-shield-halved"></i><span>يظهر الرقم كاملًا بعد قبول المهمة للمنفذ الذي سحبها فقط.</span></div>'}
                                     ${(isExecutorManager || routedToMe) && assigneeName ? `
                                     <div class="executor-assignee-strip ${routingState === 'in_progress' ? 'in-progress' : (routingState === 'pending_with_assignee' ? 'waiting' : '')}">

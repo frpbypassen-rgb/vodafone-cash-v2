@@ -27,6 +27,7 @@ const LIVE_TASK_PROJECTION = [
     'accountName',
     'serviceDetails.bankName',
     'serviceDetails.bankCode',
+    'serviceDetails.bankMethod',
     'serviceDetails.recipientPhone',
     'notes',
     'status',

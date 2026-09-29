@@ -64,11 +64,17 @@
         const esc = (v) => String(v ?? '—').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
         return [
             ['الخدمة', esc(global.currentTransferType)],
+            ...(global.currentTransferType === 'حساب بنكي'
+                ? [['طريقة التحويل', esc(document.getElementById('tf_bank_method')?.selectedOptions?.[0]?.text || '—')]]
+                : []),
             ['المستفيد', esc(document.getElementById('tf_beneficiary')?.value || '—')],
-            ...(document.getElementById('bank_div')?.style.display === 'block'
+            ...(global.currentTransferType === 'حساب بنكي' && ['account', 'iban'].includes(document.getElementById('tf_bank_method')?.value)
                 ? [['البنك', esc(document.getElementById('tf_bank')?.selectedOptions?.[0]?.text || '—')]]
                 : []),
             ['الحساب / الهاتف', esc(document.getElementById('tf_phone')?.value || document.getElementById('tf_governorate')?.value || '—')],
+            ...(global.currentTransferType === 'حساب بنكي'
+                ? [['إقرار صحة البيانات', document.getElementById('tf_bank_data_acknowledgement')?.checked ? 'تم الإقرار' : 'غير مؤكد']]
+                : []),
             ['القيمة', `${esc(document.getElementById('tf_amount')?.value || '0')} EGP`],
             ['التكلفة', `${esc(document.getElementById('tf_amount_lyd')?.value || '0')} LYD`],
             ['سعر الصرف', esc(document.getElementById('tf_service_rate')?.textContent || '—')]

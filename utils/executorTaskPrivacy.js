@@ -150,6 +150,7 @@ const toExecutorPortalTaskDto = (transaction = {}, executorId = null) => {
         recipientRevealed: recipient.recipientRevealed,
         accountName: transaction.accountName || null,
         bankName: bankLabelForTransaction(transaction) || null,
+        bankMethod: String(transaction.serviceDetails?.bankMethod || '').trim() || null,
         notes: portalLiveTaskNotes(transaction.notes),
         status: transaction.status || 'unknown',
         operatorId: transaction.operatorId ? stringId(transaction.operatorId) : null,
