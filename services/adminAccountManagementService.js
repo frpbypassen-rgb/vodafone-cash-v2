@@ -255,14 +255,21 @@ const requireOtpEmail = (value, field) => {
     return parsed.email;
 };
 
-// A valid address saved from admin always uses email OTP. WhatsApp remains
-// only for legacy accounts that still have no usable email.
+const optionalOtpEmail = (value, field) => {
+    if (!String(value || '').trim()) return '';
+    return requireOtpEmail(value, field);
+};
+
+// Login OTP is an explicit per-account opt-in controlled by administration.
 const setLoginOtpDelivery = (type, account, payload) => {
     if (!LOGIN_OTP_EDITOR_TYPES.has(type)) return;
-    const email = requireOtpEmail(payload.email, 'email');
-    account.otpDeliveryChannel = 'email';
+    const emailOtpEnabled = isChecked(payload.emailOtpEnabled);
+    const email = emailOtpEnabled
+        ? requireOtpEmail(payload.email, 'email')
+        : optionalOtpEmail(payload.email, 'email');
+    account.otpDeliveryChannel = emailOtpEnabled ? 'email' : 'whatsapp';
     if (type === 'user' || type === 'agent') {
-        account.set('businessProfile.email', email);
+        if (emailOtpEnabled) account.set('businessProfile.email', email);
     } else {
         account.email = email;
     }
@@ -290,11 +297,15 @@ const applyCompanyOwnerEmailOtp = (companyOwner, payload = {}) => {
     if (!companyOwner) {
         throw new AdminAccountManagementError('COMPANY_OWNER_REQUIRED', 'ownerEmail');
     }
-    const email = requireOtpEmail(payload.email, 'ownerEmail');
+    const emailOtpEnabled = isChecked(payload.emailOtpEnabled);
+    const email = emailOtpEnabled
+        ? requireOtpEmail(payload.email, 'ownerEmail')
+        : optionalOtpEmail(payload.email, 'ownerEmail');
     const previousChannel = companyOwner.otpDeliveryChannel === 'email' ? 'email' : 'whatsapp';
-    const changed = (companyOwner.email || '') !== email || previousChannel !== 'email';
+    const nextChannel = emailOtpEnabled ? 'email' : 'whatsapp';
+    const changed = (companyOwner.email || '') !== email || previousChannel !== nextChannel;
     companyOwner.email = email;
-    companyOwner.otpDeliveryChannel = 'email';
+    companyOwner.otpDeliveryChannel = nextChannel;
     return changed;
 };
 

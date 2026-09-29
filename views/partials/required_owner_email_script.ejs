@@ -36,6 +36,13 @@
     document.querySelectorAll('[data-required-email], [data-account-email]').forEach((input) => {
         if (input.dataset.accountEmailBound === '1') return;
         input.dataset.accountEmailBound = '1';
+        const form = input.form;
+        const otpToggle = form && form.querySelector('[data-email-otp-toggle]');
+        if (otpToggle && input.hasAttribute('data-email-otp-address')) {
+            const syncRequired = () => { input.required = otpToggle.checked; };
+            syncRequired();
+            otpToggle.addEventListener('change', syncRequired);
+        }
         input.setAttribute('type', 'text');
         input.setAttribute('inputmode', 'email');
         input.setAttribute('autocapitalize', 'none');
@@ -55,7 +62,6 @@
             const result = prepare(input);
             if (result.ok || (!input.required && result.code === 'required')) clearMessage(input);
         });
-        const form = input.form;
         if (!form || form.dataset.accountEmailBound === '1') return;
         form.dataset.accountEmailBound = '1';
         form.addEventListener('submit', (event) => {

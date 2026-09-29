@@ -1,17 +1,15 @@
 # Production boot environment
 
 `assertProductionSecurityEnv()` runs as soon as `app.js` loads. PM2
-`env_production` overlays process variables **before** dotenv, so those
-flags win over `.env`. They must match the security policy or
-`pm2 reload ecosystem.config.js --env production` exits with
-`Unsafe production configuration`.
+`env_production` overlays process variables before dotenv, so those flags win
+over `.env`. They must match the security policy or production startup exits.
 
 ## Required production flags
 
-Set by `config/productionSecurityDefaults.js`, applied by both
-`ecosystem.config.js` `env_production` and `scripts/repairProductionEnv.js`:
+Set by `config/productionSecurityDefaults.js`, `ecosystem.config.js`
+`env_production`, and `scripts/repairProductionEnv.js`:
 
-```
+```ini
 NODE_ENV=production
 PASSWORD_ONLY_LOGIN_MODE=false
 SECURITY_VERIFICATION_ENFORCEMENT_ENABLED=true
@@ -30,290 +28,90 @@ REDIS_ENABLED=true
 REDIS_REQUIRED=true
 ```
 
-Host-specific (must exist in `.env`, never commit real values):
+Host-specific values belong in the server `.env`, never Git:
 
-- Distinct ≥32-character `JWT_SECRET`, `JWT_REFRESH_SECRET`, `SESSION_SECRET`, `OTP_SECRET`
-- Real replica-set `MONGO_URI` (not `demo`)
-- Reachable `REDIS_URL` or `REDIS_URI`
-- `DEFAULT_TENANT_SLUG` or `DEFAULT_TENANT_ID`
-- `PUBLIC_APP_URL` on HTTPS
+- Distinct secrets of at least 32 characters for `JWT_SECRET`,
+  `JWT_REFRESH_SECRET`, `SESSION_SECRET`, and `OTP_SECRET`.
+- Replica-set `MONGO_URI`, reachable `REDIS_URL` or `REDIS_URI`, tenant ID or
+  slug, and HTTPS `PUBLIC_APP_URL`.
 
 ## Background subsystem switches
 
 `MERCHANT_WEBHOOK_WORKER_ENABLED`, `EXTERNAL_API_ENABLED`,
-`BULLMQ_WORKERS_ENABLED`, and `FINANCIAL_SCHEDULERS_ENABLED` stay **on** in
-production when they are unset. A production deploy does not need four `=true`
-lines. Only `false`, `0`, `no`, or `off` disables a switch. Staging
-(`NODE_ENV`, `APP_ENV`, or `ENVIRONMENT` = `staging`) fails closed: an unset
-switch is off, and `.env.staging.example` sets all four to `false`. If one of
-those three variables is `staging` and another is a different non-empty mode,
-startup is refused (`STAGING_ENV_CONFLICT`) instead of serving in a mixed mode.
-Startup logs one warning naming every switch that is off. Details:
+`BULLMQ_WORKERS_ENABLED`, and `FINANCIAL_SCHEDULERS_ENABLED` stay on in
+production when unset. Only `false`, `0`, `no`, or `off` disables them. Staging
+fails closed when unset, and `.env.staging.example` sets all four to false.
+Conflicting staging and production mode variables stop startup. See
 `docs/operations/staging-isolation.md`.
 
 `MERCHANT_WEBHOOK_STALE_SENDING_RECLAIM_AFTER` is not a kill switch. Leave it
-unset until separately approved. While it is unset, historical `sending`
-rows are not auto-retried and missed events are not backfilled. Do not set
-it to a deploy instant as part of this change. Rows stay listed for manual
-review (`node scripts/listStaleSendingWebhooks.js` prints counts and delivery
-ids only). Delivery is at-least-once. Merchants dedupe on `x-ahrampay-event-id`.
+unset until separately approved. Historical `sending` rows are not auto-retried
+or backfilled while unset; inspect with
+`node scripts/listStaleSendingWebhooks.js`. Delivery is at-least-once; merchants
+should deduplicate on `x-ahrampay-event-id`.
 
-## Repair then reload
+## Login OTP: administrator-controlled per account
+
+WhatsApp is never used to deliver a login OTP. Global WhatsApp flags do not
+enable or disable this policy. An administrator controls OTP independently for
+each account in the admin account editor:
+
+- **OTP off:** after correct credentials, login continues without a code.
+- **OTP on:** a valid saved email is required and the code is sent by email
+  only (`otpDeliveryChannel=email`).
+- **Invalid email or failed email delivery while enabled:** login fails closed;
+  there is no WhatsApp fallback.
+
+Clearing the admin checkbox turns OTP off; it does not switch the account to
+WhatsApp. `WHATSAPP_LOGIN_OTP_ENABLED` and `LOGIN_OTP_SKIP_WITHOUT_EMAIL` are
+retained for compatibility but no longer control login OTP. Use the per-account
+admin setting, not those environment variables, to repair an account's login.
+
+`EMAIL_OTP_ENABLED=false` is a server-wide email-delivery kill switch. Accounts
+with OTP enabled cannot sign in while that switch is off. Do not use it as a
+WhatsApp workaround. Email send failure never falls back to WhatsApp.
+
+`LOGIN_OTP_SKIPPED` audit events record password-only login when account OTP is
+disabled. OTP challenge data is cleared before the login continues. Receipt,
+cancellation, rate alerts, financial alerts, and support WhatsApp messages are
+separate flows and are unaffected.
+
+## Password reset
+
+Password reset is email-only and disabled unless
+`PASSWORD_RESET_EMAIL_ENABLED` is `1`, `true`, `yes`, or `on`. It is separate
+from login OTP and sends only when `otpDeliveryChannel=email` and a valid saved
+email exist. WhatsApp is never a fallback. After code acceptance, the new
+password must be submitted within `PASSWORD_RESET_COMPLETE_WINDOW_SECONDS`
+(default 600 seconds, clamped to 60–600). Keep reset disabled until the staging
+checklist in `docs/operations/password-reset-rollout.md` passes and the owner
+approves activation.
+
+## Repair and reload
+
+Review commands before running them on a server:
 
 ```powershell
 node scripts/repairProductionEnv.js .env
-node scripts/repairProductionEnv.js .env --apply
 node scripts/auditProductionEnv.js .env
-pm2 reload ecosystem.config.js --env production --update-env
 ```
 
-`.env.example` keeps password-only Redis-optional values for
-`NODE_ENV=development` only. Do not copy those onto the live host.
-
-## Documented break-glass (OTP provider outage)
-
-Leave these **out of PM2** `env_production` so a time-limited `.env` window still
-works. The flag name says `CLIENT`, but the code applies it to **every portal
-that uses login OTP**: retail clients, company staff, agency staff,
-agency SubAccounts, and executors. A failed WhatsApp send and a failed
-per-account email send (`SMTP_CONFIG_MISSING`, `EMAIL_OTP_SEND_FAILED`,
-`EMAIL_OTP_TIMEOUT`, `EMAIL_OTP_ADDRESS_INVALID`) both use this window.
-Accounts with no usable email still use WhatsApp for login OTP, unless
-`WHATSAPP_LOGIN_OTP_ENABLED` is explicitly off, or
-`LOGIN_OTP_SKIP_WITHOUT_EMAIL` is on (see below). A failed email send for an
-account that already has a valid address does **not** use the skip flag.
-
-Do **not** set `PASSWORD_ONLY_LOGIN_MODE=true`, `BYPASS_OTP=true`, or
-`FORCE_CLIENT_OTP=false` on the live host. Those are rejected by
-`assertProductionSecurityEnv()` or permanently weaken production login.
-
-### Exact `.env` steps (max 24 hours)
-
-1. Confirm delivery is the blocker (login page shows a status code such as
-   `WHATCHIMP_TIMEOUT`, `WHATCHIMP_CONFIG_MISSING`, `WHATSAPP_PHONE_REQUIRED`,
-   `SMTP_CONFIG_MISSING`, or `EMAIL_OTP_SEND_FAILED`). Redis must stay required;
-   this bypass does not disable Redis or agency SubAccount privacy.
-2. Edit **only** `.env` (not `ecosystem.config.js`):
-
-```
-EMERGENCY_CLIENT_OTP_BYPASS=true
-EMERGENCY_CLIENT_OTP_BYPASS_EXPIRES_AT=2026-09-21T12:00:00Z
-EMERGENCY_CLIENT_OTP_BYPASS_REASON=WhatChimp OTP delivery outage
-```
-
-`EMERGENCY_CLIENT_OTP_BYPASS_EXPIRES_AT` must be a valid ISO timestamp **no
-more than 24 hours in the future**. The reason is required while the window
-is active.
-
-3. Reload so Node re-reads `.env`. PM2 must **not** pin the emergency keys:
+The repair command writes only when explicitly invoked with `--apply`. Reload
+only after reviewing the environment changes and confirming the intended PM2
+target:
 
 ```powershell
 pm2 reload ecosystem.config.js --env production --update-env
 ```
 
-4. Users sign in with username + password. WhatsApp OTP is skipped until
-   expiry. The first verified device is enrolled so the session guard does
-   not bounce them back to `/login?security=DEVICE_BINDING_MISMATCH`.
-5. When WhatChimp is healthy, remove the three `EMERGENCY_CLIENT_OTP_BYPASS*`
-   lines (or set the flag to `false`) and reload again.
+Do not copy development-only Redis-optional or password-only values from
+`.env.example` to production.
 
-Boot still warns: `Emergency client OTP bypass is active until …`.
+## Device binding
 
-## Login OTP WhatsApp kill-switch
-
-`WHATSAPP_LOGIN_OTP_ENABLED` controls **login OTP on WhatsApp only**. It does
-not change `WHATCHIMP_ENABLED`, OTP templates, receipts, rate-change alerts,
-or support replies. It also does not change SMTP, `FORCE_CLIENT_OTP`, or
-`EMERGENCY_CLIENT_OTP_BYPASS`. Login OTP stays required; only the WhatsApp
-send for that OTP stops. Accounts with a valid stored email still receive
-login OTP by email.
-
-| Value | Login OTP selection for an account with no usable email |
-|---|---|
-| unset, or `1` / `true` / `yes` / `on` | Selection stays `whatsapp`. The send still requires `WHATSAPP_OTP_ENABLED` explicitly on, and `OTP_DELIVERY_CHANNEL` must not be `email`. |
-| `0` / `false` / `no` / `off` | Never sent. Login returns `WHATSAPP_LOGIN_OTP_DISABLED` before the newer flag. |
-
-`WHATSAPP_OTP_ENABLED` is a second gate inside `sendOtp`. Unset is **off**.
-Only `1` / `true` / `yes` / `on` may call WhatChimp. There is no WP Sender
-fallback for OTP. `OTP_DELIVERY_CHANNEL=email` with `EMAIL_OTP_ENABLED` left
-on (unset counts as on) sends login OTP by email. An email failure does not
-call WhatsApp. Receipts and other non-OTP WhatsApp messages ignore
-`WHATSAPP_OTP_ENABLED`.
-
-Password reset does not use these WhatsApp flags.
-`PASSWORD_RESET_EMAIL_ENABLED` defaults to off when unset. Only `1`,
-`true`, `yes`, or `on` enables the reset routes. Login OTP does not read
-it. While it is on, a reset code is sent only when `otpDeliveryChannel` is
-`email` and the stored address is valid. Other accounts follow the manual
-procedure in `docs/operations/password-reset.md`. WhatsApp is not a reset
-fallback. After the code is accepted, the new password must be submitted
-within `PASSWORD_RESET_COMPLETE_WINDOW_SECONDS` (default 600, clamped to
-60–600). Leave the reset flag false until the staging checklist in
-`docs/operations/password-reset-rollout.md` passes and the owner approves
-the next step.
-
-A host `.env` that only sets `WHATSAPP_LOGIN_OTP_ENABLED=false` and omits
-the new names cannot send OTP on WhatsApp. Add and reload:
-
-```
-OTP_DELIVERY_CHANNEL=email
-EMAIL_OTP_ENABLED=true
-WHATSAPP_OTP_ENABLED=false
-PASSWORD_RESET_EMAIL_ENABLED=false
-```
-
-Keep `WHATSAPP_LOGIN_OTP_ENABLED=false` and
-`LOGIN_OTP_SKIP_WITHOUT_EMAIL=true`. These names are not required at boot.
-
-Intended production setting while WhatsApp login OTP is paused:
-
-```
-WHATSAPP_LOGIN_OTP_ENABLED=false
-```
-
-Put it in `.env` (not in PM2 `env_production`), then reload so Node re-reads it:
-
-```powershell
-pm2 reload ecosystem.config.js --env production --update-env
-```
-
-Accounts with no usable email see an Arabic message that WhatsApp login OTP is
-temporarily disabled and that they should use or add email, or contact an
-administrator. No WhatsApp send is attempted for that login OTP. If
-`LOGIN_OTP_SKIP_WITHOUT_EMAIL=true` as well, those accounts sign in with
-username and password instead of seeing `WHATSAPP_LOGIN_OTP_DISABLED`.
-
-To turn WhatsApp login OTP back on later, set `WHATSAPP_LOGIN_OTP_ENABLED=true`
-(or remove the line) and run the same `pm2 reload … --update-env`. Do not
-toggle `WHATCHIMP_ENABLED` for this.
-
-## Password-only login when no email is stored
-
-الحسابات التي لا يوجد لها بريد صالح تدخل باسم المستخدم وكلمة المرور فقط.
-الحسابات التي لها بريد صالح يبقى لها رمز الدخول على البريد.
-
-`LOGIN_OTP_SKIP_WITHOUT_EMAIL` is a non-expiring, production-allowed flag.
-`assertProductionSecurityEnv()` accepts it. It is **not** `PASSWORD_ONLY_LOGIN_MODE`,
-`BYPASS_OTP`, or `FORCE_CLIENT_OTP=false` — do not set those. Leave this flag
-out of PM2 `env_production` so `.env` can turn it on or off without a code change.
-
-It applies to every portal that uses login OTP: retail clients, company staff,
-agency staff, agency SubAccounts, executors, and admin accounts.
-
-| Account | Flag on |
-|---|---|
-| Valid stored email (`email` or `businessProfile.email`) | Login OTP required, sent by email. Unchanged. |
-| No usable email | Skip OTP after a correct password. No WhatsApp login OTP is sent. The device is enrolled or rebound the same way `EMERGENCY_CLIENT_OTP_BYPASS` does, so the session guard does not return `/login?security=DEVICE_BINDING_MISMATCH`. |
-| Explicit email channel, but the address is missing or invalid | Still fails with `EMAIL_OTP_ADDRESS_INVALID`. Not treated as "no email". |
-| Valid email, but the email send fails | Today's error, or the emergency window if that window is active. OTP is not skipped. |
-
-| Value | Effect |
-|---|---|
-| unset, or `0` / `false` / `no` / `off` | Exactly today's behavior, including `WHATSAPP_LOGIN_OTP_ENABLED` |
-| `1` / `true` / `yes` / `on` | No-email accounts skip login OTP |
-
-Each skipped login writes an audit entry `LOGIN_OTP_SKIPPED` with the account,
-portal, and `reason: no_email`. While the flag is on, production boot logs:
-
-`[SECURITY WARNING] LOGIN_OTP_SKIP_WITHOUT_EMAIL is active. Accounts without a usable email sign in with username and password only. Accounts with a valid email still require an email OTP.`
-
-`/health` stays `authenticationMode: enhanced-verification` because email
-accounts still require OTP and `PASSWORD_ONLY_LOGIN_MODE` stays `false`.
-`WHATCHIMP_ENABLED`, receipts, rate alerts, support replies, and SMTP are unchanged.
-
-### Turn on
-
-In the host `.env` (not `ecosystem.config.js`):
-
-```
-LOGIN_OTP_SKIP_WITHOUT_EMAIL=true
-```
-
-`WHATSAPP_LOGIN_OTP_ENABLED=false` can stay set. No-email accounts will not
-attempt a WhatsApp login OTP.
-
-Then restart the production process so Node re-reads `.env`:
-
-```powershell
-pm2 restart Ahram_Core_API --update-env
-```
-
-### Turn off
-
-Set the flag to false (or remove the line) and restart again:
-
-```
-LOGIN_OTP_SKIP_WITHOUT_EMAIL=false
-```
-
-```powershell
-pm2 restart Ahram_Core_API --update-env
-```
-
-With the skip flag off, accounts that have no usable email follow
-`WHATSAPP_LOGIN_OTP_ENABLED` and then `WHATSAPP_OTP_ENABLED`. Explicit
-`WHATSAPP_LOGIN_OTP_ENABLED=false` returns `WHATSAPP_LOGIN_OTP_DISABLED`.
-Otherwise an unset or false `WHATSAPP_OTP_ENABLED` returns
-`WHATSAPP_OTP_DISABLED` and does not call a provider. An open WhatsApp OTP
-send needs `WHATSAPP_OTP_ENABLED` explicitly true, the older login flag not
-explicitly off, and `OTP_DELIVERY_CHANNEL` other than `email`. That send
-uses WhatChimp only.
-
-## Documented break-glass (device-binding mismatch)
-
-OTP bypass alone does **not** clear `/login?security=DEVICE_BINDING_MISMATCH`.
-After a verified password + OTP (or OTP emergency bypass), the portal now
-enrolls the first device and rebinds the current browser when a stale device
-record would otherwise soft-lock the business. Suspicious transfers still
-create an admin notification in the security center.
-
-Web and mobile bindings are **per channel**: logging into the executor app must
-not revoke the executor-portal browser device. If production still has the
-legacy `uniq_active_security_device_per_account` index, a normal deploy that
-runs `ensureSecurityDeviceIndexes` restores `uniq_active_security_device_per_channel`.
-
-### Immediate unblock without waiting on a full feature deploy
-
-1. Ask the user to sign out and sign in again with password + WhatsApp OTP from
-   the browser they need. Verified login rebinds that channel only.
-2. From `/admin/security`, revoke the stuck principal's web device (or both
-   channels if the account is compromised), then have them log in again.
-3. Disable **account device enforcement** temporarily from `/admin/security` if
-   many companies are locked (re-enable once devices are rebound).
-4. If a live session still bounces after pull/reload, use a **separate** 24h
-   window. Leave these **out of PM2** `env_production`:
-
-```
-EMERGENCY_DEVICE_BINDING_BYPASS=true
-EMERGENCY_DEVICE_BINDING_BYPASS_EXPIRES_AT=2026-09-21T12:00:00Z
-EMERGENCY_DEVICE_BINDING_BYPASS_REASON=DEVICE_BINDING_MISMATCH portal lockout
-```
-
-Then `pm2 reload ecosystem.config.js --env production --update-env`.
-
-Remove the three lines when the window ends.
-
-## Administrator: pull and restart (production outage)
-
-On the live host, as the service user, from the application directory:
-
-```powershell
-git fetch origin main
-git pull origin main
-node scripts/auditProductionEnv.js .env
-pm2 reload ecosystem.config.js --env production --update-env
-pm2 logs Ahram_Core_API --lines 80
-```
-
-Confirm `/health` returns `authenticationMode: enhanced-verification` and
-that Redis stays required. That health value stays `enhanced-verification`
-when `LOGIN_OTP_SKIP_WITHOUT_EMAIL=true`. Do **not** set
-`PASSWORD_ONLY_LOGIN_MODE=true`, `BYPASS_OTP=true`, or `REDIS_REQUIRED=false`.
-
-Related financial break-glass (unchanged):
-
-- `EMERGENCY_STANDALONE_FINANCIAL_WRITES=true` with the matching expiry and reason
-
-`ENABLE_ENV_ADMIN_LOGIN` stays false. Do not use `PANEL_USER` / `PANEL_PASS` for normal production login.
-
-Staging (`NODE_ENV=staging`, `.env.staging.example`) may remain password-only for sandbox testing.
+OTP bypass alone does not clear `/login?security=DEVICE_BINDING_MISMATCH`.
+Device bindings are per channel; executor app login must not revoke the
+executor-portal browser device. If accounts are locked, inspect and revoke only
+the affected web device from `/admin/security`. Do not disable device
+enforcement broadly without an approved incident procedure. Any emergency
+device-binding bypass must be time-limited, documented, and separately approved.

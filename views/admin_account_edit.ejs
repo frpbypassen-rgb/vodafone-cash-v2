@@ -153,17 +153,16 @@
                     <div class="field-grid two">
                         <div class="field">
                             <label for="accountOwnerEmail">البريد الإلكتروني لصاحب الحساب <span class="required">*</span></label>
-                            <input id="accountOwnerEmail" name="<%= accountType === 'company' ? 'ownerEmail' : 'email' %>" type="text" inputmode="email" autocapitalize="none" spellcheck="false" class="form-control mono" value="<%= accountType === 'company' ? value('ownerEmail') : value('email') %>" maxlength="254" autocomplete="off" placeholder="name@example.com" required data-required-email="owner" title="البريد الإلكتروني مطلوب ويجب أن يكون بريداً صالحاً.">
+                            <input id="accountOwnerEmail" name="<%= accountType === 'company' ? 'ownerEmail' : 'email' %>" type="text" inputmode="email" autocapitalize="none" spellcheck="false" class="form-control mono" value="<%= accountType === 'company' ? value('ownerEmail') : value('email') %>" maxlength="254" autocomplete="off" placeholder="name@example.com" data-required-email="owner" data-email-otp-address title="يلزم بريد صالح فقط عند تفعيل رمز الدخول بالبريد.">
                         </div>
                     </div>
                     <div class="permission-grid mt-3">
-                        <input type="hidden" name="emailOtpEnabled" value="true">
                         <label class="permission-option">
-                            <input type="checkbox" checked disabled>
+                            <input type="checkbox" name="emailOtpEnabled" value="true" data-email-otp-toggle <%= value('emailOtpEnabled') ? 'checked' : '' %>>
                             <span>إرسال رمز التحقق عبر البريد</span>
                         </label>
                     </div>
-                    <div class="security-note" style="margin-top:12px;margin-bottom:0;"><i class="fa-solid fa-envelope"></i><span>البريد الإلكتروني إلزامي. عند الحفظ يُرسل رمز التحقق عبر البريد في كل تسجيل دخول. مسار واتساب يبقى فقط إذا لم يوجد بريد صالح على الحساب.</span></div>
+                    <div class="security-note" style="margin-top:12px;margin-bottom:0;"><i class="fa-solid fa-envelope"></i><span>عند التفعيل يصل OTP إلى البريد. عند إيقافه يكون الدخول بكلمة المرور فقط، ولا يُرسل OTP عبر واتساب.</span></div>
                 </section>
             <% } %>
 
@@ -193,17 +192,16 @@
                     <div class="field-grid two">
                         <div class="field">
                             <label for="email">البريد الإلكتروني <span class="required">*</span></label>
-                            <input id="email" name="email" type="text" inputmode="email" autocapitalize="none" spellcheck="false" class="form-control mono" value="<%= value('email') %>" maxlength="254" autocomplete="off" placeholder="name@example.com" required data-required-email="owner" title="البريد الإلكتروني مطلوب ويجب أن يكون بريداً صالحاً.">
+                            <input id="email" name="email" type="text" inputmode="email" autocapitalize="none" spellcheck="false" class="form-control mono" value="<%= value('email') %>" maxlength="254" autocomplete="off" placeholder="name@example.com" data-required-email="owner" data-email-otp-address title="يلزم بريد صالح فقط عند تفعيل رمز الدخول بالبريد.">
                         </div>
                     </div>
                     <div class="permission-grid mt-3">
-                        <input type="hidden" name="emailOtpEnabled" value="true">
                         <label class="permission-option">
-                            <input type="checkbox" checked disabled>
+                            <input type="checkbox" name="emailOtpEnabled" value="true" data-email-otp-toggle <%= value('emailOtpEnabled') ? 'checked' : '' %>>
                             <span>إرسال رمز التحقق عبر البريد</span>
                         </label>
                     </div>
-                    <div class="security-note" style="margin-top:12px;margin-bottom:0;"><i class="fa-solid fa-envelope"></i><span>البريد الإلكتروني إلزامي. عند الحفظ يُرسل رمز التحقق عبر البريد في كل تسجيل دخول. مسار واتساب يبقى فقط إذا لم يوجد بريد صالح على الحساب.</span></div>
+                    <div class="security-note" style="margin-top:12px;margin-bottom:0;"><i class="fa-solid fa-envelope"></i><span>عند التفعيل يصل OTP إلى البريد. عند إيقافه يكون الدخول بكلمة المرور فقط، ولا يُرسل OTP عبر واتساب.</span></div>
                 </section>
             <% } %>
 

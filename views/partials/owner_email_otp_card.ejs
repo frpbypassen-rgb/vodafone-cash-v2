@@ -8,7 +8,7 @@
         <% } %>
         <form action="/admin/accounts/<%= ownerOtp.type %>/<%= ownerOtp.id %>/owner-otp" method="POST" class="row g-2 align-items-center">
             <div class="col-md-7">
-                <input id="accountOwnerEmail" type="text" inputmode="email" autocapitalize="none" spellcheck="false" name="email" class="form-control fw-bold unified-height border-0 shadow-sm" dir="ltr" maxlength="254" value="<%= ownerOtp.email || '' %>" placeholder="name@example.com" autocomplete="off" <%= ownerOtp.missingOwner ? 'disabled' : 'required' %> data-required-email="owner" title="البريد الإلكتروني مطلوب ويجب أن يكون بريداً صالحاً.">
+                <input id="accountOwnerEmail" type="text" inputmode="email" autocapitalize="none" spellcheck="false" name="email" class="form-control fw-bold unified-height border-0 shadow-sm" dir="ltr" maxlength="254" value="<%= ownerOtp.email || '' %>" placeholder="name@example.com" autocomplete="off" <%= ownerOtp.missingOwner ? 'disabled' : '' %> data-required-email="owner" data-email-otp-address title="يلزم بريد صالح فقط عند تفعيل رمز الدخول بالبريد.">
             </div>
             <div class="col-md-5">
                 <button type="submit" class="btn w-100 fw-bold text-white unified-height justify-content-center shadow-sm btn-3d-hover d-flex align-items-center gap-2" style="background:#087f74;" <%= ownerOtp.missingOwner ? 'disabled' : '' %>>
@@ -17,13 +17,17 @@
             </div>
             <div class="col-12">
                 <% if (!ownerOtp.missingOwner) { %>
-                    <input type="hidden" name="emailOtpEnabled" value="true">
-                <% } %>
                 <label class="d-flex align-items-center gap-2 fw-bold mb-0">
-                    <input type="checkbox" <%= ownerOtp.missingOwner ? '' : 'checked' %> disabled>
+                    <input type="checkbox" name="emailOtpEnabled" value="true" data-email-otp-toggle <%= ownerOtp.emailOtpEnabled ? 'checked' : '' %>>
                     <span>إرسال رمز التحقق عبر البريد</span>
                 </label>
-                <div class="small text-muted mt-1">البريد الإلكتروني إلزامي. عند الحفظ يُرسل رمز التحقق عبر البريد في كل تسجيل دخول. مسار واتساب يبقى فقط إذا لم يوجد بريد صالح على الحساب.</div>
+                <% } else { %>
+                <label class="d-flex align-items-center gap-2 fw-bold mb-0">
+                    <input type="checkbox" disabled>
+                    <span>إرسال رمز التحقق عبر البريد</span>
+                </label>
+                <% } %>
+                <div class="small text-muted mt-1">عند التفعيل يُرسل OTP إلى هذا البريد. عند إيقافه يكون الدخول بكلمة المرور فقط، ولا يُرسل OTP عبر واتساب.</div>
             </div>
         </form>
     </div>

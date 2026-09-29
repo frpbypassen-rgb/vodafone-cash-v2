@@ -46,7 +46,7 @@ describe('admin login email', () => {
         expect(whatsappHtml).toContain('الرمز غير صحيح أو منتهي الصلاحية.');
     });
 
-    test('admin management screens require an email and explain the WhatsApp fallback', () => {
+    test('admin management screens require email OTP and explicitly rule out WhatsApp login', () => {
         const settings = fs.readFileSync(path.join(__dirname, '../views/settings_users.ejs'), 'utf8');
         const security = fs.readFileSync(path.join(__dirname, '../views/admin_security.ejs'), 'utf8');
         const securityRoute = fs.readFileSync(path.join(__dirname, '../routes/securityAdmin.js'), 'utf8');
@@ -56,7 +56,9 @@ describe('admin login email', () => {
         expect(settings).toContain('البريد الإلكتروني لرمز الدخول');
         expect(settings).toContain('/settings/users/email/');
         expect(settings).toContain('data-required-email="admin"');
-        expect(settings).toContain('مسار واتساب يبقى فقط إذا لم يوجد بريد صالح على الحساب.');
+        expect(settings).toContain('البريد الإلكتروني إلزامي لحسابات الإدارة، ويُرسل رمز الدخول عبر البريد فقط.');
+        expect(settings).toContain('لا يُستخدم واتساب لرمز تسجيل الدخول.');
+        expect(settings).not.toContain('مسار واتساب يبقى فقط إذا لم يوجد بريد صالح على الحساب.');
         expect(security).toContain('name="email"');
         expect(security).toContain('adminEditorEmail');
         expect(security).toContain('email:f.email.value');

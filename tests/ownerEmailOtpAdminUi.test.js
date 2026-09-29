@@ -102,10 +102,11 @@ describe('owner email OTP admin screens', () => {
         expect(html).toContain('id="owner-email-otp"');
         expect(html).toContain('البريد الإلكتروني لصاحب الحساب');
         expect(html).toContain('إرسال رمز التحقق عبر البريد');
-        expect(html).toContain('البريد الإلكتروني إلزامي');
+        expect(html).toContain('يلزم بريد صالح فقط عند تفعيل رمز الدخول بالبريد');
         expect(html).toContain('name="emailOtpEnabled"');
         expect(html.match(/name="emailOtpEnabled"/g)).toHaveLength(1);
-        expect(html).toMatch(/id="accountOwnerEmail"[^>]*required/);
+        expect(html).toContain('data-email-otp-address');
+        expect(html).toContain('input.required = otpToggle.checked');
         if (accountType === 'company') {
             expect(html).toContain('name="ownerEmail"');
             expect(html).toContain('البريد الإلكتروني للشركة');
@@ -136,8 +137,8 @@ describe('owner email OTP admin screens', () => {
 
         expect(card).toContain('البريد الإلكتروني لصاحب الحساب');
         expect(card).toContain('إرسال رمز التحقق عبر البريد');
-        expect(card).toContain('البريد الإلكتروني إلزامي');
-        expect(card).toContain('required');
+        expect(card).toContain('يلزم بريد صالح فقط عند تفعيل رمز الدخول بالبريد');
+        expect(card).toContain('input.required = otpToggle.checked');
         expect(card).toContain('type="text"');
         expect(card).toContain('/js/account-email-address.js');
         expect(card).not.toContain('type="email"');

@@ -165,7 +165,7 @@ describe('Production security policy', () => {
         expect(isEmergencyStandaloneFinancialWritesActive(env, Date.parse('2026-08-21T02:00:01Z'))).toBe(false);
     });
 
-    test('accepts LOGIN_OTP_SKIP_WITHOUT_EMAIL in production and warns at boot', () => {
+    test('accepts the legacy LOGIN_OTP_SKIP_WITHOUT_EMAIL flag without changing OTP policy', () => {
         const env = productionEnv({ LOGIN_OTP_SKIP_WITHOUT_EMAIL: 'true' });
         const result = validateProductionSecurityEnv(env);
         expect(isLoginOtpSkipWithoutEmailEnabled(env)).toBe(true);
@@ -175,12 +175,11 @@ describe('Production security policy', () => {
         expect(isPasswordOnlyLoginMode(env) ? 'password-only' : 'enhanced-verification').toBe('enhanced-verification');
         expect(result.valid).toBe(true);
         expect(result.errors).toEqual([]);
-        expect(result.warnings.join(' ')).toContain('LOGIN_OTP_SKIP_WITHOUT_EMAIL is active');
-        expect(result.warnings.join(' ')).toContain('valid email still require an email OTP');
+        expect(result.warnings.join(' ')).not.toContain('LOGIN_OTP_SKIP_WITHOUT_EMAIL');
 
         const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
         expect(() => assertProductionSecurityEnv(env)).not.toThrow();
-        expect(warn).toHaveBeenCalledWith(expect.stringContaining('[SECURITY WARNING] LOGIN_OTP_SKIP_WITHOUT_EMAIL is active'));
+        expect(warn).not.toHaveBeenCalledWith(expect.stringContaining('LOGIN_OTP_SKIP_WITHOUT_EMAIL'));
         warn.mockRestore();
 
         const disabled = validateProductionSecurityEnv(productionEnv({ LOGIN_OTP_SKIP_WITHOUT_EMAIL: 'false' }));
