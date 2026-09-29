@@ -25,6 +25,9 @@ Receipt messages, cancellation receipts, rate alerts, financial group alerts,
 and support replies are separate flows and are not disabled by the login OTP
 policy.
 
+Central administration accounts are an exception to password-only login: they
+require email OTP and fail closed when no enabled, valid email channel exists.
+
 ## Password reset
 
 Password reset is email-only and stays off unless `PASSWORD_RESET_EMAIL_ENABLED`
@@ -81,8 +84,29 @@ LOGIN_OTP_EMAIL_TEMPLATE_V2=false
 `BRAND_PHONE_TEL` is used by `tel:` links and `BRAND_PHONE_DISPLAY` is the
 visible number. Both default to `0913731533`.
 
+## One test message, without a restart
+
+Only run this command after approval to send a real email. It loads the local
+`.env` and selects V2 for this separate process without changing `.env` or PM2.
+The recipient is fixed to `support@ahrampay.com`; other addresses are refused
+with `RECIPIENT_REFUSED`. The sample code is not printed to the console.
+
+```powershell
+node .\scripts\sendLoginOtpTemplateV2Sample.js --template v2
+```
+
+## Logo deployment check
+
+`public/images/login-otp-logo.jpg` is a real JPEG served by the application's
+static middleware. The earlier report dated 2026-09-26 said the image was
+"not on production yet" and the URL redirected to login. That is a historical
+observation, not a check of the current deployment. After deployment, verify
+that `/images/login-otp-logo.jpg` returns HTTP 200 and `image/jpeg`.
+
 ## DNS
 
-SPF and DKIM were previously observed for `ahrampay.com`; DMARC was not
-published at the time of the last check. Verify DNS with the mail provider
-before making delivery policy changes.
+The earlier report dated 2026-09-26 recorded an SPF TXT record starting with
+`v=spf1` and a DKIM record at `default._domainkey.ahrampay.com`. It recorded
+`NXDOMAIN` for `_dmarc.ahrampay.com`. These are historical observations; verify
+the current records with the mail provider before changing delivery policy.
+This release does not create or change DNS records.
