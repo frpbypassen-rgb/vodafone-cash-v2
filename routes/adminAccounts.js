@@ -215,7 +215,9 @@ router.post('/admin/accounts/:type/:id/owner-otp', requireAuth, requireMaster, a
                 accountType: result.definition.type,
                 accountLabel: result.definition.label,
                 changedFields: result.changedFields,
-                ownerEmailOtp: true
+                ownerEmailOtp: (result.definition.type === 'company'
+                    ? result.newData.ownerOtpDeliveryChannel
+                    : result.newData.otpDeliveryChannel) === 'email'
             }
         }).catch(() => {});
 

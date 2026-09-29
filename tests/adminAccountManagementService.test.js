@@ -90,6 +90,7 @@ const userPayload = (overrides = {}) => ({
     accountCode: '123456',
     contactName: 'مسؤول الحساب',
     email: 'owner@example.com',
+    emailOtpEnabled: 'true',
     city: 'طرابلس',
     address: 'وسط المدينة',
     registrationNumber: 'REG-10',
@@ -168,7 +169,7 @@ describe('admin account management service', () => {
         await expect(updateEditableAccount({
             type: 'user',
             id: IDS.account,
-            payload: userPayload({ email: '   ' })
+            payload: userPayload({ email: '   ', emailOtpEnabled: 'true' })
         })).rejects.toMatchObject({ code: 'EMAIL_REQUIRED', field: 'email' });
 
         expect(account.save).not.toHaveBeenCalled();
@@ -231,7 +232,8 @@ describe('admin account management service', () => {
                 companyId: IDS.owner,
                 canViewAllReports: 'true',
                 canManageCompany: 'on',
-                email: 'staff@example.com'
+                email: 'staff@example.com',
+                emailOtpEnabled: 'true'
             }
         });
 
@@ -269,7 +271,8 @@ describe('admin account management service', () => {
                 status: 'active',
                 role: 'employee',
                 companyId: IDS.owner,
-                email: 'Staff@Example.com'
+                email: 'Staff@Example.com',
+                emailOtpEnabled: 'true'
             }
         });
 
@@ -301,7 +304,8 @@ describe('admin account management service', () => {
                 status: 'active',
                 role: 'employee',
                 companyId: IDS.owner,
-                email: ''
+                email: '',
+                emailOtpEnabled: 'true'
             }
         })).rejects.toMatchObject({ code: 'EMAIL_REQUIRED', field: 'email' });
 
@@ -398,7 +402,7 @@ describe('admin account management service', () => {
         });
     });
 
-    test('keeps email OTP when a client save clears the old checkbox', async () => {
+    test('disables OTP when the admin clears the checkbox and retains the saved email', async () => {
         const account = makeAccount({
             otpDeliveryChannel: 'email',
             businessProfile: { email: 'owner@example.com' }
@@ -411,11 +415,11 @@ describe('admin account management service', () => {
             payload: userPayload({ emailOtpEnabled: '' })
         });
 
-        expect(account.otpDeliveryChannel).toBe('email');
+        expect(account.otpDeliveryChannel).toBe('whatsapp');
         expect(account.businessProfile.email).toBe('owner@example.com');
     });
 
-    test('defaults a client owner-email save to the email OTP channel', async () => {
+    test('stores a client owner email without enabling OTP unless selected by the admin', async () => {
         const account = makeAccount();
         User.findById.mockResolvedValue(account);
 
@@ -426,7 +430,7 @@ describe('admin account management service', () => {
         });
 
         expect(account.businessProfile.email).toBe('owner@example.com');
-        expect(account.otpDeliveryChannel).toBe('email');
+        expect(account.otpDeliveryChannel).toBe('whatsapp');
     });
 
     test('accepts any normal owner email, including gmail, and stores it lowercase', async () => {
@@ -436,7 +440,7 @@ describe('admin account management service', () => {
         await updateAccountOwnerEmailOtp({
             type: 'user',
             id: IDS.account,
-            payload: { email: '  TZDANALLYBYH@Gmail.COM ' }
+            payload: { email: '  TZDANALLYBYH@Gmail.COM ', emailOtpEnabled: 'true' }
         });
 
         expect(account.businessProfile.email).toBe('tzdanallybyh@gmail.com');
@@ -457,6 +461,7 @@ describe('admin account management service', () => {
         city: 'طرابلس',
         address: 'الشارع الرئيسي',
         registrationNumber: 'CR-9',
+        emailOtpEnabled: 'true',
         ...overrides
     });
 
@@ -537,7 +542,7 @@ describe('admin account management service', () => {
             .not.toBe(getErrorMessage(new AdminAccountManagementError('EMAIL_INVALID')));
     });
 
-    test('keeps company owner OTP on email when the checkbox is cleared', async () => {
+    test('disables company owner OTP when the admin clears the checkbox', async () => {
         const company = makeAccount({
             phone: '0912222222',
             accountCode: '12345',
@@ -555,11 +560,11 @@ describe('admin account management service', () => {
         await updateEditableAccount({
             type: 'company',
             id: IDS.account,
-            payload: companyPayload()
+            payload: companyPayload({ emailOtpEnabled: '' })
         });
 
         expect(owner.email).toBe('owner@example.com');
-        expect(owner.otpDeliveryChannel).toBe('email');
+        expect(owner.otpDeliveryChannel).toBe('whatsapp');
     });
 
     test('refuses to enable company email OTP when the company has no owner login', async () => {

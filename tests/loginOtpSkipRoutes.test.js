@@ -13,7 +13,7 @@ const sliceBetween = (source, start, end) => {
     return source.slice(from, to);
 };
 
-describe('no-email login OTP skip is wired through every portal login', () => {
+describe('account-level login OTP opt-in is wired through portal login', () => {
     test('client, company, agency, sub-account, and unified executor login complete without OTP', () => {
         const auth = read('routes/auth.js');
         const startClientOtp = sliceBetween(auth, 'const startClientOtp', 'const continueVerifiedPortalLogin');
@@ -27,7 +27,7 @@ describe('no-email login OTP skip is wired through every portal login', () => {
             .toContain('loginAsExecutor');
     });
 
-    test('admin login completes through the same path as the emergency bypass', () => {
+    test('admin login OTP handling remains explicit and auditable', () => {
         const auth = read('routes/auth.js');
         const startAdminOtp = sliceBetween(auth, 'const startAdminOtp', 'const continueAdminLogin');
         expect(startAdminOtp).toContain("issued.status === 'skip_no_email'");
@@ -48,11 +48,11 @@ describe('no-email login OTP skip is wired through every portal login', () => {
             .toContain('allowFirstDevice: true');
     });
 
-    test('audit and security center name the no-email skip so admins can filter it', () => {
+    test('audit and security center name account-level OTP opt-out so admins can filter it', () => {
         const auditView = read('views/audit_log.ejs');
         const securityCenter = read('services/securityCommandCenterService.js');
         expect(auditView).toContain('value="LOGIN_OTP_SKIPPED"');
-        expect(auditView).toContain('دخول بدون رمز — لا يوجد بريد');
-        expect(securityCenter).toContain("LOGIN_OTP_SKIPPED: 'دخول بدون رمز تحقق (لا يوجد بريد)'");
+        expect(auditView).toContain('دخول بدون OTP — غير مفعّل للحساب');
+        expect(securityCenter).toContain("LOGIN_OTP_SKIPPED: 'دخول بدون OTP (غير مفعّل للحساب)'");
     });
 });

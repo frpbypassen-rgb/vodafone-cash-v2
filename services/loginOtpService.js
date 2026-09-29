@@ -4,7 +4,6 @@ const { randomUUID } = require('crypto');
 const { generateOtp, hashOtp } = require('../utils/otp');
 const {
     getEmergencyClientOtpBypassState,
-    isLoginOtpSkipWithoutEmailEnabled,
     shouldBypassClientOtp
 } = require('../config/securityPolicy');
 const User = require('../models/User');
@@ -13,7 +12,7 @@ const AgentEmployee = require('../models/AgentEmployee');
 const SubAccount = require('../models/SubAccount');
 const Employee = require('../models/Employee');
 const Admin = require('../models/Admin');
-const { selectLoginOtpChannel } = require('../utils/otpDeliveryChannel');
+const { isLoginOtpEnabledForAccount, selectLoginOtpChannel } = require('../utils/otpDeliveryChannel');
 
 const LOGIN_OTP_PORTALS = Object.freeze({
     user: {
@@ -86,8 +85,9 @@ const publicDeliveryMessage = (code, fallback) => {
         WHATCHIMP_REQUEST_FAILED: `تعذر الاتصال بمزوّد واتساب. أعد المحاولة بعد دقيقة. رمز الحالة: ${normalized}`,
         EMAIL_OTP_ADDRESS_INVALID: 'البريد الإلكتروني المسجّل غير صالح لإرسال رمز التحقق. راجع الإدارة.',
         EMAIL_OTP_DISABLED: 'إرسال رمز التحقق عبر البريد متوقف. تواصل مع الإدارة.',
-        WHATSAPP_LOGIN_OTP_DISABLED: 'إرسال رمز تسجيل الدخول عبر واتساب متوقف مؤقتاً. استخدم أو أضف بريداً إلكترونياً، أو تواصل مع الإدارة.',
-        WHATSAPP_OTP_DISABLED: 'إرسال رمز التحقق عبر واتساب متوقف. استخدم البريد الإلكتروني، أو تواصل مع الإدارة.',
+        LOGIN_OTP_NOT_ENABLED: 'رمز التحقق غير مفعّل لهذا الحساب. تابع تسجيل الدخول أو تواصل مع الإدارة إذا كنت تتوقع طلب الرمز.',
+        WHATSAPP_LOGIN_OTP_DISABLED: 'رمز تسجيل الدخول عبر واتساب غير متاح. تواصل مع الإدارة لتفعيل رمز التحقق بالبريد عند الحاجة.',
+        WHATSAPP_OTP_DISABLED: 'رمز التحقق عبر واتساب غير متاح. تواصل مع الإدارة.',
         SMTP_CONFIG_MISSING: `إعداد البريد غير مكتمل على الخادم. رمز الحالة: ${normalized}`,
         EMAIL_OTP_SEND_FAILED: `تعذر إرسال رمز التحقق عبر البريد. أعد المحاولة بعد دقيقة. رمز الحالة: ${normalized}`,
         EMAIL_OTP_TIMEOUT: `انتهت مهلة إرسال البريد. أعد المحاولة بعد دقيقة. رمز الحالة: ${normalized}`
@@ -101,17 +101,16 @@ const getLoginOtpPortal = (accountType) => LOGIN_OTP_PORTALS[accountType] || nul
 const isLoginOtpRequired = (env = process.env, now = Date.now()) => !shouldBypassClientOtp(env, now);
 
 /**
- * Password-only login for accounts that have no usable stored email.
- * A valid address stays on email OTP. An explicit email channel with a
- * missing or invalid address stays a delivery failure (it is not "no email").
- * WhatsApp is never selected for delivery when this returns true.
+ * OTP is an explicit per-account opt-in controlled by administration.
+ * Accounts without the email channel use password-only login; WhatsApp is
+ * never used for login OTP.
  */
-const shouldSkipLoginOtpWithoutEmail = (account = {}, env = process.env) => {
-    if (!isLoginOtpSkipWithoutEmailEnabled(env)) return false;
-    return selectLoginOtpChannel(account, env).channel === 'whatsapp';
-};
+const shouldSkipLoginOtp = (account = {}, accountType) => (
+    accountType !== 'admin' && !isLoginOtpEnabledForAccount(account)
+);
+const shouldSkipLoginOtpWithoutEmail = shouldSkipLoginOtp;
 
-const buildLoginOtpSkippedAudit = ({ account = {}, accountType } = {}) => {
+const buildLoginOtpSkippedAudit = ({ account = {}, accountType, reason = 'not_enabled_by_admin' } = {}) => {
     const portal = getLoginOtpPortal(accountType);
     return {
         action: 'LOGIN_OTP_SKIPPED',
@@ -123,7 +122,7 @@ const buildLoginOtpSkippedAudit = ({ account = {}, accountType } = {}) => {
         metadata: {
             accountId: String(account._id || ''),
             portal: accountType,
-            reason: 'no_email'
+            reason
         }
     };
 };
@@ -162,15 +161,18 @@ const readLoginOtpAttempt = (req = {}) => {
     };
 };
 
-const deliverLoginOtp = async ({ phone, otp, accountName, accountTypeLabel, account, expiresAt, attempt }) => {
+const deliverLoginOtp = async ({ otp, accountName, account, expiresAt, attempt }) => {
     const selection = selectLoginOtpChannel(account || {});
     if (selection.code) {
         return {
             success: false,
-            provider: selection.channel === 'email' ? 'smtp' : 'whatsapp',
+            provider: selection.channel === 'email' ? 'smtp' : 'none',
             channel: selection.channel,
             code: selection.code
         };
+    }
+    if (selection.channel !== 'email') {
+        return { success: false, provider: 'none', channel: 'disabled', code: 'LOGIN_OTP_NOT_ENABLED' };
     }
     if (selection.channel === 'email') {
         try {
@@ -195,24 +197,7 @@ const deliverLoginOtp = async ({ phone, otp, accountName, accountTypeLabel, acco
         }
     }
 
-    try {
-        const { sendOtp } = require('./whatsappService');
-        const result = await sendOtp({
-            phone,
-            otp,
-            expiresMinutes: 5,
-            accountName: accountName || '',
-            accountType: accountTypeLabel
-        });
-        return { ...result, channel: 'whatsapp' };
-    } catch (error) {
-        return {
-            success: false,
-            provider: 'whatchimp',
-            channel: 'whatsapp',
-            code: error.code || 'WHATSAPP_OTP_FAILED'
-        };
-    }
+    return { success: false, provider: 'none', channel: 'disabled', code: 'LOGIN_OTP_NOT_ENABLED' };
 };
 
 const clearStoredOtp = async (Model, accountId) => {
@@ -220,25 +205,19 @@ const clearStoredOtp = async (Model, accountId) => {
 };
 
 /**
- * Persist a hashed login OTP and deliver it on the account channel.
- * A valid stored address is delivered by email. EMAIL_OTP_ENABLED defaults
- * to on; an explicit off returns EMAIL_OTP_DISABLED and does not use
- * WhatsApp. Accounts with no usable address stay on the WhatsApp selection
- * so LOGIN_OTP_SKIP_WITHOUT_EMAIL can still complete password-only login.
- * An open WhatsApp send also requires WHATSAPP_OTP_ENABLED=true and
- * OTP_DELIVERY_CHANNEL other than email. A failed email delivery still
- * clears the stored OTP and can fall through to the emergency bypass when
- * that window is active. It never falls back to WhatsApp and never skips
- * OTP for an account that has a valid address.
+ * Persist a hashed login OTP and deliver it by email only for accounts where
+ * administration explicitly enabled the email channel. An invalid enabled
+ * address or failed email delivery fails closed. WhatsApp is never used for
+ * login OTP.
  */
 const issueLoginOtp = async ({ account, accountType, session = {}, attempt = null }) => {
     const portal = getLoginOtpPortal(accountType);
     if (!portal) {
         return { status: 'unsupported', code: 'OTP_ACCOUNT_TYPE_UNSUPPORTED', message: 'نوع الحساب لا يدعم رمز التحقق.' };
     }
-    if (shouldSkipLoginOtpWithoutEmail(account)) {
+    if (shouldSkipLoginOtp(account, accountType)) {
         await clearStoredOtp(portal.Model, account._id);
-        return { status: 'skip_no_email', portal, reason: 'no_email' };
+        return { status: 'skip_no_email', portal, reason: 'not_enabled_by_admin' };
     }
     if (hasReusableChallenge({ account, accountType, session })) {
         return { status: 'reuse', portal, otpChallengeId: String(account.otpChallengeId) };
@@ -262,10 +241,8 @@ const issueLoginOtp = async ({ account, accountType, session = {}, attempt = nul
     );
 
     const delivery = await deliverLoginOtp({
-        phone: account.phone,
         otp,
         accountName: account.name || account.webUsername || '',
-        accountTypeLabel: portal.label,
         account,
         expiresAt: otpExpires,
         attempt
@@ -307,5 +284,6 @@ module.exports = {
     publicDeliveryMessage,
     readLoginOtpAttempt,
     selectLoginOtpChannel,
+    shouldSkipLoginOtp,
     shouldSkipLoginOtpWithoutEmail
 };

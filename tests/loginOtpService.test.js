@@ -89,7 +89,8 @@ describe('login OTP service', () => {
             _id: 'company-1',
             phone: '0912345678',
             name: 'شركة الأهرام',
-            email: 'company@example.com'
+            email: 'company@example.com',
+            otpDeliveryChannel: 'email'
         };
         const result = await issueLoginOtp({ account, accountType: 'company', session: {} });
         expect(result.status).toBe('sent');
@@ -113,7 +114,8 @@ describe('login OTP service', () => {
                 _id: 'exec-1',
                 phone: '0922222222',
                 name: 'منفذ',
-                email: 'executor@example.com'
+                email: 'executor@example.com',
+                otpDeliveryChannel: 'email'
             },
             accountType: 'executor',
             session: {}
@@ -125,17 +127,16 @@ describe('login OTP service', () => {
         expect(sendOtp).not.toHaveBeenCalled();
     });
 
-    test('returns a clear failure when WhatsApp delivery fails and emergency bypass is off', async () => {
+    test('skips login OTP when administration has not enabled email for the account', async () => {
         process.env.WHATSAPP_OTP_ENABLED = 'true';
         process.env.WHATSAPP_LOGIN_OTP_ENABLED = 'true';
-        sendOtp.mockResolvedValue({ success: false, code: 'WHATCHIMP_TIMEOUT', provider: 'whatchimp' });
         const result = await issueLoginOtp({
             account: { _id: 'user-1', phone: '0911111111', name: 'عميل' },
             accountType: 'user',
             session: {}
         });
-        expect(result.status).toBe('failed');
-        expect(result.message).toContain('WHATCHIMP_TIMEOUT');
+        expect(result.status).toBe('skip_no_email');
+        expect(result.reason).toBe('not_enabled_by_admin');
         expect(User.updateOne).toHaveBeenCalledWith(
             { _id: 'user-1' },
             { $unset: expect.objectContaining({ otpCode: 1 }) },
@@ -164,13 +165,14 @@ describe('login OTP service', () => {
         process.env.EMERGENCY_CLIENT_OTP_BYPASS_REASON = 'WhatChimp outage';
 
         try {
+            sendLoginOtpEmail.mockResolvedValue({ success: false, code: 'EMAIL_OTP_SEND_FAILED', channel: 'email' });
             const result = await issueLoginOtp({
-                account: { _id: 'exec-2', phone: '0933333333', name: 'منفذ' },
+                account: { _id: 'exec-2', phone: '0933333333', name: 'منفذ', email: 'exec@example.com', otpDeliveryChannel: 'email' },
                 accountType: 'executor',
                 session: {}
             });
             expect(result.status).toBe('emergency_bypass');
-            expect(result.code).toBe('WHATSAPP_OTP_DISABLED');
+            expect(result.code).toBe('EMAIL_OTP_SEND_FAILED');
             expect(result.portal.accountType).toBe('executor');
             expect(sendOtp).not.toHaveBeenCalled();
             expect(JSON.stringify(result)).not.toMatch(/\d{6}/);
@@ -194,10 +196,10 @@ describe('login OTP service', () => {
         expect(publicDeliveryMessage('WHATSAPP_PHONE_REQUIRED')).not.toMatch(/\d{6}/);
         expect(publicDeliveryMessage('SMTP_CONFIG_MISSING')).toContain('إعداد البريد');
         expect(publicDeliveryMessage('EMAIL_OTP_ADDRESS_INVALID')).toContain('البريد الإلكتروني');
-        expect(publicDeliveryMessage('WHATSAPP_LOGIN_OTP_DISABLED')).toContain('واتساب متوقف مؤقتاً');
-        expect(publicDeliveryMessage('WHATSAPP_LOGIN_OTP_DISABLED')).toContain('بريداً إلكترونياً');
+        expect(publicDeliveryMessage('WHATSAPP_LOGIN_OTP_DISABLED')).toContain('واتساب غير متاح');
+        expect(publicDeliveryMessage('WHATSAPP_LOGIN_OTP_DISABLED')).toContain('البريد');
         expect(publicDeliveryMessage('WHATSAPP_LOGIN_OTP_DISABLED')).toContain('الإدارة');
-        expect(publicDeliveryMessage('WHATSAPP_OTP_DISABLED')).toContain('واتساب متوقف');
+        expect(publicDeliveryMessage('WHATSAPP_OTP_DISABLED')).toContain('واتساب غير متاح');
         expect(publicDeliveryMessage('EMAIL_OTP_DISABLED')).toContain('البريد متوقف');
         expect(publicDeliveryMessage('WHATSAPP_OTP_DISABLED')).not.toMatch(/\d{6}/);
         expect(publicDeliveryMessage('EMAIL_OTP_DISABLED')).not.toMatch(/\d{6}/);
@@ -267,7 +269,7 @@ describe('login OTP service', () => {
         expect(Admin.updateOne).toHaveBeenCalled();
     });
 
-    test('does not send WhatsApp OTP for an admin account that has no email', async () => {
+    test('keeps OTP fail-closed for an admin account without an enabled email channel', async () => {
         const result = await issueLoginOtp({
             account: {
                 _id: 'admin-legacy',
@@ -279,13 +281,12 @@ describe('login OTP service', () => {
             session: {}
         });
         expect(result.status).toBe('failed');
-        expect(result.code).toBe('WHATSAPP_OTP_DISABLED');
-        expect(result.message).not.toMatch(/\d{6}/);
+        expect(result.code).toBe('LOGIN_OTP_NOT_ENABLED');
         expect(sendOtp).not.toHaveBeenCalled();
         expect(sendLoginOtpEmail).not.toHaveBeenCalled();
     });
 
-    test('sends email OTP when a valid address is stored even if the saved flag is WhatsApp', async () => {
+    test('does not send OTP when the administrator has not enabled the email channel', async () => {
         const account = {
             _id: 'user-mail',
             phone: '0912345678',
@@ -294,11 +295,14 @@ describe('login OTP service', () => {
             businessProfile: { email: 'owner@example.com' },
             otpDeliveryChannel: 'whatsapp'
         };
-        expect(selectLoginOtpChannel(account)).toEqual({ channel: 'email', email: 'owner@example.com' });
+        expect(selectLoginOtpChannel(account)).toEqual({
+            channel: 'disabled',
+            code: 'LOGIN_OTP_NOT_ENABLED'
+        });
         const result = await issueLoginOtp({ account, accountType: 'user', session: {} });
-        expect(result.status).toBe('sent');
-        expect(result.delivery.channel).toBe('email');
-        expect(sendLoginOtpEmail).toHaveBeenCalledWith(expect.objectContaining({ to: 'owner@example.com' }));
+        expect(result.status).toBe('skip_no_email');
+        expect(result.reason).toBe('not_enabled_by_admin');
+        expect(sendLoginOtpEmail).not.toHaveBeenCalled();
         expect(sendOtp).not.toHaveBeenCalled();
     });
 
@@ -370,7 +374,8 @@ describe('login OTP service', () => {
                 _id: 'user-mail-killswitch',
                 phone: '0912345678',
                 name: 'عميل البريد',
-                email: 'owner@example.com'
+                email: 'owner@example.com',
+                otpDeliveryChannel: 'email'
             };
             expect(selectLoginOtpChannel(account)).toEqual({ channel: 'email', email: 'owner@example.com' });
             const result = await issueLoginOtp({ account, accountType: 'user', session: {} });
@@ -384,7 +389,7 @@ describe('login OTP service', () => {
         }
     });
 
-    test('does not send WhatsApp login OTP when the flag is explicitly off and no email exists', async () => {
+    test('does not request WhatsApp OTP when it is disabled; account login proceeds without OTP', async () => {
         const previous = process.env.WHATSAPP_LOGIN_OTP_ENABLED;
         process.env.WHATSAPP_LOGIN_OTP_ENABLED = 'off';
         try {
@@ -393,10 +398,8 @@ describe('login OTP service', () => {
                 accountType: 'user',
                 session: {}
             });
-            expect(result.status).toBe('failed');
-            expect(result.code).toBe('WHATSAPP_LOGIN_OTP_DISABLED');
-            expect(result.message).toContain('واتساب متوقف مؤقتاً');
-            expect(result.message).not.toMatch(/مزوّد|WhatChimp|WHATCHIMP/i);
+            expect(result.status).toBe('skip_no_email');
+            expect(result.reason).toBe('not_enabled_by_admin');
             expect(sendOtp).not.toHaveBeenCalled();
             expect(sendLoginOtpEmail).not.toHaveBeenCalled();
             expect(User.updateOne).toHaveBeenCalledWith(
@@ -410,7 +413,7 @@ describe('login OTP service', () => {
         }
     });
 
-    test('does not send WhatsApp login OTP when the OTP flag is unset, even if the older flag is on', async () => {
+    test('never sends WhatsApp login OTP, even if the global delivery flags are enabled', async () => {
         delete process.env.WHATSAPP_LOGIN_OTP_ENABLED;
         delete process.env.WHATSAPP_OTP_ENABLED;
         const unset = await issueLoginOtp({
@@ -419,11 +422,11 @@ describe('login OTP service', () => {
             session: {}
         });
         expect(selectLoginOtpChannel({ phone: '0910000001' })).toEqual({
-            channel: 'whatsapp',
-            code: 'WHATSAPP_OTP_DISABLED'
+            channel: 'disabled',
+            code: 'LOGIN_OTP_NOT_ENABLED'
         });
-        expect(unset.status).toBe('failed');
-        expect(unset.code).toBe('WHATSAPP_OTP_DISABLED');
+        expect(unset.status).toBe('skip_no_email');
+        expect(unset.reason).toBe('not_enabled_by_admin');
         expect(sendOtp).not.toHaveBeenCalled();
 
         process.env.WHATSAPP_LOGIN_OTP_ENABLED = 'yes';
@@ -433,11 +436,8 @@ describe('login OTP service', () => {
             accountType: 'user',
             session: {}
         });
-        expect(enabled.status).toBe('sent');
-        expect(enabled.delivery.channel).toBe('whatsapp');
-        expect(sendOtp).toHaveBeenCalledWith(expect.objectContaining({ phone: '0910000002' }));
-        const sentOtp = sendOtp.mock.calls[0][0].otp;
-        expect(JSON.stringify(enabled)).not.toContain(sentOtp);
+        expect(enabled.status).toBe('skip_no_email');
+        expect(sendOtp).not.toHaveBeenCalled();
     });
 
     test('reports missing SMTP config and still allows the emergency bypass', async () => {
@@ -491,7 +491,7 @@ describe('login OTP service', () => {
         }
     });
 
-    test('still sends email OTP when skip-without-email is on and the account has a valid address', async () => {
+    test('sends email OTP only when administration enabled the email channel', async () => {
         process.env.LOGIN_OTP_SKIP_WITHOUT_EMAIL = 'true';
         process.env.WHATSAPP_LOGIN_OTP_ENABLED = 'false';
         const account = {
@@ -499,7 +499,7 @@ describe('login OTP service', () => {
             phone: '0912345678',
             name: 'عميل البريد',
             businessProfile: { email: 'Owner@Example.com' },
-            otpDeliveryChannel: 'whatsapp'
+            otpDeliveryChannel: 'email'
         };
         const result = await issueLoginOtp({ account, accountType: 'user', session: {} });
         expect(shouldSkipLoginOtpWithoutEmail(account)).toBe(false);
@@ -510,7 +510,7 @@ describe('login OTP service', () => {
         delete process.env.WHATSAPP_LOGIN_OTP_ENABLED;
     });
 
-    test('logs in without OTP for every portal when the account has no usable email and the flag is on', async () => {
+    test('skips OTP for managed portals unless email OTP is enabled by administration', async () => {
         process.env.LOGIN_OTP_SKIP_WITHOUT_EMAIL = 'true';
         process.env.WHATSAPP_LOGIN_OTP_ENABLED = 'false';
         const portals = [
@@ -518,8 +518,7 @@ describe('login OTP service', () => {
             ['company', require('../models/ClientEmployee'), 'ClientEmployee'],
             ['agent_staff', require('../models/AgentEmployee'), 'AgentEmployee'],
             ['sub_client', require('../models/SubAccount'), 'SubAccount'],
-            ['executor', require('../models/Employee'), 'Employee'],
-            ['admin', require('../models/Admin'), 'Admin']
+            ['executor', require('../models/Employee'), 'Employee']
         ];
         for (const [accountType, Model, performedByModel] of portals) {
             const account = {
@@ -540,7 +539,7 @@ describe('login OTP service', () => {
                 }
             });
             expect(result.status).toBe('skip_no_email');
-            expect(result.reason).toBe('no_email');
+            expect(result.reason).toBe('not_enabled_by_admin');
             expect(result.portal.accountType).toBe(accountType);
             expect(buildLoginOtpSkippedAudit({ account, accountType })).toEqual({
                 action: 'LOGIN_OTP_SKIPPED',
@@ -552,7 +551,7 @@ describe('login OTP service', () => {
                 metadata: {
                     accountId: account._id,
                     portal: accountType,
-                    reason: 'no_email'
+                    reason: 'not_enabled_by_admin'
                 }
             });
             expect(Model.updateOne).toHaveBeenCalledWith(
@@ -562,13 +561,20 @@ describe('login OTP service', () => {
             );
             expect(Model.updateOne.mock.calls.some((call) => call[1] && call[1].$set)).toBe(false);
         }
+        const adminResult = await issueLoginOtp({
+            account: { _id: 'admin-no-mail', name: 'مدير بلا بريد' },
+            accountType: 'admin',
+            session: {}
+        });
+        expect(adminResult.status).toBe('failed');
+        expect(adminResult.code).toBe('LOGIN_OTP_NOT_ENABLED');
         expect(sendOtp).not.toHaveBeenCalled();
         expect(sendLoginOtpEmail).not.toHaveBeenCalled();
         expect(isLoginOtpRequired(productionOtpEnv)).toBe(true);
         delete process.env.WHATSAPP_LOGIN_OTP_ENABLED;
     });
 
-    test('keeps the current no-email failure when skip-without-email is off', async () => {
+    test('keeps password-only login available when per-account OTP is off', async () => {
         process.env.LOGIN_OTP_SKIP_WITHOUT_EMAIL = 'false';
         process.env.WHATSAPP_LOGIN_OTP_ENABLED = 'false';
         const result = await issueLoginOtp({
@@ -576,9 +582,8 @@ describe('login OTP service', () => {
             accountType: 'user',
             session: {}
         });
-        expect(shouldSkipLoginOtpWithoutEmail({ phone: '0911111111' })).toBe(false);
-        expect(result.status).toBe('failed');
-        expect(result.code).toBe('WHATSAPP_LOGIN_OTP_DISABLED');
+        expect(shouldSkipLoginOtpWithoutEmail({ phone: '0911111111' })).toBe(true);
+        expect(result.status).toBe('skip_no_email');
         expect(sendOtp).not.toHaveBeenCalled();
         expect(sendLoginOtpEmail).not.toHaveBeenCalled();
         delete process.env.WHATSAPP_LOGIN_OTP_ENABLED;
@@ -612,7 +617,8 @@ describe('login OTP service', () => {
                 _id: 'user-smtp-fail',
                 phone: '0911111111',
                 name: 'عميل',
-                email: 'owner@example.com'
+                email: 'owner@example.com',
+                otpDeliveryChannel: 'email'
             },
             accountType: 'user',
             session: {}
@@ -630,7 +636,7 @@ describe('login OTP service', () => {
         expect(cleared).toBe(true);
     });
 
-    test('the new email template flag does not change WhatsApp or skip-without-email', async () => {
+    test('email template and WhatsApp flags cannot enable WhatsApp login OTP', async () => {
         const previous = {
             template: process.env.LOGIN_OTP_EMAIL_TEMPLATE_V2,
             whatsapp: process.env.WHATSAPP_LOGIN_OTP_ENABLED,
@@ -646,10 +652,9 @@ describe('login OTP service', () => {
                 accountType: 'user',
                 session: {}
             });
-            expect(whatsapp.status).toBe('sent');
-            expect(whatsapp.delivery.channel).toBe('whatsapp');
+            expect(whatsapp.status).toBe('skip_no_email');
             expect(sendLoginOtpEmail).not.toHaveBeenCalled();
-            expect(sendOtp).toHaveBeenCalledWith(expect.objectContaining({ phone: '0910000099' }));
+            expect(sendOtp).not.toHaveBeenCalled();
 
             process.env.LOGIN_OTP_SKIP_WITHOUT_EMAIL = 'true';
             process.env.WHATSAPP_LOGIN_OTP_ENABLED = 'false';
@@ -683,7 +688,8 @@ describe('login OTP service', () => {
                 _id: 'user-channel-email',
                 phone: '0912345678',
                 name: 'عميل',
-                email: 'owner@example.com'
+                email: 'owner@example.com',
+                otpDeliveryChannel: 'email'
             },
             accountType: 'user',
             session: {}
@@ -704,7 +710,8 @@ describe('login OTP service', () => {
                 _id: 'user-email-off',
                 phone: '0912345678',
                 name: 'عميل',
-                email: 'owner@example.com'
+                email: 'owner@example.com',
+                otpDeliveryChannel: 'email'
             },
             accountType: 'user',
             session: {}
@@ -727,7 +734,8 @@ describe('login OTP service', () => {
                 _id: 'user-email-fail-no-wa',
                 phone: '0912345678',
                 name: 'عميل',
-                email: 'owner@example.com'
+                email: 'owner@example.com',
+                otpDeliveryChannel: 'email'
             },
             accountType: 'user',
             session: {}

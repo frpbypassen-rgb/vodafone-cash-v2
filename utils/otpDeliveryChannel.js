@@ -1,20 +1,8 @@
 'use strict';
 
-// Login OTP channel.
-// A valid stored address uses email unless EMAIL_OTP_ENABLED is explicitly
-// off (0/false/no/off). Unset EMAIL_OTP_ENABLED keeps email on. Disabling
-// email never selects WhatsApp.
-// Accounts with no usable address stay on channel "whatsapp" so
-// LOGIN_OTP_SKIP_WITHOUT_EMAIL can still complete password-only login.
-// An open WhatsApp send (no code) requires all of:
-//   WHATSAPP_LOGIN_OTP_ENABLED is not explicitly off,
-//   WHATSAPP_OTP_ENABLED is explicitly 1/true/yes/on (unset is off),
-//   OTP_DELIVERY_CHANNEL is not "email".
-// WHATSAPP_LOGIN_OTP_ENABLED=false still returns WHATSAPP_LOGIN_OTP_DISABLED
-// before the newer flag. OTP_DELIVERY_CHANNEL=email on a no-email account
-// returns WHATSAPP_OTP_DISABLED and does not send. Explicit account channel
-// "email" with a missing or invalid address stays EMAIL_OTP_ADDRESS_INVALID.
-// Receipts, alerts, and support replies do not use this selection.
+// Login OTP is opt-in per account. Only an administrator-selected email
+// channel can issue a login OTP; all other accounts have OTP disabled.
+// WhatsApp remains available to non-login notifications, not login OTP.
 
 const { isDisabled } = require('../config/securityPolicy');
 const { isValidEmailAddress, normalizeEmailAddress } = require('./emailAddress');
@@ -52,40 +40,33 @@ const isEmailOtpExplicitlyEnabled = (account = {}) => (
     String(account.otpDeliveryChannel || '').trim().toLowerCase() === 'email'
 );
 
-const normalizedDeliveryChannel = (env = process.env) => (
-    String(env.OTP_DELIVERY_CHANNEL || '').trim().toLowerCase()
-);
+const isLoginOtpEnabledForAccount = (account = {}) => isEmailOtpExplicitlyEnabled(account);
 
 /**
- * @returns {{ channel: 'whatsapp', code?: string } | { channel: 'email', email: string, code?: string }}
+ * @returns {{ channel: 'disabled', code: string } | { channel: 'email', email: string, code?: string }}
  */
 const selectLoginOtpChannel = (account = {}, env = process.env) => {
-    const email = resolveAccountOtpEmail(account);
-    if (isValidOtpEmail(email)) {
-        if (!isEmailOtpEnabled(env)) {
-            return { channel: 'email', email, code: 'EMAIL_OTP_DISABLED' };
-        }
-        return { channel: 'email', email };
+    if (!isEmailOtpExplicitlyEnabled(account)) {
+        return { channel: 'disabled', code: 'LOGIN_OTP_NOT_ENABLED' };
     }
-    if (isEmailOtpExplicitlyEnabled(account)) {
+    const email = resolveAccountOtpEmail(account);
+    if (!isValidOtpEmail(email)) {
         return {
             channel: 'email',
-            email: '',
+            email: email || '',
             code: 'EMAIL_OTP_ADDRESS_INVALID'
         };
     }
-    if (!isWhatsappLoginOtpEnabled(env)) {
-        return { channel: 'whatsapp', code: 'WHATSAPP_LOGIN_OTP_DISABLED' };
+    if (!isEmailOtpEnabled(env)) {
+        return { channel: 'email', email, code: 'EMAIL_OTP_DISABLED' };
     }
-    if (!isWhatsappOtpEnabled(env) || normalizedDeliveryChannel(env) === 'email') {
-        return { channel: 'whatsapp', code: 'WHATSAPP_OTP_DISABLED' };
-    }
-    return { channel: 'whatsapp' };
+    return { channel: 'email', email };
 };
 
 module.exports = {
     isEmailOtpEnabled,
     isEmailOtpExplicitlyEnabled,
+    isLoginOtpEnabledForAccount,
     isValidOtpEmail,
     isWhatsappLoginOtpEnabled,
     isWhatsappOtpEnabled,
