@@ -97,7 +97,7 @@ describe('Transfer service rules', () => {
         expect(validateTransferInput({ ...agreed, bankMethod: 'mobile', destination: '01012345678', bankCode: '' })).toBeNull();
         expect(validateTransferInput({ ...agreed, bankMethod: 'ipa', destination: 'Ahrampay', bankCode: '' })).toBeNull();
         expect(validateTransferInput({ ...agreed, bankMethod: 'mobile', destination: '0101234' })).toContain('11');
-        expect(validateTransferInput({ ...agreed, bankMethod: 'account', destination: '12A4567890' })).toContain('أرقام');
+        expect(validateTransferInput({ ...agreed, bankMethod: 'account', destination: '12A4567890' })).toContain('رقم الحساب البنكي');
         expect(validateTransferInput({ ...agreed, bankMethod: 'iban', destination: '123456789' })).toContain('الدولي');
         expect(validateTransferInput({ ...agreed, bankMethod: 'card', destination: '4111111111111111' })).toContain('غير متاح');
         expect(validateTransferInput({ ...agreed, bankMethod: 'account', destination: '1234567890', bankCode: '' })).toContain('اختر البنك');
