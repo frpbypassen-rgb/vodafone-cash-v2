@@ -138,12 +138,24 @@
             }
 
             try {
+                const transferFingerprint = JSON.stringify({
+                    type: payload.type || '',
+                    phone: payload.phone || '',
+                    number: payload.number || '',
+                    amount: payload.amount || '',
+                    name: payload.name || '',
+                    notes: payload.notes || ''
+                });
+                window.__ahramCompanyTransferKey = window.__ahramCompanyTransferKey && window.__ahramCompanyTransferKey.fingerprint === transferFingerprint
+                    ? window.__ahramCompanyTransferKey
+                    : { fingerprint: transferFingerprint, key: (window.crypto && window.crypto.randomUUID ? window.crypto.randomUUID() : '00000000-0000-4000-8000-000000000000'.replace(/0/g, () => (Math.random() * 16 | 0).toString(16))) };
                 const response = await fetch('/client/transfer', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                         'Accept': 'application/json',
-                        'x-csrf-token': window.csrfToken || ''
+                        'x-csrf-token': window.csrfToken || '',
+                        'Idempotency-Key': window.__ahramCompanyTransferKey.key
                     },
                     body: JSON.stringify(payload)
                 });
@@ -151,6 +163,7 @@
                 if (!response.ok || !data.success) {
                     throw new Error(data.error || 'تعذر إرسال العملية');
                 }
+                window.__ahramCompanyTransferKey = null;
 
                 await Swal.fire({
                     icon: 'success',

@@ -1,6 +1,7 @@
 // models/AuditLog.js
 // سجل التدقيق الشامل — يسجل كل العمليات الحساسة في النظام المالي
 const mongoose = require('mongoose');
+const { installAppendOnlyGuards } = require('../utils/financialRecordImmutability');
 
 const auditLogSchema = new mongoose.Schema({
     // ── نوع العملية ──────────────────────────────────────────
@@ -23,7 +24,7 @@ const auditLogSchema = new mongoose.Schema({
     },
     performedByModel: {
         type: String,
-        enum: ['Employee', 'ClientEmployee', 'AgentEmployee', 'User', 'SubAccount', 'Admin', 'System']
+        enum: ['Employee', 'ClientEmployee', 'AgentEmployee', 'User', 'ClientCompany', 'SubAccount', 'Admin', 'System']
     },
     performedByName: { type: String }, // نسخة من الاسم لحماية السجل
 
@@ -65,7 +66,10 @@ const auditLogSchema = new mongoose.Schema({
 
     // 🆕 تشفير السلسلة المترابطة (Hash Chained Audit Trail)
     previousHash: { type: String, default: null },
-    hash: { type: String, default: null }
+    hash: { type: String, default: null },
+
+    // Optional. Excluded from calculateHash so existing chain records stay verifiable.
+    tenantId: { type: mongoose.Schema.Types.ObjectId, ref: 'Tenant' }
 
 }, {
     timestamps: true,
@@ -81,5 +85,8 @@ auditLogSchema.index({ ipAddress: 1, createdAt: -1 });
 auditLogSchema.index({ createdAt: -1 }); // للتقارير اليومية
 auditLogSchema.index({ companyId: 1, createdAt: -1 });
 auditLogSchema.index({ companyId: 1, action: 1, createdAt: -1 });
+auditLogSchema.index({ tenantId: 1, createdAt: -1 });
+
+installAppendOnlyGuards(auditLogSchema, 'audit_log');
 
 module.exports = mongoose.model('AuditLog', auditLogSchema);

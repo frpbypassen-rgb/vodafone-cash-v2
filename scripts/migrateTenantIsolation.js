@@ -1,5 +1,9 @@
 'use strict';
 
+// WARNING: this script assigns every tenantless document to the default tenant.
+// Do not use it for Ledger, Transaction, JournalEvent, or AuditLog.
+// Use scripts/backfillFinancialTenantId.js, which refuses ambiguous rows.
+
 require('dotenv').config();
 const mongoose = require('mongoose');
 

@@ -1,0 +1,16 @@
+{
+  "scope": "User + ClientCompany + SubAccount. ExecutorGroup and Employee are a separate pool and are excluded.",
+  "openingWallet": 1900,
+  "closingWallet": 3232,
+  "balanceDelta": 1332,
+  "seededCapital": 1297,
+  "movement": 35,
+  "openingLedger": 0,
+  "closingLedger": 35,
+  "ledgerDelta": 35,
+  "drift": 0,
+  "excludedFixtureTransactionIds": [
+    "LEG-OK-1",
+    "MISSING-TX-SAFETY"
+  ]
+}

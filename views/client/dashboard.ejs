@@ -2051,14 +2051,26 @@
                 if (idCardFile) transferData.set('idCardImage', idCardFile);
                 
                 try {
+                    const transferFingerprint = JSON.stringify({
+                        type: transferData.get('type') || '',
+                        phone: transferData.get('phone') || '',
+                        number: transferData.get('number') || '',
+                        amount: transferData.get('amount') || '',
+                        name: transferData.get('name') || '',
+                        notes: transferData.get('notes') || ''
+                    });
+                    window.__ahramTransferKey = window.__ahramTransferKey && window.__ahramTransferKey.fingerprint === transferFingerprint
+                        ? window.__ahramTransferKey
+                        : { fingerprint: transferFingerprint, key: (window.crypto && window.crypto.randomUUID ? window.crypto.randomUUID() : '00000000-0000-4000-8000-000000000000'.replace(/0/g, () => (Math.random() * 16 | 0).toString(16))) };
                     const response = await fetch('/client/transfer', { 
                         method: 'POST', 
-                        headers: { 'Accept': 'application/json' },
+                        headers: { 'Accept': 'application/json', 'Idempotency-Key': window.__ahramTransferKey.key },
                         body: transferData
                     });
                     const result = await response.json();
                     
                     if (response.ok) {
+                        window.__ahramTransferKey = null;
                         // 🎭 المشهد المسرحي (Gamification Alert 3D)
                         Swal.fire({
                             showConfirmButton: false, 
@@ -2312,9 +2324,17 @@
                 btn.disabled = true;
 
                 try {
+                    const balanceFingerprint = JSON.stringify({ targetAccountCode, amount, notes });
+                    window.__ahramBalanceKey = window.__ahramBalanceKey && window.__ahramBalanceKey.fingerprint === balanceFingerprint
+                        ? window.__ahramBalanceKey
+                        : { fingerprint: balanceFingerprint, key: (window.crypto && window.crypto.randomUUID ? window.crypto.randomUUID() : '00000000-0000-4000-8000-000000000000'.replace(/0/g, () => (Math.random() * 16 | 0).toString(16))) };
                     const response = await fetch('/client/balance-transfer', {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json',
+                            'Idempotency-Key': window.__ahramBalanceKey.key
+                        },
                         body: JSON.stringify({ targetAccountCode, amount, notes, ...(operationPin ? { operationPin } : {}) })
                     });
                     const result = await response.json();
@@ -2322,6 +2342,7 @@
                     if (!response.ok || !result.success) {
                         throw new Error(result.error || 'تعذر تنفيذ تحويل الرصيد.');
                     }
+                    window.__ahramBalanceKey = null;
 
                     Swal.fire({
                         icon: 'success',
