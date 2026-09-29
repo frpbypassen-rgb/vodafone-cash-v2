@@ -327,8 +327,9 @@
     <link rel="stylesheet" href="/css/executor-workspace.css?v=20260921-task-card">
     <link rel="stylesheet" href="/css/executor-2030-override.css?v=20260825-balance1">
     <link rel="stylesheet" href="/css/executor-os.css?v=20260921-task-card">
+    <link rel="stylesheet" href="/css/executor-dashboard-mobile.css?v=20260929-manager-mobile">
 </head>
-<body class="executor-os executor-portal-v2 executor-page-dashboard">
+<body class="executor-os executor-portal-v2 executor-page-dashboard <%= emp.role === 'manager' ? 'executor-role-manager' : '' %>">
 
 <%- include('partials/navigation', { emp, activePage: 'tasks' }) %>
 <div class="exo-stage">
@@ -353,7 +354,8 @@
         post_card: { name: 'تحويل بريد بطاقة', short: 'بطاقة', icon: 'fa-id-card' },
         bank_account: { name: 'تحويل بنكي', short: 'بنك', icon: 'fa-building-columns' },
         sefa_niger: { name: 'سيفا النيجر', short: 'سيفا', icon: 'fa-globe' },
-        bankak_sudan: { name: 'بنكك السودان', short: 'بنكك', icon: 'fa-building' }
+        bankak_sudan: { name: 'بنكك السودان', short: 'بنكك', icon: 'fa-building' },
+        bank_transfer: { name: 'تحويل بنكي', short: 'بنك', icon: 'fa-building-columns' }
     };
     const taskTypeMeta = (transferType) => executorTaskTypeMeta[String(transferType || '').trim().toLowerCase()]
         || { name: 'عملية تنفيذ', short: 'تنفيذ', icon: 'fa-bolt' };
@@ -1237,6 +1239,10 @@
                     const typeMeta = taskTypeMeta(t.transferType);
                     const taskTypeName = typeMeta.name;
                     const taskTypeIcon = typeMeta.icon;
+                    const normalizedTransferType = String(t.transferType || '').trim().toLowerCase();
+                    const transferVisualClass = normalizedTransferType === 'post_card'
+                        ? 'task-post-card'
+                        : (['bank_account', 'bank_transfer'].includes(normalizedTransferType) ? 'task-bank-transfer' : '');
 
                     let displayNote = t.notes || '';
                     displayNote = displayNote.split('--- سجل الـ API')[0].trim();
@@ -1256,7 +1262,7 @@
                     const taskArrivalAt = t.executorReceivedAt || t.createdAt;
                     html += `
                         <div class="col-12 col-xxl-6">
-                            <div class="task-card ${cardClass}">
+                            <div class="task-card ${cardClass} ${transferVisualClass}">
                                 <div class="executor-task-card-body">
                                     <div class="task-header">
                                         <div class="executor-task-title">
