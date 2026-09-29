@@ -400,6 +400,30 @@ describe('Client Transaction Controller Tests', () => {
         expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ success: true }));
     });
 
+    test('postTransfer - يرفض التحويل البنكي دون إقرار قبل أي خصم أو حفظ', async () => {
+        req.session = { accountType: 'user', clientId: 'client123' };
+        req.headers.accept = 'application/json';
+        req.body = {
+            amount: '500',
+            phone: '01012345678',
+            type: 'حساب بنكي',
+            bankMethod: 'mobile',
+            name: 'محمد أحمد',
+            dataEntryAcknowledged: 'false'
+        };
+        User.findById = jest.fn().mockResolvedValue({
+            _id: 'client123', name: 'Client User Name', role: 'user', status: 'active',
+            tier: 1, balance: 1000, creditLimit: 0, phone: '0912345678'
+        });
+
+        await clientTransactionController.postTransfer(req, res);
+
+        expect(res.status).toHaveBeenCalledWith(400);
+        expect(User.findOneAndUpdate).not.toHaveBeenCalled();
+        expect(Transaction.prototype.save).not.toHaveBeenCalled();
+        expect(Ledger.prototype.save).not.toHaveBeenCalled();
+    });
+
     test('postTransfer - يرجع مهلة التكرار قبل خصم الرصيد', async () => {
         req.body = {
             amount: '100',

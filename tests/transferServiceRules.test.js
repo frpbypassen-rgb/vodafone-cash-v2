@@ -81,20 +81,29 @@ describe('Transfer service rules', () => {
         expect(getTransferServiceRules('sefa_niger').destinationMaxLength).toBe(11);
     });
 
-    test('requires an allowlisted bank for bank transfers and not for cash', () => {
+    test('validates each bank destination method and requires responsibility acknowledgement', () => {
         const bank = {
             ...validInput,
             serviceKey: 'bank_account',
             amount: 500,
             destination: 'EG380019000500000000263180002',
-            beneficiaryName: 'محمد أحمد علي',
+            beneficiaryName: 'محمد أحمد',
             bankCode: 'nbe'
         };
-        expect(validateTransferInput(bank)).toBeNull();
-        expect(validateTransferInput({ ...bank, bankCode: '', bankName: 'بنك مصر' })).toBeNull();
-        expect(validateTransferInput({ ...bank, serviceKey: 'bank_transfer', bankCode: 'hsbc' })).toBeNull();
-        expect(validateTransferInput({ ...bank, bankCode: '' })).toContain('اختر البنك');
-        expect(validateTransferInput({ ...bank, bankCode: 'cbe', bankName: 'البنك المركزي المصري' })).toContain('غير مدرج');
+        const agreed = { ...bank, dataEntryAcknowledged: true, enforceDataEntryAcknowledgement: true };
+        expect(validateTransferInput({ ...agreed, bankMethod: 'iban' })).toBeNull();
+        expect(validateTransferInput({ ...agreed, bankMethod: 'iban', destination: 'AB123456789' })).toBeNull();
+        expect(validateTransferInput({ ...agreed, bankMethod: 'account', destination: '1234567890' })).toBeNull();
+        expect(validateTransferInput({ ...agreed, bankMethod: 'mobile', destination: '01012345678', bankCode: '' })).toBeNull();
+        expect(validateTransferInput({ ...agreed, bankMethod: 'ipa', destination: 'Ahrampay', bankCode: '' })).toBeNull();
+        expect(validateTransferInput({ ...agreed, bankMethod: 'mobile', destination: '0101234' })).toContain('11');
+        expect(validateTransferInput({ ...agreed, bankMethod: 'account', destination: '12A4567890' })).toContain('رقم الحساب البنكي');
+        expect(validateTransferInput({ ...agreed, bankMethod: 'iban', destination: '123456789' })).toContain('الدولي');
+        expect(validateTransferInput({ ...agreed, bankMethod: 'card', destination: '4111111111111111' })).toContain('غير متاح');
+        expect(validateTransferInput({ ...agreed, bankMethod: 'account', destination: '1234567890', bankCode: '' })).toContain('اختر البنك');
+        expect(validateTransferInput({ ...agreed, bankMethod: 'account', destination: '1234567890', bankCode: 'cbe' })).toContain('غير مدرج');
+        expect(validateTransferInput({ ...bank, bankMethod: 'mobile', destination: '01012345678', enforceDataEntryAcknowledgement: true })).toContain('الإقرار');
+        expect(validateTransferInput({ ...agreed, bankMethod: 'mobile', destination: '01012345678', beneficiaryName: 'محمد' })).toContain('ثنائيًا');
         expect(validateTransferInput({ ...validInput, serviceKey: 'vodafone' })).toBeNull();
     });
 });

@@ -1392,11 +1392,26 @@
                                         <label class="form-label small fw-bold text-muted">اسم المستفيد (رباعي)</label>
                                         <input type="text" class="form-control text-center fw-bold" id="tf_beneficiary" placeholder="اكتب الاسم رباعي">
                                     </div>
+                                    <div class="mb-3" id="bank_method_div" style="display: none;">
+                                        <label class="form-label small fw-bold text-muted" for="tf_bank_method">طريقة التحويل البنكي</label>
+                                        <select class="form-select text-center fw-bold" id="tf_bank_method">
+                                            <option value="">اختر طريقة التحويل</option>
+                                            <option value="mobile">رقم موبايل</option><option value="ipa">عنوان الدفع (IPA)</option>
+                                            <option value="account">حساب بنكي</option><option value="iban">حساب مصرفي دولي</option>
+                                            <option value="card" disabled>بطاقة بنكية (غير متاح حالياً)</option>
+                                        </select>
+                                    </div>
                                     <div class="mb-3" id="bank_div" style="display: none;">
                                         <label class="form-label small fw-bold text-muted" for="tf_bank">البنك</label>
                                         <select class="form-select text-center fw-bold" id="tf_bank">
                                             <%- include('../partials/egyptian_bank_options') %>
                                         </select>
+                                    </div>
+                                    <div class="mb-3" id="bank_data_ack_div" style="display:none;">
+                                        <div class="form-check d-flex align-items-start gap-2 p-3 rounded border">
+                                            <input class="form-check-input mt-1" type="checkbox" id="tf_bank_data_acknowledgement">
+                                            <label class="form-check-label small fw-bold" for="tf_bank_data_acknowledgement">أقر أن بيانات التحويل صحيحة وأتحمل مسؤولية أي خطأ فيها.</label>
+                                        </div>
                                     </div>
 
                                     <div class="mb-3" id="city_div" style="display: none;">
@@ -1832,8 +1847,16 @@
             document.getElementById('beneficiary_name_div').style.display = 'none';
             const bankDiv = document.getElementById('bank_div');
             const bankInput = document.getElementById('tf_bank');
+            const bankMethodDiv = document.getElementById('bank_method_div');
+            const bankMethodInput = document.getElementById('tf_bank_method');
+            const bankAckDiv = document.getElementById('bank_data_ack_div');
+            const bankAck = document.getElementById('tf_bank_data_acknowledgement');
             if (bankDiv) bankDiv.style.display = 'none';
             if (bankInput) bankInput.value = '';
+            if (bankMethodDiv) bankMethodDiv.style.display = 'none';
+            if (bankMethodInput) bankMethodInput.value = '';
+            if (bankAckDiv) bankAckDiv.style.display = 'none';
+            if (bankAck) bankAck.checked = false;
             document.getElementById('national_id_div').style.display = 'none';
             document.getElementById('id_image_div').style.display = 'none';
             document.getElementById('phone_div').style.display = 'none';
@@ -1893,13 +1916,14 @@
             }
             else if (type === 'حساب بنكي') {
                 document.getElementById('beneficiary_name_div').style.display = 'block';
-                if (bankDiv) bankDiv.style.display = 'block';
+                if (benLabel) benLabel.innerText = 'اسم المستفيد (الاسم الأول والثاني على الأقل)';
+                if (benInput) benInput.placeholder = 'اكتب الاسم الأول والثاني';
+                if (bankMethodDiv) bankMethodDiv.style.display = 'block';
+                if (bankAckDiv) bankAckDiv.style.display = 'block';
                 document.getElementById('phone_div').style.display = 'block';
-                document.getElementById('lbl_tf_phone').innerText = 'رقم الحساب البنكي (IBAN)';
-                document.getElementById('tf_phone').placeholder = 'أدخل رقم IBAN';
-                document.getElementById('tf_phone').required = true;
-                document.getElementById('tf_phone').removeAttribute('maxlength');
-                document.getElementById('tf_phone').removeAttribute('minlength');
+                document.getElementById('lbl_tf_phone').innerText = 'بيانات المستلم';
+                document.getElementById('tf_phone').placeholder = 'اختر طريقة التحويل أولاً';
+                document.getElementById('tf_phone').required = false;
                 document.getElementById('tf_phone').focus();
             }
             else if (type === 'سيفا النيجر') {
@@ -1921,6 +1945,23 @@
             }
             document.getElementById('tf_amount').required = true; updateCost();
         }
+
+        document.getElementById('tf_bank_method')?.addEventListener('change', function() {
+            const method = this.value;
+            const phone = document.getElementById('tf_phone');
+            const labels = { mobile: ['رقم الهاتف (11 رقم)', 'أدخل رقم الهاتف المصري'], ipa: ['عنوان الدفع (IPA)', 'مثال: Ahrampay'], account: ['رقم الحساب البنكي', 'أرقام فقط'], iban: ['الحساب المصرفي الدولي', 'أرقام وحروف إنجليزية فقط'], card: ['رقم البطاقة', 'غير متاح حالياً'] };
+            const info = labels[method] || ['بيانات المستلم', 'اختر طريقة التحويل أولاً'];
+            document.getElementById('lbl_tf_phone').innerText = info[0];
+            phone.placeholder = info[1];
+            phone.inputMode = ['mobile', 'account', 'card'].includes(method) ? 'numeric' : 'text';
+            phone.required = Boolean(method);
+            const needsBank = ['account', 'iban'].includes(method);
+            document.getElementById('bank_div').style.display = needsBank ? 'block' : 'none';
+            const bank = document.getElementById('tf_bank');
+            bank.required = needsBank;
+            if (!needsBank) bank.value = '';
+            phone.value = '';
+        });
 
         const amountInput = document.getElementById('tf_amount');
         if (amountInput) {
@@ -1973,8 +2014,15 @@
                     return Swal.fire({ icon: 'warning', title: 'تنبيه', text: 'اسم المستفيد إجباري.', customClass: { popup: 'swal2-popup' } });
                 }
                 const selectedBank = document.getElementById('tf_bank')?.value || '';
-                if (currentTransferType === 'حساب بنكي' && !selectedBank) {
-                    return Swal.fire({ icon: 'warning', title: 'تنبيه', text: 'اختر البنك قبل إرسال التحويل البنكي.', customClass: { popup: 'swal2-popup' } });
+                const bankMethod = document.getElementById('tf_bank_method')?.value || '';
+                if (currentTransferType === 'حساب بنكي') {
+                    const destination = phoneVal.replace(/\s+/g, '');
+                    const patterns = { mobile: /^\d{11}$/, ipa: /^[A-Za-z0-9._-]{3,64}(?:@[A-Za-z0-9.-]{2,253})?$/, account: /^\d{5,34}$/, iban: /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z0-9]{5,34}$/ };
+                    if (!bankMethod || bankMethod === 'card' || !patterns[bankMethod]?.test(destination)) return Swal.fire({ icon: 'warning', title: 'تحقق من البيانات', text: bankMethod === 'card' ? 'التحويل بالبطاقة غير متاح حالياً.' : 'بيانات الوجهة لا تطابق طريقة التحويل المختارة.' });
+                    if (beneficiaryName.split(/\s+/).filter(Boolean).length < 2) return Swal.fire({ icon: 'warning', title: 'اسم المستفيد', text: 'أدخل الاسم الأول والثاني على الأقل.' });
+                    if (!document.getElementById('tf_bank_data_acknowledgement').checked) return Swal.fire({ icon: 'warning', title: 'إقرار مطلوب', text: 'أقر بصحة بيانات التحويل وتحمل مسؤوليتك عنها.' });
+                    if (['account', 'iban'].includes(bankMethod) && !selectedBank) return Swal.fire({ icon: 'warning', title: 'البنك مطلوب', text: 'اختر البنك قبل إرسال بيانات الحساب.' });
+                    phoneVal = bankMethod === 'iban' ? destination.toUpperCase() : destination;
                 }
                 if (currentTransferType === 'سيفا النيجر') {
                     if (!beneficiaryName) return Swal.fire({ icon: 'warning', title: 'تنبيه', text: 'الاسم إجباري.', customClass: { popup: 'swal2-popup' } });
@@ -2039,10 +2087,11 @@
                 transferData.set('type', currentTransferType);
                 transferData.set('name', beneficiaryName);
                 if (currentTransferType === 'حساب بنكي') {
+                    transferData.set('bankMethod', bankMethod);
                     transferData.set('bankCode', document.getElementById('tf_bank')?.value || '');
                 }
                 transferData.set('serviceSubtype', currentTransferType === 'سيفا النيجر' ? currentSefaSubtype : '');
-                transferData.set('dataEntryAcknowledged', currentTransferType === 'سيفا النيجر' && document.getElementById('tf_sefa_data_acknowledgement').checked ? 'true' : 'false');
+                transferData.set('dataEntryAcknowledged', (currentTransferType === 'سيفا النيجر' && document.getElementById('tf_sefa_data_acknowledgement').checked) || (currentTransferType === 'حساب بنكي' && document.getElementById('tf_bank_data_acknowledgement').checked) ? 'true' : 'false');
                 transferData.set('city', city);
                 transferData.set('nationalId', nationalId);
                 transferData.set('governorate', governorate);
@@ -2053,6 +2102,8 @@
                 try {
                     const transferFingerprint = JSON.stringify({
                         type: transferData.get('type') || '',
+                        bankMethod: transferData.get('bankMethod') || '',
+                        bankCode: transferData.get('bankCode') || '',
                         phone: transferData.get('phone') || '',
                         number: transferData.get('number') || '',
                         amount: transferData.get('amount') || '',

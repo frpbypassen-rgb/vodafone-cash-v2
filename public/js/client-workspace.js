@@ -252,10 +252,12 @@
     const transferAmountFlag = document.getElementById('transferAmountFlag');
     const transferBeneficiary = document.getElementById('transferBeneficiary');
     const transferBank = document.getElementById('transferBank');
+    const transferBankMethod = document.getElementById('transferBankMethod');
     const beneficiaryFieldLabel = document.getElementById('beneficiaryFieldLabel');
     const transferSubtype = document.getElementById('transferSubtype');
     const transferCity = document.getElementById('transferCity');
     const transferSefaAcknowledgement = document.getElementById('transferSefaAcknowledgement');
+    const bankAcknowledgementField = document.querySelector('[data-sefa-acknowledgement-field]');
     const transferNationalId = document.getElementById('transferNationalId');
     const transferGovernorate = document.getElementById('transferGovernorate');
     const transferClientPhone = document.getElementById('transferClientPhone');
@@ -413,9 +415,14 @@
     };
 
     const updateSefaAcknowledgement = () => {
-        const required = Boolean(activeService?.requiresDataEntryAcknowledgement);
-        const field = document.querySelector('[data-sefa-acknowledgement-field]');
-        if (field) field.hidden = !required;
+        const bankTransfer = activeService?.key === 'bank_account';
+        const required = bankTransfer || Boolean(activeService?.requiresDataEntryAcknowledgement);
+        if (bankAcknowledgementField) bankAcknowledgementField.hidden = !required;
+        const title = bankAcknowledgementField?.querySelector('[data-ack-title]');
+        const copy = bankAcknowledgementField?.querySelector('[data-ack-copy]');
+        if (title) title.textContent = bankTransfer ? 'إقرار بصحة بيانات التحويل' : 'تأكيد صحة بيانات سيفا';
+        if (copy && bankTransfer) copy.textContent = 'أقر أن اسم المستفيد وبيانات التحويل المدخلة صحيحة، وأتحمل مسؤولية أي خطأ فيها.';
+        if (copy && !bankTransfer) copy.textContent = 'العميل مسؤول عن صحة الاسم ورقم الحساب والمدينة المدخلة. لا تتحمل الشركة مسؤولية أي خطأ ناتج من بيانات أدخلها العميل.';
         if (transferSefaAcknowledgement) {
             transferSefaAcknowledgement.required = required;
             if (!required) transferSefaAcknowledgement.checked = false;
@@ -430,6 +437,7 @@
         if (transferIdentityImage) transferIdentityImage.value = '';
         if (transferNotes) transferNotes.value = '';
         if (transferSefaAcknowledgement) transferSefaAcknowledgement.checked = false;
+        if (transferBankMethod) transferBankMethod.value = '';
     };
 
     const selectService = (serviceKey, options = {}) => {
@@ -464,8 +472,13 @@
         if (beneficiaryFieldLabel) beneficiaryFieldLabel.textContent = service.beneficiaryLabel || 'اسم المستفيد';
         if (transferBeneficiary) transferBeneficiary.placeholder = service.beneficiaryPlaceholder || 'أدخل اسم المستفيد';
         const bankRequired = Boolean(service.requiresBank || service.key === 'bank_account');
-        toggleConditionalField('[data-bank-field]', bankRequired, transferBank);
-        if (transferBank) transferBank.disabled = !bankRequired;
+        const bankMethodField = document.querySelector('[data-bank-method-field]');
+        if (bankMethodField) bankMethodField.hidden = !bankRequired;
+        if (transferBankMethod) { transferBankMethod.disabled = !bankRequired; transferBankMethod.required = bankRequired; }
+        const needsBank = bankRequired && ['account', 'iban'].includes(transferBankMethod?.value);
+        toggleConditionalField('[data-bank-field]', needsBank, transferBank);
+        if (transferBank) { transferBank.disabled = !needsBank; transferBank.required = needsBank; }
+        updateBankMethodFields();
         toggleConditionalField('[data-subtype-field]', Boolean(service.requiresSubtype), transferSubtype);
         if (service.requiresSubtype && transferSubtype && !transferSubtype.value) {
             transferSubtype.value = service.allowedSubtypes?.[0] || 'nita';
@@ -485,6 +498,41 @@
         if (transferRateFormula) transferRateFormula.textContent = formatRateFormula(service);
         updateCostEstimate();
     };
+
+    const updateBankMethodFields = () => {
+        if (!transferDestination || activeService?.key !== 'bank_account') return;
+        const method = transferBankMethod?.value || '';
+        const labels = {
+            mobile: ['رقم هاتف المستفيد (11 رقم)', 'أدخل رقم الهاتف المصري المكوّن من 11 رقماً', 'numeric'],
+            ipa: ['عنوان الدفع (IPA)', 'مثال: Ahrampay', 'text'],
+            account: ['رقم الحساب البنكي', 'أرقام فقط', 'numeric'],
+            iban: ['الحساب المصرفي الدولي', 'أرقام وحروف إنجليزية فقط', 'text'],
+            card: ['رقم البطاقة', 'غير متاح حالياً', 'numeric']
+        };
+        const selected = labels[method] || ['بيانات المستلم', 'اختر طريقة التحويل أولاً', 'text'];
+        if (destinationFieldLabel) destinationFieldLabel.textContent = selected[0];
+        if (destinationFieldHint) destinationFieldHint.textContent = selected[1];
+        transferDestination.placeholder = selected[1];
+        transferDestination.inputMode = selected[2];
+        transferDestination.required = Boolean(method);
+        if (method === 'iban') transferDestination.value = transferDestination.value.toUpperCase();
+        if (method === 'mobile') {
+            transferDestination.maxLength = 11;
+            transferDestination.pattern = '\\d{11}';
+        } else {
+            transferDestination.removeAttribute('maxlength');
+            transferDestination.removeAttribute('pattern');
+        }
+        const needsBank = ['account', 'iban'].includes(method);
+        toggleConditionalField('[data-bank-field]', needsBank, transferBank);
+        if (transferBank) { transferBank.required = needsBank; transferBank.disabled = !needsBank; if (!needsBank) transferBank.value = ''; }
+    };
+    transferBankMethod?.addEventListener('change', () => {
+        if (activeService?.key !== 'bank_account') return;
+        if (transferDestination) transferDestination.value = '';
+        if (transferAccountNumber) transferAccountNumber.value = '';
+        updateBankMethodFields();
+    });
 
     serviceButtons.forEach((button) => {
         button.addEventListener('click', () => {
@@ -796,9 +844,20 @@
             return { message: 'اسم المستفيد مطلوب.', input: transferBeneficiary };
         }
         if (activeService?.beneficiaryMinWords && beneficiaryName.split(/\s+/).filter(Boolean).length < activeService.beneficiaryMinWords) {
-            return { message: 'اسم المستفيد الرباعي مطلوب لهذه الخدمة.', input: transferBeneficiary };
+            return { message: activeService.key === 'bank_account' ? 'أدخل الاسم الأول والثاني على الأقل.' : 'اسم المستفيد الرباعي مطلوب لهذه الخدمة.', input: transferBeneficiary };
         }
-        if ((activeService?.requiresBank || activeService?.key === 'bank_account') && !transferBank?.value) {
+        if (activeService?.key === 'bank_account') {
+            const method = transferBankMethod?.value;
+            const destination = (transferDestination?.value || '').replace(/\s+/g, '');
+            if (!method) return { message: 'اختر طريقة التحويل البنكي.', input: transferBankMethod };
+            if (method === 'card') return { message: 'التحويل بالبطاقة البنكية غير متاح حالياً.', input: transferBankMethod };
+            if (method === 'mobile' && !/^\d{11}$/.test(destination)) return { message: 'رقم الهاتف يجب أن يتكون من 11 رقماً.', input: transferDestination };
+            if (method === 'ipa' && !/^[A-Za-z0-9._-]{3,64}(?:@[A-Za-z0-9.-]{2,253})?$/.test(destination)) return { message: 'عنوان الدفع IPA غير صحيح.', input: transferDestination };
+            if (method === 'account' && !/^\d{5,34}$/.test(destination)) return { message: 'رقم الحساب البنكي يجب أن يتكون من 5 إلى 34 رقماً.', input: transferDestination };
+            if (method === 'iban' && !/^(?=.*[A-Za-z])(?=.*\d)[A-Za-z0-9]{5,34}$/.test(destination)) return { message: 'الحساب الدولي يجب أن يتكون من 5 إلى 34 حرفاً إنجليزياً ورقماً.', input: transferDestination };
+            if (!transferSefaAcknowledgement?.checked) return { message: 'أقر بصحة البيانات وتحمل مسؤوليتي قبل الإرسال.', input: transferSefaAcknowledgement };
+        }
+        if (['account', 'iban'].includes(transferBankMethod?.value) && !transferBank?.value) {
             return { message: 'اختر البنك قبل إرسال التحويل البنكي.', input: transferBank };
         }
 
@@ -942,6 +1001,7 @@
                 notes: transferNotes?.value || '',
                 name: transferBeneficiary?.value || '',
                 bankCode: transferBank?.value || '',
+                bankMethod: transferBankMethod?.value || '',
                 clientPhone: transferClientPhone?.value || ''
             }));
         } catch (_) { /* optional */ }
@@ -959,6 +1019,8 @@
         if (transferNotes && draft.notes) transferNotes.value = draft.notes;
         if (transferBeneficiary && draft.name) transferBeneficiary.value = draft.name;
         if (transferBank && draft.bankCode) transferBank.value = draft.bankCode;
+        if (transferBankMethod && draft.bankMethod) transferBankMethod.value = draft.bankMethod;
+        if (activeService?.key === 'bank_account') updateBankMethodFields();
         if (transferClientPhone && draft.clientPhone) transferClientPhone.value = draft.clientPhone;
         updateCostEstimate();
     };
@@ -1156,7 +1218,9 @@
                 <div><span>الخدمة</span><strong>${escapeHtml(activeService?.label || '')}</strong></div>
                 <div><span>المستلم</span><strong class="bw-mono">${escapeHtml(destination || '---')}</strong></div>
                 ${transferBeneficiary?.value.trim() ? `<div><span>الاسم</span><strong>${escapeHtml(transferBeneficiary.value.trim())}</strong></div>` : ''}
-                ${(activeService?.requiresBank || activeService?.key === 'bank_account') && transferBank?.selectedOptions?.[0] ? `<div><span>البنك</span><strong>${escapeHtml(transferBank.selectedOptions[0].text)}</strong></div>` : ''}
+                ${activeService?.key === 'bank_account' ? `<div><span>طريقة التحويل</span><strong>${escapeHtml(transferBankMethod?.selectedOptions?.[0]?.text || '')}</strong></div>` : ''}
+                ${['account', 'iban'].includes(transferBankMethod?.value) && transferBank?.selectedOptions?.[0] ? `<div><span>البنك</span><strong>${escapeHtml(transferBank.selectedOptions[0].text)}</strong></div>` : ''}
+                ${activeService?.key === 'bank_account' ? `<div><span>إقرار المسؤولية</span><strong>${transferSefaAcknowledgement?.checked ? 'تم الإقرار' : 'غير مؤكد'}</strong></div>` : ''}
                 <div><span>المبلغ</span><strong class="bw-mono">${escapeHtml(formatNumber(amount, 2))} ${escapeHtml(sourceCurrencyLabel(activeService))}</strong></div>
                 <div><span>التكلفة</span><strong class="bw-mono">${escapeHtml(formatNumber(cost, 3))} LYD</strong></div>
             </div>`,
@@ -1186,7 +1250,7 @@
         if (transferConfirmTitle) transferConfirmTitle.textContent = 'تأكيد العملية';
         if (transferConfirmSubmit) transferConfirmSubmit.innerHTML = defaultTransferConfirmSubmitHtml;
     });
-    [transferDestination, transferAmount, transferNotes, transferBeneficiary, transferBank, transferClientPhone].forEach((input) => {
+    [transferDestination, transferAmount, transferNotes, transferBeneficiary, transferBank, transferBankMethod, transferClientPhone].forEach((input) => {
         input?.addEventListener('input', persistTransferDraft);
     });
     restoreTransferDraft();

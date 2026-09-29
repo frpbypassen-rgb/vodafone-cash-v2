@@ -43,6 +43,7 @@ const transactionSchema = new mongoose.Schema({
         city: { type: String, trim: true },
         bankCode: { type: String, trim: true },
         bankName: { type: String, trim: true },
+        bankMethod: { type: String, trim: true, enum: ['mobile', 'ipa', 'account', 'iban'] },
         nationalId: { type: String, trim: true },
         governorate: { type: String, trim: true },
         clientPhone: { type: String, trim: true },

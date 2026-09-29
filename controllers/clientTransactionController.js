@@ -265,13 +265,17 @@ exports.postTransfer = async (req, res) => {
         const pricingDefinition = getTransferPricingDefinition(serviceKey);
         const dataEntryAcknowledged = req.body.dataEntryAcknowledged === true
             || ['true', '1', 'on', 'yes'].includes(String(req.body.dataEntryAcknowledged || '').trim().toLowerCase());
-        const submittedDestination = String(req.body.phone || '').trim();
+        const bankMethod = serviceKey === 'bank_account' ? String(req.body.bankMethod || '').trim() : '';
+        const submittedDestinationRaw = String(req.body.phone || '').trim();
+        const submittedDestination = bankMethod === 'iban'
+            ? submittedDestinationRaw.replace(/\s+/g, '').toUpperCase()
+            : (serviceKey === 'bank_account' ? submittedDestinationRaw.replace(/\s+/g, '') : submittedDestinationRaw);
         const nationalId = String(req.body.nationalId || (serviceKey === 'post_card' ? req.body.number : '') || '').trim().slice(0, 20);
         const governorate = String(req.body.governorate || (serviceKey === 'post_card' ? submittedDestination : '') || '').trim().slice(0, 100);
         const phone = serviceKey === 'post_card' ? governorate : submittedDestination;
         const notes = normalizeCustomerNoteInput(req.body);
         const accountName = String(req.body.name || '').trim().slice(0, 160);
-        const accountNumber = String(serviceKey === 'post_card' ? nationalId : (req.body.number || phone)).trim().slice(0, 100);
+        const accountNumber = String(serviceKey === 'post_card' ? nationalId : (serviceKey === 'bank_account' ? phone : (req.body.number || phone))).trim().slice(0, 100);
         let clientPhone = String(req.body.clientPhone || '').trim().slice(0, 30);
         if (clientPhone) {
             try {
@@ -290,8 +294,9 @@ exports.postTransfer = async (req, res) => {
             destinationLabel: serviceDefinition ? serviceDefinition.numberLabel : '',
             amountCurrency: pricingDefinition.amountCurrencyCode,
             rateDirection: pricingDefinition.rateDirection,
-            dataEntryAcknowledged: serviceKey === 'sefa_niger' ? dataEntryAcknowledged : false,
-            dataEntryAcknowledgedAt: serviceKey === 'sefa_niger' && dataEntryAcknowledged ? new Date() : undefined
+            bankMethod: serviceKey === 'bank_account' ? bankMethod : undefined,
+            dataEntryAcknowledged: ['sefa_niger', 'bank_account'].includes(serviceKey) ? dataEntryAcknowledged : false,
+            dataEntryAcknowledgedAt: ['sefa_niger', 'bank_account'].includes(serviceKey) && dataEntryAcknowledged ? new Date() : undefined
         };
 
         const bankInput = {
@@ -310,10 +315,11 @@ exports.postTransfer = async (req, res) => {
             hasIdentityImage: Boolean(req.file),
             enforceDataEntryAcknowledgement: true,
             dataEntryAcknowledged,
+            bankMethod,
             ...bankInput
         });
         if (validationError) throw createClientError(validationError, 400);
-        if (serviceKey === 'bank_account' || serviceKey === 'bank_transfer') {
+        if (serviceKey === 'bank_account' && ['account', 'iban'].includes(bankMethod)) {
             const bank = resolveEgyptianBank(bankInput.bankCode || bankInput.bankName);
             serviceDetails.bankCode = bank.code;
             serviceDetails.bankName = bank.nameAr;
@@ -356,6 +362,9 @@ exports.postTransfer = async (req, res) => {
                 phone,
                 accountNumber,
                 accountName,
+                bankMethod,
+                bankCode: serviceKey === 'bank_account' ? String(req.body.bankCode || '') : '',
+                dataEntryAcknowledged,
                 notes
             }
         });

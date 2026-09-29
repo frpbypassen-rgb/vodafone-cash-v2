@@ -8,7 +8,7 @@
                 </h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="إغلاق"></button>
             </div>
-            <form id="companyTransferForm">
+            <form id="companyTransferForm" data-bank-rate="<%= Number(serviceRates?.bank_account || 0) %>">
                 <div class="modal-body">
                     <div class="mb-3">
                         <label class="form-label fw-bold small text-muted">نوع الخدمة</label>
@@ -31,6 +31,17 @@
                             <input type="number" class="form-control mono-num text-center" name="amount" step="0.01" min="1" dir="ltr" required>
                         </div>
                     </div>
+                    <div class="mb-3" id="companyBankMethodField" hidden>
+                        <label class="form-label fw-bold small text-muted" for="companyTransferBankMethod">طريقة التحويل البنكي</label>
+                        <select class="form-select" name="bankMethod" id="companyTransferBankMethod" required>
+                            <option value="">اختر طريقة التحويل</option>
+                            <option value="mobile">رقم موبايل</option>
+                            <option value="ipa">عنوان الدفع (IPA)</option>
+                            <option value="account">حساب بنكي</option>
+                            <option value="iban">حساب مصرفي دولي</option>
+                            <option value="card" disabled>بطاقة بنكية (غير متاح حالياً)</option>
+                        </select>
+                    </div>
                     <div class="row g-3 mt-0">
                         <div class="col-md-6">
                             <label class="form-label fw-bold small text-muted">اسم المستفيد</label>
@@ -51,11 +62,15 @@
                         <label class="form-label fw-bold small text-muted">ملاحظة العميل</label>
                         <input type="text" class="form-control" name="notes" autocomplete="off">
                     </div>
+                    <label class="d-flex align-items-start gap-2 mt-3" id="companyTransferAcknowledgementField" hidden>
+                        <input type="checkbox" name="dataEntryAcknowledged" value="true" id="companyTransferAcknowledgement" class="form-check-input mt-1">
+                        <span id="companyTransferAcknowledgementText">أقر بصحة بيانات التحويل وأتحمل مسؤولية أي خطأ فيها.</span>
+                    </label>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="secondary-btn" data-bs-dismiss="modal">إلغاء</button>
                     <button type="submit" class="primary-btn" id="companyTransferSubmit">
-                        <i class="fa-solid fa-check"></i>إرسال العملية
+                        <i class="fa-solid fa-check"></i>مراجعة العملية
                     </button>
                 </div>
             </form>
