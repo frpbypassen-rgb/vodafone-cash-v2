@@ -2,6 +2,7 @@
 # 📦 Dependencies
 # ======================================
 node_modules/
+.cloud-dev-data/
 
 # ======================================
 # 🔐 Environment & Secrets
@@ -35,6 +36,8 @@ cloudflared.exe
 config.yml
 *.bat
 *.sh
+# Cloud Agent environment scripts must stay tracked despite the broad *.sh rule.
+!.cursor/*.sh
 mongodb-bin/
 mongodb_data/
 mongodb.zip
