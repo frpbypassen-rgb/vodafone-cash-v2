@@ -12,6 +12,25 @@
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&#039;');
 
+    const idempotencySlots = new Map();
+    const newIdempotencyKey = () => (window.crypto && window.crypto.randomUUID
+        ? window.crypto.randomUUID()
+        : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (char) => {
+            const rand = Math.random() * 16 | 0;
+            const value = char === 'x' ? rand : (rand & 0x3 | 0x8);
+            return value.toString(16);
+        }));
+    const idempotencyKeyFor = (slot, fingerprint) => {
+        const current = idempotencySlots.get(slot);
+        if (!current || current.fingerprint !== fingerprint) {
+            const next = { fingerprint, key: newIdempotencyKey() };
+            idempotencySlots.set(slot, next);
+            return next.key;
+        }
+        return current.key;
+    };
+    const finishIdempotency = (slot) => idempotencySlots.delete(slot);
+
     const formatNumber = (value, digits = 0) => {
         const number = Number(value);
         if (!Number.isFinite(number)) return '0';
@@ -970,13 +989,27 @@
             submitButton.innerHTML = loadingHtml || '<i class="fa-solid fa-circle-notch fa-spin"></i><span>جارٍ تسجيل العملية...</span>';
         }
         try {
+            const idempotencyFingerprint = JSON.stringify({
+                type: formData.get('type') || '',
+                phone: formData.get('phone') || '',
+                number: formData.get('number') || '',
+                amount: formData.get('amount') || '',
+                name: formData.get('name') || '',
+                notes: formData.get('notes') || ''
+            });
+            const idempotencyKey = idempotencyKeyFor('web-transfer', idempotencyFingerprint);
             const response = await fetch('/client/transfer', {
                 method: 'POST',
-                headers: { Accept: 'application/json', 'x-csrf-token': config.csrfToken || '' },
+                headers: {
+                    Accept: 'application/json',
+                    'x-csrf-token': config.csrfToken || '',
+                    'Idempotency-Key': idempotencyKey
+                },
                 body: formData
             });
             const payload = await parseJsonResponse(response);
             if (!response.ok || payload.error) throw new Error(payload.error || 'تعذر إرسال العملية.');
+            finishIdempotency('web-transfer');
             onSuccess?.(payload, { service, destination, phoneHint });
             return payload;
         } catch (error) {
@@ -1167,13 +1200,25 @@
             if (operationPin === null) return;
             if (operationPin) bodyData.operationPin = operationPin;
 
+            const balanceFingerprint = JSON.stringify({
+                targetAccountCode: bodyData.targetAccountCode || '',
+                amount: bodyData.amount || '',
+                notes: bodyData.notes || ''
+            });
+            const balanceKey = idempotencyKeyFor('web-balance-transfer', balanceFingerprint);
             const transferResponse = await fetch('/client/balance-transfer', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'x-csrf-token': config.csrfToken || '' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    Accept: 'application/json',
+                    'x-csrf-token': config.csrfToken || '',
+                    'Idempotency-Key': balanceKey
+                },
                 body: JSON.stringify(bodyData)
             });
             const transfer = await parseJsonResponse(transferResponse);
             if (!transferResponse.ok || !transfer.success) throw new Error(transfer.error || 'تعذر تحويل الرصيد.');
+            finishIdempotency('web-balance-transfer');
             showFormResult(balanceTransferResult, `${transfer.message} رقم العملية: ${transfer.transferId}`, true);
             fillTransferSuccess({
                 customId: transfer.transferId,

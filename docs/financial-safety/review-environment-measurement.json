@@ -1,0 +1,22 @@
+{
+  "scope": "review-environment-only",
+  "stagingMeasured": false,
+  "productionMeasured": false,
+  "node": "v22.14.0",
+  "mongodbMemoryServer": "10.1.4",
+  "mongo": {
+    "version": "7.0.14",
+    "storageEngine": "wiredTiger",
+    "replSetMembers": 1,
+    "setNamePresent": true,
+    "msg": "",
+    "transactionsCapable": true
+  },
+  "redis": {
+    "measured": true,
+    "ping": "PONG",
+    "version": "7.0.15",
+    "redlock": "v5.0.0-beta.2",
+    "probeReleased": true
+  }
+}

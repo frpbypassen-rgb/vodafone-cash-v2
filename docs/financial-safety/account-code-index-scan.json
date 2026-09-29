@@ -1,0 +1,17 @@
+{
+  "mode": "scan",
+  "indexCreated": false,
+  "indexName": "account_code_tenant_code_unique",
+  "duplicates": 0,
+  "reservation": {
+    "tenantCodeDuplicates": 0,
+    "globalCodeDuplicates": 0,
+    "sample": []
+  },
+  "owners": {
+    "User": 0,
+    "ClientCompany": 0,
+    "SubAccount": 0
+  },
+  "note": "Global unique index on AccountCode.code is unchanged. A compound unique index is created only with --apply and ALLOW_ACCOUNT_CODE_TENANT_INDEX=true after a clean scan."
+}
