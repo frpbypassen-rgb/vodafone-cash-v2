@@ -1,0 +1,302 @@
+/* Compact manager dashboard controls and transaction cards on phones. */
+@media (max-width: 767.98px) {
+    body.executor-page-dashboard.executor-role-manager {
+        padding: 68px 8px calc(88px + env(safe-area-inset-bottom)) !important;
+    }
+
+    body.executor-page-dashboard.executor-role-manager .exo-command {
+        position: fixed !important;
+        z-index: 1450;
+        inset: 0 0 auto;
+        min-height: 54px;
+        gap: 5px;
+        margin: 0;
+        padding: 5px 8px;
+        border: 0;
+        border-bottom: 1px solid var(--exo-line);
+        border-radius: 0 0 12px 12px;
+        background: var(--exo-panel);
+        box-shadow: 0 5px 18px rgba(0, 0, 0, 0.2);
+        animation: none;
+    }
+
+    body.executor-page-dashboard.executor-role-manager .exo-who {
+        flex: 0 1 auto;
+        gap: 6px;
+    }
+
+    body.executor-page-dashboard.executor-role-manager .exo-who strong {
+        max-width: 82px;
+        overflow: hidden;
+        font-size: 0.72rem;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    body.executor-page-dashboard.executor-role-manager .exo-avatar {
+        width: 32px;
+        height: 32px;
+        flex: 0 0 32px;
+        border-radius: 10px;
+        font-size: 0.82rem;
+    }
+
+    body.executor-page-dashboard.executor-role-manager .exo-command-actions {
+        min-width: 0;
+        flex: 0 1 auto;
+        flex-wrap: nowrap;
+        gap: 4px;
+    }
+
+    body.executor-page-dashboard.executor-role-manager .exo-chip.exo-balance {
+        min-width: 0;
+        max-width: 78px;
+        min-height: 34px;
+        flex: 1 1 58px;
+        gap: 2px;
+        padding: 3px 5px;
+        border-radius: 8px;
+        font-size: 0.58rem;
+        line-height: 1.1;
+    }
+
+    body.executor-page-dashboard.executor-role-manager .exo-chip.exo-balance i,
+    body.executor-page-dashboard.executor-role-manager .exo-balance-full {
+        display: none;
+    }
+
+    body.executor-page-dashboard.executor-role-manager .exo-chip.exo-balance .exo-balance-short {
+        display: inline;
+        overflow: hidden;
+        max-width: 58px;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-size: 0.56rem;
+    }
+
+    body.executor-page-dashboard.executor-role-manager .exo-chip.exo-balance strong {
+        max-width: 100%;
+        overflow: hidden;
+        font-size: 0.62rem;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    body.executor-page-dashboard.executor-role-manager .exo-icon-btn {
+        width: 34px;
+        min-width: 34px;
+        min-height: 34px;
+        padding: 0;
+        border-radius: 9px;
+    }
+
+    body.executor-page-dashboard.executor-role-manager .exo-dock {
+        position: fixed !important;
+        z-index: 1500;
+        right: 8px;
+        bottom: max(8px, env(safe-area-inset-bottom));
+        left: 8px;
+        min-height: 62px;
+        padding: 5px;
+        border-radius: 14px;
+        background: color-mix(in srgb, var(--exo-panel) 96%, transparent);
+    }
+
+    body.executor-page-dashboard.executor-role-manager .exo-dock-link {
+        height: 48px;
+        gap: 1px;
+        font-size: 0.55rem;
+        white-space: nowrap;
+    }
+
+    body.executor-page-dashboard.executor-role-manager .exo-dock-link .exo-ico-wrap {
+        width: 29px;
+        height: 29px;
+        border-radius: 9px;
+    }
+
+    body.executor-page-dashboard.executor-role-manager .exo-dock-link .exo-ico {
+        width: 16px;
+        height: 16px;
+    }
+
+    body.executor-page-dashboard.executor-role-manager .exo-dock-link > span:last-child {
+        max-width: 100%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    body.executor-page-dashboard.executor-role-manager .executor-live-heading {
+        min-height: 0;
+        gap: 8px;
+        margin-bottom: 9px;
+        padding: 0 2px 8px;
+    }
+
+    body.executor-page-dashboard.executor-role-manager .executor-live-heading h1 {
+        font-size: 1rem;
+    }
+
+    body.executor-page-dashboard.executor-role-manager .executor-live-heading p {
+        max-width: 29ch;
+        font-size: 0.66rem;
+        line-height: 1.35;
+    }
+
+    body.executor-page-dashboard.executor-role-manager .executor-live-status {
+        min-height: 26px;
+        padding: 4px 7px;
+        font-size: 0.58rem;
+    }
+
+    body.executor-page-dashboard.executor-role-manager #tasksList {
+        --bs-gutter-x: 0.55rem;
+        --bs-gutter-y: 0.55rem;
+    }
+
+    body.executor-page-dashboard.executor-role-manager .task-card {
+        border-radius: 13px !important;
+    }
+
+    body.executor-page-dashboard.executor-role-manager .executor-task-card-body {
+        padding: 10px !important;
+    }
+
+    body.executor-page-dashboard.executor-role-manager .task-header {
+        gap: 6px;
+        margin-bottom: 8px !important;
+        padding-bottom: 7px !important;
+    }
+
+    body.executor-page-dashboard.executor-role-manager .executor-task-title {
+        gap: 7px;
+    }
+
+    body.executor-page-dashboard.executor-role-manager .executor-task-title h2 {
+        font-size: 0.82rem !important;
+    }
+
+    body.executor-page-dashboard.executor-role-manager .executor-task-title span {
+        margin-top: 1px;
+        font-size: 0.62rem;
+    }
+
+    body.executor-page-dashboard.executor-role-manager .executor-task-icon {
+        width: 32px !important;
+        height: 32px !important;
+        flex-basis: 32px !important;
+        border-radius: 9px !important;
+        font-size: 0.84rem !important;
+        animation: none !important;
+    }
+
+    body.executor-page-dashboard.executor-role-manager .cyber-badge {
+        max-width: 44%;
+        padding: 3px 6px;
+        font-size: 0.58rem;
+        white-space: nowrap;
+    }
+
+    body.executor-page-dashboard.executor-role-manager .executor-task-data {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        margin-bottom: 7px;
+    }
+
+    body.executor-page-dashboard.executor-role-manager .executor-task-data-cell {
+        min-height: 42px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 5px;
+        padding: 6px 7px;
+        border-bottom: 1px solid var(--exo-line);
+    }
+
+    body.executor-page-dashboard.executor-role-manager .executor-task-data-cell:first-child {
+        grid-column: 1 / -1;
+    }
+
+    body.executor-page-dashboard.executor-role-manager .executor-task-data-cell:last-child {
+        border-bottom: 0;
+    }
+
+    body.executor-page-dashboard.executor-role-manager .executor-task-data-cell .data-label {
+        margin: 0;
+        font-size: 0.61rem;
+        white-space: nowrap;
+    }
+
+    body.executor-page-dashboard.executor-role-manager .executor-task-data-cell .copy-box {
+        min-width: 0;
+        flex: 0 1 auto;
+        gap: 5px;
+    }
+
+    body.executor-page-dashboard.executor-role-manager .executor-task-data-cell .copy-val {
+        font-size: 0.79rem;
+        letter-spacing: 0;
+    }
+
+    body.executor-page-dashboard.executor-role-manager .executor-task-data-cell .copy-val.amount {
+        font-size: 0.83rem;
+    }
+
+    body.executor-page-dashboard.executor-role-manager .executor-task-data-cell .live-timer {
+        font-size: 0.72rem;
+    }
+
+    body.executor-page-dashboard.executor-role-manager .tx-notes,
+    body.executor-page-dashboard.executor-role-manager .tx-beneficiary,
+    body.executor-page-dashboard.executor-role-manager .executor-assignee-strip {
+        margin-top: 6px;
+        padding: 6px 8px;
+        font-size: 0.68rem;
+        line-height: 1.35;
+    }
+
+    body.executor-page-dashboard.executor-role-manager .action-zone {
+        gap: 6px;
+        padding: 0 10px 10px !important;
+    }
+
+    body.executor-page-dashboard.executor-role-manager .btn-accept-start,
+    body.executor-page-dashboard.executor-role-manager .btn-cyber-main,
+    body.executor-page-dashboard.executor-role-manager .btn-quick-execute {
+        min-height: 44px !important;
+        padding: 8px;
+        border-radius: 10px;
+        font-size: 0.8rem;
+    }
+
+    body.executor-page-dashboard.executor-role-manager .btn-cyber-sub {
+        min-width: 44px;
+        min-height: 44px !important;
+        padding: 7px;
+        font-size: 0.78rem;
+    }
+}
+
+body.executor-page-dashboard .task-card.task-bank-transfer::before {
+    background: linear-gradient(90deg, #1473d2, #39b8e5) !important;
+}
+
+body.executor-page-dashboard .task-card.task-bank-transfer .executor-task-icon {
+    color: #45b6ee !important;
+    background: rgba(37, 137, 216, 0.16) !important;
+    border-color: rgba(83, 175, 235, 0.48) !important;
+}
+
+body.executor-page-dashboard .task-card.task-post-card::before {
+    background: linear-gradient(90deg, #bd7a18, #f4c45f) !important;
+}
+
+body.executor-page-dashboard .task-card.task-post-card .executor-task-icon {
+    color: #e5b34c !important;
+    background: rgba(218, 163, 57, 0.16) !important;
+    border-color: rgba(230, 183, 82, 0.5) !important;
+}
+
+@media (max-width: 359px) {
+    body.executor-page-dashboard.executor-role-manager .exo-who strong { max-width: 48px; }
+    body.executor-page-dashboard.executor-role-manager .exo-chip.exo-balance .exo-balance-short { max-width: 42px; }
+}
