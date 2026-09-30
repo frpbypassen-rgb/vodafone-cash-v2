@@ -77,6 +77,30 @@ describe('executor active task page', () => {
 
     beforeEach(() => jest.clearAllMocks());
 
+    test('dashboard redirects to the authenticated executor accepted task', async () => {
+        Transaction.findOne.mockResolvedValue({ _id: taskId });
+        const res = response();
+        await controller.getDashboard({ executorEmployee: employee, session: {}, tenant: { _id: 'tenant-1' } }, res);
+
+        expect(Transaction.findOne).toHaveBeenCalledWith(expect.objectContaining({
+            status: 'accepted',
+            tenantId: 'tenant-1',
+            operatorId: 'employee-1',
+            $or: expect.arrayContaining([{ executorGroupId: 'group-1' }])
+        }));
+        expect(res.redirect).toHaveBeenCalledWith(`/executor-portal/active-task/${taskId}`);
+        expect(res.render).not.toHaveBeenCalled();
+    });
+
+    test('dashboard shows the task list after completion or cancellation', async () => {
+        Transaction.findOne.mockResolvedValue(null);
+        const res = response();
+        await controller.getDashboard({ executorEmployee: employee, session: {} }, res);
+
+        expect(res.redirect).not.toHaveBeenCalled();
+        expect(res.render).toHaveBeenCalledWith('executor/dashboard', expect.objectContaining({ activeTaskId: null }));
+    });
+
     test('does not query a malformed task id', async () => {
         const res = response();
         await controller.getActiveTask({ params: { id: 'invalid' }, executorEmployee: employee }, res);
@@ -108,6 +132,7 @@ describe('executor active task page', () => {
             tenantId: 'tenant-1'
         });
         expect(res.render).toHaveBeenCalledWith('executor/dashboard', expect.objectContaining({ activeTaskId: taskId }));
+        expect(Transaction.findOne).not.toHaveBeenCalled();
     });
 });
 

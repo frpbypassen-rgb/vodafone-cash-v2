@@ -48,6 +48,8 @@ describe('executor manager mobile dashboard', () => {
         const routes = fs.readFileSync(path.join(root, 'routes/executorPortal.js'), 'utf8');
         expect(routes).toContain("router.get('/active-task/:id', requireExecutorAuth, requireExecutorTaskAccess, dashboardController.getActiveTask)");
         expect(dashboard).toContain('window.location.assign(activeTaskUrl(id))');
+        expect(dashboard).toContain("activeTaskId ? 'العملية النشطة' : 'منصة التنفيذ'");
+        expect(dashboard).toContain('جار فتح العملية النشطة');
         expect(dashboard).toContain('ownedTasks.filter(t => String(t._id) === activeTaskId)');
         expect(dashboard).toContain("window.location.assign('/executor-portal/dashboard')");
         expect(dashboard).toContain("${activeTaskId ? '' : `<button onclick=\"returnTask(");

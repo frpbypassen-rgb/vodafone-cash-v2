@@ -21,7 +21,10 @@ const { clearExecutorAuthCache } = require('../services/executorAuthCache');
 const { readExecutorManualPolicy, toPublicExecutionPolicy } = require('../utils/executorManualPolicy');
 const executorDepositRequestService = require('../services/executorDepositRequestService');
 const { loadPortalLiveTasks } = require('../services/executorLiveTasksService');
-const { findOwnedAcceptedExecutorTask } = require('../services/executorTaskRoutingService');
+const {
+    findOwnedAcceptedExecutorTask,
+    taskGroupFilter
+} = require('../services/executorTaskRoutingService');
 const { getExecutorServiceLabel } = require('../utils/executorServiceCatalog');
 const {
     QuickExecuteError,
@@ -100,6 +103,17 @@ exports.getProxyExecutorImage = async (req, res) => {
 exports.getDashboard = async (req, res) => {
     const emp = req.executorEmployee || await Employee.findById(req.session.executorId).populate('groupId');
     if (emp?.role === 'accountant') return res.redirect('/executor-portal/reports');
+    if (!req.activeTaskId && emp?._id && emp?.groupId) {
+        const employeeId = objectIdString(emp);
+        const activeQuery = {
+            status: 'accepted',
+            operatorId: employeeId,
+            ...taskGroupFilter(objectIdString(emp.groupId))
+        };
+        if (req.tenant?._id) activeQuery.tenantId = req.tenant._id;
+        const activeTask = await Transaction.findOne(activeQuery);
+        if (activeTask) return res.redirect(`/executor-portal/active-task/${activeTask._id}`);
+    }
     const showMfaNotice = Boolean(req.session.showMfaEnableNotice);
     delete req.session.showMfaEnableNotice;
     const companyBalances = emp?.role === 'manager'
