@@ -90,7 +90,7 @@
     <link rel="stylesheet" href="/css/executor-workspace.css?v=20260921-pool-ui">
     <link rel="stylesheet" href="/css/executor-2030-override.css?v=20260825-balance1">
     <link rel="stylesheet" href="/css/executor-os.css?v=20260930-mobile-shell">
-    <link rel="stylesheet" href="/css/executor-report-controls.css?v=20260930-mobile-search">
+    <link rel="stylesheet" href="/css/executor-report-controls.css?v=20260930-report-layout">
 
     <style>
         .x-stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 14px; margin-bottom: 24px; }
@@ -212,10 +212,25 @@
             </div>
         </div>
 
+        <div class="executor-report-search-block mb-3">
+            <label for="reportSearch" class="form-label text-muted fw-bold mb-1 executor-report-search-label">بحث سريع في العمليات</label>
+            <div class="input-group executor-report-search" role="search">
+                <span class="input-group-text bg-transparent border-secondary"><i class="fa-solid fa-search text-muted" aria-hidden="true"></i></span>
+                <input type="search" id="reportSearch" class="form-control" dir="auto" maxlength="64" placeholder="رقم العملية أو الهاتف أو المبلغ" autocomplete="off" oninput="scheduleExecutorOperationSearch()" onkeydown="if (event.key === 'Enter') { event.preventDefault(); searchExecutorOperations(); }">
+            </div>
+            <small id="reportSearchHint" class="text-muted d-block mt-1 report-search-hint" aria-live="polite">تظهر النتائج المشابهة أثناء الكتابة.</small>
+        </div>
+
         <!-- Filters -->
-        <div class="card-glass mb-4">
-            <div class="row g-3 align-items-end">
-                <div class="col-md-3">
+        <div class="card-glass mb-3 executor-report-filters">
+            <div class="row g-2 align-items-end">
+                <% if (['manager', 'accountant'].includes(emp.role)) { %>
+                <div class="col-12 col-md-3 executor-report-employee">
+                    <label for="employeeFilter" class="form-label text-muted fw-bold">نطاق التقرير</label>
+                    <select id="employeeFilter" class="form-select"><option value="">كل شركة التنفيذ</option></select>
+                </div>
+                <% } %>
+                <div class="col-12 col-md-2 executor-report-period">
                     <label class="form-label text-muted fw-bold">الفترة الزمنية</label>
                     <select id="dateType" class="form-select" onchange="toggleDateInput()">
                         <option value="all">كل العمليات</option>
@@ -224,50 +239,34 @@
                         <option value="range">فترة من / إلى</option>
                     </select>
                 </div>
-                <div class="col-md-3">
+                <div class="col-12 col-md-3 executor-report-date">
                     <label class="form-label text-muted fw-bold">التاريخ</label>
                     <input type="date" id="dateValueDay" class="form-control">
                     <input type="month" id="dateValueMonth" class="form-control" style="display:none;">
-                    <div id="dateRangeInputs" class="d-none d-grid gap-2" style="grid-template-columns:1fr 1fr">
-                        <input type="date" id="dateFrom" class="form-control" aria-label="من تاريخ">
-                        <input type="date" id="dateTo" class="form-control" aria-label="إلى تاريخ">
+                    <div id="dateRangeInputs" class="d-none gap-2" style="grid-template-columns:1fr 1fr">
+                        <div><label for="dateFrom" class="form-label text-muted">من</label><input type="date" id="dateFrom" class="form-control"></div>
+                        <div><label for="dateTo" class="form-label text-muted">إلى</label><input type="date" id="dateTo" class="form-control"></div>
                     </div>
                 </div>
-                <% if (emp.role === 'manager') { %>
-                <div class="col-md-3">
-                    <label class="form-label text-muted fw-bold">نطاق الموظف</label>
-                    <select id="employeeFilter" class="form-select"><option value="">كل شركة التنفيذ</option></select>
-                </div>
-                <% } %>
-                <div class="col-md-<%= emp.role === 'manager' ? '3' : '3' %> text-end">
+                <div class="col-12 col-md-2 text-end executor-report-load">
                     <button id="btnLoadReport" class="btn btn-warning w-100 fw-bold py-2" onclick="fetchReport()">
-                        <i class="fa-solid fa-search"></i> عرض التقرير
+                        <i class="fa-solid fa-chart-column"></i> عرض التقرير
                     </button>
                 </div>
-                <div class="col-md-<%= emp.role === 'manager' ? '6' : '9' %> text-end">
-                    <button id="btnDownloadPdf" class="btn btn-danger w-100 fw-bold py-2 d-none" onclick="downloadReportPdf()">
+                <div id="reportDownloadContainer" class="col-12 col-md-2 text-end executor-report-download d-none">
+                    <button id="btnDownloadPdf" class="btn btn-danger w-100 fw-bold py-2" onclick="downloadReportPdf()">
                         <i class="fa-solid fa-file-pdf"></i> تحميل PDF
                     </button>
                 </div>
             </div>
-            <div class="row g-2 mt-2 align-items-center">
-                <div class="col-md-6">
+            <div class="row g-2 mt-1 align-items-center executor-report-shortcuts">
+                <div class="col-12">
                     <div class="btn-group w-100" role="group">
                         <button type="button" class="btn btn-outline-secondary btn-sm fw-bold" onclick="setQuickPeriod('today')">اليوم</button>
                         <button type="button" class="btn btn-outline-secondary btn-sm fw-bold" onclick="setQuickPeriod('yesterday')">الأمس</button>
                         <button type="button" class="btn btn-outline-secondary btn-sm fw-bold" onclick="setQuickPeriod('last7')">آخر 7 أيام</button>
                         <button type="button" class="btn btn-outline-secondary btn-sm fw-bold" onclick="setQuickPeriod('thisMonth')">الشهر الحالي</button>
                     </div>
-                </div>
-                <div class="col-md-6 executor-report-search-row">
-                    <label for="reportSearch" class="form-label text-muted fw-bold mb-1 executor-report-search-label">&#x628;&#x62D;&#x62B; &#x633;&#x631;&#x64A;&#x639; &#x641;&#x64A; &#x627;&#x644;&#x639;&#x645;&#x644;&#x64A;&#x627;&#x62A;</label>
-                    <div class="input-group executor-report-search" role="search">
-                        <span class="input-group-text bg-transparent border-secondary"><i class="fa-solid fa-search text-muted"></i></span>
-                        <input type="search" id="reportSearch" class="form-control" dir="auto" maxlength="64" placeholder="&#x631;&#x642;&#x645; &#x647;&#x627;&#x62A;&#x641; &#x623;&#x648; &#x645;&#x628;&#x644;&#x63A;" autocomplete="off" onkeydown="if (event.key === 'Enter') { event.preventDefault(); searchExecutorOperations(); }">
-                        <button type="button" class="btn btn-primary fw-bold report-search-submit" onclick="searchExecutorOperations()" aria-label="&#x628;&#x62D;&#x62B; &#x641;&#x64A; &#x627;&#x644;&#x639;&#x645;&#x644;&#x64A;&#x627;&#x62A;" title="&#x628;&#x62D;&#x62B;"><i class="fa-solid fa-arrow-left" aria-hidden="true"></i><span class="report-search-button-label">&#x628;&#x62D;&#x62B;</span></button>
-                        <button type="button" class="btn btn-outline-secondary report-search-clear" onclick="clearExecutorOperationSearch()" aria-label="&#x645;&#x633;&#x62D; &#x627;&#x644;&#x628;&#x62D;&#x62B;" title="&#x645;&#x633;&#x62D; &#x627;&#x644;&#x628;&#x62D;&#x62B;"><i class="fa-solid fa-xmark"></i></button>
-                    </div>
-                    <small id="reportSearchHint" class="text-muted d-block mt-1 report-search-hint">&#x627;&#x628;&#x62D;&#x62B; &#x628;&#x631;&#x642;&#x645; &#x627;&#x644;&#x647;&#x627;&#x62A;&#x641; &#x623;&#x648; &#x628;&#x627;&#x644;&#x642;&#x64A;&#x645;&#x629;&#x61B; &#x62A;&#x638;&#x647;&#x631; &#x627;&#x644;&#x646;&#x62A;&#x627;&#x626;&#x62C; &#x645;&#x646; &#x643;&#x627;&#x645;&#x644; &#x633;&#x62C;&#x644; &#x627;&#x644;&#x62A;&#x646;&#x641;&#x64A;&#x630; &#x636;&#x645;&#x646; &#x635;&#x644;&#x627;&#x62D;&#x64A;&#x627;&#x62A;&#x643;.</small>
                 </div>
             </div>
         </div>
@@ -427,6 +426,13 @@
         }
 
         setTripoliDateInputs();
+        const phoneReportLayout = window.matchMedia('(max-width: 767.98px)').matches;
+        if (phoneReportLayout) {
+            const today = tripoliDateValue();
+            document.getElementById('dateType').value = 'range';
+            document.getElementById('dateFrom').value = addTripoliDays(today, -6);
+            document.getElementById('dateTo').value = today;
+        }
 
         function toggleDateInput() {
             const type = document.getElementById('dateType').value;
@@ -439,6 +445,8 @@
         let lastReportData = null;
         let lastReportRequest = null;
         let reportLoadInFlight = false;
+        let queuedReportMode = null;
+        let reportSearchTimer = null;
         let isPersonalExecutorReport = <%= ['operator', 'external'].includes(emp.role) ? 'true' : 'false' %>;
         const formatEgp = (value) => `${Number(value || 0).toLocaleString('en-US', { maximumFractionDigits: 2 })} ج.م`;
 
@@ -446,7 +454,7 @@
             const select = document.getElementById('employeeFilter');
             if (!select) return;
             try {
-                const response = await executorApiFetch('/executor-portal/api/employees');
+                const response = await executorApiFetch('/executor-portal/reports/employees');
                 const data = await readExecutorApiResponse(response);
                 const requestedId = new URLSearchParams(window.location.search).get('employeeId') || '';
                 (data.employees || []).filter((employee) => employee.role !== 'manager').forEach((employee) => {
@@ -459,16 +467,23 @@
             } catch (error) { select.innerHTML = '<option value="">كل شركة التنفيذ</option>'; }
         }
 
-        async function fetchReport() {
+        async function fetchReport(searchOnly = false) {
             // يمنع تداخل طلب التحميل التلقائي مع ضغطة المستخدم، والذي قد يترك
             // الزر في حالة "جاري التحميل" رغم وصول البيانات.
-            if (reportLoadInFlight) return;
+            if (reportLoadInFlight) {
+                queuedReportMode = searchOnly;
+                return;
+            }
+            if (!searchOnly) {
+                clearTimeout(reportSearchTimer);
+                document.getElementById('reportSearch').value = '';
+            }
             const dateType = document.getElementById('dateType').value;
             const dateValue = dateType === 'day' ? document.getElementById('dateValueDay').value : document.getElementById('dateValueMonth').value;
             const dateFrom = dateType === 'range' ? document.getElementById('dateFrom').value : '';
             const dateTo = dateType === 'range' ? document.getElementById('dateTo').value : '';
             const employeeId = document.getElementById('employeeFilter')?.value || '';
-            const search = document.getElementById('reportSearch')?.value.trim() || '';
+            const search = searchOnly ? (document.getElementById('reportSearch')?.value.trim() || '') : '';
 
             if (!search && ((dateType !== 'all' && dateType !== 'range' && !dateValue) || (dateType === 'range' && (!dateFrom || !dateTo)))) {
                 return Swal.fire({ icon: 'warning', title: 'تنبيه', text: 'يرجى اختيار التاريخ.' });
@@ -501,18 +516,14 @@
                 lastReportRequest = reportRequest;
                 lastReportData = data.data;
                 const searchHint = document.getElementById('reportSearchHint');
-                if (searchHint) {
-                    searchHint.textContent = search
-                        ? `\u062a\u0645 \u0627\u0644\u0628\u062d\u062b \u0641\u064a \u0643\u0627\u0645\u0644 \u0633\u062c\u0644 \u0627\u0644\u062a\u0646\u0641\u064a\u0630 \u0639\u0646: ${search}`
-                        : '\u0627\u0628\u062d\u062b \u0628\u0631\u0642\u0645 \u0627\u0644\u0647\u0627\u062a\u0641 \u0623\u0648 \u0628\u0627\u0644\u0642\u064a\u0645\u0629\u061b \u062a\u0638\u0647\u0631 \u0627\u0644\u0646\u062a\u0627\u0626\u062c \u0645\u0646 \u0643\u0627\u0645\u0644 \u0633\u062c\u0644 \u0627\u0644\u062a\u0646\u0641\u064a\u0630 \u0636\u0645\u0646 \u0635\u0644\u0627\u062d\u064a\u0627\u062a\u0643.';
-                }
+                if (searchHint) searchHint.textContent = search ? `نتائج البحث عن: ${search}` : 'تظهر النتائج المشابهة أثناء الكتابة.';
                 document.getElementById('executorColumnHeader')?.classList.toggle('d-none', isPersonalExecutorReport);
                 renderStats(data.data);
                 renderOperations(data.data);
                 // لا تجعل فشل الرسم البياني الخارجي يحجب نتائج التقرير وعملياته.
                 document.getElementById('statsSection').classList.remove('d-none');
                 document.getElementById('tableSection').classList.remove('d-none');
-                document.getElementById('btnDownloadPdf').classList.remove('d-none');
+                document.getElementById('reportDownloadContainer').classList.toggle('d-none', Boolean(search));
                 renderReportChart(data.data);
             } catch (e) {
                 Swal.fire({ icon: 'error', title: 'خطأ', text: e.message || 'فشل جلب التقرير' });
@@ -520,6 +531,11 @@
                 btn.innerHTML = originalBtnHtml;
                 btn.disabled = false;
                 reportLoadInFlight = false;
+                if (queuedReportMode !== null) {
+                    const nextMode = queuedReportMode;
+                    queuedReportMode = null;
+                    fetchReport(nextMode);
+                }
             }
         }
 
@@ -702,7 +718,12 @@
                 </div>
                 <div class="x-mobile-card-body">
                     <span class="x-mobile-amount">${Number(tx.amount || 0).toLocaleString('en-US', { maximumFractionDigits: 0 })} ج.م</span>
-                    <span class="x-mobile-meta">${typeLabel}<br>${tx.recipientNumber || '---'}<br>${dateStr}</span>
+                    <span class="x-mobile-meta">${typeLabel}</span>
+                </div>
+                <div class="x-mobile-card-details">
+                    <span>المستلم <b dir="ltr">${tx.recipientNumber || '---'}</b></span>
+                    <span>التاريخ <b dir="ltr">${dateStr}</b></span>
+                    ${isPersonalExecutorReport ? '' : `<span>المنفذ <b>${tx.executorName || '---'}</b></span>`}
                 </div>
             `;
             return card;
@@ -969,7 +990,19 @@
         function setQuickPeriod(kind) {
             const searchInput = document.getElementById('reportSearch');
             if (searchInput) searchInput.value = '';
+            clearTimeout(reportSearchTimer);
             const today = tripoliDateValue();
+            if (phoneReportLayout) {
+                const from = kind === 'yesterday' ? addTripoliDays(today, -1)
+                    : kind === 'last7' ? addTripoliDays(today, -6)
+                        : kind === 'thisMonth' ? `${tripoliMonthValue()}-01` : today;
+                document.getElementById('dateType').value = 'range';
+                document.getElementById('dateFrom').value = from;
+                document.getElementById('dateTo').value = kind === 'yesterday' ? from : today;
+                toggleDateInput();
+                fetchReport();
+                return;
+            }
             if (kind === 'today') {
                 document.getElementById('dateType').value = 'day';
                 document.getElementById('dateValueDay').value = today;
@@ -988,14 +1021,15 @@
             fetchReport();
         }
 
-        function searchExecutorOperations() {
-            fetchReport();
+        function scheduleExecutorOperationSearch() {
+            clearTimeout(reportSearchTimer);
+            reportSearchTimer = setTimeout(searchExecutorOperations, 450);
         }
 
-        function clearExecutorOperationSearch() {
-            const input = document.getElementById('reportSearch');
-            if (input) input.value = '';
-            fetchReport();
+        function searchExecutorOperations() {
+            clearTimeout(reportSearchTimer);
+            if (!document.getElementById('reportSearch')?.value.trim()) return fetchReport();
+            return fetchReport(true);
         }
 
         // Load the full operational ledger immediately; no manual date filter

@@ -422,6 +422,30 @@ describe('executor employee reports', () => {
         expect(Transaction.find).not.toHaveBeenCalled();
     });
 
+    test('allows accountant to filter an employee in the same group only', async () => {
+        Employee.findById.mockImplementation(async (id) => ({
+            _id: id,
+            groupId: id === 'foreign-employee' ? 'other-group' : 'group-1',
+            role: id === 'accountant-1' ? 'accountant' : 'operator',
+            name: id
+        }));
+
+        const report = await getExecutorReports({
+            executorId: 'accountant-1', employeeId: 'employee-2', dateType: 'all'
+        });
+        expect(report.scope).toBe('employee');
+        expect(Transaction.find).toHaveBeenCalledWith(expect.objectContaining({
+            operatorId: 'employee-2',
+            $or: expect.arrayContaining([{ executorGroupId: 'group-1' }])
+        }));
+
+        Transaction.find.mockClear();
+        await expect(getExecutorReports({
+            executorId: 'accountant-1', employeeId: 'foreign-employee', dateType: 'all'
+        })).rejects.toThrow('NOT_FOUND');
+        expect(Transaction.find).not.toHaveBeenCalled();
+    });
+
     test('includes tasks completed today even when created on an earlier day', async () => {
         Transaction.find.mockImplementation(() => ({
             sort: jest.fn().mockReturnValue(leanResult([
