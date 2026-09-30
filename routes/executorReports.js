@@ -5,6 +5,7 @@ const mobileWebParityService = require('../services/mobileWebParityService');
 const mobileWebParityMapper = require('../mappers/mobileWebParityMapper');
 const { generateExecutorReportPdf } = require('../services/reportPdfService');
 const { snapshotCompanyBalances, workingBalanceForEmployee } = require('../services/executorBalancePoolService');
+const Employee = require('../models/Employee');
 
 const reportErrorResponse = (res, error) => {
     const messages = {
@@ -65,6 +66,23 @@ router.get('/reports', requireExecutorAuth, async (req, res) => {
             : null;
         res.render('executor/reports', { emp, companyBalances, workingBalance });
     } catch (_) { res.status(500).send('Error'); }
+});
+
+router.get('/reports/employees', requireExecutorAuth, async (req, res) => {
+    const emp = req.executorEmployee;
+    if (!['manager', 'accountant'].includes(emp.role)) {
+        return res.status(403).json({ success: false, error: 'غير مصرح بعرض القائمة.' });
+    }
+    try {
+        const groupId = emp.groupId?._id || emp.groupId;
+        const employees = await Employee.find({ groupId, role: { $ne: 'manager' } })
+            .select('_id name role').lean();
+        return res.json({ success: true, employees: employees.map((employee) => ({
+            id: String(employee._id), name: employee.name, role: employee.role
+        })) });
+    } catch (error) {
+        return reportErrorResponse(res, error);
+    }
 });
 
 router.post('/reports/filter', requireExecutorAuth, async (req, res) => {

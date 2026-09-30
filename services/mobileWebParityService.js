@@ -1411,7 +1411,7 @@ async function getExecutorReports({ executorId, dateType, dateValue, dateFrom, d
 
     let targetEmployee = null;
     if (employeeId) {
-        if (!isManager) throw new Error('FORBIDDEN');
+        if (!isManager && !isAccountant) throw new Error('FORBIDDEN');
         targetEmployee = await Employee.findById(employeeId);
         const targetGroupId = targetEmployee?.groupId && targetEmployee.groupId._id
             ? targetEmployee.groupId._id
@@ -1486,7 +1486,7 @@ async function getExecutorReports({ executorId, dateType, dateValue, dateFrom, d
             canViewCompanyBalance: false,
             canViewTeamPerformance: false,
             canViewReconciliation: isExternal,
-            canFilterEmployee: isManager
+            canFilterEmployee: isManager || isAccountant
         },
         targetEmployee: {
             id: reportOwner._id,
@@ -1542,7 +1542,7 @@ async function getExecutorReports({ executorId, dateType, dateValue, dateFrom, d
             canViewCompanyBalance: true,
             canViewTeamPerformance: isManager,
             canViewReconciliation: true,
-            canFilterEmployee: isManager
+            canFilterEmployee: isManager || isAccountant
         },
         financialSummary: {
             openingBalance: currentBalance - periodBalance,

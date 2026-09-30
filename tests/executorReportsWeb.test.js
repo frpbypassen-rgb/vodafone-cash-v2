@@ -11,6 +11,7 @@ jest.mock('../services/reportPdfService', () => ({ generateExecutorReportPdf: je
 const Employee = require('../models/Employee');
 const mobileWebParityService = require('../services/mobileWebParityService');
 const { generateExecutorReportPdf } = require('../services/reportPdfService');
+const { clearExecutorAuthCache } = require('../services/executorAuthCache');
 const executorReportsRouter = require('../routes/executorReports');
 
 const employee = {
@@ -35,7 +36,13 @@ const buildApp = () => {
 describe('executor web reports', () => {
     beforeEach(() => {
         jest.clearAllMocks();
-        Employee.findById.mockReturnValue({ populate: jest.fn().mockResolvedValue(employee) });
+        clearExecutorAuthCache();
+        Employee.findById.mockReturnValue({
+            select: jest.fn().mockReturnValue({
+                populate: jest.fn().mockReturnValue({ lean: jest.fn().mockResolvedValue(employee) })
+            }),
+            populate: jest.fn().mockResolvedValue(employee)
+        });
         mobileWebParityService.getExecutorReports.mockResolvedValue({
             scope: 'employee',
             reportPeriod: { value: '2026-08-19' },
@@ -55,6 +62,50 @@ describe('executor web reports', () => {
             dateType: 'day',
             dateValue: '2026-08-19'
         }));
+    });
+
+    test('lists only same-group employees with read-only report fields', async () => {
+        const lean = jest.fn().mockResolvedValue([
+            { _id: 'employee-2', name: 'موظف', role: 'operator', webPassword: 'hidden' }
+        ]);
+        const select = jest.fn().mockReturnValue({ lean });
+        Employee.find.mockReturnValue({ select });
+
+        const response = await request(buildApp()).get('/executor-portal/reports/employees');
+
+        expect(response.status).toBe(200);
+        expect(Employee.find).toHaveBeenCalledWith({ groupId: 'group-1', role: { $ne: 'manager' } });
+        expect(select).toHaveBeenCalledWith('_id name role');
+        expect(response.body.employees).toEqual([{ id: 'employee-2', name: 'موظف', role: 'operator' }]);
+    });
+
+    test('does not expose the employee list to an operator', async () => {
+        Employee.findById.mockReturnValue({
+            select: jest.fn().mockReturnValue({
+                populate: jest.fn().mockReturnValue({ lean: jest.fn().mockResolvedValue({ ...employee, role: 'operator' }) })
+            })
+        });
+
+        const response = await request(buildApp()).get('/executor-portal/reports/employees');
+
+        expect(response.status).toBe(403);
+        expect(Employee.find).not.toHaveBeenCalled();
+    });
+
+    test('allows an accountant to read the same-group employee list', async () => {
+        Employee.findById.mockReturnValue({
+            select: jest.fn().mockReturnValue({
+                populate: jest.fn().mockReturnValue({ lean: jest.fn().mockResolvedValue({ ...employee, role: 'accountant' }) })
+            })
+        });
+        Employee.find.mockReturnValue({
+            select: jest.fn().mockReturnValue({ lean: jest.fn().mockResolvedValue([]) })
+        });
+
+        const response = await request(buildApp()).get('/executor-portal/reports/employees');
+
+        expect(response.status).toBe(200);
+        expect(Employee.find).toHaveBeenCalledWith({ groupId: 'group-1', role: { $ne: 'manager' } });
     });
 
     test('passes a phone or amount search through to the scoped report service', async () => {
