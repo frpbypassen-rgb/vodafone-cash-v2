@@ -309,7 +309,7 @@ const redirectDepositLedger = (req, res) => {
 const renderTransactions = async (req, res, operationsWorkspace = false) => {
     try {
         if (redirectDepositLedger(req, res)) return;
-        const page = parseInt(req.query.page) || 1;
+        const page = Math.max(1, parseInt(req.query.page, 10) || 1);
         const limit = 100;
         const search = req.query.search || '';
         const statusFilter = req.query.status || '';
@@ -320,8 +320,9 @@ const renderTransactions = async (req, res, operationsWorkspace = false) => {
         let toDate = req.query.toDate;
         const filterType = req.query.filterType || '';
 
-        // Default to the current full month if fromDate and toDate are not specified.
-        if (fromDate === undefined && toDate === undefined) {
+        // The operations workspace is a historical list; only the central
+        // ledger retains its current-month default.
+        if (!operationsWorkspace && fromDate === undefined && toDate === undefined) {
             const today = new Date();
             const year = today.getFullYear();
             const monthNumber = today.getMonth() + 1;
@@ -449,6 +450,7 @@ const renderTransactions = async (req, res, operationsWorkspace = false) => {
             executorDisplayByTransaction,
             currentPage: page, 
             totalPages, 
+            totalTxs,
             search, 
             statusFilter, 
             fromDate, 
