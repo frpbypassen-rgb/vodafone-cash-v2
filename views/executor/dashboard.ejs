@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
-    <title>منصة التنفيذ | الأهرام</title>
+    <title><%= activeTaskId ? 'العملية النشطة' : 'منصة التنفيذ' %> | الأهرام</title>
     
     <script>
         const savedTheme = localStorage.getItem('ahram_theme') || 'light';
@@ -416,7 +416,7 @@
 
         <div class="executor-task-layout">
             <section class="executor-task-stage">
-                <div id="tasksList" class="row g-3"></div>
+                <div id="tasksList" class="row g-3" aria-live="polite"><% if (activeTaskId) { %><div class="col-12 text-center py-4">جار فتح العملية النشطة...</div><% } %></div>
             </section>
 
             <aside class="executor-monitor-rail" aria-label="مراقبة غرفة العمليات">
@@ -1366,6 +1366,9 @@
                 container.innerHTML = html || `<div class="col-12"><div class="executor-empty-state-live"><div><img src="/images/executor-3d-alert.png" alt="في انتظار عمليات جديدة"><h2>غرفة العمليات هادئة</h2><p>سيظهر الطلب هنا فور وصول عملية جديدة.</p></div></div></div>`;
             }
         } catch(e) {
+            if (activeTaskId) {
+                document.getElementById('tasksList').innerHTML = '<div class="col-12 text-center py-4">تعذر تحميل العملية النشطة. ستتم إعادة المحاولة تلقائيًا.</div>';
+            }
         }
     }
 
