@@ -932,6 +932,22 @@
         </section>
         <% } %>
 
+        <% if (opsWorkspace) { %>
+        <form method="GET" action="/transactions/operations" class="d-flex flex-wrap align-items-end gap-2 mb-3" aria-label="فترة العمليات">
+            <div>
+                <label for="operationsFromDate" class="form-label small fw-bold mb-1">من</label>
+                <input id="operationsFromDate" name="fromDate" type="date" class="form-control form-control-sm" value="<%= fromDate %>">
+            </div>
+            <div>
+                <label for="operationsToDate" class="form-label small fw-bold mb-1">إلى</label>
+                <input id="operationsToDate" name="toDate" type="date" class="form-control form-control-sm" value="<%= toDate %>">
+            </div>
+            <button type="submit" class="btn btn-sm btn-primary">عرض الفترة</button>
+            <a href="/transactions/operations" class="btn btn-sm btn-outline-secondary">كل العمليات</a>
+            <span class="small text-muted ms-auto" aria-live="polite"><%= Number(totalTxs) || 0 %> عملية</span>
+        </form>
+        <% } %>
+
         <div class="data-card border-0 p-0 overflow-hidden">
             <div class="table-responsive border-0 m-0 d-none d-lg-block">
                 <table class="table text-center align-middle m-0" id="transactionsTable">

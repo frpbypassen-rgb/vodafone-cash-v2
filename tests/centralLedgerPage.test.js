@@ -19,6 +19,7 @@ const baseLocals = {
     executorDisplayByTransaction: {},
     currentPage: 1,
     totalPages: 1,
+    totalTxs: 0,
     search: '',
     statusFilter: '',
     fromDate: '2026-09-01',
@@ -44,6 +45,31 @@ const renderTransactions = (overrides = {}) => ejs.render(
 );
 
 describe('central ledger page layout', () => {
+    test('operations offers the full history and an optional date range', () => {
+        const html = renderTransactions({
+            operationWorkspace: true,
+            fromDate: '',
+            toDate: '',
+            totalTxs: 125,
+            totalPages: 2
+        });
+
+        expect(html).toContain('action="/transactions/operations"');
+        expect(html).toContain('name="fromDate"');
+        expect(html).toContain('name="toDate"');
+        expect(html).toContain('href="/transactions/operations"');
+        expect(html).toContain('125 عملية');
+        expect(html).toContain('page=2');
+
+        const routeSource = fs.readFileSync(path.join(__dirname, '..', 'routes', 'adminTransactions.js'), 'utf8');
+        expect(routeSource).toContain('if (!operationsWorkspace && fromDate === undefined && toDate === undefined)');
+        expect(routeSource).toContain('if (fromDate || toDate)');
+    });
+
+    test('central ledger does not show the operations history filter', () => {
+        expect(renderTransactions()).not.toContain('action="/transactions/operations"');
+    });
+
     test('replaces deposit/discount KPI cards with compact successful-ops stats and company columns', () => {
         const html = renderTransactions();
 
