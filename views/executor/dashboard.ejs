@@ -327,9 +327,9 @@
     <link rel="stylesheet" href="/css/executor-workspace.css?v=20260921-task-card">
     <link rel="stylesheet" href="/css/executor-2030-override.css?v=20260825-balance1">
     <link rel="stylesheet" href="/css/executor-os.css?v=20260930-mobile-shell">
-    <link rel="stylesheet" href="/css/executor-dashboard-mobile.css?v=20260930-received-type-cards">
+    <link rel="stylesheet" href="/css/executor-dashboard-mobile.css?v=20260930-active-task">
 </head>
-<body class="executor-os executor-portal-v2 executor-page-dashboard <%= emp.role === 'manager' ? 'executor-role-manager' : '' %>">
+<body class="executor-os executor-portal-v2 executor-page-dashboard <%= emp.role === 'manager' ? 'executor-role-manager' : '' %> <%= activeTaskId ? 'executor-active-task' : '' %>">
 
 <%- include('partials/navigation', { emp, activePage: 'tasks' }) %>
 <div class="exo-stage">
@@ -347,6 +347,7 @@
 
 <script>
     const myExecutorId = '<%= emp._id %>';
+    const activeTaskId = <%- JSON.stringify(activeTaskId || null) %>;
     const isExecutorManager = <%= emp.role === 'manager' ? 'true' : 'false' %>;
     const executorTaskTypeMeta = {
         vodafone: { name: 'تحويل محفظة كاش', short: 'كاش', icon: 'fa-mobile-screen-button' },
@@ -402,15 +403,15 @@
     <div id="radarSection">
         <header class="executor-live-heading">
             <div>
-                <h1>غرفة التنفيذ</h1>
-                <p>تصل المهام الجديدة فورًا، ويظهر رقم المستلم كاملًا بعد قبول المهمة.</p>
+                <h1><%= activeTaskId ? 'العملية النشطة' : 'غرفة التنفيذ' %></h1>
+                <% if (!activeTaskId) { %><p>تصل المهام الجديدة فورًا، ويظهر رقم المستلم كاملًا بعد قبول المهمة.</p><% } %>
             </div>
-            <div class="d-flex align-items-center gap-2">
+            <% if (!activeTaskId) { %><div class="d-flex align-items-center gap-2">
                 <% if (emp.role === 'manager') { %>
                     <a href="/executor-portal/settings" class="nav-btn" title="إعدادات توزيع المهام"><i class="fa-solid fa-route"></i><span class="d-none d-md-inline"> التوجيه</span></a>
                 <% } %>
                 <span class="executor-live-status"><i></i> المراقبة نشطة</span>
-            </div>
+            </div><% } %>
         </header>
 
         <div class="executor-task-layout">
@@ -597,6 +598,7 @@
 <script>
     // 🔀 Section Toggling Logic
     function switchSection(sectionId) {
+        if (activeTaskId) return;
         const radarSec = document.getElementById('radarSection');
         const profileSec = document.getElementById('profileSection');
         
@@ -631,6 +633,7 @@
     }
 
     function handleHashChange() {
+        if (activeTaskId) return;
         const hash = window.location.hash;
         if (hash === '#profile') {
             switchSection('profile');
@@ -657,6 +660,7 @@
     });
 
     let activeTasksIds = [];
+    const activeTaskUrl = (id) => '/executor-portal/active-task/' + encodeURIComponent(id);
     let currentCompletingId = null; 
     let currentCompletingTransferType = '';
     let currentCompletingBankName = '';
@@ -1116,7 +1120,7 @@
             // 🚨 الطوارئ الذكية: تحديد إذا كان الموظف مشغولاً أم لا
             const amIBusy = data.tasks.some(t => t.operatorId === myExecutorId && t.status === 'accepted');
             let targetAlert = null;
-            if (data.alerts && data.alerts.length > 0) {
+            if (!activeTaskId && data.alerts && data.alerts.length > 0) {
                 targetAlert = data.alerts.find(a => {
                     if (dismissedAlertsIds.has(a._id)) return false;
                     if (amIBusy) return a.operatorId === myExecutorId;
@@ -1144,7 +1148,7 @@
             }
 
             // 💰 تنبيهات الإيداع
-            if (data.depAlerts && data.depAlerts.length > 0) {
+            if (!activeTaskId && data.depAlerts && data.depAlerts.length > 0) {
                 for (const alertTx of data.depAlerts) {
                     const alertData = alertTx.executorWebAlert;
                     const alertType = ['success', 'error', 'warning'].includes(alertData.type) ? alertData.type : 'info';
@@ -1156,13 +1160,26 @@
             }
 
             const container = document.getElementById('tasksList');
-            const newTasks = data.tasks.filter(t => !activeTasksIds.includes(t._id));
-            if (newTasks.length > 0 && !currentEmergencyId) document.getElementById('alertSound').play().catch(()=>{});
-            activeTasksIds = data.tasks.map(t => t._id);
+            const ownedTasks = data.tasks.filter(t => t.isOwnedByCurrentExecutor === true
+                || (t.operatorId === myExecutorId && t.status === 'accepted'));
+            if (!activeTaskId && ownedTasks.length > 0) {
+                window.location.replace(activeTaskUrl(ownedTasks[0]._id));
+                return;
+            }
+            const visibleTasks = activeTaskId
+                ? ownedTasks.filter(t => String(t._id) === activeTaskId)
+                : data.tasks;
+            if (activeTaskId && visibleTasks.length === 0) {
+                window.location.replace('/executor-portal/dashboard');
+                return;
+            }
+            const newTasks = visibleTasks.filter(t => !activeTasksIds.includes(t._id));
+            if (!activeTaskId && newTasks.length > 0 && !currentEmergencyId) document.getElementById('alertSound').play().catch(()=>{});
+            activeTasksIds = visibleTasks.map(t => t._id);
             
             // 🔒 فحص الـ Hash لمنع إعادة الرسم والوميض
-            const currentTasksHash = Array.isArray(data.tasks)
-                ? data.tasks.map((task) => [
+            const currentTasksHash = Array.isArray(visibleTasks)
+                ? visibleTasks.map((task) => [
                     task._id,
                     task.status,
                     task.amount,
@@ -1184,7 +1201,7 @@
                 let pendingTasks = [];
                 let othersTasks = [];
 
-                data.tasks.forEach(t => {
+                visibleTasks.forEach(t => {
                     const ownedByMe = t.isOwnedByCurrentExecutor === true
                         || (t.operatorId === myExecutorId && t.status === 'accepted');
                     const routedToMe = t.isAssignedToCurrentExecutor === true || (
@@ -1329,8 +1346,8 @@
                                          </div>
                                          <div class="horizontal-actions">
                                             <button onclick="editAmount('${t._id}')" class="btn-cyber-sub btn-warning-neon" title="تعديل المبلغ"><i class="fa-solid fa-pen-to-square"></i> <span class="btn-text-hide ms-1">تعديل</span></button>
-                                            <button onclick="returnTask('${t._id}')" class="btn-cyber-sub btn-info-neon" title="إرجاع الطلب للإدارة"><i class="fa-solid fa-reply"></i> <span class="btn-text-hide ms-1">إرجاع</span></button>
-                                            <button onclick="cancelTask('${t._id}')" class="btn-cyber-sub btn-danger-neon" title="إلغاء لخطأ في الرقم"><i class="fa-solid fa-xmark"></i> <span class="btn-text-hide ms-1">إلغاء</span></button>
+                                            ${activeTaskId ? '' : `<button onclick="returnTask('${t._id}')" class="btn-cyber-sub btn-info-neon" title="إرجاع الطلب للإدارة"><i class="fa-solid fa-reply"></i> <span class="btn-text-hide ms-1">إرجاع</span></button>`}
+                                            <button onclick="cancelTask('${t._id}')" class="btn-cyber-sub btn-danger-neon" title="إلغاء العملية"><i class="fa-solid fa-xmark"></i> <span class="btn-text-hide ms-1">إلغاء</span></button>
                                          </div>
                                         ` : `
                                          <div class="complete-actions-row">
@@ -1517,8 +1534,8 @@
             const telUri = data.telUri || encodeQuickExecuteTelUri(data.ussd || '');
             if (!telUri || telUri === 'tel:') throw new Error('تعذر تجهيز كود الاتصال.');
             const launched = launchQuickExecuteTel(telUri);
-            if (data.acceptedNow) await refreshTasks();
             if (!launched) await showQuickExecuteCopyFallback(data.ussd || '', telUri);
+            if (data.acceptedNow) window.location.assign(activeTaskUrl(taskId));
         } catch (error) {
             const message = error.message || 'فشل تجهيز الاتصال.';
             const needsSettings = /رقم سر|PIN/i.test(message);
@@ -1540,7 +1557,7 @@
         try {
             const response = await executorApiFetch('/executor-portal/api/accept-task/' + id, { method: 'POST' });
             await readExecutorApiResponse(response);
-            await refreshTasks();
+            window.location.assign(activeTaskUrl(id));
         } catch (error) {
             Swal.fire('تعذر سحب العملية', error.message, 'error');
             await refreshTasks();
@@ -1624,7 +1641,7 @@
                 body: JSON.stringify(payload)
             });
             await readExecutorApiResponse(res);
-            window.location.reload();
+            window.location.assign('/executor-portal/dashboard');
         } catch(e) {
             Swal.fire('تعذر إنهاء العملية', e.message || 'فشل حفظ الإيصال.', 'error');
             btn.disabled = false;
@@ -1702,7 +1719,11 @@
             try {
                 const res = await executorApiFetch('/executor-portal/api/cancel-task/' + id, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ reason }) });
                 await readExecutorApiResponse(res);
-                await refreshTasks();
+                if (activeTaskId) {
+                    window.location.assign('/executor-portal/dashboard');
+                } else {
+                    await refreshTasks();
+                }
             } catch (error) { Swal.fire('تعذر إلغاء العملية', error.message, 'error'); }
         }
     }

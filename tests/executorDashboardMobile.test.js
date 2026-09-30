@@ -43,4 +43,17 @@ describe('executor manager mobile dashboard', () => {
         expect(mobileStyles).toMatch(/\.task-card\.task-bank-transfer\s*\{[^}]*border-radius:\s*3px/s);
         expect(mobileStyles).toMatch(/body\.executor-page-dashboard\.executor-portal-v2 \.task-card \.executor-task-data\s*\{[^}]*repeat\(2, minmax\(0, 1fr\)\)/s);
     });
+
+    test('focuses the accepted task until completion or cancellation and marks bank cards without text alone', () => {
+        const routes = fs.readFileSync(path.join(root, 'routes/executorPortal.js'), 'utf8');
+        expect(routes).toContain("router.get('/active-task/:id', requireExecutorAuth, requireExecutorTaskAccess, dashboardController.getActiveTask)");
+        expect(dashboard).toContain('window.location.assign(activeTaskUrl(id))');
+        expect(dashboard).toContain('ownedTasks.filter(t => String(t._id) === activeTaskId)');
+        expect(dashboard).toContain("window.location.assign('/executor-portal/dashboard')");
+        expect(dashboard).toContain("${activeTaskId ? '' : `<button onclick=\"returnTask(");
+        expect(mobileStyles).toContain('body.executor-page-dashboard.executor-active-task .exo-dock');
+        expect(mobileStyles).toContain('repeating-linear-gradient(135deg');
+        expect(mobileStyles).toContain('.task-card.task-bank-transfer .executor-task-icon');
+        expect(mobileStyles).toContain('background: #256fc4 !important');
+    });
 });
