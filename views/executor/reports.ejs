@@ -90,7 +90,7 @@
     <link rel="stylesheet" href="/css/executor-workspace.css?v=20260921-pool-ui">
     <link rel="stylesheet" href="/css/executor-2030-override.css?v=20260825-balance1">
     <link rel="stylesheet" href="/css/executor-os.css?v=20260930-mobile-shell">
-    <link rel="stylesheet" href="/css/executor-report-controls.css?v=20260825-1">
+    <link rel="stylesheet" href="/css/executor-report-controls.css?v=20260930-mobile-search">
 
     <style>
         .x-stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 14px; margin-bottom: 24px; }
@@ -259,15 +259,15 @@
                         <button type="button" class="btn btn-outline-secondary btn-sm fw-bold" onclick="setQuickPeriod('thisMonth')">الشهر الحالي</button>
                     </div>
                 </div>
-                <div class="col-md-6">
-                    <label for="reportSearch" class="form-label text-muted fw-bold mb-1">&#x628;&#x62D;&#x62B; &#x633;&#x631;&#x64A;&#x639; &#x641;&#x64A; &#x627;&#x644;&#x639;&#x645;&#x644;&#x64A;&#x627;&#x62A;</label>
-                    <div class="input-group">
+                <div class="col-md-6 executor-report-search-row">
+                    <label for="reportSearch" class="form-label text-muted fw-bold mb-1 executor-report-search-label">&#x628;&#x62D;&#x62B; &#x633;&#x631;&#x64A;&#x639; &#x641;&#x64A; &#x627;&#x644;&#x639;&#x645;&#x644;&#x64A;&#x627;&#x62A;</label>
+                    <div class="input-group executor-report-search" role="search">
                         <span class="input-group-text bg-transparent border-secondary"><i class="fa-solid fa-search text-muted"></i></span>
-                        <input type="search" id="reportSearch" class="form-control" dir="auto" maxlength="64" placeholder="&#x631;&#x642;&#x645; &#x647;&#x627;&#x62A;&#x641; &#x643;&#x627;&#x645;&#x644; &#x623;&#x648; &#x642;&#x64A;&#x645;&#x629; &#x645;&#x62B;&#x644; 1000 &#x62C;.&#x645;" autocomplete="off" onkeydown="if (event.key === 'Enter') { event.preventDefault(); searchExecutorOperations(); }">
-                        <button type="button" class="btn btn-primary fw-bold" onclick="searchExecutorOperations()">&#x628;&#x62D;&#x62B;</button>
-                        <button type="button" class="btn btn-outline-secondary" onclick="clearExecutorOperationSearch()" aria-label="&#x645;&#x633;&#x62D; &#x627;&#x644;&#x628;&#x62D;&#x62B;" title="&#x645;&#x633;&#x62D; &#x627;&#x644;&#x628;&#x62D;&#x62B;"><i class="fa-solid fa-xmark"></i></button>
+                        <input type="search" id="reportSearch" class="form-control" dir="auto" maxlength="64" placeholder="&#x631;&#x642;&#x645; &#x647;&#x627;&#x62A;&#x641; &#x623;&#x648; &#x645;&#x628;&#x644;&#x63A;" autocomplete="off" onkeydown="if (event.key === 'Enter') { event.preventDefault(); searchExecutorOperations(); }">
+                        <button type="button" class="btn btn-primary fw-bold report-search-submit" onclick="searchExecutorOperations()" aria-label="&#x628;&#x62D;&#x62B; &#x641;&#x64A; &#x627;&#x644;&#x639;&#x645;&#x644;&#x64A;&#x627;&#x62A;" title="&#x628;&#x62D;&#x62B;"><i class="fa-solid fa-arrow-left" aria-hidden="true"></i><span class="report-search-button-label">&#x628;&#x62D;&#x62B;</span></button>
+                        <button type="button" class="btn btn-outline-secondary report-search-clear" onclick="clearExecutorOperationSearch()" aria-label="&#x645;&#x633;&#x62D; &#x627;&#x644;&#x628;&#x62D;&#x62B;" title="&#x645;&#x633;&#x62D; &#x627;&#x644;&#x628;&#x62D;&#x62B;"><i class="fa-solid fa-xmark"></i></button>
                     </div>
-                    <small id="reportSearchHint" class="text-muted d-block mt-1">&#x627;&#x628;&#x62D;&#x62B; &#x628;&#x631;&#x642;&#x645; &#x627;&#x644;&#x647;&#x627;&#x62A;&#x641; &#x623;&#x648; &#x628;&#x627;&#x644;&#x642;&#x64A;&#x645;&#x629;&#x61B; &#x62A;&#x638;&#x647;&#x631; &#x627;&#x644;&#x646;&#x62A;&#x627;&#x626;&#x62C; &#x645;&#x646; &#x643;&#x627;&#x645;&#x644; &#x633;&#x62C;&#x644; &#x627;&#x644;&#x62A;&#x646;&#x641;&#x64A;&#x630; &#x636;&#x645;&#x646; &#x635;&#x644;&#x627;&#x62D;&#x64A;&#x627;&#x62A;&#x643;.</small>
+                    <small id="reportSearchHint" class="text-muted d-block mt-1 report-search-hint">&#x627;&#x628;&#x62D;&#x62B; &#x628;&#x631;&#x642;&#x645; &#x627;&#x644;&#x647;&#x627;&#x62A;&#x641; &#x623;&#x648; &#x628;&#x627;&#x644;&#x642;&#x64A;&#x645;&#x629;&#x61B; &#x62A;&#x638;&#x647;&#x631; &#x627;&#x644;&#x646;&#x62A;&#x627;&#x626;&#x62C; &#x645;&#x646; &#x643;&#x627;&#x645;&#x644; &#x633;&#x62C;&#x644; &#x627;&#x644;&#x62A;&#x646;&#x641;&#x64A;&#x630; &#x636;&#x645;&#x646; &#x635;&#x644;&#x627;&#x62D;&#x64A;&#x627;&#x62A;&#x643;.</small>
                 </div>
             </div>
         </div>

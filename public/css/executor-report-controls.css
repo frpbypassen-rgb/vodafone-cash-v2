@@ -17,3 +17,76 @@ body.executor-os .card-glass .form-select option {
     background-color: #ffffff !important;
     border-color: #8ba3c2 !important;
 }
+
+.report-search-submit .fa-arrow-left { display: none; }
+
+@media (max-width: 767.98px) {
+    body.executor-page-reports .executor-report-search-label {
+        margin-bottom: 4px !important;
+        font-size: 0.75rem;
+    }
+
+    body.executor-page-reports .executor-report-search {
+        display: flex;
+        flex-wrap: nowrap;
+        align-items: center;
+        width: 100%;
+        height: 44px;
+        overflow: hidden;
+        border: 1px solid var(--x-border);
+        border-radius: 10px;
+        background: var(--x-cell);
+    }
+
+    body.executor-page-reports .executor-report-search:focus-within {
+        outline: 2px solid var(--x-cyan);
+        outline-offset: 1px;
+    }
+
+    body.executor-page-reports .executor-report-search .input-group-text {
+        flex: 0 0 32px;
+        justify-content: center;
+        height: 42px;
+        padding: 0;
+        border: 0 !important;
+        border-radius: 0;
+        background: transparent !important;
+    }
+
+    body.executor-page-reports .executor-report-search .form-control {
+        flex: 1 1 auto;
+        min-width: 0;
+        height: 42px;
+        padding: 5px 6px;
+        border: 0 !important;
+        border-radius: 0;
+        background: transparent !important;
+        box-shadow: none !important;
+        font-size: 16px;
+    }
+
+    body.executor-page-reports .executor-report-search .btn {
+        flex: 0 0 40px;
+        width: 40px;
+        height: 42px;
+        padding: 0;
+        border: 0;
+        border-radius: 0;
+    }
+
+    body.executor-page-reports .executor-report-search .report-search-submit {
+        background: var(--x-cyan) !important;
+        color: var(--x-bg) !important;
+    }
+
+    body.executor-page-reports .executor-report-search .report-search-clear {
+        flex-basis: 34px;
+        width: 34px;
+        background: transparent !important;
+        color: var(--x-muted) !important;
+    }
+
+    body.executor-page-reports .report-search-submit .fa-arrow-left { display: inline; }
+    body.executor-page-reports .report-search-button-label { display: none; }
+    body.executor-page-reports .report-search-hint { font-size: 0.68rem; line-height: 1.35; }
+}
