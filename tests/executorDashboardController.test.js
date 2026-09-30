@@ -12,6 +12,10 @@ jest.mock('../services/proofStorageService', () => ({
     proofSourceUrl: jest.fn((value) => `/proofs/${value}`),
     streamProofImage: jest.fn().mockResolvedValue(true)
 }));
+jest.mock('../services/executorTaskRoutingService', () => ({
+    ...jest.requireActual('../services/executorTaskRoutingService'),
+    findOwnedAcceptedExecutorTask: jest.fn()
+}));
 jest.mock('../utils/helpers', () => ({ escapeRegex: jest.fn((value) => value) }));
 jest.mock('../services/executorAccountService', () => ({
     ExecutorAccountError: class ExecutorAccountError extends Error {},
@@ -56,12 +60,55 @@ const Employee = require('../models/Employee');
 const { proofSourceUrl, streamProofImage } = require('../services/proofStorageService');
 const mobileWebParityService = require('../services/mobileWebParityService');
 const poolService = require('../services/executorBalancePoolService');
+const { findOwnedAcceptedExecutorTask } = require('../services/executorTaskRoutingService');
 const controller = require('../controllers/executorDashboardController');
 
 const response = () => ({
     status: jest.fn().mockReturnThis(),
     json: jest.fn().mockReturnThis(),
-    send: jest.fn().mockReturnThis()
+    send: jest.fn().mockReturnThis(),
+    redirect: jest.fn().mockReturnThis(),
+    render: jest.fn().mockReturnThis()
+});
+
+describe('executor active task page', () => {
+    const taskId = '507f1f77bcf86cd799439011';
+    const employee = { _id: 'employee-1', role: 'operator', groupId: { _id: 'group-1' } };
+
+    beforeEach(() => jest.clearAllMocks());
+
+    test('does not query a malformed task id', async () => {
+        const res = response();
+        await controller.getActiveTask({ params: { id: 'invalid' }, executorEmployee: employee }, res);
+        expect(findOwnedAcceptedExecutorTask).not.toHaveBeenCalled();
+        expect(res.redirect).toHaveBeenCalledWith('/executor-portal/dashboard');
+    });
+
+    test('does not render another employee task or a completed task', async () => {
+        findOwnedAcceptedExecutorTask.mockResolvedValue(null);
+        const res = response();
+        await controller.getActiveTask({ params: { id: taskId }, executorEmployee: employee }, res);
+        expect(res.redirect).toHaveBeenCalledWith('/executor-portal/dashboard');
+        expect(res.render).not.toHaveBeenCalled();
+    });
+
+    test('renders only the authenticated employee accepted task', async () => {
+        findOwnedAcceptedExecutorTask.mockResolvedValue({ _id: taskId });
+        const req = {
+            params: { id: taskId },
+            executorEmployee: employee,
+            tenant: { _id: 'tenant-1' },
+            session: {}
+        };
+        const res = response();
+        await controller.getActiveTask(req, res);
+        expect(findOwnedAcceptedExecutorTask).toHaveBeenCalledWith({
+            transactionId: taskId,
+            executor: employee,
+            tenantId: 'tenant-1'
+        });
+        expect(res.render).toHaveBeenCalledWith('executor/dashboard', expect.objectContaining({ activeTaskId: taskId }));
+    });
 });
 
 describe('Executor dashboard group ownership', () => {

@@ -107,6 +107,7 @@ router.get('/logout', authController.logout);
 
 // --- Dashboard Routes ---
 router.get('/dashboard', requireExecutorAuth, dashboardController.getDashboard);
+router.get('/active-task/:id', requireExecutorAuth, requireExecutorTaskAccess, dashboardController.getActiveTask);
 router.get('/settings', requireExecutorAuth, dashboardController.getSettings);
 router.get('/deposits', requireExecutorAuth, requireExecutorDepositAccess, dashboardController.getDeposits);
 router.get('/proxy/image/:id', requireExecutorAuth, dashboardController.getProxyImage);

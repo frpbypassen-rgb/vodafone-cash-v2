@@ -21,6 +21,7 @@ const { clearExecutorAuthCache } = require('../services/executorAuthCache');
 const { readExecutorManualPolicy, toPublicExecutionPolicy } = require('../utils/executorManualPolicy');
 const executorDepositRequestService = require('../services/executorDepositRequestService');
 const { loadPortalLiveTasks } = require('../services/executorLiveTasksService');
+const { findOwnedAcceptedExecutorTask } = require('../services/executorTaskRoutingService');
 const { getExecutorServiceLabel } = require('../utils/executorServiceCatalog');
 const {
     QuickExecuteError,
@@ -110,10 +111,29 @@ exports.getDashboard = async (req, res) => {
     res.render('executor/dashboard', {
         emp,
         showMfaNotice,
+        activeTaskId: req.activeTaskId || null,
         companyBalances,
         workingBalance,
         executionPolicy: toPublicExecutionPolicy(readExecutorManualPolicy(emp?.groupId, emp))
     });
+};
+
+exports.getActiveTask = async (req, res) => {
+    if (!/^[0-9a-f]{24}$/i.test(String(req.params.id || ''))) {
+        return res.redirect('/executor-portal/dashboard');
+    }
+    try {
+        const task = await findOwnedAcceptedExecutorTask({
+            transactionId: req.params.id,
+            executor: req.executorEmployee,
+            tenantId: req.tenant?._id || null
+        });
+        if (!task) return res.redirect('/executor-portal/dashboard');
+        req.activeTaskId = String(task._id);
+        return exports.getDashboard(req, res);
+    } catch (_) {
+        return res.status(503).send('تعذر فتح العملية النشطة. حاول مرة أخرى.');
+    }
 };
 
 exports.getSettings = async (req, res) => {
