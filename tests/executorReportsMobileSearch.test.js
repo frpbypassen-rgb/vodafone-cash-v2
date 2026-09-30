@@ -13,7 +13,7 @@ describe('executor reports mobile search', () => {
         expect(view).not.toContain('report-search-submit');
         expect(view).toContain('reportSearchTimer = setTimeout(searchExecutorOperations, 450)');
         expect(view.indexOf('executor-report-search-block')).toBeLessThan(view.indexOf('executor-report-filters'));
-        expect(view).toContain('/css/executor-report-controls.css?v=20260930-report-layout');
+        expect(view).toContain('/css/executor-report-controls.css?v=20260930-compact-filters');
     });
 
     test('keeps employee selection limited to manager and accountant in the view', () => {
@@ -31,5 +31,7 @@ describe('executor reports mobile search', () => {
         expect(styles).toMatch(/body\.executor-page-reports \.executor-report-search \.form-control\s*\{[^}]*min-width:\s*0;[^}]*font-size:\s*16px/s);
         expect(styles).toContain('.x-mobile-card-details');
         expect(view).toContain('id="mobileReportList"');
+        expect(view.indexOf('executor-report-shortcuts mb-3')).toBeGreaterThan(view.indexOf('executor-report-filters'));
+        expect(styles).toContain('.executor-report-filters { padding: 8px 10px;');
     });
 });

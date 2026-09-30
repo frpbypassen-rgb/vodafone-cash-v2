@@ -90,7 +90,7 @@
     <link rel="stylesheet" href="/css/executor-workspace.css?v=20260921-pool-ui">
     <link rel="stylesheet" href="/css/executor-2030-override.css?v=20260825-balance1">
     <link rel="stylesheet" href="/css/executor-os.css?v=20260930-mobile-shell">
-    <link rel="stylesheet" href="/css/executor-report-controls.css?v=20260930-report-layout">
+    <link rel="stylesheet" href="/css/executor-report-controls.css?v=20260930-compact-filters">
 
     <style>
         .x-stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 14px; margin-bottom: 24px; }
@@ -222,7 +222,7 @@
         </div>
 
         <!-- Filters -->
-        <div class="card-glass mb-3 executor-report-filters">
+        <div class="card-glass mb-2 executor-report-filters">
             <div class="row g-2 align-items-end">
                 <% if (['manager', 'accountant'].includes(emp.role)) { %>
                 <div class="col-12 col-md-3 executor-report-employee">
@@ -259,15 +259,13 @@
                     </button>
                 </div>
             </div>
-            <div class="row g-2 mt-1 align-items-center executor-report-shortcuts">
-                <div class="col-12">
-                    <div class="btn-group w-100" role="group">
-                        <button type="button" class="btn btn-outline-secondary btn-sm fw-bold" onclick="setQuickPeriod('today')">اليوم</button>
-                        <button type="button" class="btn btn-outline-secondary btn-sm fw-bold" onclick="setQuickPeriod('yesterday')">الأمس</button>
-                        <button type="button" class="btn btn-outline-secondary btn-sm fw-bold" onclick="setQuickPeriod('last7')">آخر 7 أيام</button>
-                        <button type="button" class="btn btn-outline-secondary btn-sm fw-bold" onclick="setQuickPeriod('thisMonth')">الشهر الحالي</button>
-                    </div>
-                </div>
+        </div>
+        <div class="executor-report-shortcuts mb-3">
+            <div class="btn-group w-100" role="group" aria-label="فترات سريعة">
+                <button type="button" class="btn btn-outline-secondary btn-sm fw-bold" onclick="setQuickPeriod('today')">اليوم</button>
+                <button type="button" class="btn btn-outline-secondary btn-sm fw-bold" onclick="setQuickPeriod('yesterday')">الأمس</button>
+                <button type="button" class="btn btn-outline-secondary btn-sm fw-bold" onclick="setQuickPeriod('last7')">آخر 7 أيام</button>
+                <button type="button" class="btn btn-outline-secondary btn-sm fw-bold" onclick="setQuickPeriod('thisMonth')">الشهر الحالي</button>
             </div>
         </div>
 
