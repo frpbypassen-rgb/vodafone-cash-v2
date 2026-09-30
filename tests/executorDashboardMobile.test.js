@@ -4,6 +4,8 @@ const path = require('path');
 const root = path.join(__dirname, '..');
 const dashboard = fs.readFileSync(path.join(root, 'views/executor/dashboard.ejs'), 'utf8');
 const mobileStyles = fs.readFileSync(path.join(root, 'public/css/executor-dashboard-mobile.css'), 'utf8');
+const sharedStyles = fs.readFileSync(path.join(root, 'public/css/executor-os.css'), 'utf8');
+const executorPages = ['dashboard', 'employees', 'deposits', 'reports', 'support', 'settings'];
 
 describe('executor manager mobile dashboard', () => {
     test('loads the mobile layout after the executor theme styles and scopes it to managers', () => {
@@ -11,10 +13,17 @@ describe('executor manager mobile dashboard', () => {
         expect(dashboard).toContain("emp.role === 'manager' ? 'executor-role-manager' : ''");
     });
 
-    test('keeps the manager command bar and mobile dock fixed within the phone viewport', () => {
-        expect(mobileStyles).toMatch(/\.exo-command\s*\{[^}]*position:\s*fixed\s*!important/s);
-        expect(mobileStyles).toMatch(/\.exo-dock\s*\{[^}]*position:\s*fixed\s*!important/s);
-        expect(mobileStyles).toContain('env(safe-area-inset-bottom)');
+    test('keeps identical fixed bars across every executor page on mobile', () => {
+        for (const page of executorPages) {
+            const view = fs.readFileSync(path.join(root, `views/executor/${page}.ejs`), 'utf8');
+            expect(view).toContain('/css/executor-os.css?v=20260930-mobile-shell');
+            expect(view).toContain("include('partials/navigation'");
+            expect(view).toContain("include('partials/command-bar'");
+        }
+        expect(sharedStyles).toMatch(/@media \(max-width: 767\.98px\)\s*\{[\s\S]*?\.exo-command\s*\{[^}]*position:\s*fixed\s*!important[^}]*height:\s*54px/s);
+        expect(sharedStyles).toMatch(/@media \(max-width: 767\.98px\)\s*\{[\s\S]*?\.exo-dock\s*\{[^}]*position:\s*fixed\s*!important[^}]*height:\s*62px/s);
+        expect(sharedStyles).toContain('env(safe-area-inset-bottom)');
+        expect(mobileStyles).not.toMatch(/\.exo-(?:command|dock)\s*\{/);
     });
 
     test('uses compact mobile task data and separate bank and post-card visual classes', () => {
