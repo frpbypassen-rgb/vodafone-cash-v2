@@ -26,12 +26,21 @@ describe('executor manager mobile dashboard', () => {
         expect(mobileStyles).not.toMatch(/\.exo-(?:command|dock)\s*\{/);
     });
 
-    test('uses compact mobile task data and separate bank and post-card visual classes', () => {
+    test('keeps the received task details and distinguishes cash, bank, and post-card types', () => {
         expect(dashboard).toContain("? 'task-post-card'");
         expect(dashboard).toContain("'task-bank-transfer'");
+        expect(dashboard).toContain("normalizedTransferType === 'vodafone' ? 'task-cash-transfer'");
         expect(dashboard).toContain('task-card ${cardClass} ${transferVisualClass}');
+        expect(dashboard).toContain('${recipientLabel}');
+        expect(dashboard).toContain('${formattedAmount}');
+        expect(dashboard).toContain('${safeBankName}');
+        expect(dashboard).toContain('${escapeTaskHtml(bankMethodLabel)}');
         expect(mobileStyles).toContain('.executor-task-data-cell:first-child');
+        expect(mobileStyles).toContain('.task-cash-transfer .executor-task-icon');
         expect(mobileStyles).toContain('.task-bank-transfer .executor-task-icon');
         expect(mobileStyles).toContain('.task-post-card .executor-task-icon');
+        expect(mobileStyles).toMatch(/\.task-card\.task-cash-transfer\s*\{[^}]*border-radius:\s*8px/s);
+        expect(mobileStyles).toMatch(/\.task-card\.task-bank-transfer\s*\{[^}]*border-radius:\s*3px/s);
+        expect(mobileStyles).toMatch(/body\.executor-page-dashboard\.executor-portal-v2 \.task-card \.executor-task-data\s*\{[^}]*repeat\(2, minmax\(0, 1fr\)\)/s);
     });
 });
