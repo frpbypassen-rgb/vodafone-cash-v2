@@ -126,7 +126,7 @@
                 return finish(true);
             }
             if (!navigator.geolocation) {
-                if (status) status.textContent = 'المتصفح لا يدعم تحديد الموقع.';
+                if (status) status.textContent = 'تعذر استخدام موقع الجهاز في هذا المتصفح.';
                 return finish(false);
             }
             const timer = setTimeout(() => {
@@ -142,9 +142,13 @@
                     if (status) status.textContent = 'تم تجهيز التحقق الآمن.';
                     finish(true);
                 },
-                () => {
+                (error) => {
                     clearTimeout(timer);
-                    if (status) status.textContent = 'فعّل إذن الموقع عند طلبه لإكمال الدخول المحمي.';
+                    if (status) status.textContent = error.code === 1
+                        ? 'تم رفض إذن موقع الجهاز. اسمح به من إعدادات المتصفح والجهاز ثم أعد تحميل الصفحة.'
+                        : error.code === 2
+                            ? 'تعذر تحديد موقع الجهاز. تأكد من تشغيل خدمة الموقع في الجهاز ثم حاول مجددًا.'
+                            : 'انتهت مهلة تحديد موقع الجهاز. أعد تحميل الصفحة وحاول مجددًا.';
                     finish(false);
                 },
                 { enableHighAccuracy: false, timeout: LOCATION_WAIT_MS, maximumAge: 300000 }
