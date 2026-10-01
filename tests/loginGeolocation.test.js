@@ -16,5 +16,10 @@ describe('Login geolocation must not block the UI', () => {
         expect(source).toMatch(/enableHighAccuracy:\s*false/);
         expect(source).toMatch(/Promise\.race/);
         expect(source).not.toMatch(/enableHighAccuracy:\s*true,\s*timeout:\s*10000,\s*maximumAge:\s*0/);
+        expect(source).toContain('error.code === 1');
+        expect(source).toContain('error.code === 2');
+        expect(source).toContain('تم رفض إذن موقع الجهاز');
+        expect(source).toContain('تعذر تحديد موقع الجهاز');
+        expect(source).toContain('انتهت مهلة تحديد موقع الجهاز');
     });
 });
