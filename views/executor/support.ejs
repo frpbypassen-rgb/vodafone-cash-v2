@@ -92,6 +92,7 @@
             .diagnostic-grid { grid-template-columns: 1fr; }
         }
     </style>
+    <link rel="stylesheet" href="/css/executor-support-chat.css?v=20261002-group-chat">
 </head>
 <body class="executor-os executor-portal-v2 executor-page-support">
 <%- include('partials/navigation', { emp, activePage: 'support' }) %>
@@ -111,6 +112,28 @@
 </header>
 
 <main class="support-container">
+    <nav class="support-mode-tabs" aria-label="أقسام الدعم">
+        <button class="support-mode-tab is-active" type="button" data-support-mode="group" aria-selected="true"><i class="fa-solid fa-comments"></i> محادثة الشركة</button>
+        <button class="support-mode-tab" type="button" data-support-mode="tickets" aria-selected="false"><i class="fa-solid fa-ticket"></i> طلبات الدعم</button>
+    </nav>
+    <section class="group-chat" id="groupChat" aria-label="محادثة شركة التنفيذ مع الإدارة">
+        <header class="group-chat-head">
+            <span class="group-chat-icon"><i class="fa-solid fa-users"></i></span>
+            <div class="group-chat-title"><strong>الشركة والإدارة</strong><small><%= emp.groupId?.name || 'شركة التنفيذ' %> · <span id="groupMemberCount">جاري التحميل</span></small></div>
+            <button class="icon-command" type="button" id="groupRefresh" title="تحديث المحادثة" aria-label="تحديث المحادثة"><i class="fa-solid fa-rotate"></i></button>
+        </header>
+        <details class="group-participants"><summary><i class="fa-solid fa-user-group"></i> المشاركون</summary><div id="groupMemberList" class="group-member-list"></div></details>
+        <div class="group-message-list" id="groupMessageList" aria-live="polite"><div class="group-chat-loading">جاري تحميل المحادثة...</div></div>
+        <form class="group-reply-area" id="groupReplyForm">
+            <div class="group-attachment-preview" id="groupAttachmentPreview"></div>
+            <input class="d-none" id="groupReplyFiles" type="file" accept="image/jpeg,image/png,image/webp" multiple>
+            <button class="group-attach" type="button" id="groupAttach" title="إرفاق صور" aria-label="إرفاق صور"><i class="fa-solid fa-paperclip"></i></button>
+            <label for="groupReplyText" class="visually-hidden">رسالة إلى الإدارة والفريق</label>
+            <textarea id="groupReplyText" rows="1" maxlength="2000" placeholder="رسالة إلى الإدارة والفريق..."></textarea>
+            <button class="group-send" type="submit" title="إرسال الرسالة" aria-label="إرسال الرسالة"><i class="fa-solid fa-paper-plane"></i></button>
+        </form>
+    </section>
+    <div id="ticketWorkspacePage" hidden>
     <div class="executor-page-heading">
         <div>
             <span class="executor-kicker"><i class="fa-solid fa-shield-halved"></i> مركز المساندة</span>
@@ -167,6 +190,7 @@
             </div>
         </div>
     </section>
+    </div>
 </main>
 
 <div class="modal fade" id="newTicketModal" tabindex="-1" aria-hidden="true">
@@ -205,6 +229,75 @@
     const formatDate = (value) => value ? new Date(value).toLocaleString('ar-LY', { timeZone: 'Africa/Tripoli', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '---';
     const statusLabel = (status) => ({ open: 'مفتوح', answered: 'تم الرد', pending_internal: 'قيد المراجعة', resolved: 'تم الحل', closed: 'مغلق' })[status] || status;
     const priorityColor = (priority) => ({ urgent: 'var(--executor-red)', high: '#b54708', low: 'var(--executor-muted)' })[priority] || 'var(--executor-blue)';
+    const currentEmployeeName = <%- JSON.stringify(emp.name || '') %>;
+    const roleLabel = (role) => ({ admin: 'الإدارة', manager: 'المدير', accountant: 'المحاسب', operator: 'موظف تنفيذ', external: 'منفذ خارجي' })[role] || 'الفريق';
+    let groupLoading = false;
+    let groupMessageFingerprint = '';
+    let groupImages = [];
+
+    function setSupportMode(mode) {
+        const groupMode = mode === 'group';
+        document.getElementById('groupChat').hidden = !groupMode;
+        document.getElementById('ticketWorkspacePage').hidden = groupMode;
+        document.querySelectorAll('[data-support-mode]').forEach((button) => {
+            const active = button.dataset.supportMode === mode;
+            button.classList.toggle('is-active', active);
+            button.setAttribute('aria-selected', String(active));
+        });
+        if (groupMode) loadGroupChat();
+    }
+
+    async function loadGroupChat() {
+        if (groupLoading || document.getElementById('groupChat').hidden) return;
+        groupLoading = true;
+        try {
+            const data = await readExecutorApiResponse(await executorApiFetch('/executor-portal/api/support/group-chat'));
+            const members = data.members || [];
+            document.getElementById('groupMemberCount').textContent = `${members.length} مشاركين`;
+            document.getElementById('groupMemberList').innerHTML = members.map((member) => `<span class="group-member"><b>${escapeHtml(member.name)}</b><small>${escapeHtml(roleLabel(member.role))}</small></span>`).join('');
+            const messages = data.ticket?.messages || [];
+            const fingerprint = messages.map((message) => message.id || `${message.createdAt}:${message.text}`).join('|');
+            if (fingerprint !== groupMessageFingerprint) {
+                const list = document.getElementById('groupMessageList');
+                const nearBottom = list.scrollHeight - list.scrollTop - list.clientHeight < 80;
+                list.innerHTML = messages.map((message) => {
+                    const own = message.sender === 'user' && message.senderName === currentEmployeeName;
+                    const kind = message.sender === 'system' ? 'is-system' : own ? 'is-own' : message.sender === 'admin' ? 'is-admin' : 'is-team';
+                    return `<article class="group-message ${kind}"><b>${escapeHtml(message.senderName || (message.sender === 'admin' ? 'الإدارة' : 'موظف التنفيذ'))}</b>${message.imageUrl ? `<img src="${escapeHtml(message.imageUrl)}" alt="مرفق من ${escapeHtml(message.senderName || 'المشارك')}">` : ''}${message.text ? `<p>${escapeHtml(message.text)}</p>` : ''}<time>${formatDate(message.createdAt)}</time></article>`;
+                }).join('') || '<div class="group-chat-loading">لا توجد رسائل بعد.</div>';
+                groupMessageFingerprint = fingerprint;
+                if (nearBottom || messages.length < 2) list.scrollTop = list.scrollHeight;
+            }
+        } catch (error) {
+            if (!groupMessageFingerprint) document.getElementById('groupMessageList').innerHTML = `<div class="group-chat-loading text-danger">${escapeHtml(error.message || 'تعذر تحميل المحادثة')}</div>`;
+        } finally { groupLoading = false; }
+    }
+
+    document.querySelectorAll('[data-support-mode]').forEach((button) => button.addEventListener('click', () => setSupportMode(button.dataset.supportMode)));
+    document.getElementById('groupRefresh').addEventListener('click', loadGroupChat);
+    document.getElementById('groupAttach').addEventListener('click', () => document.getElementById('groupReplyFiles').click());
+    document.getElementById('groupReplyFiles').addEventListener('change', async (event) => {
+        try { groupImages = await filesToBase64(event.target.files); renderPreview('groupAttachmentPreview', groupImages); }
+        catch (error) { groupImages = []; event.target.value = ''; Swal.fire('مرفق غير صالح', error.message, 'error'); }
+    });
+    document.getElementById('groupReplyForm').addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const input = document.getElementById('groupReplyText');
+        const message = input.value.trim();
+        if (!message && !groupImages.length) return;
+        const button = event.currentTarget.querySelector('[type="submit"]');
+        button.disabled = true;
+        try {
+            await readExecutorApiResponse(await executorApiFetch('/executor-portal/api/support/group-chat/replies', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message, imagesBase64: groupImages }) }));
+            input.value = '';
+            document.getElementById('groupReplyFiles').value = '';
+            groupImages = [];
+            renderPreview('groupAttachmentPreview', []);
+            await loadGroupChat();
+            document.getElementById('groupMessageList').scrollTop = document.getElementById('groupMessageList').scrollHeight;
+        } catch (error) { Swal.fire('تعذر إرسال الرسالة', error.message, 'error'); }
+        finally { button.disabled = false; }
+    });
 
     const filesToBase64 = async (files) => Promise.all(Array.from(files).slice(0, 3).map((file) => new Promise((resolve, reject) => {
         if (!file.type.match(/^image\/(jpeg|png|webp)$/) || file.size > 2 * 1024 * 1024) return reject(new Error('الصور يجب أن تكون JPG أو PNG أو WEBP وأقل من 2 ميجابايت.'));
@@ -336,8 +429,9 @@
         } catch (error) { Swal.fire('تعذر تشغيل الفحص', error.message, 'error'); }
     });
 
-    populateCategories(); loadTickets();
+    populateCategories(); loadTickets(); loadGroupChat();
     setInterval(() => { if (!document.hidden) loadTickets(); }, 20000);
+    setInterval(() => { if (!document.hidden) loadGroupChat(); }, 10000);
 })();
 </script>
 </body>

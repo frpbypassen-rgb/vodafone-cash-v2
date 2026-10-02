@@ -13,7 +13,8 @@ const {
     normalizePriority,
     buildExecutorTicketScope,
     parseSupportImage,
-    serializeTicket
+    serializeTicket,
+    getExecutorGroupChat
 } = require('../services/executorSupportService');
 
 describe('Executor support service', () => {
@@ -94,5 +95,31 @@ describe('Executor support service', () => {
         expect(serialized.transaction.customId).toBe('ATT-2608-1000');
         expect(serialized.unreadCount).toBe(2);
         expect(serialized.messages).toHaveLength(1);
+    });
+
+    test('resolves each employee group chat from the authenticated company only', async () => {
+        const Employee = require('../models/Employee');
+        const ExecutorGroup = require('../models/ExecutorGroup');
+        const SupportTicket = require('../models/SupportTicket');
+        const firstId = '66c000000000000000000001';
+        const secondId = '66c000000000000000000002';
+        const firstGroup = '66c000000000000000000010';
+        const secondGroup = '66c000000000000000000020';
+        const employees = {
+            [firstId]: { _id: firstId, groupId: firstGroup, status: 'active', name: 'أحمد' },
+            [secondId]: { _id: secondId, groupId: secondGroup, status: 'active', name: 'ليلى' }
+        };
+        Employee.findById = jest.fn((id) => ({ lean: async () => employees[id] }));
+        ExecutorGroup.findById = jest.fn((id) => ({ lean: async () => ({ _id: id, status: 'active', name: id === firstGroup ? 'الأولى' : 'الثانية' }) }));
+        Employee.find = jest.fn(() => ({ select: () => ({ sort: () => ({ lean: async () => [] }) }) }));
+        SupportTicket.findOne = jest.fn((filter) => ({ sort: async () => ({ _id: filter.groupChatKey, entityType: 'executor_group', messages: [] }) }));
+
+        const first = await getExecutorGroupChat({ executorId: firstId });
+        const second = await getExecutorGroupChat({ executorId: secondId });
+
+        expect(first.ticket.id).not.toBe(second.ticket.id);
+        expect(SupportTicket.findOne).toHaveBeenNthCalledWith(1, { groupChatKey: `executor-group:${firstGroup}` });
+        expect(SupportTicket.findOne).toHaveBeenNthCalledWith(2, { groupChatKey: `executor-group:${secondGroup}` });
+        expect(first.members[0]).toMatchObject({ name: 'الإدارة', role: 'admin' });
     });
 });
