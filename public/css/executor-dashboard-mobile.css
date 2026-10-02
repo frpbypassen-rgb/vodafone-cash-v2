@@ -50,7 +50,7 @@
         font-size: 0.82rem !important;
     }
 
-    body.executor-page-dashboard.executor-role-manager .executor-task-title span {
+    body.executor-page-dashboard.executor-role-manager .executor-task-title .task-custom-id {
         margin-top: 1px;
         font-size: 0.62rem;
     }
@@ -150,6 +150,113 @@
     }
 }
 
+body.executor-page-dashboard .task-kind-label {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 22px;
+    margin-inline-end: 6px;
+    padding: 0 7px;
+    border: 2px solid var(--exo-line, #94a3b8);
+    border-radius: 6px;
+    color: var(--text-main, #0f172a);
+    background: var(--exo-panel, #fff);
+    font-size: 0.68rem;
+    font-weight: 900;
+    line-height: 1;
+    letter-spacing: 0;
+}
+
+body.executor-page-dashboard .task-meta-line {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 2px;
+}
+
+body.executor-page-dashboard .task-card.task-cash-transfer .task-kind-label {
+    border-radius: 999px;
+    border-style: solid;
+    border-color: #b6f3d4;
+    background: #168f5d;
+    color: #fff;
+}
+
+body.executor-page-dashboard .task-card.task-bank-transfer .task-kind-label {
+    border-radius: 2px;
+    border-style: dashed;
+    border-color: #9fd0ff;
+    background: #256fc4;
+    color: #fff;
+}
+
+body.executor-page-dashboard .task-card.task-post-card .task-kind-label {
+    border-radius: 10px 2px;
+    border-style: solid;
+    border-color: #f4c45f;
+    background: #8a5a10;
+    color: #fff;
+}
+
+body.executor-page-dashboard .task-amount-cell .copy-val.amount {
+    font-weight: 900;
+}
+
+body.executor-page-dashboard .live-timer.is-overdue {
+    font-weight: 900;
+    text-decoration: underline;
+}
+
+body.executor-page-dashboard .executor-focus-hint {
+    margin: 4px 0 0;
+    max-width: 36rem;
+    color: var(--exo-muted, var(--text-muted, #64748b));
+    font-size: 0.78rem;
+    line-height: 1.45;
+}
+
+body.executor-page-dashboard .executor-board-status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0 0 10px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    background: color-mix(in srgb, var(--accent-red, #ef4444) 14%, var(--exo-panel, #fff));
+    color: var(--text-main, #0f172a);
+    font-size: 0.82rem;
+    font-weight: 800;
+    line-height: 1.4;
+}
+
+body.executor-page-dashboard .executor-board-status[hidden] { display: none !important; }
+
+body.executor-page-dashboard .executor-board-status.is-offline {
+    background: color-mix(in srgb, var(--accent-gold, #d4af37) 22%, var(--exo-panel, #fff));
+}
+
+body.executor-page-dashboard .executor-board-retry {
+    margin-inline-start: auto;
+    min-width: 44px;
+    min-height: 44px;
+    padding: 8px 12px;
+    border: 1px solid var(--exo-line, #cbd5e1);
+    border-radius: 10px;
+    background: var(--exo-panel, #fff);
+    color: inherit;
+    font-weight: 800;
+}
+
+body.executor-page-dashboard .executor-board-fallback {
+    padding: 28px 12px;
+    text-align: center;
+}
+
+body.executor-page-dashboard .executor-board-fallback .executor-board-retry {
+    margin-inline-start: 0;
+}
+
 body.executor-page-dashboard .task-card.task-bank-transfer::before {
     background: linear-gradient(90deg, #1473d2, #39b8e5) !important;
 }
@@ -238,8 +345,13 @@ body.executor-page-dashboard .task-card.task-post-card .executor-task-icon {
         line-height: 1.25;
     }
 
-    body.executor-page-dashboard.executor-portal-v2 .task-card .executor-task-title span {
+    body.executor-page-dashboard.executor-portal-v2 .task-card .executor-task-title .task-custom-id {
         font-size: 0.63rem;
+    }
+
+    body.executor-page-dashboard.executor-portal-v2 .task-card .task-amount-cell .copy-val.amount {
+        font-size: 1.02rem !important;
+        font-weight: 900;
     }
 
     body.executor-page-dashboard.executor-portal-v2 .task-card .executor-task-icon {
@@ -251,11 +363,18 @@ body.executor-page-dashboard .task-card.task-post-card .executor-task-icon {
     }
 
     body.executor-page-dashboard.executor-portal-v2 .task-card .cyber-badge {
-        max-width: 43%;
-        padding: 3px 6px;
-        font-size: 0.59rem !important;
-        white-space: normal;
+        max-width: 46%;
+        padding: 4px 7px;
+        font-size: 0.68rem !important;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
         line-height: 1.25;
+    }
+
+    body.executor-page-dashboard.executor-portal-v2 .task-card .btn-cyber-sub {
+        min-width: 44px;
+        min-height: 44px;
     }
 
     body.executor-page-dashboard.executor-portal-v2 .task-card .executor-task-data {

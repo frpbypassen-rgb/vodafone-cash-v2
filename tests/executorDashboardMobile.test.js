@@ -58,4 +58,23 @@ describe('executor manager mobile dashboard', () => {
         expect(mobileStyles).toContain('.task-card.task-bank-transfer .executor-task-icon');
         expect(mobileStyles).toContain('background: #256fc4 !important');
     });
+
+    test('labels cash and bank with text and shape, and surfaces load or connection failures', () => {
+        expect(dashboard).toContain('class="task-kind-label">${escapeTaskHtml(typeMeta.short)}');
+        expect(dashboard).toContain('data-task-kind="${escapeTaskHtml(typeMeta.short)}"');
+        expect(dashboard).toContain('id="taskBoardStatus"');
+        expect(dashboard).toContain('انقطع الاتصال. تبقى آخر المهام ظاهرة حتى يعود الإنترنت.');
+        expect(dashboard).toContain('تعذر تحميل العملية النشطة. ستتم إعادة المحاولة تلقائيًا.');
+        expect(dashboard).toContain("acceptTask('${t._id}', this)");
+        expect(dashboard).toContain("button.setAttribute('aria-busy', 'true')");
+        expect(dashboard).toContain('executor-focus-hint');
+        expect(dashboard).toContain("window.addEventListener('offline'");
+        expect(dashboard).toContain('let lastTasksHash = null');
+        expect(mobileStyles).toContain('.task-card.task-cash-transfer .task-kind-label');
+        expect(mobileStyles).toContain('.task-card.task-bank-transfer .task-kind-label');
+        expect(mobileStyles).toMatch(/\.task-card\.task-cash-transfer \.task-kind-label\s*\{[^}]*border-radius:\s*999px/s);
+        expect(mobileStyles).toMatch(/\.task-card\.task-bank-transfer \.task-kind-label\s*\{[^}]*border-radius:\s*2px/s);
+        expect(mobileStyles).toMatch(/\.task-card\.task-bank-transfer \.task-kind-label\s*\{[^}]*border-style:\s*dashed/s);
+        expect(sharedStyles).toMatch(/\.exo-icon-btn\s*\{[^}]*min-height:\s*44px/);
+    });
 });

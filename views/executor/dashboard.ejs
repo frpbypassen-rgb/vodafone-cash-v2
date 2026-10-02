@@ -404,6 +404,7 @@
         <header class="executor-live-heading">
             <div>
                 <h1><%= activeTaskId ? 'العملية النشطة' : 'غرفة التنفيذ' %></h1>
+                <% if (activeTaskId) { %><p class="executor-focus-hint">تبقى هذه العملية أمامك حتى الإنهاء أو الإلغاء، ثم تعود قائمة المهام.</p><% } %>
                 <% if (!activeTaskId) { %><p>تصل المهام الجديدة فورًا، ويظهر رقم المستلم كاملًا بعد قبول المهمة.</p><% } %>
             </div>
             <% if (!activeTaskId) { %><div class="d-flex align-items-center gap-2">
@@ -416,6 +417,7 @@
 
         <div class="executor-task-layout">
             <section class="executor-task-stage">
+                <div id="taskBoardStatus" class="executor-board-status" hidden role="alert"></div>
                 <div id="tasksList" class="row g-3" aria-live="polite"><% if (activeTaskId) { %><div class="col-12 text-center py-4">جار فتح العملية النشطة...</div><% } %></div>
             </section>
 
@@ -666,7 +668,7 @@
     let currentCompletingBankName = '';
     let currentEmergencyId = null; 
     let selectedFilesArray = [];
-    let lastTasksHash = '';
+    let lastTasksHash = null;
     let liveTasksPollMs = 12000;
     let liveTasksPollTimer = null;
     // 🚀 ذاكرة ذكية تمنع إعادة عرض أي إنذار تم إيقافه محلياً
@@ -1009,6 +1011,29 @@
         }
     }
 
+    function showTaskBoardStatus(message, options) {
+        const el = document.getElementById('taskBoardStatus');
+        if (!el) return;
+        const offline = Boolean(options && options.offline);
+        el.hidden = false;
+        el.className = 'executor-board-status' + (offline ? ' is-offline' : ' is-error');
+        el.setAttribute('role', 'alert');
+        el.innerHTML = `<i class="fa-solid ${offline ? 'fa-wifi' : 'fa-triangle-exclamation'}" aria-hidden="true"></i><span>${escapeTaskHtml(message)}</span><button type="button" class="executor-board-retry" onclick="refreshTasks()">إعادة المحاولة</button>`;
+    }
+
+    function hideTaskBoardStatus() {
+        const el = document.getElementById('taskBoardStatus');
+        if (!el) return;
+        el.hidden = true;
+        el.textContent = '';
+    }
+
+    function renderTaskLoadFallback(message) {
+        const container = document.getElementById('tasksList');
+        if (!container || container.querySelector('.task-card')) return;
+        container.innerHTML = `<div class="col-12"><div class="executor-board-fallback" role="alert"><p>${escapeTaskHtml(message)}</p><button type="button" class="executor-board-retry" onclick="refreshTasks()">إعادة المحاولة</button></div></div>`;
+    }
+
     async function refreshTasks() {
         if (document.hidden) return;
         const requestId = ++liveTasksRequestId;
@@ -1020,6 +1045,7 @@
             const res = await executorApiFetch(liveTasksUrl);
             const data = await readExecutorApiResponse(res);
             if (requestId !== liveTasksRequestId) return;
+            hideTaskBoardStatus();
             const nextPollSeconds = Number(data.pollIntervalSeconds);
             if (Number.isFinite(nextPollSeconds) && nextPollSeconds >= 5 && nextPollSeconds <= 30) {
                 liveTasksPollMs = nextPollSeconds * 1000;
@@ -1251,7 +1277,7 @@
                                 ? '<i class="fa-solid fa-lock me-1"></i> بدأ التنفيذ'
                                 : (routingState === 'pending_with_assignee'
                                     ? '<i class="fa-solid fa-hourglass-half me-1"></i> معلّقة عنده'
-                                    : '<i class="fa-solid fa-circle-dot fa-fade me-1"></i> متاح')));
+                                    : '<i class="fa-solid fa-circle-dot me-1" aria-hidden="true"></i> متاح')));
 
                     const typeMeta = taskTypeMeta(t.transferType);
                     const taskTypeName = typeMeta.name;
@@ -1281,12 +1307,18 @@
                     const taskArrivalAt = t.executorReceivedAt || t.createdAt;
                     html += `
                         <div class="col-12 col-xxl-6">
-                            <div class="task-card ${cardClass} ${transferVisualClass}">
+                            <div class="task-card ${cardClass} ${transferVisualClass}" data-task-kind="${escapeTaskHtml(typeMeta.short)}" aria-label="${escapeTaskHtml(taskTypeName)}">
                                 <div class="executor-task-card-body">
                                     <div class="task-header">
                                         <div class="executor-task-title">
-                                            <div class="executor-task-icon"><i class="fa-solid ${taskTypeIcon}"></i></div>
-                                            <div><h2>${taskTypeName}</h2><span>#${escapeTaskHtml(t.customId)}</span></div>
+                                            <div class="executor-task-icon" aria-hidden="true"><i class="fa-solid ${taskTypeIcon}"></i></div>
+                                            <div>
+                                                <h2>${taskTypeName}</h2>
+                                                <span class="task-meta-line">
+                                                    <span class="task-kind-label">${escapeTaskHtml(typeMeta.short)}</span>
+                                                    <span class="task-custom-id">#${escapeTaskHtml(t.customId)}</span>
+                                                </span>
+                                            </div>
                                         </div>
                                         <span class="cyber-badge ${badgeClass}">${badgeText}</span>
                                     </div>
@@ -1299,7 +1331,7 @@
                                             <i class="fa-solid ${recipientIsVisible ? 'fa-copy' : 'fa-lock'} copy-icon"></i>
                                         </div>
                                       </div>
-                                      <div class="executor-task-data-cell">
+                                      <div class="executor-task-data-cell task-amount-cell">
                                         <span class="data-label">القيمة المطلوبة</span>
                                         <div class="copy-box" onclick="copyText('${t.amount}', this)">
                                             <span class="copy-val amount">${formattedAmount} <small>ج.م</small></span>
@@ -1351,7 +1383,7 @@
                                          </div>
                                         ` : `
                                          <div class="complete-actions-row">
-                                            <button onclick="acceptTask('${t._id}')" class="btn-accept-start mb-0"><i class="fa-solid fa-bolt me-1"></i> ${routedToMe ? 'اسحب المهمة الموجهة إليك' : 'اسحب ونفذ فوراً'}</button>
+                                            <button type="button" onclick="acceptTask('${t._id}', this)" class="btn-accept-start mb-0"><i class="fa-solid fa-bolt me-1" aria-hidden="true"></i> ${routedToMe ? 'اسحب المهمة الموجهة إليك' : 'اسحب ونفذ فوراً'}</button>
                                             ${showQuickExecute ? `
                                             <button type="button" onclick="quickExecuteDial('${t._id}')" class="btn-quick-execute" title="تنفيذ سريع" aria-label="تنفيذ سريع">
                                                 <i class="fa-solid fa-phone-flip"></i>
@@ -1366,9 +1398,14 @@
                 container.innerHTML = html || `<div class="col-12"><div class="executor-empty-state-live"><div><img src="/images/executor-3d-alert.png" alt="في انتظار عمليات جديدة"><h2>غرفة العمليات هادئة</h2><p>سيظهر الطلب هنا فور وصول عملية جديدة.</p></div></div></div>`;
             }
         } catch(e) {
-            if (activeTaskId) {
-                document.getElementById('tasksList').innerHTML = '<div class="col-12 text-center py-4">تعذر تحميل العملية النشطة. ستتم إعادة المحاولة تلقائيًا.</div>';
-            }
+            const offline = navigator.onLine === false;
+            const message = offline
+                ? 'انقطع الاتصال. تبقى آخر المهام ظاهرة حتى يعود الإنترنت.'
+                : (activeTaskId
+                    ? 'تعذر تحميل العملية النشطة. ستتم إعادة المحاولة تلقائيًا.'
+                    : 'تعذر تحديث قائمة المهام. ستتم إعادة المحاولة تلقائيًا.');
+            showTaskBoardStatus(message, { offline });
+            renderTaskLoadFallback(activeTaskId ? 'تعذر تحميل العملية النشطة.' : 'تعذر تحميل قائمة المهام.');
         }
     }
 
@@ -1386,9 +1423,9 @@
                 else { const m = Math.floor(diffSec / 60); const s = diffSec % 60; text = `${m} دقيقة و ${s} ث`; }
                 el.innerText = text;
 
-                if (diffSec >= 120) { el.style.color = 'var(--accent-red)'; el.classList.add('fa-fade'); } 
-                else if (diffSec >= 60) { el.style.color = 'var(--accent-gold)'; el.classList.remove('fa-fade'); } 
-                else { el.style.color = 'var(--text-main)'; el.classList.remove('fa-fade'); }
+                if (diffSec >= 120) { el.style.color = 'var(--accent-red)'; el.classList.add('is-overdue'); el.classList.remove('fa-fade'); }
+                else if (diffSec >= 60) { el.style.color = 'var(--accent-gold)'; el.classList.remove('is-overdue', 'fa-fade'); }
+                else { el.style.color = 'var(--text-main)'; el.classList.remove('is-overdue', 'fa-fade'); }
             }
         });
         document.querySelectorAll('.executor-sla-hint[data-assigned-at]').forEach((el) => {
@@ -1556,13 +1593,33 @@
         }
     }
 
-    async function acceptTask(id) {
+    async function acceptTask(id, trigger) {
+        const button = trigger && trigger.tagName === 'BUTTON' ? trigger : null;
+        if (navigator.onLine === false) {
+            showTaskBoardStatus('انقطع الاتصال. لا يمكن سحب العملية حتى يعود الإنترنت.', { offline: true });
+            Swal.fire('انقطع الاتصال', 'تحقق من الإنترنت ثم أعد المحاولة.', 'warning');
+            return;
+        }
+        if (button) {
+            button.disabled = true;
+            button.setAttribute('aria-busy', 'true');
+            button.dataset.prevLabel = button.innerHTML;
+            button.innerHTML = '<i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i> جار السحب...';
+        }
         try {
             const response = await executorApiFetch('/executor-portal/api/accept-task/' + id, { method: 'POST' });
             await readExecutorApiResponse(response);
             window.location.assign(activeTaskUrl(id));
         } catch (error) {
-            Swal.fire('تعذر سحب العملية', error.message, 'error');
+            if (button) {
+                button.disabled = false;
+                button.removeAttribute('aria-busy');
+                if (button.dataset.prevLabel) button.innerHTML = button.dataset.prevLabel;
+            }
+            const offline = navigator.onLine === false;
+            const message = offline ? 'انقطع الاتصال أثناء سحب العملية.' : (error.message || 'تعذر سحب العملية.');
+            if (offline) showTaskBoardStatus(message, { offline: true });
+            Swal.fire(offline ? 'انقطع الاتصال' : 'تعذر سحب العملية', message, offline ? 'warning' : 'error');
             await refreshTasks();
         }
     }
@@ -1646,7 +1703,8 @@
             await readExecutorApiResponse(res);
             window.location.assign('/executor-portal/dashboard');
         } catch(e) {
-            Swal.fire('تعذر إنهاء العملية', e.message || 'فشل حفظ الإيصال.', 'error');
+            const offline = navigator.onLine === false;
+            Swal.fire(offline ? 'انقطع الاتصال' : 'تعذر إنهاء العملية', offline ? 'انقطع الاتصال قبل حفظ العملية. أعد المحاولة بعد عودة الإنترنت.' : (e.message || 'فشل حفظ الإيصال.'), offline ? 'warning' : 'error');
             btn.disabled = false;
             btn.innerHTML = '<i class="fa-solid fa-check-double me-2"></i> تأكيد التنفيذ والإرسال <kbd class="ms-2 bg-dark bg-opacity-25 border-0 text-white px-2 py-1 rounded" style="font-size: 0.75rem; font-family: sans-serif;">Enter ↵</kbd>';
         }
@@ -1666,7 +1724,10 @@
                 const res = await executorApiFetch('/executor-portal/api/edit-amount/' + id, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ newAmount: formValues[0], reason: formValues[1] }) });
                 await readExecutorApiResponse(res);
                 Swal.fire('تم', 'تم التعديل بنجاح', 'success').then(refreshTasks);
-            } catch (error) { Swal.fire('تعذر تعديل المبلغ', error.message, 'error'); }
+            } catch (error) {
+                const offline = navigator.onLine === false;
+                Swal.fire(offline ? 'انقطع الاتصال' : 'تعذر تعديل المبلغ', offline ? 'انقطع الاتصال. أعد المحاولة بعد عودة الإنترنت.' : error.message, offline ? 'warning' : 'error');
+            }
         }
     }
 
@@ -1727,7 +1788,10 @@
                 } else {
                     await refreshTasks();
                 }
-            } catch (error) { Swal.fire('تعذر إلغاء العملية', error.message, 'error'); }
+            } catch (error) {
+                const offline = navigator.onLine === false;
+                Swal.fire(offline ? 'انقطع الاتصال' : 'تعذر إلغاء العملية', offline ? 'انقطع الاتصال. أعد المحاولة بعد عودة الإنترنت.' : error.message, offline ? 'warning' : 'error');
+            }
         }
     }
 
@@ -1738,7 +1802,10 @@
                 const res = await executorApiFetch('/executor-portal/api/return-task/' + id, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ reason }) });
                 await readExecutorApiResponse(res);
                 await refreshTasks();
-            } catch (error) { Swal.fire('تعذر إرجاع العملية', error.message, 'error'); }
+            } catch (error) {
+                const offline = navigator.onLine === false;
+                Swal.fire(offline ? 'انقطع الاتصال' : 'تعذر إرجاع العملية', offline ? 'انقطع الاتصال. أعد المحاولة بعد عودة الإنترنت.' : error.message, offline ? 'warning' : 'error');
+            }
         }
     }
 
@@ -1776,6 +1843,13 @@
     const refreshVisibleExecutorTasks = () => {
         if (!document.hidden) refreshTasks();
     };
+    window.addEventListener('offline', () => {
+        showTaskBoardStatus('انقطع الاتصال. تبقى آخر المهام ظاهرة حتى يعود الإنترنت.', { offline: true });
+    });
+    window.addEventListener('online', () => {
+        hideTaskBoardStatus();
+        refreshVisibleExecutorTasks();
+    });
     const scheduleLiveTasksPoll = () => {
         window.clearTimeout(liveTasksPollTimer);
         liveTasksPollTimer = window.setTimeout(async () => {
