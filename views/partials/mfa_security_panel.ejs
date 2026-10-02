@@ -32,6 +32,7 @@
             <strong>احفظ بيانات الاسترداد قبل المتابعة</strong>
             <span>أضف المفتاح يدويًا في Google Authenticator أو Microsoft Authenticator. هذه البيانات تظهر أثناء الإعداد فقط.</span>
         </div>
+        <div class="mfa-qr" data-mfa-qr hidden aria-label="رمز QR لإعداد تطبيق المصادقة"></div>
         <label class="mfa-secret-label">مفتاح الإعداد</label>
         <div class="mfa-secret-row"><code data-mfa-secret></code><button type="button" data-mfa-copy-secret title="نسخ"><i class="fa-regular fa-copy"></i></button></div>
         <label class="mfa-secret-label">رابط الإعداد</label>
@@ -66,6 +67,8 @@
     .mfa-message { margin: 12px 0; padding: 10px 12px; border-radius: 9px; color: #1d4ed8; background: #eff6ff; font-size: .76rem; font-weight: 800; }
     .mfa-message.error { color: #b91c1c; background: #fef2f2; }
     .mfa-setup { margin-top: 16px; padding-top: 16px; border-top: 1px solid #e2e8f0; }
+    .mfa-qr { width: 168px; height: 168px; margin: 0 auto 14px; padding: 8px; background: #fff; border-radius: 8px; }
+    .mfa-qr img, .mfa-qr canvas { display: block; width: 152px; height: 152px; }
     .mfa-notice { display: grid; gap: 4px; padding: 11px 12px; margin-bottom: 14px; border-radius: 9px; color: #92400e; background: #fffbeb; font-size: .76rem; line-height: 1.6; }
     .mfa-notice strong { font-weight: 900; }
     .mfa-secret-label { display: block; margin: 9px 0 5px; color: #475569; font-size: .72rem; font-weight: 900; }
@@ -139,6 +142,10 @@
         try {
             const data = await request('/security/mfa/setup', { method: 'POST', body: '{}' });
             find('[data-mfa-secret]').textContent = data.setup.secret; find('[data-mfa-uri]').textContent = data.setup.qrUri;
+            const qr = find('[data-mfa-qr]');
+            qr.replaceChildren();
+            qr.hidden = typeof window.QRCode !== 'function';
+            if (!qr.hidden) new window.QRCode(qr, { text: data.setup.qrUri, width: 152, height: 152 });
             find('[data-mfa-recovery]').innerHTML = (data.setup.recoveryCodes || []).map((code) => `<code>${code}</code>`).join(''); find('[data-mfa-setup]').hidden = false; find('[data-mfa-start]').hidden = true; setMessage('أدخل المفتاح في تطبيق Authenticator ثم اكتب الرمز الحالي للتأكيد.');
         } catch (error) { setMessage(error.message, true); } finally { setBusy(false); }
     });
