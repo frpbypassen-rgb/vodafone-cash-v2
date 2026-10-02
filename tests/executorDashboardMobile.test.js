@@ -88,7 +88,13 @@ describe('executor manager mobile dashboard', () => {
         expect(dashboard).toContain('aria-label="إلغاء العملية"');
         expect(dashboard).toContain("popup.setAttribute('dir', 'rtl')");
         expect(dashboard).toMatch(/if \(reason\) \{[\s\S]*?\/executor-portal\/api\/cancel-task\//);
-        expect(mobileStyles).toContain('padding-bottom: calc(62px + env(safe-area-inset-bottom))');
+        expect(sharedStyles).toContain('--exo-dock-height: 62px');
+        expect(sharedStyles).toContain('--exo-command-height: 54px');
+        expect(sharedStyles).toContain('--exo-dock-gap: 8px');
+        expect(mobileStyles).toContain('scroll-padding-top: calc(var(--exo-command-height) + env(safe-area-inset-top))');
+        expect(mobileStyles).toContain('scroll-padding-bottom: calc(var(--exo-dock-height) + max(var(--exo-dock-gap), env(safe-area-inset-bottom)))');
+        expect(mobileStyles).toContain('padding-bottom: calc(var(--exo-dock-height) + max(var(--exo-dock-gap), env(safe-area-inset-bottom)))');
+        expect(mobileStyles).not.toMatch(/margin-bottom:\s*-\d+px/);
         expect(mobileStyles).toContain('body.executor-page-dashboard.executor-active-task .btn-text-hide');
         expect(mobileStyles).toContain('#0b1929');
         expect(mobileStyles).toContain('#f8fafc');

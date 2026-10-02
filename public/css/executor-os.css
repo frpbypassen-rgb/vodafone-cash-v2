@@ -12,6 +12,9 @@
     --exo-red: #ff6b7a;
     --exo-radius: 22px;
     --exo-rail: 92px;
+    --exo-command-height: 54px;
+    --exo-dock-height: 62px;
+    --exo-dock-gap: 8px;
     --exo-ease: cubic-bezier(.22, 1, .36, 1);
     --executor-canvas: var(--exo-bg);
     --executor-surface: var(--exo-solid);
@@ -735,7 +738,7 @@ body.executor-os.executor-page-settings .settings-topbar { display: none !import
         position: fixed !important;
         z-index: 1500;
         right: 8px;
-        bottom: max(8px, env(safe-area-inset-bottom));
+        bottom: max(var(--exo-dock-gap), env(safe-area-inset-bottom));
         left: 8px;
         height: 62px;
         min-height: 62px;

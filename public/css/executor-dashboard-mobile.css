@@ -491,6 +491,8 @@ body.executor-page-dashboard.executor-active-task .executor-task-layout {
 
 body.executor-page-dashboard.executor-active-task #tasksList > .col-12 {
     width: 100%;
+    animation: none !important;
+    opacity: 1 !important;
 }
 
 body.executor-page-dashboard.executor-active-task .executor-live-heading {
@@ -504,7 +506,7 @@ body.executor-os.executor-active-task {
 
 @media (max-width: 767.98px) {
     body.executor-os.executor-active-task {
-        padding: calc(12px + env(safe-area-inset-top)) 8px calc(20px + env(safe-area-inset-bottom)) !important;
+        padding: calc(var(--exo-command-height) + 8px + env(safe-area-inset-top)) 8px calc(16px + env(safe-area-inset-bottom)) !important;
     }
 
     body.executor-page-dashboard.executor-active-task .container-fluid {
@@ -612,10 +614,24 @@ body.executor-page-dashboard.executor-active-task .horizontal-actions .btn-cyber
 }
 
 @media (max-width: 767.98px) {
+    html:has(body.executor-page-dashboard) {
+        scroll-padding-top: calc(var(--exo-command-height) + env(safe-area-inset-top));
+    }
+
+    html:has(body.executor-page-dashboard:not(.executor-active-task)) {
+        scroll-padding-bottom: calc(var(--exo-dock-height) + max(var(--exo-dock-gap), env(safe-area-inset-bottom)));
+    }
+
+    body.executor-page-dashboard:not(.executor-active-task) {
+        padding-bottom: calc(var(--exo-dock-height) + max(var(--exo-dock-gap), env(safe-area-inset-bottom))) !important;
+    }
+
+    body.executor-page-dashboard:not(.executor-active-task) .container-fluid.mb-5 {
+        margin-bottom: 0 !important;
+    }
+
     body.executor-page-dashboard:not(.executor-active-task) #tasksList {
-        padding-bottom: calc(62px + env(safe-area-inset-bottom));
-        /* Body already pads 88px for the dock. Pull back the extra list padding
-           so a tall last card stays below the fixed command bar at the end of the scroll. */
-        margin-bottom: -28px;
+        padding-bottom: 0;
+        margin-bottom: 0;
     }
 }
