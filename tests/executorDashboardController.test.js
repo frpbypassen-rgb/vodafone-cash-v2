@@ -62,6 +62,7 @@ const mobileWebParityService = require('../services/mobileWebParityService');
 const poolService = require('../services/executorBalancePoolService');
 const { findOwnedAcceptedExecutorTask } = require('../services/executorTaskRoutingService');
 const controller = require('../controllers/executorDashboardController');
+const bcrypt = require('bcryptjs');
 
 const response = () => ({
     status: jest.fn().mockReturnThis(),
@@ -69,6 +70,37 @@ const response = () => ({
     send: jest.fn().mockReturnThis(),
     redirect: jest.fn().mockReturnThis(),
     render: jest.fn().mockReturnThis()
+});
+
+describe('executor self-service settings', () => {
+    beforeEach(() => jest.clearAllMocks());
+
+    test('rejects an incorrect current password without saving', async () => {
+        const employee = { _id: 'employee-1', status: 'active', webPassword: await bcrypt.hash('original-password', 4), save: jest.fn() };
+        Employee.findById.mockResolvedValue(employee);
+        const res = response();
+        await controller.postSettingsPassword({ session: { executorId: employee._id }, body: { currentPassword: 'incorrect', newPassword: 'new-password-123', confirmPassword: 'new-password-123' } }, res);
+        expect(res.status).toHaveBeenCalledWith(422);
+        expect(employee.save).not.toHaveBeenCalled();
+    });
+
+    test('rejects unmatched new passwords before loading the account', async () => {
+        const res = response();
+        await controller.postSettingsPassword({ session: { executorId: 'employee-1' }, body: { currentPassword: 'original-password', newPassword: 'new-password-123', confirmPassword: 'another-password' } }, res);
+        expect(res.status).toHaveBeenCalledWith(422);
+        expect(Employee.findById).not.toHaveBeenCalled();
+    });
+
+    test('saves a new password after verifying the old one', async () => {
+        const employee = { _id: 'employee-1', name: 'موظف', status: 'active', webPassword: await bcrypt.hash('original-password', 4), save: jest.fn().mockResolvedValue(true) };
+        Employee.findById.mockResolvedValue(employee);
+        const res = response();
+        await controller.postSettingsPassword({ session: { executorId: employee._id }, body: { currentPassword: 'original-password', newPassword: 'new-password-123', confirmPassword: 'new-password-123' } }, res);
+        expect(employee.webPassword).not.toBe('new-password-123');
+        expect(await bcrypt.compare('new-password-123', employee.webPassword)).toBe(true);
+        expect(employee.save).toHaveBeenCalledTimes(1);
+        expect(res.json).toHaveBeenCalledWith({ success: true });
+    });
 });
 
 describe('executor active task page', () => {

@@ -15,8 +15,9 @@
     <link rel="stylesheet" href="/css/executor-workspace.css?v=20260921-quick-exec">
     <link rel="stylesheet" href="/css/executor-2030-override.css?v=20260825-settings1">
     <link rel="stylesheet" href="/css/executor-os.css?v=20260930-mobile-shell">
-    <link rel="stylesheet" href="/css/executor-settings.css?v=20260921-quick-exec">
+    <link rel="stylesheet" href="/css/executor-settings.css?v=20261002-settings-mobile">
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" defer></script>
     <script>window.executorCsrfToken = <%- JSON.stringify(typeof csrfToken !== 'undefined' ? csrfToken : '') %>;</script>
     <script src="/js/executor-api.js"></script>
     <style>body { font-family: 'Tajawal', sans-serif; }</style>
@@ -42,6 +43,13 @@
 </header>
 
 <main class="settings-container">
+    <% const isManager = emp.role === 'manager'; const isOperator = emp.role === 'operator'; const isAccountant = emp.role === 'accountant'; const isExternal = emp.role === 'external'; %>
+    <nav class="settings-mobile-tabs" aria-label="أقسام الإعدادات">
+        <button class="settings-nav-item active" type="button" data-settings-tab="account"><i class="fa-solid fa-user"></i> حسابي</button>
+        <% if (isManager) { %><button class="settings-nav-item" type="button" data-settings-tab="team"><i class="fa-solid fa-users-gear"></i> الفريق</button><% } %>
+        <button class="settings-nav-item" type="button" data-settings-tab="notifications"><i class="fa-solid fa-bell"></i> الإشعارات</button>
+        <button class="settings-nav-item" type="button" data-settings-tab="security"><i class="fa-solid fa-shield-halved"></i> الأمان</button>
+    </nav>
     <div class="executor-page-heading">
         <div>
             <span class="executor-kicker"><i class="fa-solid fa-sliders"></i> مركز التحكم</span>
@@ -53,6 +61,7 @@
 
     <% const roleLabel = { manager: 'مدير تنفيذي', accountant: 'محاسب', external: 'منفّذ خارجي', operator: 'موظف تنفيذ' }[emp.role] || 'موظف تنفيذ'; %>
 
+    <div id="settingsAccountOverview">
     <article class="settings-identity">
         <div class="settings-identity-avatar"><i class="fa-solid fa-user-shield"></i></div>
         <div class="settings-identity-body">
@@ -66,7 +75,6 @@
         <span class="executor-status-pill" style="--pill-color: var(--executor-green)"><i class="fa-solid fa-circle-check"></i> نشط</span>
     </article>
 
-    <% const isManager = emp.role === 'manager'; const isOperator = emp.role === 'operator'; const isAccountant = emp.role === 'accountant'; const isExternal = emp.role === 'external'; %>
     <section class="executor-summary-grid settings-summary-grid <%= isAccountant || isExternal ? 'cols-2' : (isOperator ? 'cols-3' : '') %> mb-3">
         <% if (overview.permissions?.canViewCompanyBalance) { %>
             <%- include('partials/service-balance-cards', { companyBalances }) %>
@@ -116,31 +124,22 @@
             <% } %>
         <% } %>
     </section>
+    </div>
 
     <div class="settings-shell">
         <nav class="settings-nav" aria-label="أقسام الإعدادات">
-            <button class="settings-nav-item" type="button" data-settings-tab="account"><i class="fa-solid fa-user"></i> حسابي</button>
-            <button class="settings-nav-item active" type="button" data-settings-tab="notifications"><i class="fa-solid fa-bell"></i> الإشعارات</button>
-            <button class="settings-nav-item" type="button" data-settings-tab="security"><i class="fa-solid fa-shield-halved"></i> الأمان</button>
+            <button class="settings-nav-item active" type="button" data-settings-tab="account"><i class="fa-solid fa-user"></i> حسابي</button>
             <% if (isManager) { %>
                 <button class="settings-nav-item" type="button" data-settings-tab="team"><i class="fa-solid fa-users-gear"></i> إدارة الفريق</button>
             <% } %>
-        </nav>
-
-        <div class="settings-mobile-tabs" aria-label="أقسام الإعدادات">
-            <button class="settings-nav-item" type="button" data-settings-tab="account"><i class="fa-solid fa-user"></i> حسابي</button>
-            <button class="settings-nav-item active" type="button" data-settings-tab="notifications"><i class="fa-solid fa-bell"></i> الإشعارات</button>
+            <button class="settings-nav-item" type="button" data-settings-tab="notifications"><i class="fa-solid fa-bell"></i> الإشعارات</button>
             <button class="settings-nav-item" type="button" data-settings-tab="security"><i class="fa-solid fa-shield-halved"></i> الأمان</button>
-            <% if (isManager) { %>
-                <button class="settings-nav-item" type="button" data-settings-tab="team"><i class="fa-solid fa-users-gear"></i> الفريق</button>
-            <% } %>
-        </div>
+        </nav>
 
         <div class="settings-panels">
             <!-- حسابي -->
-            <section class="settings-panel workspace-panel" id="panel-account" data-settings-panel="account">
+            <section class="settings-panel workspace-panel active" id="panel-account" data-settings-panel="account">
                 <h2 class="panel-title"><i class="fa-solid fa-id-card"></i> حسابي</h2>
-                <p class="panel-lead">بيانات التشغيل الأساسية المرتبطة بحسابك في منصة التنفيذ.</p>
                 <div class="settings-two-col">
                     <div>
                         <div class="executor-detail-row"><span>شركة التنفيذ</span><strong><%= overview.company?.name || emp.groupId?.name || '---' %></strong></div>
@@ -153,6 +152,11 @@
                         <div class="executor-detail-row"><span>حالة الحساب</span><strong><span class="executor-status-pill" style="--pill-color: var(--executor-green)"><i class="fa-solid fa-circle-check"></i> نشط</span></strong></div>
                     </div>
                 </div>
+                <form id="settingsProfileForm" class="settings-form-grid">
+                    <label>الاسم<input class="form-control" name="name" autocomplete="name" required minlength="3" maxlength="100" value="<%= overview.executor?.name || emp.name %>"></label>
+                    <label>رقم الهاتف<input class="form-control" name="phone" inputmode="tel" autocomplete="tel" required value="<%= overview.executor?.phone || emp.phone || '' %>"></label>
+                    <button class="settings-btn-primary" type="submit"><i class="fa-solid fa-floppy-disk"></i> حفظ البيانات</button>
+                </form>
                 <% if (!isAccountant) { %>
                 <% const quickExecute = overview.quickExecute || {}; %>
                 <div class="quick-execute-settings mt-4 pt-3 border-top">
@@ -188,9 +192,8 @@
             </section>
 
             <!-- الإشعارات -->
-            <section class="settings-panel workspace-panel active" id="panel-notifications" data-settings-panel="notifications">
+            <section class="settings-panel workspace-panel" id="panel-notifications" data-settings-panel="notifications">
                 <h2 class="panel-title"><i class="fa-solid fa-bell"></i> إشعارات المهام</h2>
-                <p class="panel-lead">تصل التنبيهات حتى عند إغلاق صفحة البوابة بعد منح الإذن.</p>
 
                 <div class="push-hero">
                     <div class="push-hero-main">
@@ -202,54 +205,25 @@
                     </div>
                     <div class="push-hero-aside">
                         <span class="executor-status-pill" id="pushStatusPill">فحص</span>
-                        <small>آخر إرسال: <span id="lastPushAt">لا يوجد</span></small>
-                    </div>
-                </div>
-
-                <div class="push-steps">
-                    <div class="push-step" id="pushStep1">
-                        <span class="push-step-num">1</span>
-                        <span class="push-step-label">إذن المتصفح</span>
-                        <span class="push-step-value" id="browserPermission">جاري الفحص</span>
-                    </div>
-                    <div class="push-step" id="pushStep2">
-                        <span class="push-step-num">2</span>
-                        <span class="push-step-label">اتصال الخادم</span>
-                        <span class="push-step-value" id="serverPushStatus">جاري الفحص</span>
-                    </div>
-                    <div class="push-step" id="pushStep3">
-                        <span class="push-step-num">3</span>
-                        <span class="push-step-label">جاهز للاستقبال</span>
-                        <span class="push-step-value" id="pushReadyStatus">جاري الفحص</span>
                     </div>
                 </div>
 
                 <div class="push-actions">
                     <button class="settings-btn-primary" type="button" id="enablePush"><i class="fa-solid fa-bell"></i> تفعيل الإشعارات</button>
                     <button class="settings-btn-primary danger" type="button" id="disablePush" hidden><i class="fa-solid fa-bell-slash"></i> إيقاف الإشعارات</button>
-                    <div class="push-secondary-links">
-                        <button class="push-link-btn" type="button" id="testPush"><i class="fa-solid fa-paper-plane"></i> اختبار من الخادم</button>
-                        <button class="push-link-btn" type="button" id="previewPush"><i class="fa-solid fa-volume-high"></i> معاينة</button>
-                    </div>
-                </div>
-
-                <div class="push-learn-more">
-                    <button class="push-learn-toggle" type="button" id="pushLearnToggle" aria-expanded="false">
-                        <span><i class="fa-solid fa-circle-info"></i> اعرف المزيد — قواعد الإشعارات</span>
-                        <i class="fa-solid fa-chevron-down chevron"></i>
-                    </button>
-                    <div class="push-learn-body" id="pushLearnBody">
-                        <div class="executor-detail-row"><span>عملية جديدة</span><strong>تنبيه فوري</strong></div>
-                        <div class="executor-detail-row"><span>عملية موجهة</span><strong>للمنفذ المحدد فقط</strong></div>
-                        <div class="executor-detail-row"><span>إنذار الإدارة</span><strong>أولوية مرتفعة</strong></div>
-                        <div class="executor-detail-row"><span>خصوصية الرقم</span><strong>أول 3 أرقام قبل القبول</strong></div>
-                    </div>
                 </div>
             </section>
 
             <!-- الأمان -->
             <section class="settings-panel workspace-panel" id="panel-security" data-settings-panel="security">
                 <%- include('../partials/mfa_security_panel') %>
+                <form id="settingsPasswordForm" class="settings-password-form">
+                    <h3 class="panel-title"><i class="fa-solid fa-key"></i> تغيير كلمة المرور</h3>
+                    <label>كلمة المرور الحالية<input class="form-control" type="password" name="currentPassword" autocomplete="current-password" required></label>
+                    <label>كلمة المرور الجديدة<input class="form-control" type="password" name="newPassword" autocomplete="new-password" minlength="8" required></label>
+                    <label>تأكيد كلمة المرور الجديدة<input class="form-control" type="password" name="confirmPassword" autocomplete="new-password" minlength="8" required></label>
+                    <button class="settings-btn-primary" type="submit"><i class="fa-solid fa-floppy-disk"></i> تغيير كلمة المرور</button>
+                </form>
             </section>
 
             <!-- إدارة الفريق (manager only) -->
@@ -324,47 +298,21 @@
 
 <script src="/js/executor-workspace.js?v=20260819-1"></script>
 <script>
-    const formatDate = (value) => value
-        ? new Date(value).toLocaleString('ar-LY', { timeZone: 'Africa/Tripoli', dateStyle: 'medium', timeStyle: 'short' })
-        : 'لا يوجد';
-
-    const permissionLabels = { granted: 'مسموح', denied: 'مرفوض', default: 'لم يطلب بعد' };
-
     const setPushBusy = (busy) => {
-        ['enablePush', 'testPush', 'previewPush', 'disablePush'].forEach((id) => {
+        ['enablePush', 'disablePush'].forEach((id) => {
             const button = document.getElementById(id);
             if (button) button.disabled = busy;
         });
     };
 
-    const setStepState = (stepEl, state) => {
-        if (!stepEl) return;
-        stepEl.classList.remove('done', 'fail');
-        if (state === 'done') stepEl.classList.add('done');
-        if (state === 'fail') stepEl.classList.add('fail');
-    };
-
     async function refreshPushStatus() {
         try {
             const status = await window.executorBrowserPush.status();
-            const permLabel = permissionLabels[status.permission] || status.permission;
-            const serverLabel = status.configured ? 'جاهز' : 'إعداد الخادم غير مكتمل';
             const ready = status.supported && status.configured && status.subscribed && status.permission === 'granted';
-
-            document.getElementById('browserPermission').textContent = permLabel;
-            document.getElementById('serverPushStatus').textContent = serverLabel;
-            document.getElementById('pushReadyStatus').textContent = ready ? 'جاهز' : (status.supported ? 'بانتظار التفعيل' : 'غير مدعوم');
-            document.getElementById('lastPushAt').textContent = formatDate(status.lastSuccessAt);
-
-            setStepState(document.getElementById('pushStep1'), status.permission === 'granted' ? 'done' : (status.permission === 'denied' ? 'fail' : null));
-            setStepState(document.getElementById('pushStep2'), status.configured ? 'done' : 'fail');
-            setStepState(document.getElementById('pushStep3'), ready ? 'done' : null);
-
-            document.getElementById('pushStatusTitle').textContent = ready ? 'الإشعارات تعمل على هذا المتصفح' : 'الإشعارات تحتاج إلى تفعيل';
-            document.getElementById('pushStatusHint').textContent = ready
-                ? 'ستصلك تنبيهات المهام حتى عند إغلاق هذه الصفحة.'
-                : 'فعّل الإشعارات لتصلك المهام الجديدة فورًا.';
-            document.getElementById('pushStatusPill').textContent = ready ? 'تعمل' : 'تحتاج إعدادًا';
+            const unavailable = !status.supported || !status.configured;
+            document.getElementById('pushStatusTitle').textContent = ready ? 'الإشعارات جاهزة على هذا الجهاز' : (unavailable ? 'خدمة الإشعارات غير متاحة' : 'الإشعارات متوقفة');
+            document.getElementById('pushStatusHint').textContent = ready ? 'يمكن استقبال تنبيهات المهام.' : (status.permission === 'denied' ? 'إذن المتصفح مرفوض.' : 'فعّل الإشعارات لاستقبال التنبيهات.');
+            document.getElementById('pushStatusPill').textContent = ready ? 'تعمل' : (unavailable ? 'غير متاحة' : 'متوقفة');
             document.getElementById('pushStatusPill').style.setProperty('--pill-color', ready ? 'var(--executor-green)' : 'var(--executor-red)');
 
             document.getElementById('enablePush').hidden = ready;
@@ -394,8 +342,6 @@
     };
 
     document.getElementById('enablePush').addEventListener('click', () => pushAction(() => window.executorBrowserPush.enable(), 'تم تفعيل إشعارات المتصفح'));
-    document.getElementById('testPush').addEventListener('click', () => pushAction(() => window.executorBrowserPush.test(), 'تم إرسال إشعار الاختبار'));
-    document.getElementById('previewPush').addEventListener('click', () => pushAction(() => window.executorBrowserPush.preview(), 'تم تشغيل المعاينة'));
     document.getElementById('disablePush').addEventListener('click', () => pushAction(() => window.executorBrowserPush.disable(), 'تم إيقاف إشعارات هذا المتصفح'));
     document.getElementById('refreshOverview').addEventListener('click', () => window.location.reload());
 
@@ -453,14 +399,6 @@
         }
     });
 
-    document.getElementById('pushLearnToggle')?.addEventListener('click', (event) => {
-        const button = event.currentTarget;
-        const body = document.getElementById('pushLearnBody');
-        const expanded = button.getAttribute('aria-expanded') === 'true';
-        button.setAttribute('aria-expanded', String(!expanded));
-        body.classList.toggle('open', !expanded);
-    });
-
     const activateSettingsTab = (tabId) => {
         document.querySelectorAll('[data-settings-tab]').forEach((btn) => {
             btn.classList.toggle('active', btn.dataset.settingsTab === tabId);
@@ -468,11 +406,37 @@
         document.querySelectorAll('[data-settings-panel]').forEach((panel) => {
             panel.classList.toggle('active', panel.dataset.settingsPanel === tabId);
         });
+        document.getElementById('settingsAccountOverview').hidden = tabId !== 'account';
     };
 
     document.querySelectorAll('[data-settings-tab]').forEach((button) => {
         button.addEventListener('click', () => activateSettingsTab(button.dataset.settingsTab));
     });
+
+    const saveSettingsForm = (id, path, method, successText) => {
+        document.getElementById(id)?.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            const form = event.currentTarget;
+            const values = Object.fromEntries(new FormData(form));
+            if (id === 'settingsPasswordForm' && values.newPassword !== values.confirmPassword) {
+                return Swal.fire({ icon: 'error', title: 'كلمتا المرور غير متطابقتين' });
+            }
+            const button = form.querySelector('button[type="submit"]');
+            button.disabled = true;
+            try {
+                await readExecutorApiResponse(await executorApiFetch(path, {
+                    method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(values)
+                }));
+                if (id === 'settingsPasswordForm') form.reset();
+                await Swal.fire({ icon: 'success', title: successText, timer: 1600, showConfirmButton: false });
+                if (id === 'settingsProfileForm') window.location.reload();
+            } catch (error) {
+                Swal.fire({ icon: 'error', title: 'تعذر الحفظ', text: error.message });
+            } finally { button.disabled = false; }
+        });
+    };
+    saveSettingsForm('settingsProfileForm', '/executor-portal/api/settings/profile', 'PATCH', 'تم تحديث الحساب');
+    saveSettingsForm('settingsPasswordForm', '/executor-portal/api/settings/password', 'POST', 'تم تغيير كلمة المرور');
 
     const pinNetworks = new Set(['etisalat', 'orange', 'we']);
     const selectedUssdNetwork = () => document.querySelector('input[name="ussdNetwork"]:checked')?.value || 'vodafone';

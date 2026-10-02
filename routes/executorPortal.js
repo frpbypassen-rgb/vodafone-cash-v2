@@ -1,5 +1,7 @@
 ﻿const express = require('express');
+const { rateLimit } = require('express-rate-limit');
 const router = express.Router();
+const settingsPasswordLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 5, standardHeaders: 'draft-8', legacyHeaders: false, message: { success: false, error: 'محاولات كثيرة. أعد المحاولة بعد قليل.' } });
 
 // Controllers
 const authController = require('../controllers/executorAuthController');
@@ -109,6 +111,8 @@ router.get('/logout', authController.logout);
 router.get('/dashboard', requireExecutorAuth, dashboardController.getDashboard);
 router.get('/active-task/:id', requireExecutorAuth, requireExecutorTaskAccess, dashboardController.getActiveTask);
 router.get('/settings', requireExecutorAuth, dashboardController.getSettings);
+router.patch('/api/settings/profile', requireExecutorAuth, dashboardController.patchSettingsProfile);
+router.post('/api/settings/password', requireExecutorAuth, settingsPasswordLimiter, dashboardController.postSettingsPassword);
 router.get('/deposits', requireExecutorAuth, requireExecutorDepositAccess, dashboardController.getDeposits);
 router.get('/proxy/image/:id', requireExecutorAuth, dashboardController.getProxyImage);
 router.get('/proxy/image/:id/:index', requireExecutorAuth, dashboardController.getProxyImage);

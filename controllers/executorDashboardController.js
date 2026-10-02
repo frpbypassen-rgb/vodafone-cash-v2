@@ -1,4 +1,5 @@
 const { logAction } = require('../services/auditService');
+const bcrypt = require('bcryptjs');
 const { proofSourceUrl, streamProofImage } = require('../services/proofStorageService');
 const { escapeRegex } = require('../utils/helpers');
 
@@ -17,7 +18,7 @@ const {
 } = require('../services/executorTaskRoutingService');
 const mobileWebParityService = require('../services/mobileWebParityService');
 const mobileWebParityMapper = require('../mappers/mobileWebParityMapper');
-const { clearExecutorAuthCache } = require('../services/executorAuthCache');
+const { clearExecutorAuthCache, invalidateExecutorAuth } = require('../services/executorAuthCache');
 const { readExecutorManualPolicy, toPublicExecutionPolicy } = require('../utils/executorManualPolicy');
 const executorDepositRequestService = require('../services/executorDepositRequestService');
 const { loadPortalLiveTasks } = require('../services/executorLiveTasksService');
@@ -177,6 +178,50 @@ exports.getSettings = async (req, res) => {
         });
     } catch (_) {
         return res.redirect('/executor-portal/dashboard');
+    }
+};
+
+exports.patchSettingsProfile = async (req, res) => {
+    try {
+        const name = String(req.body?.name || '').trim().replace(/\s+/g, ' ');
+        if (name.length < 3 || name.length > 100) {
+            return res.status(422).json({ success: false, error: 'الاسم يجب أن يكون بين 3 و100 حرف.' });
+        }
+        const phone = normalizeExecutorPhone(req.body?.phone);
+        const employee = await Employee.findById(req.session.executorId);
+        if (!employee || employee.status !== 'active') return res.status(401).json({ success: false, error: 'انتهت جلسة الدخول.' });
+        employee.name = name;
+        employee.phone = phone;
+        await employee.save();
+        invalidateExecutorAuth(employee._id);
+        await logAction({ action: 'USER_UPDATED', performedById: employee._id, performedByModel: 'Employee', performedByName: employee.name, targetId: employee._id, targetModel: 'Employee', result: 'نجاح', metadata: { scope: 'self_profile' } });
+        return res.json({ success: true, name: employee.name, phone: employee.phone });
+    } catch (error) {
+        if (error instanceof ExecutorAccountError) return res.status(422).json({ success: false, error: error.message });
+        return res.status(500).json({ success: false, error: 'تعذر حفظ بيانات الحساب.' });
+    }
+};
+
+exports.postSettingsPassword = async (req, res) => {
+    const currentPassword = String(req.body?.currentPassword || '');
+    const newPassword = String(req.body?.newPassword || '');
+    const confirmPassword = String(req.body?.confirmPassword || '');
+    if (!currentPassword || newPassword.length < 8 || newPassword.length > 128 || newPassword !== confirmPassword || newPassword === currentPassword) {
+        return res.status(422).json({ success: false, error: 'تحقق من كلمة المرور الجديدة وتأكيدها (8 أحرف على الأقل).' });
+    }
+    try {
+        const employee = await Employee.findById(req.session.executorId);
+        if (!employee || employee.status !== 'active') return res.status(401).json({ success: false, error: 'انتهت جلسة الدخول.' });
+        if (!await bcrypt.compare(currentPassword, employee.webPassword || '')) {
+            return res.status(422).json({ success: false, error: 'كلمة المرور الحالية غير صحيحة.' });
+        }
+        employee.webPassword = await bcrypt.hash(newPassword, 12);
+        await employee.save();
+        invalidateExecutorAuth(employee._id);
+        await logAction({ action: 'USER_PASSWORD_CHANGED', performedById: employee._id, performedByModel: 'Employee', performedByName: employee.name, targetId: employee._id, targetModel: 'Employee', result: 'نجاح', metadata: { scope: 'self_password' } });
+        return res.json({ success: true });
+    } catch (_) {
+        return res.status(500).json({ success: false, error: 'تعذر تغيير كلمة المرور.' });
     }
 };
 
