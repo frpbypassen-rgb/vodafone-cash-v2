@@ -1377,9 +1377,9 @@
                                             </button>` : ''}
                                          </div>
                                          <div class="horizontal-actions">
-                                            <button onclick="editAmount('${t._id}')" class="btn-cyber-sub btn-warning-neon" title="تعديل المبلغ"><i class="fa-solid fa-pen-to-square"></i> <span class="btn-text-hide ms-1">تعديل</span></button>
-                                            ${activeTaskId ? '' : `<button onclick="returnTask('${t._id}')" class="btn-cyber-sub btn-info-neon" title="إرجاع الطلب للإدارة"><i class="fa-solid fa-reply"></i> <span class="btn-text-hide ms-1">إرجاع</span></button>`}
-                                            <button onclick="cancelTask('${t._id}')" class="btn-cyber-sub btn-danger-neon" title="إلغاء العملية"><i class="fa-solid fa-xmark"></i> <span class="btn-text-hide ms-1">إلغاء</span></button>
+                                            <button type="button" onclick="editAmount('${t._id}')" class="btn-cyber-sub btn-warning-neon" title="تعديل المبلغ" aria-label="تعديل المبلغ"><i class="fa-solid fa-pen-to-square" aria-hidden="true"></i> <span class="btn-text-hide ms-1">تعديل</span></button>
+                                            ${activeTaskId ? '' : `<button onclick="returnTask('${t._id}')" type="button" class="btn-cyber-sub btn-info-neon" title="إرجاع الطلب للإدارة" aria-label="إرجاع الطلب للإدارة"><i class="fa-solid fa-reply" aria-hidden="true"></i> <span class="btn-text-hide ms-1">إرجاع</span></button>`}
+                                            <button type="button" onclick="cancelTask('${t._id}')" class="btn-cyber-sub btn-danger-neon" title="إلغاء العملية" aria-label="إلغاء العملية"><i class="fa-solid fa-xmark" aria-hidden="true"></i> <span class="btn-text-hide ms-1">إلغاء</span></button>
                                          </div>
                                         ` : `
                                          <div class="complete-actions-row">
@@ -1395,7 +1395,7 @@
                             </div>
                         </div>`;
                 });
-                container.innerHTML = html || `<div class="col-12"><div class="executor-empty-state-live"><div><img src="/images/executor-3d-alert.png" alt="في انتظار عمليات جديدة"><h2>غرفة العمليات هادئة</h2><p>سيظهر الطلب هنا فور وصول عملية جديدة.</p></div></div></div>`;
+                container.innerHTML = html || `<div class="col-12"><div class="executor-empty-state-live"><div><div class="executor-empty-mark" role="img" aria-label="في انتظار عمليات جديدة"><svg viewBox="0 0 72 72" aria-hidden="true" focusable="false"><circle cx="36" cy="36" r="26" fill="none" stroke="currentColor" stroke-width="3.5"/><path d="M36 20v17l12 7" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="36" cy="36" r="3.2" fill="currentColor"/></svg></div><h2>غرفة العمليات هادئة</h2><p>سيظهر الطلب هنا فور وصول عملية جديدة.</p></div></div></div>`;
             }
         } catch(e) {
             const offline = navigator.onLine === false;
@@ -1755,10 +1755,16 @@
             confirmButtonColor: '#ef4444',
             cancelButtonText: 'تراجع',
             focusConfirm: false,
-            didOpen: () => {
+            returnFocus: true,
+            allowEscapeKey: true,
+            didOpen: (popup) => {
+                popup.setAttribute('dir', 'rtl');
+                popup.setAttribute('lang', 'ar');
+                popup.setAttribute('aria-modal', 'true');
                 const select = document.getElementById('swal-cancel-reason');
                 const otherReasonWrap = document.getElementById('swal-cancel-other-reason-wrap');
                 const otherReason = document.getElementById('swal-cancel-other-reason');
+                select.focus();
                 select.addEventListener('change', () => {
                     const isOther = select.value === 'other';
                     otherReasonWrap.style.display = isOther ? 'block' : 'none';

@@ -520,3 +520,77 @@ body.executor-os.executor-active-task {
         font-size: 0.95rem;
     }
 }
+
+/* Empty queue: solid panel so the title, note, and mark stay readable in both themes. */
+body.executor-page-dashboard .executor-empty-state-live {
+    background: #ffffff !important;
+    color: #0b1929 !important;
+    border: 1px solid #cbd5e1 !important;
+}
+
+body.executor-page-dashboard .executor-empty-state-live h2,
+body.executor-page-dashboard .executor-empty-mark {
+    color: #0b1929 !important;
+}
+
+body.executor-page-dashboard .executor-empty-state-live p {
+    color: #1e293b !important;
+    font-size: 1rem !important;
+    font-weight: 700 !important;
+}
+
+body.executor-page-dashboard .executor-empty-state-live h2 {
+    font-size: 1.35rem !important;
+    font-weight: 900 !important;
+}
+
+[data-theme="dark"] body.executor-page-dashboard .executor-empty-state-live {
+    background: #0c1222 !important;
+    color: #f8fafc !important;
+    border-color: #334155 !important;
+}
+
+[data-theme="dark"] body.executor-page-dashboard .executor-empty-state-live h2,
+[data-theme="dark"] body.executor-page-dashboard .executor-empty-mark {
+    color: #f8fafc !important;
+}
+
+[data-theme="dark"] body.executor-page-dashboard .executor-empty-state-live p {
+    color: #e2e8f0 !important;
+}
+
+body.executor-page-dashboard .executor-empty-mark {
+    width: 96px;
+    height: 96px;
+    margin: 0 auto 12px;
+    display: grid;
+    place-items: center;
+}
+
+body.executor-page-dashboard .executor-empty-mark svg {
+    width: 96px;
+    height: 96px;
+}
+
+body.executor-page-dashboard.executor-active-task .btn-text-hide {
+    display: inline;
+}
+
+body.executor-page-dashboard.executor-active-task .horizontal-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+}
+
+body.executor-page-dashboard.executor-active-task .horizontal-actions .btn-cyber-sub {
+    min-height: 44px;
+    overflow: visible;
+    white-space: normal;
+    font-size: 0.9rem;
+}
+
+@media (max-width: 767.98px) {
+    body.executor-page-dashboard:not(.executor-active-task) #tasksList {
+        padding-bottom: calc(62px + env(safe-area-inset-bottom));
+    }
+}

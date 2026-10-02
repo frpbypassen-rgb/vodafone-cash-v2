@@ -77,4 +77,20 @@ describe('executor manager mobile dashboard', () => {
         expect(mobileStyles).toMatch(/\.task-card\.task-bank-transfer \.task-kind-label\s*\{[^}]*border-style:\s*dashed/s);
         expect(sharedStyles).toMatch(/\.exo-icon-btn\s*\{[^}]*min-height:\s*44px/);
     });
+
+    test('keeps the empty queue readable, clears the dock, and labels active-task actions', () => {
+        expect(dashboard).toContain('class="executor-empty-mark"');
+        expect(dashboard).toContain('غرفة العمليات هادئة');
+        expect(dashboard).toContain('aria-label="تعديل المبلغ"');
+        expect(dashboard).toContain('aria-label="إلغاء العملية"');
+        expect(dashboard).toContain("popup.setAttribute('dir', 'rtl')");
+        expect(dashboard).toMatch(/if \(reason\) \{[\s\S]*?\/executor-portal\/api\/cancel-task\//);
+        expect(mobileStyles).toContain('padding-bottom: calc(62px + env(safe-area-inset-bottom))');
+        expect(mobileStyles).toContain('body.executor-page-dashboard.executor-active-task .btn-text-hide');
+        expect(mobileStyles).toContain('#0b1929');
+        expect(mobileStyles).toContain('#f8fafc');
+        expect(mobileStyles).toContain('#1e293b');
+        expect(mobileStyles).toContain('#e2e8f0');
+        expect(mobileStyles).not.toMatch(/\.exo-(?:command|dock)\s*\{/);
+    });
 });
