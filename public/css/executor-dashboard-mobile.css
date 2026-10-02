@@ -521,11 +521,33 @@ body.executor-os.executor-active-task {
     }
 }
 
-/* Empty queue: solid panel so the title, note, and mark stay readable in both themes. */
+/* Empty queue: opaque panel above the scanline, with the entrance fade turned off.
+   That fade left the title near-black in screenshots taken while opacity was still low. */
+body.executor-page-dashboard #tasksList > .col-12:has(.executor-empty-state-live) {
+    animation: none !important;
+    opacity: 1 !important;
+    filter: none !important;
+    transform: none !important;
+}
+
 body.executor-page-dashboard .executor-empty-state-live {
+    position: relative;
+    z-index: 2;
+    isolation: isolate;
+    opacity: 1 !important;
+    filter: none !important;
+    mix-blend-mode: normal !important;
     background: #ffffff !important;
     color: #0b1929 !important;
-    border: 1px solid #cbd5e1 !important;
+    border: 2px solid #0b1929 !important;
+}
+
+body.executor-page-dashboard .executor-empty-state-live h2,
+body.executor-page-dashboard .executor-empty-state-live p,
+body.executor-page-dashboard .executor-empty-mark {
+    opacity: 1 !important;
+    filter: none !important;
+    mix-blend-mode: normal !important;
 }
 
 body.executor-page-dashboard .executor-empty-state-live h2,
@@ -545,9 +567,9 @@ body.executor-page-dashboard .executor-empty-state-live h2 {
 }
 
 [data-theme="dark"] body.executor-page-dashboard .executor-empty-state-live {
-    background: #0c1222 !important;
+    background: #1e293b !important;
     color: #f8fafc !important;
-    border-color: #334155 !important;
+    border-color: #f8fafc !important;
 }
 
 [data-theme="dark"] body.executor-page-dashboard .executor-empty-state-live h2,
@@ -592,5 +614,8 @@ body.executor-page-dashboard.executor-active-task .horizontal-actions .btn-cyber
 @media (max-width: 767.98px) {
     body.executor-page-dashboard:not(.executor-active-task) #tasksList {
         padding-bottom: calc(62px + env(safe-area-inset-bottom));
+        /* Body already pads 88px for the dock. Pull back the extra list padding
+           so a tall last card stays below the fixed command bar at the end of the scroll. */
+        margin-bottom: -28px;
     }
 }

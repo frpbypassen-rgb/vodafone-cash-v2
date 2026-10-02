@@ -81,6 +81,9 @@ describe('executor manager mobile dashboard', () => {
     test('keeps the empty queue readable, clears the dock, and labels active-task actions', () => {
         expect(dashboard).toContain('class="executor-empty-mark"');
         expect(dashboard).toContain('غرفة العمليات هادئة');
+        expect(dashboard).toContain("confirmButtonText: 'تأكيد الإلغاء'");
+        expect(dashboard).not.toContain('executor-3d-alert.png');
+        expect(dashboard).toContain('aria-label="رادار مراقبة العمليات"');
         expect(dashboard).toContain('aria-label="تعديل المبلغ"');
         expect(dashboard).toContain('aria-label="إلغاء العملية"');
         expect(dashboard).toContain("popup.setAttribute('dir', 'rtl')");
@@ -91,6 +94,7 @@ describe('executor manager mobile dashboard', () => {
         expect(mobileStyles).toContain('#f8fafc');
         expect(mobileStyles).toContain('#1e293b');
         expect(mobileStyles).toContain('#e2e8f0');
+        expect(mobileStyles).toContain('animation: none');
         expect(mobileStyles).not.toMatch(/\.exo-(?:command|dock)\s*\{/);
     });
 });
