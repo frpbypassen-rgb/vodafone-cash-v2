@@ -60,10 +60,10 @@
             <% } %>
         <% } %>
         <%- typeof extras === 'string' ? extras : '' %>
-        <button class="exo-icon-btn" type="button" onclick="typeof toggleTheme === 'function' ? toggleTheme() : toggleExecutorTheme()" data-executor-theme-toggle title="المظهر">
+        <button class="exo-icon-btn" type="button" onclick="typeof toggleTheme === 'function' ? toggleTheme() : toggleExecutorTheme()" data-executor-theme-toggle title="المظهر" aria-label="تبديل المظهر">
             <i class="fa-solid fa-moon" id="themeIcon" data-executor-theme-icon></i>
         </button>
-        <a class="exo-icon-btn is-danger" href="/executor-portal/logout" title="تسجيل الخروج">
+        <a class="exo-icon-btn is-danger" href="/executor-portal/logout" title="تسجيل الخروج" aria-label="تسجيل الخروج">
             <svg class="exo-ico"><use href="#exo-logout"></use></svg>
         </a>
     </div>

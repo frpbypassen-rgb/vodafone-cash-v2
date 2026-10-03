@@ -582,7 +582,7 @@ body.executor-portal-v2 .btn-cyber-main {
 }
 body.executor-portal-v2 .btn-accept-start { background: var(--executor-blue); }
 body.executor-portal-v2 .btn-cyber-main { background: var(--executor-green); box-shadow: 0 9px 18px color-mix(in srgb, var(--executor-green) 22%, transparent); }
-body.executor-portal-v2 .btn-cyber-sub { min-height: 42px; border-radius: 8px; background: var(--executor-surface); }
+body.executor-portal-v2 .btn-cyber-sub { min-height: 44px; border-radius: 8px; background: var(--executor-surface); }
 
 .executor-task-privacy { display: flex; align-items: flex-start; gap: 6px; margin-top: 8px; color: var(--executor-muted); font-size: 0.68rem; font-weight: 700; }
 

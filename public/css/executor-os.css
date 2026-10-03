@@ -12,6 +12,9 @@
     --exo-red: #ff6b7a;
     --exo-radius: 22px;
     --exo-rail: 92px;
+    --exo-command-height: 54px;
+    --exo-dock-height: 62px;
+    --exo-dock-gap: 8px;
     --exo-ease: cubic-bezier(.22, 1, .36, 1);
     --executor-canvas: var(--exo-bg);
     --executor-surface: var(--exo-solid);
@@ -282,7 +285,7 @@ body.executor-os::before {
 
 .exo-chip,
 .exo-icon-btn {
-    min-height: 42px;
+    min-height: 44px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -319,8 +322,17 @@ body.executor-os::before {
     border-color: var(--exo-line);
     background: rgba(255, 255, 255, 0.04);
 }
-.exo-icon-btn { width: 42px; cursor: pointer; }
+.exo-icon-btn { width: 44px; min-width: 44px; min-height: 44px; cursor: pointer; }
 .exo-icon-btn.is-danger { color: var(--exo-red); }
+.exo-dock-link:focus-visible,
+.exo-icon-btn:focus-visible,
+.exo-rail-link:focus-visible,
+body.executor-os .btn-accept-start:focus-visible,
+body.executor-os .btn-cyber-main:focus-visible,
+body.executor-os .btn-cyber-sub:focus-visible {
+    outline: 3px solid var(--exo-cyan);
+    outline-offset: 2px;
+}
 
 .exo-stage { width: min(1320px, 100%); margin-inline: auto; }
 
@@ -534,7 +546,7 @@ body.executor-os .btn-cyber-sub { min-height: 44px; border-radius: 14px; }
 
 body.executor-os .btn-accept-start i,
 body.executor-os .btn-cyber-main i {
-    animation: exoIcoPulse 1.4s ease-in-out infinite;
+    animation: none;
 }
 
 body.executor-os .complete-actions-row {
@@ -726,7 +738,7 @@ body.executor-os.executor-page-settings .settings-topbar { display: none !import
         position: fixed !important;
         z-index: 1500;
         right: 8px;
-        bottom: max(8px, env(safe-area-inset-bottom));
+        bottom: max(var(--exo-dock-gap), env(safe-area-inset-bottom));
         left: 8px;
         height: 62px;
         min-height: 62px;
@@ -832,11 +844,17 @@ body.executor-os.executor-page-settings .settings-topbar { display: none !import
         white-space: nowrap;
     }
     .exo-icon-btn {
-        width: 34px;
-        min-width: 34px;
-        min-height: 34px;
+        width: 44px;
+        min-width: 44px;
+        min-height: 44px;
         padding: 0;
         border-radius: 9px;
+    }
+    .exo-dock-link:focus-visible,
+    .exo-icon-btn:focus-visible,
+    .exo-rail-link:focus-visible {
+        outline: 3px solid var(--exo-cyan);
+        outline-offset: 2px;
     }
     .exo-who small { display: none; }
     .exo-chip.exo-balance .exo-balance-full { display: none; }
@@ -865,8 +883,19 @@ body.executor-os.executor-page-settings .settings-topbar { display: none !import
     .exo-chip.exo-balance .exo-balance-short { max-width: 42px; }
 }
 
+@media (hover: none) {
+    body.executor-os .btn-accept-start:hover,
+    body.executor-os .btn-cyber-main:hover,
+    body.executor-os .task-card:hover {
+        transform: none !important;
+    }
+}
+
 @media (prefers-reduced-motion: reduce) {
-    .exo-ico, .exo-ico-wrap, .exo-orb, .exo-radar-core i, .exo-avatar, .exo-rail-live {
+    .exo-ico, .exo-ico-wrap, .exo-orb, .exo-radar-core i, .exo-avatar, .exo-rail-live,
+    body.executor-os .btn-accept-start i,
+    body.executor-os .btn-cyber-main i,
+    body.executor-os .fa-fade {
         animation: none !important;
     }
 }

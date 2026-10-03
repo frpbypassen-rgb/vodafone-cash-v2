@@ -50,7 +50,7 @@
         font-size: 0.82rem !important;
     }
 
-    body.executor-page-dashboard.executor-role-manager .executor-task-title span {
+    body.executor-page-dashboard.executor-role-manager .executor-task-title .task-custom-id {
         margin-top: 1px;
         font-size: 0.62rem;
     }
@@ -150,6 +150,113 @@
     }
 }
 
+body.executor-page-dashboard .task-kind-label {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 22px;
+    margin-inline-end: 6px;
+    padding: 0 7px;
+    border: 2px solid var(--exo-line, #94a3b8);
+    border-radius: 6px;
+    color: var(--text-main, #0f172a);
+    background: var(--exo-panel, #fff);
+    font-size: 0.68rem;
+    font-weight: 900;
+    line-height: 1;
+    letter-spacing: 0;
+}
+
+body.executor-page-dashboard .task-meta-line {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 2px;
+}
+
+body.executor-page-dashboard .task-card.task-cash-transfer .task-kind-label {
+    border-radius: 999px;
+    border-style: solid;
+    border-color: #b6f3d4;
+    background: #168f5d;
+    color: #fff;
+}
+
+body.executor-page-dashboard .task-card.task-bank-transfer .task-kind-label {
+    border-radius: 2px;
+    border-style: dashed;
+    border-color: #9fd0ff;
+    background: #256fc4;
+    color: #fff;
+}
+
+body.executor-page-dashboard .task-card.task-post-card .task-kind-label {
+    border-radius: 10px 2px;
+    border-style: solid;
+    border-color: #f4c45f;
+    background: #8a5a10;
+    color: #fff;
+}
+
+body.executor-page-dashboard .task-amount-cell .copy-val.amount {
+    font-weight: 900;
+}
+
+body.executor-page-dashboard .live-timer.is-overdue {
+    font-weight: 900;
+    text-decoration: underline;
+}
+
+body.executor-page-dashboard .executor-focus-hint {
+    margin: 4px 0 0;
+    max-width: 36rem;
+    color: var(--exo-muted, var(--text-muted, #64748b));
+    font-size: 0.78rem;
+    line-height: 1.45;
+}
+
+body.executor-page-dashboard .executor-board-status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0 0 10px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    background: color-mix(in srgb, var(--accent-red, #ef4444) 14%, var(--exo-panel, #fff));
+    color: var(--text-main, #0f172a);
+    font-size: 0.82rem;
+    font-weight: 800;
+    line-height: 1.4;
+}
+
+body.executor-page-dashboard .executor-board-status[hidden] { display: none !important; }
+
+body.executor-page-dashboard .executor-board-status.is-offline {
+    background: color-mix(in srgb, var(--accent-gold, #d4af37) 22%, var(--exo-panel, #fff));
+}
+
+body.executor-page-dashboard .executor-board-retry {
+    margin-inline-start: auto;
+    min-width: 44px;
+    min-height: 44px;
+    padding: 8px 12px;
+    border: 1px solid var(--exo-line, #cbd5e1);
+    border-radius: 10px;
+    background: var(--exo-panel, #fff);
+    color: inherit;
+    font-weight: 800;
+}
+
+body.executor-page-dashboard .executor-board-fallback {
+    padding: 28px 12px;
+    text-align: center;
+}
+
+body.executor-page-dashboard .executor-board-fallback .executor-board-retry {
+    margin-inline-start: 0;
+}
+
 body.executor-page-dashboard .task-card.task-bank-transfer::before {
     background: linear-gradient(90deg, #1473d2, #39b8e5) !important;
 }
@@ -238,8 +345,13 @@ body.executor-page-dashboard .task-card.task-post-card .executor-task-icon {
         line-height: 1.25;
     }
 
-    body.executor-page-dashboard.executor-portal-v2 .task-card .executor-task-title span {
+    body.executor-page-dashboard.executor-portal-v2 .task-card .executor-task-title .task-custom-id {
         font-size: 0.63rem;
+    }
+
+    body.executor-page-dashboard.executor-portal-v2 .task-card .task-amount-cell .copy-val.amount {
+        font-size: 1.02rem !important;
+        font-weight: 900;
     }
 
     body.executor-page-dashboard.executor-portal-v2 .task-card .executor-task-icon {
@@ -251,11 +363,18 @@ body.executor-page-dashboard .task-card.task-post-card .executor-task-icon {
     }
 
     body.executor-page-dashboard.executor-portal-v2 .task-card .cyber-badge {
-        max-width: 43%;
-        padding: 3px 6px;
-        font-size: 0.59rem !important;
-        white-space: normal;
+        max-width: 46%;
+        padding: 4px 7px;
+        font-size: 0.68rem !important;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
         line-height: 1.25;
+    }
+
+    body.executor-page-dashboard.executor-portal-v2 .task-card .btn-cyber-sub {
+        min-width: 44px;
+        min-height: 44px;
     }
 
     body.executor-page-dashboard.executor-portal-v2 .task-card .executor-task-data {
@@ -372,6 +491,8 @@ body.executor-page-dashboard.executor-active-task .executor-task-layout {
 
 body.executor-page-dashboard.executor-active-task #tasksList > .col-12 {
     width: 100%;
+    animation: none !important;
+    opacity: 1 !important;
 }
 
 body.executor-page-dashboard.executor-active-task .executor-live-heading {
@@ -385,7 +506,7 @@ body.executor-os.executor-active-task {
 
 @media (max-width: 767.98px) {
     body.executor-os.executor-active-task {
-        padding: calc(12px + env(safe-area-inset-top)) 8px calc(20px + env(safe-area-inset-bottom)) !important;
+        padding: calc(var(--exo-command-height) + 8px + env(safe-area-inset-top)) 8px calc(16px + env(safe-area-inset-bottom)) !important;
     }
 
     body.executor-page-dashboard.executor-active-task .container-fluid {
@@ -399,5 +520,118 @@ body.executor-os.executor-active-task {
 
     body.executor-page-dashboard.executor-active-task .executor-live-heading h1 {
         font-size: 0.95rem;
+    }
+}
+
+/* Empty queue: opaque panel above the scanline, with the entrance fade turned off.
+   That fade left the title near-black in screenshots taken while opacity was still low. */
+body.executor-page-dashboard #tasksList > .col-12:has(.executor-empty-state-live) {
+    animation: none !important;
+    opacity: 1 !important;
+    filter: none !important;
+    transform: none !important;
+}
+
+body.executor-page-dashboard .executor-empty-state-live {
+    position: relative;
+    z-index: 2;
+    isolation: isolate;
+    opacity: 1 !important;
+    filter: none !important;
+    mix-blend-mode: normal !important;
+    background: #ffffff !important;
+    color: #0b1929 !important;
+    border: 2px solid #0b1929 !important;
+}
+
+body.executor-page-dashboard .executor-empty-state-live h2,
+body.executor-page-dashboard .executor-empty-state-live p,
+body.executor-page-dashboard .executor-empty-mark {
+    opacity: 1 !important;
+    filter: none !important;
+    mix-blend-mode: normal !important;
+}
+
+body.executor-page-dashboard .executor-empty-state-live h2,
+body.executor-page-dashboard .executor-empty-mark {
+    color: #0b1929 !important;
+}
+
+body.executor-page-dashboard .executor-empty-state-live p {
+    color: #1e293b !important;
+    font-size: 1rem !important;
+    font-weight: 700 !important;
+}
+
+body.executor-page-dashboard .executor-empty-state-live h2 {
+    font-size: 1.35rem !important;
+    font-weight: 900 !important;
+}
+
+[data-theme="dark"] body.executor-page-dashboard .executor-empty-state-live {
+    background: #1e293b !important;
+    color: #f8fafc !important;
+    border-color: #f8fafc !important;
+}
+
+[data-theme="dark"] body.executor-page-dashboard .executor-empty-state-live h2,
+[data-theme="dark"] body.executor-page-dashboard .executor-empty-mark {
+    color: #f8fafc !important;
+}
+
+[data-theme="dark"] body.executor-page-dashboard .executor-empty-state-live p {
+    color: #e2e8f0 !important;
+}
+
+body.executor-page-dashboard .executor-empty-mark {
+    width: 96px;
+    height: 96px;
+    margin: 0 auto 12px;
+    display: grid;
+    place-items: center;
+}
+
+body.executor-page-dashboard .executor-empty-mark svg {
+    width: 96px;
+    height: 96px;
+}
+
+body.executor-page-dashboard.executor-active-task .btn-text-hide {
+    display: inline;
+}
+
+body.executor-page-dashboard.executor-active-task .horizontal-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+}
+
+body.executor-page-dashboard.executor-active-task .horizontal-actions .btn-cyber-sub {
+    min-height: 44px;
+    overflow: visible;
+    white-space: normal;
+    font-size: 0.9rem;
+}
+
+@media (max-width: 767.98px) {
+    html:has(body.executor-page-dashboard) {
+        scroll-padding-top: calc(var(--exo-command-height) + env(safe-area-inset-top));
+    }
+
+    html:has(body.executor-page-dashboard:not(.executor-active-task)) {
+        scroll-padding-bottom: calc(var(--exo-dock-height) + max(var(--exo-dock-gap), env(safe-area-inset-bottom)));
+    }
+
+    body.executor-page-dashboard:not(.executor-active-task) {
+        padding-bottom: calc(var(--exo-dock-height) + max(var(--exo-dock-gap), env(safe-area-inset-bottom))) !important;
+    }
+
+    body.executor-page-dashboard:not(.executor-active-task) .container-fluid.mb-5 {
+        margin-bottom: 0 !important;
+    }
+
+    body.executor-page-dashboard:not(.executor-active-task) #tasksList {
+        padding-bottom: 0;
+        margin-bottom: 0;
     }
 }

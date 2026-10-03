@@ -58,4 +58,49 @@ describe('executor manager mobile dashboard', () => {
         expect(mobileStyles).toContain('.task-card.task-bank-transfer .executor-task-icon');
         expect(mobileStyles).toContain('background: #256fc4 !important');
     });
+
+    test('labels cash and bank with text and shape, and surfaces load or connection failures', () => {
+        expect(dashboard).toContain('class="task-kind-label">${escapeTaskHtml(typeMeta.short)}');
+        expect(dashboard).toContain('data-task-kind="${escapeTaskHtml(typeMeta.short)}"');
+        expect(dashboard).toContain('id="taskBoardStatus"');
+        expect(dashboard).toContain('انقطع الاتصال. تبقى آخر المهام ظاهرة حتى يعود الإنترنت.');
+        expect(dashboard).toContain('تعذر تحميل العملية النشطة. ستتم إعادة المحاولة تلقائيًا.');
+        expect(dashboard).toContain("acceptTask('${t._id}', this)");
+        expect(dashboard).toContain("button.setAttribute('aria-busy', 'true')");
+        expect(dashboard).toContain('executor-focus-hint');
+        expect(dashboard).toContain("window.addEventListener('offline'");
+        expect(dashboard).toContain('let lastTasksHash = null');
+        expect(mobileStyles).toContain('.task-card.task-cash-transfer .task-kind-label');
+        expect(mobileStyles).toContain('.task-card.task-bank-transfer .task-kind-label');
+        expect(mobileStyles).toMatch(/\.task-card\.task-cash-transfer \.task-kind-label\s*\{[^}]*border-radius:\s*999px/s);
+        expect(mobileStyles).toMatch(/\.task-card\.task-bank-transfer \.task-kind-label\s*\{[^}]*border-radius:\s*2px/s);
+        expect(mobileStyles).toMatch(/\.task-card\.task-bank-transfer \.task-kind-label\s*\{[^}]*border-style:\s*dashed/s);
+        expect(sharedStyles).toMatch(/\.exo-icon-btn\s*\{[^}]*min-height:\s*44px/);
+    });
+
+    test('keeps the empty queue readable, clears the dock, and labels active-task actions', () => {
+        expect(dashboard).toContain('class="executor-empty-mark"');
+        expect(dashboard).toContain('غرفة العمليات هادئة');
+        expect(dashboard).toContain("confirmButtonText: 'تأكيد الإلغاء'");
+        expect(dashboard).not.toContain('executor-3d-alert.png');
+        expect(dashboard).toContain('aria-label="رادار مراقبة العمليات"');
+        expect(dashboard).toContain('aria-label="تعديل المبلغ"');
+        expect(dashboard).toContain('aria-label="إلغاء العملية"');
+        expect(dashboard).toContain("popup.setAttribute('dir', 'rtl')");
+        expect(dashboard).toMatch(/if \(reason\) \{[\s\S]*?\/executor-portal\/api\/cancel-task\//);
+        expect(sharedStyles).toContain('--exo-dock-height: 62px');
+        expect(sharedStyles).toContain('--exo-command-height: 54px');
+        expect(sharedStyles).toContain('--exo-dock-gap: 8px');
+        expect(mobileStyles).toContain('scroll-padding-top: calc(var(--exo-command-height) + env(safe-area-inset-top))');
+        expect(mobileStyles).toContain('scroll-padding-bottom: calc(var(--exo-dock-height) + max(var(--exo-dock-gap), env(safe-area-inset-bottom)))');
+        expect(mobileStyles).toContain('padding-bottom: calc(var(--exo-dock-height) + max(var(--exo-dock-gap), env(safe-area-inset-bottom)))');
+        expect(mobileStyles).not.toMatch(/margin-bottom:\s*-\d+px/);
+        expect(mobileStyles).toContain('body.executor-page-dashboard.executor-active-task .btn-text-hide');
+        expect(mobileStyles).toContain('#0b1929');
+        expect(mobileStyles).toContain('#f8fafc');
+        expect(mobileStyles).toContain('#1e293b');
+        expect(mobileStyles).toContain('#e2e8f0');
+        expect(mobileStyles).toContain('animation: none');
+        expect(mobileStyles).not.toMatch(/\.exo-(?:command|dock)\s*\{/);
+    });
 });
