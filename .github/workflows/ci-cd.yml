@@ -2,9 +2,9 @@ name: Ahram Enterprise CI/CD Pipeline
 
 on:
   push:
-    branches: [ "main", "master" ]
+    branches: [ "main", "master", "cursor/zaynpay-execute-safety" ]
   pull_request:
-    branches: [ "main", "master" ]
+    branches: [ "main", "master", "cursor/executor-financial-characterization" ]
 
 env:
   NODE_ENV: test
