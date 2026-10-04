@@ -6,6 +6,8 @@ const Transaction = require('../models/Transaction');
 const logger = require('../utils/logger');
 
 const UNRESOLVED_CODE = 'PROVIDER_RESULT_UNRESOLVED';
+const DISPATCH_IN_PROGRESS_CODE = 'PROVIDER_DISPATCH_IN_PROGRESS';
+const EXECUTABLE_DISPATCH_STATUSES = ['accepted', 'processing'];
 // pending_reference is an HTTP 200 acceptance without a reference number.
 // It is not a settled result: the provider may have paid, so money guards
 // treat it like an unresolved dispatch. accepted and rejected are settled.
@@ -137,19 +139,24 @@ const clearClaimOnDoc = (tx) => {
     if (typeof tx.markModified === 'function') tx.markModified('apiResultData');
 };
 
-const claimProviderDispatch = async (tx) => {
-    if (!tx || !tx._id || !tx.executorGroupId) {
+const claimProviderDispatch = async (tx, options = {}) => {
+    const groupId = options.executorGroupId || (tx && tx.executorGroupId);
+    if (!tx || !tx._id || !groupId) {
         return { claimed: false, reason: 'missing_transaction' };
     }
+    const statuses = Array.isArray(options.statuses) && options.statuses.length
+        ? options.statuses
+        : ['processing'];
     const attemptId = crypto.randomUUID();
     const claimedAt = new Date();
     try {
         const result = await Transaction.collection.findOneAndUpdate(
             {
                 _id: asObjectId(tx._id),
-                status: 'processing',
-                executorGroupId: asObjectId(tx.executorGroupId),
+                status: { $in: statuses },
+                executorGroupId: asObjectId(groupId),
                 'apiResultData.providerResultUnresolved': { $ne: true },
+                'apiResultData.providerDispatchResult': { $nin: ['accepted', 'pending_reference'] },
                 $and: [
                     {
                         $or: [
@@ -170,7 +177,7 @@ const claimProviderDispatch = async (tx) => {
                 $set: {
                     'apiResultData.providerDispatchStartedAt': claimedAt,
                     'apiResultData.providerDispatchAttemptId': attemptId,
-                    'apiResultData.providerDispatchExecutorGroupId': asObjectId(tx.executorGroupId),
+                    'apiResultData.providerDispatchExecutorGroupId': asObjectId(groupId),
                     updatedAt: claimedAt
                 }
             },
@@ -189,15 +196,19 @@ const claimProviderDispatch = async (tx) => {
     }
 };
 
-const releaseProviderDispatchClaim = async (tx, attemptId) => {
+const releaseProviderDispatchClaim = async (tx, attemptId, options = {}) => {
     clearClaimOnDoc(tx);
     if (!tx || !tx._id || !attemptId || !Transaction.collection) return { released: false };
-    await Transaction.collection.updateOne(
+    const statuses = Array.isArray(options.statuses) && options.statuses.length
+        ? options.statuses
+        : ['processing'];
+    const write = await Transaction.collection.updateOne(
         {
             _id: asObjectId(tx._id),
-            status: 'processing',
+            status: { $in: statuses },
             'apiResultData.providerDispatchAttemptId': attemptId,
-            'apiResultData.providerResultUnresolved': { $ne: true }
+            'apiResultData.providerResultUnresolved': { $ne: true },
+            'apiResultData.providerDispatchResult': { $nin: ['accepted', 'pending_reference'] }
         },
         {
             $unset: {
@@ -208,7 +219,58 @@ const releaseProviderDispatchClaim = async (tx, attemptId) => {
             $set: { updatedAt: new Date() }
         }
     );
-    return { released: true };
+    return { released: write.matchedCount === 1 || write.modifiedCount === 1 };
+};
+
+// Keeps the dispatch marker and records a provider outcome that must not be
+// paid again. Used for timeout/unknown results and for a provider acceptance
+// whose local debit/completion transaction did not commit.
+const recordProviderDispatchHold = async ({
+    txId,
+    attemptId,
+    result,
+    reason,
+    referenceNumber,
+    transactionNumber,
+    statuses = EXECUTABLE_DISPATCH_STATUSES
+} = {}) => {
+    if (!txId || !attemptId || !result) return { marked: false, reason: 'missing' };
+    if (mongoose.connection.readyState !== 1) return { marked: false, reason: 'not_connected' };
+    const current = await Transaction.findById(txId);
+    if (!current || !statuses.includes(current.status)) return { marked: false, reason: 'not_holdable' };
+    if (String(dataOf(current).providerDispatchAttemptId || '') !== String(attemptId)) {
+        return { marked: false, reason: 'attempt_mismatch' };
+    }
+    const existingResult = String(dataOf(current).providerDispatchResult || '');
+    if (existingResult === 'accepted' && result !== 'accepted') {
+        return { marked: true, already: true };
+    }
+    const now = new Date();
+    const reference = String(referenceNumber || '').trim();
+    const providerTransactionNumber = String(transactionNumber || '').trim();
+    const note = result === 'accepted'
+        ? `[ZaynPay provider reference held | Ref: ${reference || '—'} | TxNo: ${providerTransactionNumber || '—'} | local completion did not commit]`
+        : `[PROVIDER_RESULT_UNRESOLVED] نتيجة المزود غير محسومة: ${String(reason || 'unknown').slice(0, 300)}. لا إعادة إرسال ولا استرجاع حتى المراجعة اليدوية.`;
+    const set = {
+        updatedAt: now,
+        adminNotes: appendNoteText(current.adminNotes, note),
+        'apiResultData.providerDispatchResult': result,
+        'apiResultData.providerResultUnresolved': true,
+        'apiResultData.providerResultUnresolvedAt': now,
+        'apiResultData.providerResultUnresolvedReason': String(reason || '').slice(0, 500),
+        'apiResultData.providerResultUnresolvedCode': UNRESOLVED_CODE
+    };
+    if (reference) set['apiResultData.referenceNumber'] = reference.slice(0, 200);
+    if (providerTransactionNumber) set['apiResultData.providerTransactionNumber'] = providerTransactionNumber.slice(0, 200);
+    const write = await Transaction.collection.updateOne(
+        {
+            _id: asObjectId(current._id),
+            status: { $in: statuses },
+            'apiResultData.providerDispatchAttemptId': attemptId
+        },
+        { $set: set }
+    );
+    return { marked: write.matchedCount === 1 || write.modifiedCount === 1 };
 };
 
 const markProviderResultUnresolved = async ({ txId, reason, source } = {}) => {
@@ -319,6 +381,8 @@ const listUnresolvedProviderResults = async ({ limit = 100 } = {}) => {
 
 module.exports = {
     UNRESOLVED_CODE,
+    DISPATCH_IN_PROGRESS_CODE,
+    EXECUTABLE_DISPATCH_STATUSES,
     hasDispatchMarker,
     hasDefinitiveProviderResult,
     isProviderResultUnresolved,
@@ -329,6 +393,7 @@ module.exports = {
     classifyPaymentTransportError,
     claimProviderDispatch,
     releaseProviderDispatchClaim,
+    recordProviderDispatchHold,
     clearClaimOnDoc,
     markProviderResultUnresolved,
     guardAutomaticProviderRedispatch,

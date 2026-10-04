@@ -17,7 +17,8 @@ const { acquireLock, releaseLock } = require('../services/lockService');
 const {
     acceptExecutorTask,
     findOwnedAcceptedExecutorTask,
-    routingErrorMessage
+    routingErrorMessage,
+    taskBelongsToGroup
 } = require('../services/executorTaskRoutingService');
 const {
     ManualExecutionNumberError,
@@ -39,7 +40,6 @@ const {
     isBankTransferOperation,
     prepareBankTransferCompletion
 } = require('../utils/bankTransferExecution');
-const { bankLabelForTransaction } = require('../utils/egyptianBanks');
 
 const MAX_PROOF_IMAGES = 5;
 const MAX_PROOF_BYTES = 8 * 1024 * 1024;
@@ -653,44 +653,265 @@ exports.postSupportMessages = async (req, res) => {
 };
 
 
+const ZAYN_EXECUTABLE_STATUSES = ['accepted', 'processing'];
+const ZAYN_CONNECTION_ERROR_PREFIX = 'خطأ في الاتصال ببوابة ZaynPay';
+const ZAYN_IN_PROGRESS_ERROR = 'تنفيذ ZaynPay قيد المعالجة بالفعل.';
+const ZAYN_UNKNOWN_RESULT_ERROR = 'نتيجة ZaynPay غير محسومة. لم يتغير الرصيد ولن تُعاد الدفعة حتى المراجعة اليدوية.';
+const ZAYN_PERSISTENCE_ERROR = 'تم قبول الدفعة لدى المزود لكن تعذر حفظ النتيجة محلياً. لن تُعاد الدفعة تلقائياً.';
+const ZAYN_GENERIC_ERROR = 'تعذر تنفيذ ZaynPay.';
+
+const zaynTenantMismatch = (employee, tx) => {
+    const employeeTenant = objectIdString(employee && employee.tenantId);
+    const taskTenant = objectIdString(tx && tx.tenantId);
+    return Boolean(employeeTenant && taskTenant && employeeTenant !== taskTenant);
+};
+
+const zaynDispatchGuard = (tx) => {
+    if (!tx) return { status: 200, body: { success: false, error: 'الطلب غير موجود' } };
+    if (tx.status === 'completed') return { status: 200, body: { success: false, error: 'الطلب مكتمل مسبقاً' } };
+    const data = tx.apiResultData || {};
+    const result = String(data.providerDispatchResult || '');
+    if (data.providerResultUnresolved === true || result === 'pending_reference' || result === 'accepted') {
+        const { UNRESOLVED_CODE } = require('../services/providerDispatchClaimService');
+        return {
+            status: 409,
+            body: { success: false, code: UNRESOLVED_CODE, error: ZAYN_UNKNOWN_RESULT_ERROR }
+        };
+    }
+    if (data.providerDispatchStartedAt || String(data.providerDispatchAttemptId || '').trim()) {
+        const { DISPATCH_IN_PROGRESS_CODE } = require('../services/providerDispatchClaimService');
+        return {
+            status: 409,
+            body: { success: false, code: DISPATCH_IN_PROGRESS_CODE, error: ZAYN_IN_PROGRESS_ERROR }
+        };
+    }
+    return null;
+};
+
+const classifyZaynPayProviderOutcome = (paymentRes, thrown) => {
+    if (thrown) {
+        const { classifyPaymentTransportError } = require('../services/providerDispatchClaimService');
+        const classification = classifyPaymentTransportError(thrown);
+        if (classification === 'before_send') return 'not_sent';
+        if (classification === 'definitive_rejection') return 'rejected';
+        return 'unknown';
+    }
+    if (!paymentRes || typeof paymentRes !== 'object') return 'unknown';
+    if (paymentRes.success === true) {
+        const reference = String(paymentRes.refNumber || paymentRes.transactionNumber || '').trim();
+        return reference ? 'accepted' : 'unknown';
+    }
+    if (paymentRes.unresolved === true || paymentRes.unknown === true) return 'unknown';
+    const errorText = String(paymentRes.error || '');
+    if (!errorText || errorText.startsWith(ZAYN_CONNECTION_ERROR_PREFIX)) return 'unknown';
+    if (paymentRes.success === false) return 'rejected';
+    return 'unknown';
+};
+
+const persistZaynPayCompletion = async ({
+    tx,
+    debitGroup,
+    ledgerInc,
+    parentGroupId,
+    attemptId,
+    paymentRes,
+    fileName,
+    completedAt
+}) => {
+    appendCustomerReference(tx, 'الرقم المرجعي', paymentRes.refNumber);
+    appendCustomerReference(tx, 'رقم العملية الخارجي', paymentRes.transactionNumber);
+    appendAdminNote(tx, `[ZaynPay Auto-Executed | Ref: ${paymentRes.refNumber} | TxNo: ${paymentRes.transactionNumber}]`);
+    const reference = String(paymentRes.refNumber || paymentRes.transactionNumber || '').trim();
+    const session = await mongoose.startSession();
+    try {
+        await session.withTransaction(async () => {
+            if (parentGroupId) {
+                await ExecutorGroup.findByIdAndUpdate(parentGroupId, { $inc: ledgerInc }, { session });
+            }
+            await ExecutorGroup.findByIdAndUpdate(debitGroup._id, { $inc: ledgerInc }, { session });
+            const updated = await Transaction.findOneAndUpdate(
+                {
+                    _id: tx._id,
+                    status: { $in: ZAYN_EXECUTABLE_STATUSES },
+                    'apiResultData.providerDispatchAttemptId': attemptId
+                },
+                {
+                    $set: {
+                        status: 'completed',
+                        proofImage: fileName,
+                        proofImages: [fileName],
+                        notes: tx.notes,
+                        adminNotes: tx.adminNotes,
+                        completedAt,
+                        'apiResultData.providerDispatchResult': 'accepted',
+                        'apiResultData.referenceNumber': reference,
+                        'apiResultData.providerTransactionNumber': String(paymentRes.transactionNumber || '').trim(),
+                        'apiResultData.providerResultUnresolved': false
+                    }
+                },
+                { session, returnDocument: 'after' }
+            );
+            if (!updated) {
+                const lost = new Error('ZAYNPAY_COMPLETION_LOST');
+                lost.code = 'ZAYNPAY_COMPLETION_LOST';
+                throw lost;
+            }
+        });
+        return { ok: true };
+    } catch (error) {
+        return { ok: false, error };
+    } finally {
+        session.endSession();
+    }
+};
+
 exports.executeViaZaynPay = async (req, res) => {
     const { directProviderExecutionBlock } = require('../utils/runtimeControls');
     const blocked = directProviderExecutionBlock();
     if (blocked) {
         return res.json({ success: false, code: blocked.code, error: blocked.message });
     }
+    let attemptId = null;
+    let providerAccepted = false;
     try {
-        const tx = await Transaction.findById(req.params.id);
         const emp = await Employee.findById(req.session.executorId).populate('groupId');
-
         if (!emp || emp.webUsername !== 'zaynapi@ahram.com') {
             return res.json({ success: false, error: 'غير مصرح لك باستخدام بوابة ZaynPay' });
         }
+        if (!emp.groupId) {
+            return res.status(403).json({
+                success: false,
+                code: 'INVALID_EXECUTOR',
+                error: routingErrorMessage('INVALID_EXECUTOR')
+            });
+        }
 
+        const tx = await Transaction.findById(req.params.id);
         if (!tx) return res.json({ success: false, error: 'الطلب غير موجود' });
-        if (tx.status === 'completed') return res.json({ success: false, error: 'الطلب مكتمل مسبقاً' });
 
-        const zaynpay = require('../services/zaynpayApi');
+        // Portal accept treats executorGroupId or managerGroupId as membership.
+        // This path debits executorGroupId, so that id must be the employee's
+        // group. A manager-only match is not enough to pay.
+        const employeeGroupId = objectIdString(emp.groupId);
+        if (!taskBelongsToGroup(tx, employeeGroupId) || objectIdString(tx.executorGroupId) !== employeeGroupId) {
+            return res.status(409).json({
+                success: false,
+                code: 'TASK_GROUP_MISMATCH',
+                error: routingErrorMessage('TASK_GROUP_MISMATCH')
+            });
+        }
+        if (zaynTenantMismatch(emp, tx)) {
+            return res.status(409).json({
+                success: false,
+                code: 'TASK_TENANT_MISMATCH',
+                error: routingErrorMessage('TASK_TENANT_MISMATCH')
+            });
+        }
+        if (tx.status === 'completed') return res.json({ success: false, error: 'الطلب مكتمل مسبقاً' });
+        if (!ZAYN_EXECUTABLE_STATUSES.includes(tx.status)) {
+            return res.status(409).json({
+                success: false,
+                code: 'TASK_STATE_CHANGED',
+                error: routingErrorMessage('TASK_STATE_CHANGED')
+            });
+        }
+
+        const guarded = zaynDispatchGuard(tx);
+        if (guarded) return res.status(guarded.status).json(guarded.body);
+
         const walletNumber = tx.vodafoneNumber || tx.accountNumber;
-        
         if (!walletNumber) return res.json({ success: false, error: 'رقم المحفظة غير متوفر' });
 
-        // 1. Inquiry
+        const {
+            claimProviderDispatch,
+            releaseProviderDispatchClaim,
+            recordProviderDispatchHold
+        } = require('../services/providerDispatchClaimService');
+        const claim = await claimProviderDispatch(tx, {
+            statuses: ZAYN_EXECUTABLE_STATUSES,
+            executorGroupId: tx.executorGroupId
+        });
+        if (!claim.claimed) {
+            const fresh = await Transaction.findById(tx._id);
+            const lost = zaynDispatchGuard(fresh) || {
+                status: 409,
+                body: { success: false, code: 'PROVIDER_DISPATCH_IN_PROGRESS', error: ZAYN_IN_PROGRESS_ERROR }
+            };
+            return res.status(lost.status).json(lost.body);
+        }
+        attemptId = claim.attemptId;
+
+        const releaseClaim = () => releaseProviderDispatchClaim(tx, attemptId, {
+            statuses: ZAYN_EXECUTABLE_STATUSES
+        });
+        const holdDispatch = (fields) => recordProviderDispatchHold({
+            txId: tx._id,
+            attemptId,
+            statuses: ZAYN_EXECUTABLE_STATUSES,
+            ...fields
+        });
+
+        const zaynpay = require('../services/zaynpayApi');
         let paymentBillInfo;
         try {
             paymentBillInfo = await zaynpay.inquiry(walletNumber, tx.amount);
         } catch (err) {
+            const released = await releaseClaim();
+            if (!released.released) {
+                await holdDispatch({
+                    result: 'pending_reference',
+                    reason: 'inquiry failed and the dispatch claim could not be released'
+                });
+                return res.status(409).json({
+                    success: false,
+                    code: 'PROVIDER_RESULT_UNRESOLVED',
+                    error: ZAYN_UNKNOWN_RESULT_ERROR
+                });
+            }
             return res.json({ success: false, error: err.message });
         }
 
-        // 2. Payment
-        const paymentRes = await zaynpay.pay(paymentBillInfo, walletNumber, tx.amount);
-        
-        if (!paymentRes.success) {
-            return res.json({ success: false, error: paymentRes.error });
+        let paymentRes = null;
+        let paymentError = null;
+        try {
+            paymentRes = await zaynpay.pay(paymentBillInfo, walletNumber, tx.amount);
+        } catch (err) {
+            paymentError = err;
+        }
+        const outcome = classifyZaynPayProviderOutcome(paymentRes, paymentError);
+        if (outcome === 'not_sent' || outcome === 'rejected') {
+            const released = await releaseClaim();
+            if (!released.released) {
+                await holdDispatch({
+                    result: 'pending_reference',
+                    reason: 'provider rejection could not release the dispatch claim'
+                });
+                return res.status(409).json({
+                    success: false,
+                    code: 'PROVIDER_RESULT_UNRESOLVED',
+                    error: ZAYN_UNKNOWN_RESULT_ERROR
+                });
+            }
+            const errorText = outcome === 'rejected'
+                ? (paymentRes && paymentRes.error) || (paymentError && paymentError.message)
+                : (paymentError && paymentError.message) || 'فشل تنفيذ الدفع';
+            return res.json({ success: false, error: errorText });
+        }
+        if (outcome !== 'accepted') {
+            await holdDispatch({
+                result: 'pending_reference',
+                reason: paymentError
+                    ? `provider timeout or unknown result: ${paymentError.code || 'unknown'}`
+                    : 'provider timeout or unknown result'
+            });
+            return res.status(409).json({
+                success: false,
+                code: 'PROVIDER_RESULT_UNRESOLVED',
+                error: ZAYN_UNKNOWN_RESULT_ERROR
+            });
         }
 
-        // 3. Success - use the same system receipt for API and manual executors.
+        providerAccepted = true;
         const completedAt = new Date();
         const apiReference = paymentRes.refNumber || paymentRes.transactionNumber || tx.customId || tx._id.toString();
         const receiptBase64 = await generateManualExecutorReceiptBase64({
@@ -704,61 +925,67 @@ exports.executeViaZaynPay = async (req, res) => {
             serviceName: 'محافظ كاش',
             completedAt
         });
-
-        const buffers = [Buffer.from(receiptBase64.replace(/^data:image\/\w+;base64,/, ""), 'base64')];
-        const localFileNames = [];
+        const proofBuffer = Buffer.from(receiptBase64.replace(/^data:image\/\w+;base64,/, ''), 'base64');
         const proofsDir = path.join(process.cwd(), 'uploads', 'proofs');
-        if (!fs.existsSync(proofsDir)) { fs.mkdirSync(proofsDir, { recursive: true }); }
-        
+        if (!fs.existsSync(proofsDir)) fs.mkdirSync(proofsDir, { recursive: true });
         const safeId = (tx.customId || tx._id.toString().slice(-6)).toString().replace(/[^a-zA-Z0-9_-]/g, '');
         const fileName = `${safeId}_zaynpay.jpg`;
-        fs.writeFileSync(path.join(proofsDir, fileName), buffers[0]);
-        localFileNames.push(fileName);
+        fs.writeFileSync(path.join(proofsDir, fileName), proofBuffer);
 
         const parentGroupId = emp.groupId.parentGroupId || emp.groupId.parentBotId;
         const ledgerInc = completedTransferLedgerInc(emp.groupId, tx, -tx.amount);
-        if (parentGroupId) { await ExecutorGroup.findByIdAndUpdate(parentGroupId, { $inc: ledgerInc }); }
-        await ExecutorGroup.findByIdAndUpdate(emp.groupId._id, { $inc: ledgerInc });
-
-        tx.status = 'completed'; 
-        tx.proofImage = localFileNames[0]; 
-        tx.proofImages = localFileNames;
-        appendCustomerReference(tx, 'الرقم المرجعي', paymentRes.refNumber);
-        appendCustomerReference(tx, 'رقم العملية الخارجي', paymentRes.transactionNumber);
-        appendAdminNote(tx, `[ZaynPay Auto-Executed | Ref: ${paymentRes.refNumber} | TxNo: ${paymentRes.transactionNumber}]`);
-        tx.completedAt = completedAt;
-        tx.completedBy = emp._id;
-        tx.executorBotId = emp.groupId.token;
-        await tx.save();
-
-        let typeLabel = 'فودافون كاش';
-        if (tx.transferType === 'post_account') typeLabel = 'حساب بريد';
-        if (tx.transferType === 'post_card') typeLabel = 'بطاقة بريد';
-        if (tx.transferType === 'instapay') typeLabel = 'انستاباي';
-
-        let senderPhoneDisplay = `\n📞 <b>رقم المُرسل:</b> <code>${walletNumber}</code>`;
-        let clientNoteDisplay = tx.notes ? `\n📝 <b>ملاحظة:</b> ${tx.notes}` : '';
-        let accDetails = `📞 <b>الرقم/الحساب:</b> <code>${walletNumber}</code>\n`;
-        if (tx.accountName) accDetails += `👤 <b>الاسم:</b> ${tx.accountName}\n`;
-        const bankLabel = bankLabelForTransaction(tx);
-        if (bankLabel) accDetails += `🏦 <b>البنك:</b> ${bankLabel}\n`;
-
-        const clientMsg = `✅ <b>تـم تـنـفـيـذ طـلـبـك بـنـجـاح! (${typeLabel})</b> 🎉\n\n` +
-                          `🧾 <b>رقم الطلب:</b> <code>${tx.customId || tx._id}</code>\n` + accDetails +
-                          `💵 <b>المبلغ:</b> ${tx.amount} EGP\n💸 <b>التكلفة:</b> ${tx.costLYD.toFixed(2)} LYD` + senderPhoneDisplay + clientNoteDisplay + `\n\n👇 <b>إثبات التحويل:</b>`;
-
-        const sourceInfo = tx.companyId ? `🏢 <b>الشركة:</b> ${tx.companyName}\n👤 <b>الموظف المحول:</b> ${tx.employeeName}` : `👤 <b>العميل الفردي:</b> ${tx.employeeName}`;
-        const adminMsgCaption = `✅ <b>تم تنفيذ طلب تحويل (${typeLabel}) بنجاح (ZaynPay)!</b>\n\n${sourceInfo}\n━━━━━━━━━━━━━━\n🧾 <b>رقم الطلب:</b> <code>${tx.customId || tx._id}</code>\n${accDetails}💵 <b>المبلغ:</b> ${tx.amount} EGP\n🇱🇾 <b>التكلفة:</b> ${tx.costLYD.toFixed(2)} LYD\n👨‍💻 <b>المنفذ:</b> ${emp.name}\n🤖 <b>البوت:</b> ${emp.groupId.name}${senderPhoneDisplay}${clientNoteDisplay}`;
-
-        const mediaGroupClient = [{ type: 'photo', media: { source: buffers[0] }, caption: clientMsg, parse_mode: 'HTML' }];
-        const mediaGroupAdmin = [{ type: 'photo', media: { source: buffers[0] }, caption: adminMsgCaption, parse_mode: 'HTML' }];
-
-        // WhatsApp notification removed
+        const persisted = await persistZaynPayCompletion({
+            tx,
+            debitGroup: emp.groupId,
+            ledgerInc,
+            parentGroupId,
+            attemptId,
+            paymentRes,
+            fileName,
+            completedAt
+        });
+        if (!persisted.ok) {
+            console.error('ZaynPay local completion failed after provider success:', persisted.error);
+            await holdDispatch({
+                result: 'accepted',
+                reason: 'provider succeeded but local completion did not commit',
+                referenceNumber: paymentRes.refNumber || paymentRes.transactionNumber,
+                transactionNumber: paymentRes.transactionNumber
+            });
+            const fresh = await Transaction.findById(tx._id);
+            if (fresh && fresh.status === 'completed') {
+                return res.json({ success: true, transactionNumber: paymentRes.transactionNumber });
+            }
+            return res.status(500).json({
+                success: false,
+                code: 'ZAYNPAY_COMPLETION_UNCONFIRMED',
+                error: ZAYN_PERSISTENCE_ERROR
+            });
+        }
 
         return res.json({ success: true, transactionNumber: paymentRes.transactionNumber });
-    } catch (e) {
-        console.error('ZaynPay Execute Error:', e);
-        res.json({ success: false, error: e.message });
+    } catch (error) {
+        console.error('ZaynPay Execute Error:', error);
+        if (attemptId && providerAccepted) {
+            try {
+                const { recordProviderDispatchHold } = require('../services/providerDispatchClaimService');
+                await recordProviderDispatchHold({
+                    txId: req.params.id,
+                    attemptId,
+                    result: 'accepted',
+                    reason: 'provider succeeded but local completion threw',
+                    statuses: ZAYN_EXECUTABLE_STATUSES
+                });
+            } catch (holdError) {
+                console.error('ZaynPay dispatch hold failed:', holdError);
+            }
+            return res.status(500).json({
+                success: false,
+                code: 'ZAYNPAY_COMPLETION_UNCONFIRMED',
+                error: ZAYN_PERSISTENCE_ERROR
+            });
+        }
+        return res.status(500).json({ success: false, code: 'ZAYNPAY_EXECUTE_FAILED', error: ZAYN_GENERIC_ERROR });
     }
 };
 

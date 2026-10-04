@@ -389,6 +389,7 @@ module.exports = {
     isTaskOwnedByExecutor,
     findOwnedAcceptedExecutorTask,
     taskGroupFilter,
+    taskBelongsToGroup,
     taskOwnershipFilter,
     ACCEPTABLE_TASK_STATUSES,
     ROUTABLE_EXECUTOR_ROLES,

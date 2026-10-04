@@ -90,13 +90,15 @@
 - المسار: `/api/zaynpay-execute/:id`
 - إذا `EXTERNAL_API_ENABLED` مطفأ: `200` `{ success: false, code: 'API_EXECUTION_UNAVAILABLE', error: 'تنفيذ ZaynPay متوقف. لم يُرسل الطلب إلى المزود ولم يتغير الرصيد.' }` ومن دون استدعاء المزود.
 - وإلا يجب أن يكون `webUsername` للجلسة هو `zaynapi@ahram.com`. غير ذلك: `{ success: false, error: 'غير مصرح لك باستخدام بوابة ZaynPay' }`.
-- لا فحص ملكية ولا حالة `accepted`. أي حالة غير `completed` تُرسل إلى المزود. المكتمل مسبقًا: `{ success: false, error: 'الطلب مكتمل مسبقاً' }` ومن دون خصم ثانٍ.
-- الاستدعاء الموقوف في الاختبار: `inquiry(wallet, amount)` ثم `pay(bill, wallet, amount)`. فشل الدفع يُبقي الحالة والرصيد.
-- النجاح: `200` `{ success: true, transactionNumber }` من رد المزود. الحالة `completed`. ملف الإثبات `{customId}_zaynpay.jpg`. الرصيد عبر `$inc` بقيمة `-amount` على `balance` و`serviceBalances.{service}` لمجموعة **الموظف المسجّل** وللأب إن وُجد، وليس إعادة حساب `syncBotBalance`.
+- الملكية قبل أي مطالبة أو اتصال بالمزود: `executorGroupId` يجب أن يساوي مجموعة الموظف (نفس كود قبول البوابة `TASK_GROUP_MISMATCH` وحالة `409`). انتماء `managerGroupId` وحده لا يكفي. إذا كان `tenantId` مضبوطًا على الموظف والعملية معًا ويختلفان: `409` والكود `TASK_TENANT_MISMATCH`. الطلب المرفوض لا يستدعي المزود ولا يغيّر رصيدًا ولا معاملة ولا دفترًا.
+- الحالة القابلة للتنفيذ: `accepted` أو `processing`. المكتمل مسبقًا: `{ success: false, error: 'الطلب مكتمل مسبقاً' }` ومن دون خصم ثانٍ.
+- مطالبة إرسال ذرّية (`claimProviderDispatch`) قبل `inquiry` و`pay`. الفائز وحده يتصل بالمزود. الخاسر: `409` والكود `PROVIDER_DISPATCH_IN_PROGRESS` ومن دون خصم.
+- فشل دفع محسوم من المزود يحرر المطالبة ويبقي الحالة والرصيد. مهلة أو نتيجة غير معروفة: `pending_reference` مع `providerResultUnresolved`، بلا استرجاع وبلا إعادة إرسال، والرد `409` والكود `PROVIDER_RESULT_UNRESOLVED`.
+- بعد نجاح المزود: خصم المجموعة (والأب إن وُجد) وإكمال العملية في معاملة Mongo واحدة. الرصيد عبر `$inc` بقيمة `-amount` على `balance` و`serviceBalances.{service}` لمجموعة المهمة، وهي مجموعة الموظف بعد فحص الملكية، وليس إعادة حساب `syncBotBalance`.
   - رصيد مجموعة `5000` من دون `serviceBalances` ومبلغ `1000`: يصبح `balance = 4000` و`serviceBalances.vodafone = -1000`.
+- إذا فشل الحفظ بعد نجاح المزود: تُسجَّل مرجعية المزود وتبقى المطالبة، فلا تُعاد الدفعة عند إعادة المحاولة، ويُرجع `500` والكود `ZAYNPAY_COMPLETION_UNCONFIRMED` من دون نص الخطأ الداخلي. الرصيد لا يتغير لأن المعاملة تُلغى.
+- النجاح: `200` `{ success: true, transactionNumber }` من رد المزود. الحالة `completed`. ملف الإثبات `{customId}_zaynpay.jpg`.
 - لا `AuditLog` ولا `transfer:completed` ولا إشعار إكمال ولا دفتر `Ledger`.
-- لا قفل. تنفيذان متزامنان قبل حفظ الحالة يخصمان المبلغ مرتين. الحفظ الثاني يصطدم بـ `VersionError` فيرد `success: false` بعد أن يكون الخصم المزدوج قد ثُبّت.
-- مهمة مجموعة أخرى تُكمَل أيضًا، والخصم يقع على مجموعة حساب Zayn لا على `executorGroupId` للعملية.
 
 ## ما يرفضه الوسطاء قبل أي أثر
 
