@@ -1310,50 +1310,95 @@ describe('executor portal financial contracts', () => {
         expect(zaynpay.pay).toHaveBeenCalledTimes(1);
     });
 
-    test('concurrent ZaynPay calls debit the source amount twice', async () => {
+    test('concurrent ZaynPay calls pay and debit the source amount once', async () => {
         process.env.EXTERNAL_API_ENABLED = 'true';
         await ExecutorGroup.updateOne({ _id: zaynGroup._id }, { $unset: { parentGroupId: 1 } });
         clearExecutorAuthCache();
         const tx = await createTask({
             status: 'accepted',
-            executorGroupId: zaynGroup._id
+            executorGroupId: zaynGroup._id,
+            tenantId: tenantA._id
         });
-        const barrier = createBarrier(2);
-        const original = ExecutorGroup.findByIdAndUpdate;
-        const spy = jest.spyOn(ExecutorGroup, 'findByIdAndUpdate').mockImplementation(async function barrierDebit(...args) {
-            await barrier.enter();
-            return original.apply(this, args);
+        let releasePay;
+        const payGate = new Promise((resolve) => {
+            releasePay = resolve;
+        });
+        zaynpay.pay.mockImplementation(async () => {
+            await payGate;
+            return {
+                success: true,
+                refNumber: 'REF-FIXED-1000',
+                transactionNumber: 'ZTX-FIXED-1000'
+            };
         });
 
         try {
-            const [first, second] = await Promise.all([
+            const pending = Promise.all([
                 postJson(app, `/executor-portal/api/zaynpay-execute/${tx._id}`, {}, { employee: zaynEmployee }),
                 postJson(app, `/executor-portal/api/zaynpay-execute/${tx._id}`, {}, { employee: zaynEmployee })
             ]);
+            await waitFor(() => zaynpay.pay.mock.calls.length === 1);
+            await new Promise((resolve) => setTimeout(resolve, 150));
+            expect(zaynpay.pay).toHaveBeenCalledTimes(1);
+            expect(zaynpay.inquiry).toHaveBeenCalledTimes(1);
+            releasePay();
+            const [first, second] = await pending;
             const pool = await ExecutorGroup.findById(zaynGroup._id).lean();
-            const outcomes = [first.body, second.body];
-            // CURRENT BEHAVIOR (suspected issue): both calls pay the provider and both $inc
-            // the pool. The second save then throws VersionError, so one response looks
-            // failed after the money has already moved twice.
-            expect(outcomes.filter((body) => body.success === true)).toHaveLength(1);
-            expect(outcomes.filter((body) => body.success === false)[0].error).toMatch(/No matching document found/);
+            const parentPool = await ExecutorGroup.findById(zaynParent._id).lean();
+            const outcomes = [first, second];
+            const winner = outcomes.find((item) => item.body && item.body.success === true);
+            const loser = outcomes.find((item) => item !== winner);
+            // One atomic dispatch claim calls the provider. The loser is 409 and does not pay or debit.
+            expect(winner.status).toBe(200);
+            expect(winner.body).toEqual({ success: true, transactionNumber: 'ZTX-FIXED-1000' });
+            expect(loser.status).toBe(409);
+            expect(loser.body.code).toBe('PROVIDER_DISPATCH_IN_PROGRESS');
+            expect(loser.body.success).toBe(false);
             expect((await reloadTx(tx._id)).status).toBe('completed');
-            expect(pool.balance).toBe(3000);
-            expect(serviceBalance(pool, 'vodafone')).toBe(-2000);
-            expect(zaynpay.pay).toHaveBeenCalledTimes(2);
+            expect(pool.balance).toBe(4000);
+            expect(serviceBalance(pool, 'vodafone')).toBe(-AMOUNT);
+            expect(parentPool.balance).toBe(9000);
+            expect(zaynpay.pay).toHaveBeenCalledTimes(1);
             expect(await Ledger.countDocuments()).toBe(0);
             expect(await AuditLog.countDocuments()).toBe(0);
+            removeProofs(tx.customId);
         } finally {
-            spy.mockRestore();
+            releasePay();
         }
     });
 
-    test('ZaynPay completes a task owned by another group and debits the Zayn group', async () => {
+    test('ZaynPay retry after success does not pay or debit again', async () => {
+        process.env.EXTERNAL_API_ENABLED = 'true';
+        const tx = await createTask({
+            status: 'accepted',
+            operatorId: String(zaynEmployee._id),
+            executorGroupId: zaynGroup._id,
+            executorName: 'منفذ زين',
+            tenantId: tenantA._id
+        });
+
+        const first = await postJson(app, `/executor-portal/api/zaynpay-execute/${tx._id}`, {}, { employee: zaynEmployee });
+        const repeat = await postJson(app, `/executor-portal/api/zaynpay-execute/${tx._id}`, {}, { employee: zaynEmployee });
+        const pool = await ExecutorGroup.findById(zaynGroup._id).lean();
+
+        expect(first.status).toBe(200);
+        expect(first.body).toEqual({ success: true, transactionNumber: 'ZTX-FIXED-1000' });
+        expect(repeat.body).toEqual({ success: false, error: 'الطلب مكتمل مسبقاً' });
+        expect(zaynpay.pay).toHaveBeenCalledTimes(1);
+        expect(zaynpay.inquiry).toHaveBeenCalledTimes(1);
+        expect((await reloadTx(tx._id)).status).toBe('completed');
+        expect(pool.balance).toBe(4000);
+        expect(serviceBalance(pool, 'vodafone')).toBe(-AMOUNT);
+        expect(await Ledger.countDocuments()).toBe(0);
+        removeProofs(tx.customId);
+    });
+
+    test('ZaynPay rejects a task owned by another executor group before paying', async () => {
         process.env.EXTERNAL_API_ENABLED = 'true';
         const tx = await createTask({
             status: 'processing',
             executorGroupId: group._id,
-            tenantId: tenantB._id
+            tenantId: tenantA._id
         });
 
         const response = await postJson(app, `/executor-portal/api/zaynpay-execute/${tx._id}`, {}, { employee: zaynEmployee });
@@ -1361,12 +1406,134 @@ describe('executor portal financial contracts', () => {
         const stored = await reloadTx(tx._id);
         const zaynPool = await ExecutorGroup.findById(zaynGroup._id).lean();
         const taskPool = await reloadGroup();
-        // CURRENT BEHAVIOR (suspected issue): the portal does not check owner, group, or tenant before paying.
-        expect(response.body.success).toBe(true);
-        expect(stored.status).toBe('completed');
+        // The task executor group must equal the Zayn employee's group before any provider call or debit.
+        expect(response.status).toBe(409);
+        expect(response.body).toEqual({
+            success: false,
+            code: 'TASK_GROUP_MISMATCH',
+            error: 'العملية لم تعد ضمن مجموعة التنفيذ الحالية.'
+        });
+        expect(zaynpay.inquiry).not.toHaveBeenCalled();
+        expect(zaynpay.pay).not.toHaveBeenCalled();
+        expect(stored.status).toBe('processing');
         expect(String(stored.executorGroupId)).toBe(String(group._id));
-        expect(zaynPool.balance).toBe(4000);
+        expect(zaynPool.balance).toBe(POOL_DEPOSIT);
+        expect(serviceBalance(zaynPool, 'vodafone')).toBe(0);
         expect(taskPool.balance).toBe(POOL_DEPOSIT);
+        expect((await reloadUser()).balance).toBe(OPENING_BALANCE);
+        expect(await Ledger.countDocuments()).toBe(0);
+    });
+
+    test('ZaynPay rejects a task from another tenant before paying', async () => {
+        process.env.EXTERNAL_API_ENABLED = 'true';
+        const tx = await createTask({
+            status: 'accepted',
+            executorGroupId: zaynGroup._id,
+            tenantId: tenantB._id,
+            operatorId: String(zaynEmployee._id)
+        });
+
+        const response = await postJson(app, `/executor-portal/api/zaynpay-execute/${tx._id}`, {}, { employee: zaynEmployee });
+
+        const stored = await reloadTx(tx._id);
+        const zaynPool = await ExecutorGroup.findById(zaynGroup._id).lean();
+        expect(response.status).toBe(409);
+        expect(response.body.code).toBe('TASK_TENANT_MISMATCH');
+        expect(response.body.success).toBe(false);
+        expect(zaynpay.inquiry).not.toHaveBeenCalled();
+        expect(zaynpay.pay).not.toHaveBeenCalled();
+        expect(stored.status).toBe('accepted');
+        expect(zaynPool.balance).toBe(POOL_DEPOSIT);
+        expect(serviceBalance(zaynPool, 'vodafone')).toBe(0);
+        expect((await reloadUser()).balance).toBe(OPENING_BALANCE);
+        expect(await Ledger.countDocuments()).toBe(0);
+    });
+
+    test('ZaynPay timeout holds the dispatch and does not refund or resend', async () => {
+        process.env.EXTERNAL_API_ENABLED = 'true';
+        const tx = await createTask({
+            status: 'accepted',
+            executorGroupId: zaynGroup._id,
+            tenantId: tenantA._id,
+            operatorId: String(zaynEmployee._id)
+        });
+        zaynpay.pay.mockResolvedValueOnce({
+            success: false,
+            error: 'خطأ في الاتصال ببوابة ZaynPay: timeout of 180000ms exceeded'
+        });
+
+        const failed = await postJson(app, `/executor-portal/api/zaynpay-execute/${tx._id}`, {}, { employee: zaynEmployee });
+        const retry = await postJson(app, `/executor-portal/api/zaynpay-execute/${tx._id}`, {}, { employee: zaynEmployee });
+        const cancelled = await cancel(tx, zaynEmployee);
+
+        const stored = await reloadTx(tx._id);
+        const pool = await ExecutorGroup.findById(zaynGroup._id).lean();
+        expect(failed.status).toBe(409);
+        expect(failed.body.code).toBe('PROVIDER_RESULT_UNRESOLVED');
+        expect(retry.status).toBe(409);
+        expect(retry.body.code).toBe('PROVIDER_RESULT_UNRESOLVED');
+        expect(zaynpay.pay).toHaveBeenCalledTimes(1);
+        expect(zaynpay.inquiry).toHaveBeenCalledTimes(1);
+        expect(stored.status).toBe('accepted');
+        expect(stored.apiResultData.providerDispatchResult).toBe('pending_reference');
+        expect(stored.apiResultData.providerResultUnresolved).toBe(true);
+        expect(pool.balance).toBe(POOL_DEPOSIT);
+        expect(serviceBalance(pool, 'vodafone')).toBe(0);
+        expect((await reloadUser()).balance).toBe(OPENING_BALANCE);
+        expect(cancelled.status).toBe(409);
+        expect(cancelled.body.code).toBe('PROVIDER_RESULT_UNRESOLVED');
+        expect((await reloadUser()).balance).toBe(OPENING_BALANCE);
+        expect(await Ledger.countDocuments()).toBe(0);
+    });
+
+    test('ZaynPay persistence failure after provider success does not pay again', async () => {
+        process.env.EXTERNAL_API_ENABLED = 'true';
+        const tx = await createTask({
+            status: 'accepted',
+            executorGroupId: zaynGroup._id,
+            tenantId: tenantA._id,
+            operatorId: String(zaynEmployee._id)
+        });
+        const original = Transaction.findOneAndUpdate;
+        const spy = jest.spyOn(Transaction, 'findOneAndUpdate').mockImplementation(function failCompletion(...args) {
+            const options = args[args.length - 1];
+            if (options && options.session) {
+                throw new Error('SECRET_INTERNAL simulated commit failure');
+            }
+            return original.apply(this, args);
+        });
+
+        try {
+            const failed = await postJson(app, `/executor-portal/api/zaynpay-execute/${tx._id}`, {}, { employee: zaynEmployee });
+            expect(failed.status).toBe(500);
+            expect(failed.body).toEqual({
+                success: false,
+                code: 'ZAYNPAY_COMPLETION_UNCONFIRMED',
+                error: 'تم قبول الدفعة لدى المزود لكن تعذر حفظ النتيجة محلياً. لن تُعاد الدفعة تلقائياً.'
+            });
+            expect(JSON.stringify(failed.body)).not.toContain('SECRET_INTERNAL');
+            expect(zaynpay.pay).toHaveBeenCalledTimes(1);
+        } finally {
+            spy.mockRestore();
+        }
+
+        const retry = await postJson(app, `/executor-portal/api/zaynpay-execute/${tx._id}`, {}, { employee: zaynEmployee });
+        const stored = await reloadTx(tx._id);
+        const pool = await ExecutorGroup.findById(zaynGroup._id).lean();
+        const parentPool = await ExecutorGroup.findById(zaynParent._id).lean();
+        expect(retry.status).toBe(409);
+        expect(retry.body.code).toBe('PROVIDER_RESULT_UNRESOLVED');
+        expect(zaynpay.pay).toHaveBeenCalledTimes(1);
+        expect(zaynpay.inquiry).toHaveBeenCalledTimes(1);
+        expect(stored.status).toBe('accepted');
+        expect(stored.apiResultData.providerDispatchResult).toBe('accepted');
+        expect(stored.apiResultData.referenceNumber).toBe('REF-FIXED-1000');
+        expect(stored.apiResultData.providerTransactionNumber).toBe('ZTX-FIXED-1000');
+        expect(pool.balance).toBe(POOL_DEPOSIT);
+        expect(serviceBalance(pool, 'vodafone')).toBe(0);
+        expect(parentPool.balance).toBe(9000);
+        expect(serviceBalance(parentPool, 'vodafone')).toBe(0);
+        expect((await reloadUser()).balance).toBe(OPENING_BALANCE);
         expect(await Ledger.countDocuments()).toBe(0);
         removeProofs(stored.customId);
     });
