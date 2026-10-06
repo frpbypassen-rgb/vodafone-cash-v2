@@ -180,6 +180,38 @@ describe.each(['postRetryPartProof', 'postRateExecutor', 'postVoiceNote'])(
                 expectNoMutation();
             });
         }
+
+        if (handler === 'postRetryPartProof') {
+            test('allows a same-group retry when the completed task has no operator', async () => {
+                const unassigned = {
+                    ...tx,
+                    status: 'completed',
+                    operatorId: undefined,
+                    assignedExecutorId: undefined,
+                    save: jest.fn().mockResolvedValue(true)
+                };
+                Transaction.findById.mockResolvedValue(unassigned);
+                req.executorEmployee.role = 'operator';
+                await controller[handler](req, res);
+                expect(res.status).not.toHaveBeenCalledWith(403);
+                expect(retrySplitPartProof).toHaveBeenCalledWith('tx-1', 'part-1');
+                expect(unassigned.save).not.toHaveBeenCalled();
+            });
+        } else {
+            test('keeps rating and voice notes owner-only when the task has no operator', async () => {
+                const unassigned = {
+                    ...tx,
+                    operatorId: undefined,
+                    assignedExecutorId: undefined,
+                    save: jest.fn().mockResolvedValue(true)
+                };
+                Transaction.findById.mockResolvedValue(unassigned);
+                req.executorEmployee.role = 'operator';
+                await controller[handler](req, res);
+                expect(res.status).toHaveBeenCalledWith(403);
+                expect(unassigned.save).not.toHaveBeenCalled();
+            });
+        }
     }
 );
 

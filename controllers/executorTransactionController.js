@@ -42,11 +42,24 @@ const canAnnotateExecutorTask = (emp, tx) => {
     return objectIdString(tx.operatorId) === self || objectIdString(tx.assignedExecutorId) === self;
 };
 
-const rejectUnownedAnnotation = (req, res, tx) => {
-    if (canAnnotateExecutorTask(req.executorEmployee, tx)) return false;
+const canRetryPartProof = (emp, tx) => {
+    if (!emp || emp.role === 'accountant') return false;
+    if (emp.role === 'manager') return true;
+    const self = objectIdString(emp._id);
+    const operatorId = objectIdString(tx.operatorId);
+    const assignedId = objectIdString(tx.assignedExecutorId);
+    if (!operatorId && !assignedId) return true;
+    return operatorId === self || assignedId === self;
+};
+
+const rejectUnlessAllowed = (allowed, res) => {
+    if (allowed) return false;
     res.status(403).json({ success: false, error: 'Forbidden' });
     return true;
 };
+
+const rejectUnownedAnnotation = (req, res, tx) =>
+    rejectUnlessAllowed(canAnnotateExecutorTask(req.executorEmployee, tx), res);
 
 const MAX_VOICE_NOTE_LENGTH = 2000000;
 const VOICE_NOTE_PATTERN = /^data:audio\/(?:mpeg|mp3|wav|webm|ogg|mp4|x-m4a|aac)(?:;[\w=.-]+)*;base64,[A-Za-z0-9+/]+={0,2}$/;
@@ -233,7 +246,7 @@ exports.executeViaZaynPay = async (req, res) => {
 exports.postRetryPartProof = async (req, res) => {
     try {
         const tx = await loadOwnedExecutorTransaction(req, res);
-        if (!tx || rejectUnownedAnnotation(req, res, tx)) return;
+        if (!tx || rejectUnlessAllowed(canRetryPartProof(req.executorEmployee, tx), res)) return;
 
         const { retrySplitPartProof } = require('../services/splitPartProofService');
         const result = await retrySplitPartProof(tx._id, req.params.partId);
