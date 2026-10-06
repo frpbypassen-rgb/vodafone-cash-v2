@@ -380,6 +380,8 @@ describe('enqueue tenant matching', () => {
         const bareDelivery = await MerchantWebhookDelivery.findById(bareIds[0]).lean();
         expect(String(bareDelivery.endpointId)).toBe(String(unscoped._id));
         expect(await MerchantWebhookDelivery.countDocuments({ endpointId: endpointB._id })).toBe(0);
+        // Finish background deliveries before the next test resets the HTTP mock.
+        await Promise.all([waitForTerminal(ids[0]), waitForTerminal(bareIds[0])]);
     });
 });
 

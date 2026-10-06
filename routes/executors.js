@@ -1,6 +1,7 @@
 const express = require('express');
 const crypto = require('crypto');
 const router = express.Router();
+const { emitSupportTicketUpdate } = require('../services/supportRealtimeService');
 const ExecutorGroup = require('../models/ExecutorGroup');
 const Transaction = require('../models/Transaction');
 const Employee = require('../models/Employee');
@@ -551,7 +552,9 @@ router.get('/executor/:id', requireAuth, async (req, res) => {
             isMaster: req.session.adminRole === 'master',
             query: req.query
         });
-    } catch (e) { res.redirect('/executors'); }
+    } catch {
+        res.redirect('/executors');
+    }
 });
 
 router.post('/executor/:id/sync-provider-returns', requireAuth, async (req, res) => {
@@ -598,7 +601,7 @@ router.post('/executor/:id/balance-audit/:auditId/review', requireAuth, async (r
             { $set: { isRead: true } }
         ).catch(() => {});
         return res.json({ success: true, message: 'تم تسجيل مراجعة فرق الرصيد' });
-    } catch (error) {
+    } catch {
         return res.status(500).json({ success: false, message: 'تعذر تسجيل مراجعة فرق الرصيد' });
     }
 });
@@ -623,7 +626,7 @@ router.post('/executor/:id/provider-return/:returnId/review', requireAuth, async
             { $set: { isRead: true } }
         ).catch(() => {});
         return res.json({ success: true, message: 'تم تسجيل مراجعة العملية دون إلغائها' });
-    } catch (error) {
+    } catch {
         return res.status(500).json({ success: false, message: 'تعذر تحديث سجل العملية المسترجعة' });
     }
 });
@@ -814,7 +817,7 @@ router.post('/executor/:id/settle', requireAuth, requireMaster, adminDepositUplo
                 submittedFromAdmin: true,
                 serviceKey: fundingServiceKey
             });
-            req.app.get('io')?.emit('support:ticket-updated', { source: 'admin_executor_deposit_request' });
+            emitSupportTicketUpdate(req, { source: 'admin_executor_deposit_request' });
             if (req.get('x-requested-with') === 'XMLHttpRequest') {
                 return res.status(201).json({ success: true, request, message: 'تم إرسال طلب الإيداع إلى الدعم للمراجعة.' });
             }
@@ -849,7 +852,7 @@ router.post('/executor/:id/settle', requireAuth, requireMaster, adminDepositUplo
                             message: msgText,
                             type: amount > 0 ? 'deposit' : 'deduction'
                         });
-                    } catch(err) {}
+                    } catch {}
                 }
                 
                 await Transaction.updateOne({ _id: tx._id }, { $set: { executorWebAlert: { type: amount > 0 ? 'success' : 'error', text: msgText.replace(/\n/g, '<br>') } } }, { strict: false });
@@ -1004,7 +1007,9 @@ router.post('/executor/:id/link-manager', requireAuth, async (req, res) => {
             await bot.save();
         }
         res.redirect(`/executor/${botId}`);
-    } catch (e) { res.redirect('/executors'); }
+    } catch {
+        res.redirect('/executors');
+    }
 });
 
 router.post('/executor/:id/toggle-status', requireAuth, async (req, res) => {
@@ -1026,13 +1031,15 @@ router.post('/executor/:id/toggle-status', requireAuth, async (req, res) => {
                                 message: message,
                                 type: 'system_alert'
                             });
-                        } catch(e) {}
+                        } catch {}
                     }
                 }
-            } catch (error) {}
+            } catch {}
         }
         res.redirect(`/executor/${bot._id}`);
-    } catch (e) { res.redirect('/executors'); }
+    } catch {
+        res.redirect('/executors');
+    }
 });
 
 module.exports = router;

@@ -25,6 +25,13 @@ const readServiceBalanceMap = (group) => {
     return {};
 };
 
+const allocatedFromRows = ({ pools = [], employees = [] }) => {
+    const poolIds = new Set(pools.map((pool) => String(pool._id)));
+    return pools.reduce((sum, pool) => sum + Number(pool.balance || 0), 0)
+        + employees.filter((employee) => employee.role === 'external' && !poolIds.has(String(employee.balancePoolId)))
+            .reduce((sum, employee) => sum + Number(employee.balance || 0), 0);
+};
+
 const servicePrivateBalance = (group, serviceKey) => {
     const key = normalizeExecutorServiceKey(serviceKey);
     const primary = getExecutorPrimaryServiceKey(group);
@@ -117,6 +124,7 @@ const snapshotServiceLedgers = ({ group, allocatedBalance = 0 }) => {
 };
 
 module.exports = {
+    allocatedFromRows,
     completedTransferLedgerInc,
     fundingFieldsForService,
     ledgerServiceKeyForTransaction,

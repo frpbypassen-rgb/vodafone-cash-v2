@@ -18,6 +18,9 @@ jest.mock('../models/Settings', () => ({
 jest.mock('../utils/helpers', () => ({
     syncBotBalance: jest.fn()
 }));
+jest.mock('../services/adminFinancialMutationService', () => ({
+    withOptionalMongoTransaction: jest.fn((work) => work(null))
+}));
 
 const ExecutorGroup = require('../models/ExecutorGroup');
 const Employee = require('../models/Employee');
@@ -93,24 +96,27 @@ describe('Executor archive service', () => {
                     archiveEmployeeCount: 3
                 })
             }),
-            { new: true }
+            { returnDocument: 'after' }
         );
         expect(Employee.updateMany).toHaveBeenCalledWith(
             { groupId: group._id },
             expect.objectContaining({
                 $set: expect.objectContaining({ status: 'suspended' }),
                 $unset: expect.objectContaining({ refreshToken: 1 })
-            })
+            }),
+            {}
         );
         expect(Settings.updateMany).toHaveBeenNthCalledWith(
             1,
             {},
-            { $pull: { autoRouteRules: { executorGroupId: group._id } } }
+            { $pull: { autoRouteRules: { executorGroupId: group._id } } },
+            {}
         );
         expect(Settings.updateMany).toHaveBeenNthCalledWith(
             2,
             { autoRouteBotId: group._id },
-            { $set: { autoRouteBotId: null } }
+            { $set: { autoRouteBotId: null } },
+            {}
         );
         expect(result).toEqual(expect.objectContaining({
             group: archivedGroup,
@@ -164,5 +170,14 @@ describe('Executor archive service', () => {
         expect(result).toEqual({ group: archivedGroup, alreadyArchived: true });
         expect(ExecutorGroup.countDocuments).not.toHaveBeenCalled();
         expect(Transaction.countDocuments).not.toHaveBeenCalled();
+        expect(Employee.updateMany).toHaveBeenCalledTimes(1);
+        expect(Settings.updateMany).toHaveBeenCalledTimes(2);
+    });
+
+    test('does not hide route cleanup failures', async () => {
+        Settings.updateMany.mockRejectedValueOnce(new Error('INJECTED_SETTINGS_FAILURE'));
+
+        await expect(archiveExecutorAccount({ executorId: group._id }))
+            .rejects.toThrow('INJECTED_SETTINGS_FAILURE');
     });
 });

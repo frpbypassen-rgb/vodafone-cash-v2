@@ -49,8 +49,9 @@ const persistable = (map, id, extra = {}) => {
     return {
         ...doc,
         async save() {
-            const { save, ...rest } = this;
-            map.set(String(this._id), { ...rest });
+            const fields = { ...this };
+            delete fields.save;
+            map.set(String(this._id), fields);
             return this;
         }
     };

@@ -172,7 +172,7 @@ describe('executor task routing service', () => {
                     assignedExecutorId: 'operator-1'
                 })
             }),
-            { new: true }
+            { returnDocument: 'after' }
         );
         expect(eventBus.publish).toHaveBeenCalledWith(
             'executor:task-accepted',
@@ -201,7 +201,7 @@ describe('executor task routing service', () => {
                 status: { $in: ['processing', 'pending'] }
             }),
             expect.any(Object),
-            { new: true }
+            { returnDocument: 'after' }
         );
     });
 
@@ -320,7 +320,7 @@ describe('executor task routing service', () => {
                 status: { $in: ['processing', 'pending'] }
             }),
             expect.any(Object),
-            { new: true }
+            { returnDocument: 'after' }
         );
     });
 
@@ -376,7 +376,7 @@ describe('executor task routing service', () => {
                     assignedExecutorName: 'منفّذ خارجي'
                 })
             }),
-            { new: true }
+            { returnDocument: 'after' }
         );
     });
 

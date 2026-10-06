@@ -206,6 +206,7 @@ beforeAll(async () => {
         replSet: { count: 1, storageEngine: 'wiredTiger' }
     });
     await mongoose.connect(replSet.getUri(), { serverSelectionTimeoutMS: 20000 });
+    await Promise.all(Object.values(mongoose.models).map((model) => model.init()));
 });
 
 afterAll(async () => {
@@ -221,7 +222,17 @@ afterEach(async () => {
 
 describe('pending_reference money hold', () => {
     test('blocks refund, return, pull, assign, auto-route, and queue re-send', async () => {
-        const { user, executor, tx } = await createHeldTransfer();
+        const { user, executor, tx } = await createHeldTransfer({ status: 'accepted' });
+        const employee = await Employee.create({
+            name: 'منفذ',
+            role: 'operator',
+            status: 'active',
+            groupId: executor._id,
+            webUsername: `executor-${sequence}@example.com`,
+            webPassword: 'hashed-password'
+        });
+        tx.operatorId = String(employee._id);
+        await tx.save();
         const before = await moneySnapshot(executor._id);
         const statusBefore = tx.status;
 
@@ -234,20 +245,12 @@ describe('pending_reference money hold', () => {
         const executorCancel = await invokeJson(postCancelTask, {
             params: { id: String(tx._id) },
             body: { reason: 'إلغاء مباشر' },
-            session: {}
+            session: { executorId: String(employee._id) }
         });
         const executorReturn = await invokeJson(postReturnTask, {
             params: { id: String(tx._id) },
             body: { reason: 'إرجاع' },
-            session: {}
-        });
-        const employee = await Employee.create({
-            name: 'منفذ',
-            role: 'operator',
-            status: 'active',
-            groupId: executor._id,
-            webUsername: `executor-${sequence}@example.com`,
-            webPassword: 'hashed-password'
+            session: { executorId: String(employee._id) }
         });
         let mobileReturnCode = null;
         try {

@@ -83,7 +83,18 @@ const removePasswordFile = (filePath) => {
     try {
         fs.rmSync(filePath, { force: true });
     } catch (_error) {
-        // The caller reports rotation failure without the password.
+        if (process.platform === 'win32') {
+            try {
+                require('child_process').spawnSync('icacls', [filePath, '/reset'], {
+                    stdio: 'ignore',
+                    windowsHide: true
+                });
+                fs.rmSync(filePath, { force: true });
+                return;
+            } catch (_resetError) {
+                // The caller reports rotation failure without the password.
+            }
+        }
     }
 };
 

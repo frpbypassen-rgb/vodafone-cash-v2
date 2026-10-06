@@ -1,6 +1,7 @@
 // routes/clientPortal.js
 const express = require('express');
 const router = express.Router();
+const { emitSupportTicketUpdate } = require('../services/supportRealtimeService');
 const { isWalletHubSession, canRequestRetailDeposit } = require('../utils/walletHubHelper');
 const crypto = require('crypto');
 const fs = require('fs');
@@ -728,7 +729,7 @@ router.post('/api/support/messages', requireClientAuth, async (req, res) => {
         ticket.unreadAdmin = (ticket.unreadAdmin || 0) + 1;
         ticket.updatedAt = new Date();
         await ticket.save();
-        req.app.get('io')?.emit('support:ticket-updated', {
+        emitSupportTicketUpdate(req, {
             ticketId: String(ticket._id),
             channel: ticket.channel || 'portal',
             direction: 'inbound',

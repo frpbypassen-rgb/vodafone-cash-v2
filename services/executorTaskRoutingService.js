@@ -148,7 +148,13 @@ const taskOwnershipFilter = (executor) => {
 };
 
 const busyTaskFilter = (employeeId, tenantId) => {
-    const filter = { status: 'accepted', operatorId: String(employeeId) };
+    const filter = {
+        operatorId: String(employeeId),
+        $or: [
+            { status: 'accepted' },
+            { status: 'processing', 'apiResultData.providerDispatchAttemptId': { $exists: true } }
+        ]
+    };
     if (tenantId) filter.tenantId = tenantId;
     return filter;
 };
@@ -272,7 +278,7 @@ const acceptExecutorTask = async ({ transactionId, executor, tenantId = null }) 
                     emergencyAlert: undefined
                 }
             },
-            { new: true }
+            { returnDocument: 'after' }
         );
 
         if (transaction) {
@@ -351,7 +357,7 @@ const routeExecutorTask = async ({ transactionId, manager, employeeId, tenantId 
                     emergencyAlert: undefined
                 }
             },
-            { new: true }
+            { returnDocument: 'after' }
         );
 
         if (transaction) {

@@ -6,6 +6,8 @@ const { sanitizeAccountStatementReport } = require('../utils/accountStatementPri
 const { loadPuppeteer } = require('../utils/puppeteerLoader');
 
 let sharedBrowserPromise = null;
+let activeExecutorPdfRenders = 0;
+const MAX_EXECUTOR_PDF_RENDERS = 2;
 
 const executableCandidates = async () => {
     const candidates = [process.env.PUPPETEER_EXECUTABLE_PATH, process.env.CHROME_PATH];
@@ -144,7 +146,7 @@ const generateAdminReportPdf = async (app, data) => {
     }
 };
 
-const generateExecutorReportPdf = async (app, data) => {
+const renderExecutorReportPdf = async (app, data) => {
     const executablePath = await findBrowserExecutable();
     if (!executablePath) {
         const error = new Error('PDF_BROWSER_NOT_FOUND');
@@ -173,6 +175,20 @@ const generateExecutorReportPdf = async (app, data) => {
         return Buffer.from(pdf);
     } finally {
         if (page) await page.close().catch(() => {});
+    }
+};
+
+const generateExecutorReportPdf = async (app, data) => {
+    if (activeExecutorPdfRenders >= MAX_EXECUTOR_PDF_RENDERS) {
+        const error = new Error('PDF_BUSY');
+        error.code = 'PDF_BUSY';
+        throw error;
+    }
+    activeExecutorPdfRenders += 1;
+    try {
+        return await renderExecutorReportPdf(app, data);
+    } finally {
+        activeExecutorPdfRenders -= 1;
     }
 };
 

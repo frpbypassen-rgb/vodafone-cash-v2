@@ -5,7 +5,8 @@ const path = require('path');
 const { toExecutorPortalTaskDto, portalLiveTaskNotes } = require('../utils/executorTaskPrivacy');
 const { executorTaskIndexes } = require('../services/performanceIndexService');
 
-const dashboardSource = fs.readFileSync(path.join(__dirname, '../views/executor/dashboard.ejs'), 'utf8');
+const { readPortalView } = require('./helpers/executorPortalSources');
+const dashboardSource = readPortalView('dashboard');
 const csrfSource = fs.readFileSync(path.join(__dirname, '../middlewares/csrfProtection.js'), 'utf8');
 const overviewSource = fs.readFileSync(path.join(__dirname, '../services/mobileWebParityService.js'), 'utf8');
 

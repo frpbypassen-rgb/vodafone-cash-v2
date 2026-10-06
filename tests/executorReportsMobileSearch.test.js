@@ -2,7 +2,8 @@ const fs = require('fs');
 const path = require('path');
 
 const root = path.join(__dirname, '..');
-const view = fs.readFileSync(path.join(root, 'views/executor/reports.ejs'), 'utf8');
+const { readPortalView } = require('./helpers/executorPortalSources');
+const view = readPortalView('reports');
 const styles = fs.readFileSync(path.join(root, 'public/css/executor-report-controls.css'), 'utf8');
 
 describe('executor reports mobile search', () => {

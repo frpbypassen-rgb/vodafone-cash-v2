@@ -963,8 +963,10 @@ const registerExecutorPushEventHandlers = () => {
         queueTaskAvailable(tx, { source: 'transfer-created' }).catch((error) => logger.error('Failed to queue auto-routed task push', { error: error.message }));
     });
     eventBus.on('transfer:completed', ({ tx }) => {
-        queueTaskResult(tx).catch((error) => logger.error('Failed to queue completed task push', { error: error.message }));
-        queueBalanceWarningForTransaction(tx).catch((error) => logger.error('Failed to queue executor balance warning', { error: error.message }));
+        return Promise.all([
+            queueTaskResult(tx),
+            queueBalanceWarningForTransaction(tx)
+        ]);
     });
     eventBus.on('transfer:cancelled', ({ tx, reason }) => {
         queueTaskResult(tx, { cancelled: true, reason }).catch((error) => logger.error('Failed to queue cancelled task push', { error: error.message }));

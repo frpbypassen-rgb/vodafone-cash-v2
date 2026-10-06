@@ -55,6 +55,7 @@ const escapeRegex = (value) => String(value || '').replace(/[.*+?^${}()|[\]\\]/g
 // Report totals are computed in MongoDB, while this cap protects the API and
 // mobile client from materialising an unbounded operation history in one call.
 const CLIENT_REPORT_LIST_LIMIT = 100;
+const EXECUTOR_REPORT_MAX_ROWS = 5000;
 
 const buildClientReportSearchQuery = (value) => {
     const search = String(value || '').trim().slice(0, 80);
@@ -1434,9 +1435,13 @@ async function getExecutorReports({ executorId, dateType, dateValue, dateFrom, d
         ),
         {
             select: '+executorExecutionNumber +executorSenderEntries +executorProofImages',
-            sort: { createdAt: -1 }
+            sort: { createdAt: -1 },
+            limit: EXECUTOR_REPORT_MAX_ROWS + 1
         }
     );
+    if (currentTransactions.length > EXECUTOR_REPORT_MAX_ROWS) {
+        throw new Error('REPORT_TOO_LARGE');
+    }
     const deposits = currentTransactions.filter((tx) => {
         if (!['deposit', 'deduction', 'deposit_pending'].includes(tx.status)) return false;
         if (isExternal) return true;

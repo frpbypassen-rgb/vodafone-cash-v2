@@ -72,8 +72,6 @@ const tenantSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 // فهارس
-tenantSchema.index({ slug: 1 }, { unique: true });
 tenantSchema.index({ status: 1 });
-tenantSchema.index({ apiKey: 1 }, { sparse: true });
 
 module.exports = mongoose.model('Tenant', tenantSchema);

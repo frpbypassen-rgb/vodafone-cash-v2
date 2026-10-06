@@ -83,6 +83,7 @@ desktop.ini
 # ======================================
 coverage/
 .nyc_output/
+test-artifacts/
 
 # ======================================
 # 📱 Mobile build output

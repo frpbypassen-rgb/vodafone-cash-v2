@@ -16,7 +16,7 @@ const trustedDeviceSchema = new mongoose.Schema({
     label: { type: String, default: '' },
     active: { type: Boolean, default: true, index: true },
     trustedAt: { type: Date, default: Date.now },
-    expiresAt: { type: Date, required: true, index: true },
+    expiresAt: { type: Date, required: true },
     lastSeenAt: { type: Date, default: Date.now },
     revokedAt: { type: Date, default: null },
     revokeReason: { type: String, default: '' }

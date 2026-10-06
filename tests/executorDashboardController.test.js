@@ -1,6 +1,7 @@
 'use strict';
 
 jest.mock('../models/Employee');
+jest.mock('../utils/logger', () => ({ error: jest.fn(), warn: jest.fn(), info: jest.fn() }));
 jest.mock('../models/Transaction');
 jest.mock('../models/ExecutorGroup');
 jest.mock('../models/ClientCompany');
@@ -26,6 +27,14 @@ jest.mock('../services/mobileWebParityService', () => ({
     deleteEmployee: jest.fn(),
     getEmployeesWorkspace: jest.fn(),
     updateEmployeeExecutionPolicy: jest.fn()
+}));
+jest.mock('../services/executorDepositRequestService', () => ({
+    ...jest.requireActual('../services/executorDepositRequestService'),
+    listDepositRequests: jest.fn(), createDepositRequest: jest.fn(), reviewAdminDepositRequest: jest.fn()
+}));
+jest.mock('../services/executorQuickExecuteService', () => ({
+    ...jest.requireActual('../services/executorQuickExecuteService'),
+    getQuickExecuteState: jest.fn(), saveQuickExecutePreferences: jest.fn(), buildQuickExecuteDial: jest.fn()
 }));
 jest.mock('../services/executorBalancePoolService', () => ({
     ExecutorBalancePoolError: class ExecutorBalancePoolError extends Error {
@@ -57,6 +66,9 @@ jest.mock('../services/executorBalancePoolService', () => ({
 
 const Transaction = require('../models/Transaction');
 const Employee = require('../models/Employee');
+const logger = require('../utils/logger');
+const depositService = require('../services/executorDepositRequestService');
+const quickExecuteService = require('../services/executorQuickExecuteService');
 const { proofSourceUrl, streamProofImage } = require('../services/proofStorageService');
 const mobileWebParityService = require('../services/mobileWebParityService');
 const poolService = require('../services/executorBalancePoolService');
@@ -70,6 +82,71 @@ const response = () => ({
     send: jest.fn().mockReturnThis(),
     redirect: jest.fn().mockReturnThis(),
     render: jest.fn().mockReturnThis()
+});
+
+describe('executor dashboard error containment', () => {
+    beforeEach(() => jest.clearAllMocks());
+
+    const request = () => ({
+        params: { id: 'target-1' }, session: { executorId: 'manager-1' },
+        body: { decision: 'approve', newPassword: 'new-password' },
+        managerEmp: { _id: 'manager-1', groupId: { _id: 'group-1' } },
+        executorEmployee: { _id: 'employee-1', groupId: { _id: 'group-1' } }
+    });
+
+    test.each([
+        ['getDepositRequests', 'listDepositRequests'],
+        ['postDepositRequest', 'createDepositRequest'],
+        ['postReviewAdminDeposit', 'reviewAdminDepositRequest']
+    ])('%s does not expose internal deposit errors', async (handler, operation) => {
+        depositService[operation].mockRejectedValueOnce(new Error('mongodb://user:secret@internal-host'));
+        const res = response();
+        await controller[handler](request(), res);
+        expect(res.status).toHaveBeenCalledWith(500);
+        expect(JSON.stringify(res.json.mock.calls)).not.toContain('secret');
+        expect(JSON.stringify(logger.error.mock.calls)).not.toContain('secret');
+    });
+
+    test('preserves deposit validation errors and status', async () => {
+        depositService.createDepositRequest.mockRejectedValueOnce(new depositService.ExecutorDepositRequestError('أرفق إيصال إيداع واحدًا على الأقل.', 400));
+        const res = response();
+        await controller.postDepositRequest(request(), res);
+        expect(res.status).toHaveBeenCalledWith(400);
+        expect(res.json).toHaveBeenCalledWith({ success: false, error: 'أرفق إيصال إيداع واحدًا على الأقل.' });
+    });
+
+    test.each([
+        ['getQuickExecute', 'getQuickExecuteState'],
+        ['putQuickExecute', 'saveQuickExecutePreferences'],
+        ['postQuickExecuteDial', 'buildQuickExecuteDial']
+    ])('%s does not expose a secret or internal error code', async (handler, operation) => {
+        quickExecuteService[operation].mockRejectedValueOnce(Object.assign(new Error('pin=secret'), { code: 'INTERNAL_SECRET', status: 400 }));
+        const res = response();
+        await controller[handler](request(), res);
+        expect(res.status).toHaveBeenCalledWith(500);
+        expect(res.json).toHaveBeenCalledWith({ success: false, code: 'QUICK_EXECUTE_FAILED', error: 'تعذر تنفيذ الطلب السريع.' });
+        expect(JSON.stringify(logger.error.mock.calls)).not.toContain('secret');
+    });
+
+    test.each(['postEmployeesToggle', 'postEmployeesToggleReports', 'postEmployeesResetPassword'])(
+        '%s conceals an internal account error', async (handler) => {
+            Employee.findById.mockRejectedValueOnce(new Error('mongodb://user:secret@internal-host'));
+            const res = response();
+            await controller[handler](request(), res);
+            expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ success: false }));
+            expect(JSON.stringify(res.json.mock.calls)).not.toContain('secret');
+            expect(JSON.stringify(logger.error.mock.calls)).not.toContain('secret');
+        }
+    );
+
+    test('employee-list faults do not expose connection details', async () => {
+        mobileWebParityService.getEmployeesWorkspace.mockRejectedValueOnce(new Error('mongodb://user:secret@internal-host'));
+        const res = response();
+        await controller.getEmployeesList(request(), res);
+        expect(res.status).toHaveBeenCalledWith(500);
+        expect(JSON.stringify(res.json.mock.calls)).not.toContain('secret');
+        expect(JSON.stringify(logger.error.mock.calls)).not.toContain('secret');
+    });
 });
 
 describe('executor self-service settings', () => {
@@ -317,7 +394,7 @@ describe('Executor dashboard group ownership', () => {
                 phone: '01000000000',
                 role: 'external',
                 webUsername: 'ahmed',
-                webPassword: 'secret1',
+                webPassword: 'secret12',
                 balancePoolId: 'pool-nour'
             },
             managerEmp: { _id: 'manager-1', name: 'مدير', groupId: 'group-1' },

@@ -36,6 +36,9 @@ jobs:
     - name: Run ESLint
       run: npm run lint
 
+    - name: Check executor formatting
+      run: npm run check:executor-format
+
   # ═══════════════════════════════════════════════
   #  2️⃣ فحص الأمان (Security Audit)
   # ═══════════════════════════════════════════════

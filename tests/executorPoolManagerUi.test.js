@@ -6,7 +6,8 @@ const path = require('path');
 const ROOT = path.join(__dirname, '..');
 const read = (relativePath) => fs.readFileSync(path.join(ROOT, relativePath), 'utf8');
 
-const employeesView = read('views/executor/employees.ejs');
+const { readPortalView } = require('./helpers/executorPortalSources');
+const employeesView = readPortalView('employees');
 const commandBar = read('views/executor/partials/command-bar.ejs');
 const depositsView = read('views/executor/deposits.ejs');
 const settingsView = read('views/executor/settings.ejs');

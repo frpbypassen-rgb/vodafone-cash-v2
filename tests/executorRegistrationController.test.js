@@ -56,8 +56,8 @@ describe('Executor public registration', () => {
             phone: '091-123-4567',
             webUsername: 'REGISTERED_01',
             executorServiceKey: 'postal',
-            webPassword: 'secret1',
-            confirmPassword: 'secret1'
+            webPassword: 'secret12',
+            confirmPassword: 'secret12'
         };
 
         await controller.postRegister(req, res);
@@ -67,14 +67,14 @@ describe('Executor public registration', () => {
             phone: '0911234567',
             username: 'registered_01@ahram.com',
             executorServiceKey: 'postal',
-            password: 'secret1'
+            password: 'secret12'
         }));
         const viewData = res.render.mock.calls[0][1];
         expect(viewData.success).toEqual({
             refCode: 'REG-TEST-001',
             username: 'registered_01@ahram.com'
         });
-        expect(JSON.stringify(viewData)).not.toContain('secret1');
+        expect(JSON.stringify(viewData)).not.toContain('secret12');
     });
 
     test('preserves non-sensitive fields when validation fails', async () => {
@@ -84,7 +84,7 @@ describe('Executor public registration', () => {
             phone: '0911234567',
             webUsername: 'registered_01',
             executorServiceKey: 'bank_account',
-            webPassword: 'secret1',
+            webPassword: 'secret12',
             confirmPassword: 'different'
         };
 

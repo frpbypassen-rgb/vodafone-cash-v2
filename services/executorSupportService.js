@@ -11,6 +11,7 @@ const ExecutorGroup = require('../models/ExecutorGroup');
 const Notification = require('../models/Notification');
 const SupportTicket = require('../models/SupportTicket');
 const Transaction = require('../models/Transaction');
+const { parseExecutorImageDataUrl } = require('../utils/executorImageValidation');
 
 const ACTIVE_STATUSES = ['open', 'answered', 'pending_internal'];
 const CLOSED_STATUSES = ['resolved', 'closed'];
@@ -53,11 +54,6 @@ const ROLE_CATEGORIES = Object.freeze({
 
 const IMAGE_LIMIT = 3;
 const IMAGE_BYTES_LIMIT = 2 * 1024 * 1024;
-const IMAGE_TYPES = Object.freeze({
-    'image/jpeg': 'jpg',
-    'image/png': 'png',
-    'image/webp': 'webp'
-});
 
 const cleanText = (value, maxLength = 2000) => String(value || '')
     .replace(/\u0000/g, '')
@@ -66,12 +62,16 @@ const cleanText = (value, maxLength = 2000) => String(value || '')
 
 const toId = (value) => String(value?._id || value || '');
 
-const supportError = (code, message, status = 400) => {
-    const error = new Error(message);
-    error.code = code;
-    error.status = status;
-    return error;
-};
+class ExecutorSupportError extends Error {
+    constructor(code, message, status = 400) {
+        super(message);
+        this.name = 'ExecutorSupportError';
+        this.code = code;
+        this.status = status;
+    }
+}
+
+const supportError = (code, message, status) => new ExecutorSupportError(code, message, status);
 
 const allowedCategoriesForRole = (role) => [
     ...(ROLE_CATEGORIES[role] || ROLE_CATEGORIES.operator)
@@ -112,18 +112,15 @@ const buildExecutorTicketScope = (employee) => {
 };
 
 const parseSupportImage = (imageBase64) => {
-    const value = cleanText(imageBase64, 8 * 1024 * 1024);
-    const match = value.match(/^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/);
-    if (!match || !IMAGE_TYPES[match[1]]) {
-        throw supportError('INVALID_IMAGE', 'الصورة المرفقة غير صالحة أو نوعها غير مدعوم.');
+    try {
+        const parsed = parseExecutorImageDataUrl(imageBase64, {
+            maxBytes: IMAGE_BYTES_LIMIT,
+            errorCode: 'INVALID_SUPPORT_IMAGE'
+        });
+        return { buffer: parsed.buffer, ext: parsed.extension };
+    } catch (_error) {
+        throw supportError('INVALID_IMAGE', 'الصورة المرفقة غير صالحة أو تالفة أو نوعها غير مدعوم.');
     }
-
-    const buffer = Buffer.from(match[2], 'base64');
-    if (!buffer.length) throw supportError('INVALID_IMAGE', 'الصورة المرفقة فارغة.');
-    if (buffer.length > IMAGE_BYTES_LIMIT) {
-        throw supportError('IMAGE_TOO_LARGE', 'حجم الصورة أكبر من 2 ميجابايت.');
-    }
-    return { buffer, ext: IMAGE_TYPES[match[1]] };
 };
 
 const saveSupportImages = async (imagesBase64 = []) => {
@@ -579,6 +576,7 @@ async function notifyAdmins({ title, message }) {
 }
 
 module.exports = {
+    ExecutorSupportError,
     ACTIVE_STATUSES,
     CLOSED_STATUSES,
     SUPPORT_CATEGORIES,

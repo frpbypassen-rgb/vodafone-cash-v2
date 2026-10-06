@@ -4,19 +4,20 @@ const { invalidateExecutorAuth, loadExecutorEmployee } = require('../services/ex
 const mobileWebParityService = require('../services/mobileWebParityService');
 const mobileWebParityMapper = require('../mappers/mobileWebParityMapper');
 const { generateExecutorReportPdf } = require('../services/reportPdfService');
-const { snapshotCompanyBalances, workingBalanceForEmployee } = require('../services/executorBalancePoolService');
 const Employee = require('../models/Employee');
+const { logExecutorFailure } = require('../services/executorTransactionError');
 
 const reportErrorResponse = (res, error) => {
     const messages = {
         UNAUTHORIZED: ['انتهت جلسة الدخول.', 401],
         FORBIDDEN: ['لا تملك صلاحية عرض تقرير هذا الموظف.', 403],
         NOT_FOUND: ['الموظف غير موجود ضمن شركة التنفيذ.', 404],
-        INVALID_PERIOD: ['الفترة غير صالحة أو تتجاوز سنة واحدة.', 422]
+        INVALID_PERIOD: ['الفترة غير صالحة أو تتجاوز سنة واحدة.', 422],
+        REPORT_TOO_LARGE: ['التقرير كبير جداً. اختر فترة أقصر أو موظفاً محدداً.', 413]
     };
-    const known = messages[error?.message];
+    const known = Object.prototype.hasOwnProperty.call(messages, error?.message) ? messages[error.message] : null;
     if (known) return res.status(known[1]).json({ success: false, error: known[0] });
-    console.error('[executor-reports]', error);
+    logExecutorFailure('reports', error);
     return res.status(500).json({ success: false, error: 'تعذر تجهيز تقرير التنفيذ.' });
 };
 
@@ -37,12 +38,12 @@ const requireExecutorAuth = async (req, res, next) => {
     }
     try {
         const isRead = ['GET', 'HEAD', 'OPTIONS'].includes(req.method);
-        if (!isRead) invalidateExecutorAuth(req.session.executorId);
         const employee = await loadExecutorEmployee(req.session.executorId, {
-            fresh: !isRead,
+            fresh: true,
             lean: isRead
         });
-        if (!employee || employee.status !== 'active' || !employee.groupId || employee.groupId.status !== 'active') {
+        if (!employee || employee.status !== 'active' || !employee.groupId || employee.groupId.status !== 'active'
+            || Number(employee.sessionVersion || 0) !== Number(req.session.executorSessionVersion || 0)) {
             invalidateExecutorAuth(req.session.executorId);
             return req.path.includes('/filter')
                 ? res.status(401).json({ success: false, error: 'حساب المنفذ غير مفعل.' })
@@ -50,23 +51,10 @@ const requireExecutorAuth = async (req, res, next) => {
         }
         req.executorEmployee = employee;
         return next();
-    } catch (_) {
+    } catch {
         return res.status(500).json({ success: false, error: 'تعذر التحقق من الحساب.' });
     }
 };
-
-router.get('/reports', requireExecutorAuth, async (req, res) => {
-    try {
-        const emp = req.executorEmployee;
-        const companyBalances = ['manager', 'accountant'].includes(emp?.role)
-            ? await snapshotCompanyBalances(emp.groupId).catch(() => null)
-            : null;
-        const workingBalance = emp?.role === 'external'
-            ? await workingBalanceForEmployee(emp).catch(() => null)
-            : null;
-        res.render('executor/reports', { emp, companyBalances, workingBalance });
-    } catch (_) { res.status(500).send('Error'); }
-});
 
 router.get('/reports/employees', requireExecutorAuth, async (req, res) => {
     const emp = req.executorEmployee;
@@ -126,6 +114,9 @@ router.post('/reports/download.pdf', requireExecutorAuth, async (req, res) => {
     } catch (error) {
         if (error?.code === 'PDF_BROWSER_NOT_FOUND') {
             return res.status(503).json({ success: false, error: 'محرك PDF غير متوفر على الخادم.' });
+        }
+        if (error?.code === 'PDF_BUSY') {
+            return res.status(429).json({ success: false, error: 'هناك تقارير قيد التجهيز. أعد المحاولة بعد قليل.' });
         }
         return reportErrorResponse(res, error);
     }

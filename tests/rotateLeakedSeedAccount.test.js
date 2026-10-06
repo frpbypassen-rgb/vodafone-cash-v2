@@ -3,6 +3,7 @@
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const { spawnSync } = require('child_process');
 const bcrypt = require('bcryptjs');
 const { hashPassword } = require('../services/passwordService');
 const {
@@ -26,6 +27,16 @@ const capture = () => {
 };
 
 const PASSWORD = 'Rotate-Test-Password-91';
+
+const removeTempDirectory = (directory) => {
+    if (process.platform === 'win32') {
+        spawnSync('icacls', [directory, '/reset', '/T', '/C'], {
+            encoding: 'utf8',
+            windowsHide: true
+        });
+    }
+    fs.rmSync(directory, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });
+};
 
 const employee = () => ({
     _id: '507f1f77bcf86cd799439011',
@@ -61,7 +72,7 @@ describe('leaked seed account rotation', () => {
                 expect(applyChanges).not.toHaveBeenCalled();
                 expect(fs.readdirSync(directory)).toEqual([]);
             } finally {
-                fs.rmSync(directory, { recursive: true, force: true });
+                removeTempDirectory(directory);
             }
         }
     );
@@ -76,7 +87,7 @@ describe('leaked seed account rotation', () => {
             expect(runAcl).not.toHaveBeenCalled();
             expect(fs.readdirSync(directory)).toEqual([]);
         } finally {
-            fs.rmSync(directory, { recursive: true, force: true });
+            removeTempDirectory(directory);
         }
     });
 
@@ -217,18 +228,18 @@ describe('leaked seed account rotation', () => {
             expect(stdout.text()).toContain('mode: apply');
             expect(stdout.text()).toContain('audit: appended');
             expect(stdout.text()).toContain(`passwordFile: ${result.passwordFile}`);
-            expect(fs.readFileSync(result.passwordFile, 'utf8')).toBe(`${PASSWORD}\n`);
             if (process.platform === 'win32') {
-                const { spawnSync } = require('child_process');
                 const acl = spawnSync('icacls', [result.passwordFile], { encoding: 'utf8', windowsHide: true });
                 expect(acl.status).toBe(0);
                 expect(acl.stdout).not.toContain('(I)');
                 expect(acl.stdout).toContain(`${process.env.USERNAME}:(F)`);
+                spawnSync('icacls', [result.passwordFile, '/reset'], { encoding: 'utf8', windowsHide: true });
             } else {
                 expect(fs.statSync(result.passwordFile).mode & 0o777).toBe(0o600);
             }
+            expect(fs.readFileSync(result.passwordFile, 'utf8')).toBe(`${PASSWORD}\n`);
         } finally {
-            fs.rmSync(directory, { recursive: true, force: true });
+            removeTempDirectory(directory);
         }
     });
 
@@ -254,7 +265,7 @@ describe('leaked seed account rotation', () => {
             expect(`${stdout.text()}${stderr.text()}`).not.toContain(PASSWORD);
             expect(stderr.text()).toContain('database write failed');
         } finally {
-            fs.rmSync(directory, { recursive: true, force: true });
+            removeTempDirectory(directory);
         }
     });
 

@@ -7,7 +7,6 @@
 const Transaction = require('../../models/Transaction');
 const Employee = require('../../models/Employee');
 const ExecutorGroup = require('../../models/ExecutorGroup');
-const Admin = require('../../models/Admin');
 const transferService = require('../../services/transferService');
 const { logAction } = require('../../services/auditService');
 const { acquireLock, releaseLock } = require('../../services/lockService');
@@ -18,7 +17,7 @@ const { completedTransferLedgerInc } = require('../../utils/executorServiceLedge
  */
 const getLiveTasks = async (req, res) => {
     try {
-        const { userId, executorGroupId, accountType } = req.user;
+        const { executorGroupId, accountType } = req.user;
         if (accountType !== 'executor') return res.status(403).json({ success: false });
 
         const tasks = await Transaction.find({
@@ -51,7 +50,7 @@ const acceptTask = async (req, res) => {
         const tx = await Transaction.findOneAndUpdate(
             { _id: req.params.id, status: 'processing' },
             { $set: { status: 'accepted', operatorId: emp._id.toString(), executorName: emp.name, emergencyAlert: undefined } },
-            { new: true }
+            { returnDocument: 'after' }
         );
 
         if (!tx) return res.json({ success: false, code: 'ALREADY_TAKEN', message: 'عذراً، تم سحب الطلب من قِبل زميل آخر' });
@@ -92,7 +91,7 @@ const cancelTask = async (req, res) => {
             req
         });
         return res.status(result.statusCode).json(result);
-    } catch (e) {
+    } catch {
         res.status(500).json({ success: false, code: 'SERVER_ERROR', message: 'فشل الإلغاء' });
     }
 };
@@ -105,7 +104,7 @@ const completeTask = async (req, res) => {
     let lock;
     try {
         lock = await acquireLock(lockKey, 10000);
-    } catch (lockError) {
+    } catch {
         return res.status(429).json({ success: false, message: 'العملية قيد المعالجة حالياً' });
     }
 
@@ -136,12 +135,12 @@ const completeTask = async (req, res) => {
         }
         await ExecutorGroup.findByIdAndUpdate(emp.groupId._id, { $inc: ledgerInc });
 
-        // إرسال الإثبات
-        const buffer = Buffer.from(imageBase64.replace(/^data:image\/\w+;base64,/, ''), 'base64');
+        // Preserve legacy decode behavior without retaining unused data.
+        Buffer.from(imageBase64.replace(/^data:image\/\w+;base64,/, ''), 'base64');
         
         // 🟢 إشعارات الإدارة ستتم عبر Socket.IO بدلاً من التيليجرام
         // حفظ الصورة في قاعدة البيانات (في النسخة الحقيقية قد تحفظها في Cloud Storage)
-        let savedFileId = `proof_${Date.now()}.jpg`; 
+        const savedFileId = `proof_${Date.now()}.jpg`;
         
         tx.status = 'completed';
         tx.proofImage = savedFileId;
@@ -168,7 +167,7 @@ const completeTask = async (req, res) => {
 
         await releaseLock(lock);
         res.json({ success: true, message: 'تم إرسال الإثبات بنجاح' });
-    } catch (e) {
+    } catch {
         await releaseLock(lock);
         res.status(500).json({ success: false, message: 'خطأ في السيرفر' });
     }

@@ -1,7 +1,22 @@
 ﻿const express = require('express');
 const { rateLimit } = require('express-rate-limit');
+const { emitSupportTicketUpdate } = require('../services/supportRealtimeService');
 const router = express.Router();
-const settingsPasswordLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 5, standardHeaders: 'draft-8', legacyHeaders: false, message: { success: false, error: 'محاولات كثيرة. أعد المحاولة بعد قليل.' } });
+const settingsPasswordLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    limit: 5,
+    standardHeaders: 'draft-8',
+    legacyHeaders: false,
+    message: { success: false, error: 'محاولات كثيرة. أعد المحاولة بعد قليل.' }
+});
+const webPushTestLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    limit: 12,
+    keyGenerator: (req) => String(req.executorEmployee._id),
+    standardHeaders: 'draft-8',
+    legacyHeaders: false,
+    message: { success: false, error: 'اختبارات إشعارات كثيرة. أعد المحاولة بعد قليل.' }
+});
 
 // Controllers
 const authController = require('../controllers/executorAuthController');
@@ -9,15 +24,25 @@ const dashboardController = require('../controllers/executorDashboardController'
 const transactionController = require('../controllers/executorTransactionController');
 const reportsController = require('../controllers/executorReportsController');
 
-// Models
+// Services
 const executorSupportService = require('../services/executorSupportService');
+const { ExecutorSupportError } = executorSupportService;
+const { logExecutorFailure } = require('../services/executorTransactionError');
 const executorWebPushService = require('../services/executorWebPushService');
 const { invalidateExecutorAuth, loadExecutorEmployee } = require('../services/executorAuthCache');
+
+const supportErrorResponse = (res, error, fallback) => {
+    if (error instanceof ExecutorSupportError) {
+        return res.status(error.status).json({ success: false, error: error.message });
+    }
+    logExecutorFailure('support', error);
+    return res.status(500).json({ success: false, error: fallback });
+};
 
 // Middlewares
 const rejectExecutorSession = (req, res) => {
     if (req.path.startsWith('/api/')) {
-        return res.status(401).json({ success: false, error: 'ط§ظ†طھظ‡طھ ط¬ظ„ط³ط© ط§ظ„ط¯ط®ظˆظ„.' });
+        return res.status(401).json({ success: false, error: 'انتهت جلسة الدخول.' });
     }
     return res.redirect('/login');
 };
@@ -26,9 +51,8 @@ const isExecutorReadRequest = (req) => ['GET', 'HEAD', 'OPTIONS'].includes(req.m
 
 const loadPortalExecutor = async (req) => {
     const readRequest = isExecutorReadRequest(req);
-    if (!readRequest) invalidateExecutorAuth(req.session.executorId);
     return loadExecutorEmployee(req.session.executorId, {
-        fresh: !readRequest,
+        fresh: true,
         lean: readRequest
     });
 };
@@ -40,16 +64,19 @@ const requireExecutorAuth = async (req, res, next) => {
     if (req.session.mfaEnrollmentRequired) return res.redirect('/security/mfa-enroll');
     try {
         const employee = await loadPortalExecutor(req);
-        if (!employee || employee.status !== 'active' || !employee.groupId || employee.groupId.status !== 'active') {
+        if (!employee || employee.status !== 'active' || !employee.groupId || employee.groupId.status !== 'active'
+            || Number(employee.sessionVersion || 0) !== Number(req.session.executorSessionVersion || 0)) {
             invalidateExecutorAuth(req.session.executorId);
             delete req.session.isExecutorLoggedIn;
             delete req.session.executorId;
             delete req.session.executorGroupId;
+            delete req.session.executorSessionVersion;
             return rejectExecutorSession(req, res);
         }
         req.executorEmployee = employee;
         return next();
-    } catch (_) {
+    } catch (error) {
+        logExecutorFailure('session-check', error);
         return rejectExecutorSession(req, res);
     }
 };
@@ -58,27 +85,29 @@ const requireExecutorManager = async (req, res, next) => {
     if (!req.session.isExecutorLoggedIn || !req.session.executorId) return rejectExecutorSession(req, res);
     try {
         const emp = await loadPortalExecutor(req);
-        if (!emp || emp.status !== 'active' || !emp.groupId || emp.groupId.status !== 'active') {
+        if (!emp || emp.status !== 'active' || !emp.groupId || emp.groupId.status !== 'active'
+            || Number(emp.sessionVersion || 0) !== Number(req.session.executorSessionVersion || 0)) {
             invalidateExecutorAuth(req.session.executorId);
             return rejectExecutorSession(req, res);
         }
         if (emp.role !== 'manager') {
             if (req.path.startsWith('/api/')) {
-                return res.status(403).json({ success: false, error: 'ظ‡ط°ظ‡ ط§ظ„طµظپط­ط© ظ…طھط§ط­ط© ظ„ظ…ط¯ظٹط± ط§ظ„ظ…ظ†ظپط° ظپظ‚ط·.' });
+                return res.status(403).json({ success: false, error: 'هذه الصفحة متاحة لمدير المنفذ فقط.' });
             }
             return res.redirect('/executor-portal/reports');
         }
         req.managerEmp = emp;
         return next();
-    } catch (_) {
-        return res.status(500).json({ success: false, error: 'ط­ط¯ط« ط®ط·ط£ ط£ط«ظ†ط§ط، ط§ظ„طھط­ظ‚ظ‚ ظ…ظ† ط§ظ„طµظ„ط§ط­ظٹط©.' });
+    } catch (error) {
+        logExecutorFailure('manager-permission-check', error);
+        return res.status(500).json({ success: false, error: 'حدث خطأ أثناء التحقق من الصلاحية.' });
     }
 };
 
 const requireExecutorTaskAccess = (req, res, next) => {
     const employee = req.executorEmployee;
     if (!employee || employee.role === 'accountant') {
-        return res.status(403).json({ success: false, error: 'ظ‡ط°ط§ ط§ظ„ط­ط³ط§ط¨ ظ„ط§ ظٹظ…ظ„ظƒ طµظ„ط§ط­ظٹط© طھظ†ظپظٹط° ط§ظ„ط¹ظ…ظ„ظٹط§طھ.' });
+        return res.status(403).json({ success: false, error: 'هذا الحساب لا يملك صلاحية تنفيذ العمليات.' });
     }
     return next();
 };
@@ -86,7 +115,7 @@ const requireExecutorTaskAccess = (req, res, next) => {
 const requireExecutorDepositAccess = (req, res, next) => {
     const employee = req.executorEmployee;
     if (!employee || !['manager', 'accountant', 'external'].includes(employee.role)) {
-        return res.status(403).json({ success: false, error: 'ظ‡ط°ظ‡ ط§ظ„طµظپط­ط© ط؛ظٹط± ظ…طھط§ط­ط© ظ„ظ‡ط°ط§ ط§ظ„ط­ط³ط§ط¨.' });
+        return res.status(403).json({ success: false, error: 'هذه الصفحة غير متاحة لهذا الحساب.' });
     }
     return next();
 };
@@ -152,8 +181,7 @@ router.get('/api/route-candidates', requireExecutorManager, dashboardController.
 router.post('/api/route-task/:id', requireExecutorManager, dashboardController.postRouteTask);
 
 // --- Transaction Routes ---
-// ط§ظ„ظ…ط³ط§ط± ط§ظ„ظ‚ط¯ظٹظ… ظƒط§ظ† ظٹظ†ط´ط¦ ط¥ظٹط¯ط§ط¹ط§ظ‹ ظ…ط¨ط§ط´ط±ط§ظ‹ ط¨ظ„ط§ ط¥ظٹطµط§ظ„ط§طھ. ظ†ظڈط¨ظ‚ظٹظ‡ ظ„ظ„طھظˆط§ظپظ‚طŒ
-// ظ„ظƒظ† ظ†ظ…ط±ط±ظ‡ ط¥ظ„ظ‰ طھط¯ظپظ‚ ط§ظ„ظ…ط±ط§ط¬ط¹ط© ظ†ظپط³ظ‡ ط§ظ„ط°ظٹ ظٹظپط±ط¶ ط¥ط±ظپط§ظ‚ ط§ظ„ط¥ظٹطµط§ظ„ط§طھ.
+// Keep the legacy URL on the same receipt-required review flow.
 router.post('/api/request-deposit', requireExecutorManager, dashboardController.postDepositRequest);
 router.post('/api/accept-task/:id', requireExecutorAuth, requireExecutorTaskAccess, transactionController.postAcceptTask);
 router.post('/api/edit-amount/:id', requireExecutorAuth, requireExecutorTaskAccess, transactionController.postEditAmount);
@@ -181,7 +209,7 @@ router.get('/api/support/tickets', requireExecutorAuth, async (req, res) => {
         });
         return res.json({ success: true, ...result, serverTime: new Date().toISOString() });
     } catch (error) {
-        return res.status(error.status || 500).json({ success: false, error: error.message || 'طھط¹ط°ط± ط¬ظ„ط¨ ط·ظ„ط¨ط§طھ ط§ظ„ط¯ط¹ظ….' });
+        return supportErrorResponse(res, error, 'تعذر جلب طلبات الدعم.');
     }
 });
 router.get('/api/support/group-chat', requireExecutorAuth, async (req, res) => {
@@ -189,25 +217,25 @@ router.get('/api/support/group-chat', requireExecutorAuth, async (req, res) => {
         const workspace = await executorSupportService.getExecutorGroupChat({ executorId: req.executorEmployee._id });
         return res.json({ success: true, ...workspace, serverTime: new Date().toISOString() });
     } catch (error) {
-        return res.status(error.status || 500).json({ success: false, error: error.message || 'طھط¹ط°ط± ظپطھط­ ظ…ط¬ظ…ظˆط¹ط© ط´ط±ظƒط© ط§ظ„طھظ†ظپظٹط°.' });
+        return supportErrorResponse(res, error, 'تعذر فتح مجموعة شركة التنفيذ.');
     }
 });
 router.post('/api/support/group-chat/replies', requireExecutorAuth, async (req, res) => {
     try {
         const workspace = await executorSupportService.replyToExecutorGroupChat({ executorId: req.executorEmployee._id, payload: req.body });
-        req.app.get('io')?.emit('support:ticket-updated', { ticketId: workspace.ticket.id, channel: 'portal', direction: 'inbound', status: workspace.ticket.status, source: 'executor_group_chat' });
+        emitSupportTicketUpdate(req, { ticketId: workspace.ticket.id, channel: 'portal', direction: 'inbound', status: workspace.ticket.status, source: 'executor_group_chat' });
         return res.json({ success: true, ...workspace });
     } catch (error) {
-        return res.status(error.status || 400).json({ success: false, error: error.message || 'طھط¹ط°ط± ط¥ط±ط³ط§ظ„ ط±ط³ط§ظ„ط© ط§ظ„ظ…ط¬ظ…ظˆط¹ط©.' });
+        return supportErrorResponse(res, error, 'تعذر إرسال رسالة المجموعة.');
     }
 });
 router.post('/api/support/tickets', requireExecutorAuth, async (req, res) => {
     try {
         const ticket = await executorSupportService.createExecutorTicket({ executorId: req.executorEmployee._id, payload: req.body });
-        req.app.get('io')?.emit('support:ticket-updated', { ticketId: ticket.id, channel: 'portal', direction: 'inbound', status: ticket.status, source: 'executor_web' });
+        emitSupportTicketUpdate(req, { ticketId: ticket.id, channel: 'portal', direction: 'inbound', status: ticket.status, source: 'executor_web' });
         return res.status(201).json({ success: true, ticket });
     } catch (error) {
-        return res.status(error.status || 400).json({ success: false, error: error.message || 'طھط¹ط°ط± ط¥ظ†ط´ط§ط، ط·ظ„ط¨ ط§ظ„ط¯ط¹ظ….' });
+        return supportErrorResponse(res, error, 'تعذر إنشاء طلب الدعم.');
     }
 });
 router.get('/api/support/diagnostics', requireExecutorAuth, async (req, res) => {
@@ -215,7 +243,7 @@ router.get('/api/support/diagnostics', requireExecutorAuth, async (req, res) => 
         const diagnostics = await executorSupportService.getExecutorDiagnostics({ executorId: req.executorEmployee._id });
         return res.json({ success: true, diagnostics });
     } catch (error) {
-        return res.status(error.status || 500).json({ success: false, error: error.message || 'طھط¹ط°ط± طھط´ط؛ظٹظ„ ط§ظ„ظپط­طµ.' });
+        return supportErrorResponse(res, error, 'تعذر تشغيل الفحص.');
     }
 });
 router.get('/api/support/tickets/:id', requireExecutorAuth, async (req, res) => {
@@ -223,16 +251,16 @@ router.get('/api/support/tickets/:id', requireExecutorAuth, async (req, res) => 
         const ticket = await executorSupportService.getExecutorTicket({ executorId: req.executorEmployee._id, ticketId: req.params.id });
         return res.json({ success: true, ticket });
     } catch (error) {
-        return res.status(error.status || 404).json({ success: false, error: error.message || 'طھط¹ط°ط± ط¬ظ„ط¨ ط§ظ„ط·ظ„ط¨.' });
+        return supportErrorResponse(res, error, 'تعذر جلب الطلب.');
     }
 });
 router.post('/api/support/tickets/:id/replies', requireExecutorAuth, async (req, res) => {
     try {
         const ticket = await executorSupportService.replyToExecutorTicket({ executorId: req.executorEmployee._id, ticketId: req.params.id, payload: req.body });
-        req.app.get('io')?.emit('support:ticket-updated', { ticketId: ticket.id, channel: 'portal', direction: 'inbound', status: ticket.status, source: 'executor_web' });
+        emitSupportTicketUpdate(req, { ticketId: ticket.id, channel: 'portal', direction: 'inbound', status: ticket.status, source: 'executor_web' });
         return res.json({ success: true, ticket });
     } catch (error) {
-        return res.status(error.status || 400).json({ success: false, error: error.message || 'طھط¹ط°ط± ط¥ط±ط³ط§ظ„ ط§ظ„ط±ط¯.' });
+        return supportErrorResponse(res, error, 'تعذر إرسال الرد.');
     }
 });
 
@@ -241,30 +269,44 @@ router.get('/api/web-push/status', requireExecutorAuth, async (req, res) => {
     try {
         const status = await executorWebPushService.getExecutorWebPushStatus(req.executorEmployee._id);
         return res.json({ success: true, ...status });
-    } catch (_) {
-        return res.status(500).json({ success: false, error: 'طھط¹ط°ط± ظپط­طµ ط¥ط´ط¹ط§ط±ط§طھ ط§ظ„ظ…طھطµظپط­.' });
+    } catch (error) {
+        logExecutorFailure('web-push-status', error);
+        return res.status(500).json({ success: false, error: 'تعذر فحص إشعارات المتصفح.' });
     }
 });
 router.post('/api/web-push/subscribe', requireExecutorAuth, async (req, res) => {
     try {
         await executorWebPushService.upsertExecutorSubscription({ employeeId: req.executorEmployee._id, subscription: req.body?.subscription });
         return res.json({ success: true, subscribed: true });
-    } catch (_) {
-        return res.status(400).json({ success: false, error: 'ط¨ظٹط§ظ†ط§طھ ط§ط´طھط±ط§ظƒ ط§ظ„ط¥ط´ط¹ط§ط±ط§طھ ط؛ظٹط± طµط§ظ„ط­ط©.' });
+    } catch (error) {
+        if (error?.code === 'INVALID_WEB_PUSH_SUBSCRIPTION') {
+            return res.status(400).json({ success: false, error: 'بيانات اشتراك الإشعارات غير صالحة.' });
+        }
+        if (error?.code === 'WEB_PUSH_SUBSCRIPTION_LIMIT') {
+            return res.status(409).json({ success: false, error: 'بلغت الحد الأقصى للمتصفحات المسجلة.' });
+        }
+        logExecutorFailure('web-push-subscribe', error);
+        return res.status(500).json({ success: false, error: 'تعذر تسجيل اشتراك الإشعارات.' });
     }
 });
 router.post('/api/web-push/unsubscribe', requireExecutorAuth, async (req, res) => {
-    await executorWebPushService.disableExecutorSubscription({ employeeId: req.executorEmployee._id, endpoint: req.body?.endpoint });
-    return res.json({ success: true, subscribed: false });
+    try {
+        await executorWebPushService.disableExecutorSubscription({ employeeId: req.executorEmployee._id, endpoint: req.body?.endpoint });
+        return res.json({ success: true, subscribed: false });
+    } catch (error) {
+        logExecutorFailure('web-push-unsubscribe', error);
+        return res.status(500).json({ success: false, error: 'تعذر إلغاء اشتراك الإشعارات.' });
+    }
 });
-router.post('/api/web-push/test', requireExecutorAuth, async (req, res) => {
+router.post('/api/web-push/test', requireExecutorAuth, webPushTestLimiter, async (req, res) => {
     try {
         const result = await executorWebPushService.sendExecutorWebPushTest(req.executorEmployee._id);
-        if (!result.attempted) return res.status(409).json({ success: false, error: 'ظ„ط§ ظٹظˆط¬ط¯ ظ…طھطµظپط­ ظ…ط³ط¬ظ„ ظ„ط§ط³طھظ‚ط¨ط§ظ„ ط§ظ„ط§ط®طھط¨ط§ط±.' });
-        if (!result.sent) return res.status(502).json({ success: false, error: 'ط±ظپط¶ ظ…ط²ظˆط¯ ط§ظ„ط¥ط´ط¹ط§ط±ط§طھ ط±ط³ط§ظ„ط© ط§ظ„ط§ط®طھط¨ط§ط±.' });
+        if (!result.attempted) return res.status(409).json({ success: false, error: 'لا يوجد متصفح مسجل لاستقبال الاختبار.' });
+        if (!result.sent) return res.status(502).json({ success: false, error: 'رفض مزود الإشعارات رسالة الاختبار.' });
         return res.json({ success: true, ...result });
-    } catch (_) {
-        return res.status(500).json({ success: false, error: 'طھط¹ط°ط± ط¥ط±ط³ط§ظ„ ط¥ط´ط¹ط§ط± ط§ظ„ط§ط®طھط¨ط§ط±.' });
+    } catch (error) {
+        logExecutorFailure('web-push-test', error);
+        return res.status(500).json({ success: false, error: 'تعذر إرسال إشعار الاختبار.' });
     }
 });
 
