@@ -506,10 +506,12 @@ Promise.all([connectDB(), initRedis()]).then(async () => {
         logger.warn('BullMQ API transfer worker is not ready; API routing will use in-process queue');
     }
     const merchantWebhookService = require('./services/merchantWebhookService');
+    const TrustedDevice = require('./models/TrustedDevice');
     await Promise.all([
         ensureApiReconciliationIndexes(),
         ensurePerformanceIndexes(),
         ensureSecurityDeviceIndexes(),
+        TrustedDevice.createIndexes(),
         ensureUnifiedReportInfrastructure(),
         merchantWebhookService.ensureMerchantWebhookIndexes()
     ]);
