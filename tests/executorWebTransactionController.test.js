@@ -611,6 +611,33 @@ describe('Executor web transaction completion', () => {
         expect(tx.status).toBe('accepted');
     });
 
+    test('does not inquire, claim, or pay a ZaynPay task outside the current tenant', async () => {
+        const previousMode = process.env.TENANT_MODE;
+        process.env.TENANT_MODE = 'multi';
+        req.tenant = { _id: 'tenant-a' };
+        Employee.findById.mockReturnValue({ populate: jest.fn().mockResolvedValue({
+            _id: 'employee-1', webUsername: 'zaynapi@ahram.com',
+            groupId: { _id: 'group-1' }
+        }) });
+        Transaction.findById.mockResolvedValue({
+            ...tx,
+            operatorId: 'employee-1',
+            executorGroupId: 'group-1',
+            tenantId: 'tenant-b',
+            status: 'accepted'
+        });
+
+        await controller.executeViaZaynPay(req, res);
+
+        expect(res.status).toHaveBeenCalledWith(403);
+        expect(zaynpay.inquiry).not.toHaveBeenCalled();
+        expect(zaynpay.pay).not.toHaveBeenCalled();
+        expect(Transaction.findOneAndUpdate).not.toHaveBeenCalled();
+        expect(ExecutorGroup.findByIdAndUpdate).not.toHaveBeenCalled();
+        if (previousMode === undefined) delete process.env.TENANT_MODE;
+        else process.env.TENANT_MODE = previousMode;
+    });
+
     test('does not call ZaynPay when another request wins the dispatch claim', async () => {
         Employee.findById.mockReturnValue({ populate: jest.fn().mockResolvedValue({
             _id: 'employee-1', webUsername: 'zaynapi@ahram.com',

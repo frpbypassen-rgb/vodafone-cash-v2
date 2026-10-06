@@ -1,6 +1,6 @@
 'use strict';
 
-jest.mock('../models/Employee', () => ({ exists: jest.fn() }));
+jest.mock('../models/Employee', () => ({ exists: jest.fn(), findOne: jest.fn() }));
 jest.mock('../models/RegistrationRequest', () => ({
     findOne: jest.fn(),
     create: jest.fn()
@@ -102,5 +102,43 @@ describe('Executor public registration', () => {
             executorServiceOptions: expect.any(Array)
         }));
         expect(RegistrationRequest.create).not.toHaveBeenCalled();
+    });
+});
+
+describe('Executor portal login tenant scope', () => {
+    const originalMode = process.env.TENANT_MODE;
+
+    afterEach(() => {
+        if (originalMode === undefined) delete process.env.TENANT_MODE;
+        else process.env.TENANT_MODE = originalMode;
+    });
+
+    test('looks up the executor inside the resolved tenant and includes legacy rows only in single mode', async () => {
+        const req = {
+            session: {},
+            body: { username: 'operator.one', password: 'secret12' },
+            tenant: { _id: 'tenant-a' },
+            ip: '127.0.0.1',
+            headers: { 'user-agent': 'Jest' }
+        };
+        const res = { render: jest.fn(), redirect: jest.fn() };
+        Employee.findOne.mockReturnValue({
+            populate: () => ({ lean: async () => null })
+        });
+
+        process.env.TENANT_MODE = 'multi';
+        await controller.postLogin(req, res);
+        expect(Employee.findOne).toHaveBeenCalledWith(expect.objectContaining({
+            tenantId: 'tenant-a'
+        }));
+
+        process.env.TENANT_MODE = 'single';
+        await controller.postLogin(req, res);
+        expect(Employee.findOne).toHaveBeenLastCalledWith(expect.objectContaining({
+            tenantId: { $in: ['tenant-a', null] }
+        }));
+        expect(res.render).toHaveBeenCalledWith('executor/login', expect.objectContaining({
+            error: 'اسم المستخدم أو كلمة المرور غير صحيحة.'
+        }));
     });
 });

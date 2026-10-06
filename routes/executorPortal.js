@@ -188,10 +188,10 @@ router.post('/api/edit-amount/:id', requireExecutorAuth, requireExecutorTaskAcce
 router.post('/api/cancel-task/:id', requireExecutorAuth, requireExecutorTaskAccess, transactionController.postCancelTask);
 router.post('/api/return-task/:id', requireExecutorAuth, requireExecutorTaskAccess, transactionController.postReturnTask);
 router.post('/api/complete-task/:id', requireExecutorAuth, requireExecutorTaskAccess, transactionController.postCompleteTask);
-router.post('/api/retry-part-proof/:id/:partId', requireExecutorAuth, transactionController.postRetryPartProof);
+router.post('/api/retry-part-proof/:id/:partId', requireExecutorAuth, requireExecutorTaskAccess, transactionController.postRetryPartProof);
 router.post('/api/zaynpay-execute/:id', requireExecutorAuth, requireExecutorTaskAccess, transactionController.executeViaZaynPay);
-router.post('/api/rate-task/:id', requireExecutorAuth, transactionController.postRateExecutor);
-router.post('/api/voice-note/:id', requireExecutorAuth, transactionController.postVoiceNote);
+router.post('/api/rate-task/:id', requireExecutorAuth, requireExecutorTaskAccess, transactionController.postRateExecutor);
+router.post('/api/voice-note/:id', requireExecutorAuth, requireExecutorTaskAccess, transactionController.postVoiceNote);
 
 // --- Support Routes ---
 router.get('/support', requireExecutorAuth, transactionController.getSupport);

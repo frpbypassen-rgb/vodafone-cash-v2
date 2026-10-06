@@ -167,6 +167,17 @@ const assignmentEligibilityFilter = (employeeId) => ({
     ]
 });
 
+// Same default as middlewares/tenantResolver.js: only an explicit multi
+// deployment is strict. Single mode, including an unset TENANT_MODE, still
+// includes legacy rows that have no tenantId.
+const executorRequestTenantScope = (req) => {
+    const tenantId = req?.tenant?._id || req?.tenantId || null;
+    if (!tenantId) return null;
+    const mode = String(process.env.TENANT_MODE || '').trim().toLowerCase();
+    if (mode === 'multi') return tenantId;
+    return { $in: [tenantId, null] };
+};
+
 const taskTenantMatches = (transaction, tenantScope) => {
     if (!tenantScope) return true;
     const currentTenant = transaction?.tenantId;
@@ -393,6 +404,8 @@ module.exports = {
     stringId,
     executorIdentityKeys,
     isTaskOwnedByExecutor,
+    executorRequestTenantScope,
+    taskTenantMatches,
     findOwnedAcceptedExecutorTask,
     taskGroupFilter,
     taskOwnershipFilter,

@@ -167,8 +167,10 @@ const pollIntervalSecondsFor = (tasks) => (
         : IDLE_POLL_INTERVAL_SECONDS
 );
 
-const loadPortalLiveTasks = async ({ emp, includeCompletedList = true, now = new Date() } = {}) => {
-    const filter = liveTaskFilter(emp, LIVE_TASK_STATUSES);
+const withTenant = (query, tenantId) => (tenantId ? { $and: [query, { tenantId }] } : query);
+
+const loadPortalLiveTasks = async ({ emp, includeCompletedList = true, now = new Date(), tenantId = null } = {}) => {
+    const filter = liveTaskFilter(emp, LIVE_TASK_STATUSES, tenantId);
     let liveQuery = Transaction.find(filter);
     if (typeof liveQuery.select === 'function') liveQuery = liveQuery.select(LIVE_TASK_PROJECTION);
     const rawTasks = await (typeof liveQuery.lean === 'function' ? liveQuery.lean() : liveQuery);
@@ -176,8 +178,8 @@ const loadPortalLiveTasks = async ({ emp, includeCompletedList = true, now = new
     tasks.sort((first, second) => taskArrivalTime(first) - taskArrivalTime(second));
     const liveTasks = await applyLiveTaskHousekeeping(tasks, now.getTime());
 
-    const completedQuery = completedTodayQuery(emp, now);
-    const depQuery = Transaction.find(depositAlertQuery(emp, now.getTime()));
+    const completedQuery = withTenant(completedTodayQuery(emp, now), tenantId);
+    const depQuery = Transaction.find(withTenant(depositAlertQuery(emp, now.getTime()), tenantId));
     const depAlertsQuery = typeof depQuery.select === 'function'
         ? depQuery.select('_id executorWebAlert').sort({ updatedAt: -1 }).limit(DEP_ALERT_LIMIT)
         : depQuery;

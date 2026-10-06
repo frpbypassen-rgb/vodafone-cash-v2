@@ -1,4 +1,26 @@
-/* exported renderStats, renderOperations, reportChartInstance, renderReportChart, buildRow, buildMobileCard */
+/* exported renderStats, renderOperations, reportChartInstance, renderReportChart, buildRow, buildMobileCard, escapeReportHtml, escapeReportUrl */
+function escapeReportHtml(value) {
+    return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
+function escapeReportUrl(value) {
+    const url = String(value ?? '').trim();
+    if (!url || /[\s"'<>\\]/.test(url)) return '';
+    if (url.startsWith('/') && !url.startsWith('//')) return escapeReportHtml(url);
+    try {
+        const parsed = new URL(url);
+        if (parsed.protocol === 'https:' || parsed.protocol === 'http:') return escapeReportHtml(url);
+    } catch {
+        return '';
+    }
+    return '';
+}
+
 function renderStats(data) {
     const grid = document.getElementById('statsGrid');
     const fs = data.financialSummary;
@@ -91,15 +113,18 @@ function renderOperations(data) {
     cancelled.forEach((tx, index) => {
         const date = new Date(tx.completedAt || tx.createdAt);
         const dateText = date.toLocaleString('en-GB', { timeZone: 'Africa/Tripoli', hour12: true });
-        const reference = tx.customId || tx.id || '---';
-        const amount = Number(tx.amount || 0).toLocaleString('en-US', { maximumFractionDigits: 0 });
+        const reference = escapeReportHtml(tx.customId || tx.id || '---');
+        const amount = escapeReportHtml(
+            Number(tx.amount || 0).toLocaleString('en-US', { maximumFractionDigits: 0 })
+        );
+        const safeDateText = escapeReportHtml(dateText);
         const tr = document.createElement('tr');
-        tr.innerHTML = `<td class="text-muted">${index + 1}</td><td dir="ltr" class="fw-bold">${reference}</td><td>${amount} ج.م</td><td dir="ltr">${dateText}</td><td><span class="badge-st st-fail">ملغاة</span></td>`;
+        tr.innerHTML = `<td class="text-muted">${index + 1}</td><td dir="ltr" class="fw-bold">${reference}</td><td>${amount} ج.م</td><td dir="ltr">${safeDateText}</td><td><span class="badge-st st-fail">ملغاة</span></td>`;
         cancelledTbody.appendChild(tr);
         if (mobileCancelledList) {
             const card = document.createElement('div');
             card.className = 'x-mobile-card';
-            card.innerHTML = `<div class="x-mobile-card-header"><span class="x-mobile-card-id">#${reference}</span><span class="badge-st st-fail">ملغاة</span></div><div class="x-mobile-card-body"><span class="x-mobile-amount">${amount} ج.م</span><span class="x-mobile-meta">${dateText}</span></div>`;
+            card.innerHTML = `<div class="x-mobile-card-header"><span class="x-mobile-card-id">#${reference}</span><span class="badge-st st-fail">ملغاة</span></div><div class="x-mobile-card-body"><span class="x-mobile-amount">${amount} ج.م</span><span class="x-mobile-meta">${safeDateText}</span></div>`;
             mobileCancelledList.appendChild(card);
         }
     });
@@ -200,20 +225,23 @@ function buildRow(tx, i) {
         const s = tx.executionDurationSeconds % 60;
         duration = m > 0 ? `${m}د ${s}ث` : `${s}ث`;
     }
-    const by = tx.executorName || '---';
-    const typeLabel = tx.transferTypeLabel || 'محافظ كاش';
+    const by = escapeReportHtml(tx.executorName || '---');
+    const typeLabel = escapeReportHtml(tx.transferTypeLabel || 'محافظ كاش');
+    const customId = escapeReportHtml(tx.customId || String(tx.id || '').slice(-6));
+    const amountLabel = escapeReportHtml(formatEgp(tx.amount));
+    const recipient = escapeReportHtml(tx.recipientNumber || '---');
 
     tr.innerHTML = `
                 <td class="text-muted fw-bold">${i + 1}</td>
-                <td dir="ltr" class="fw-bold text-center">#${tx.customId || String(tx.id || '').slice(-6)}</td>
+                <td dir="ltr" class="fw-bold text-center">#${customId}</td>
                 <td>${typeLabel}</td>
-                <td class="fw-bold">${formatEgp(tx.amount)}</td>
-                <td dir="ltr" class="text-center" style="font-size:0.85rem; font-family:monospace;">${tx.recipientNumber || '---'}</td>
-                <td dir="ltr" class="text-center" style="font-size:0.85rem; font-family:monospace;">${arrivalTime}</td>
-                <td dir="ltr" class="text-center" style="font-size:0.85rem; font-family:monospace;">${completionTime}</td>
-                <td class="fw-bold text-success" style="font-size:0.85rem;">${duration}</td>
+                <td class="fw-bold">${amountLabel}</td>
+                <td dir="ltr" class="text-center" style="font-size:0.85rem; font-family:monospace;">${recipient}</td>
+                <td dir="ltr" class="text-center" style="font-size:0.85rem; font-family:monospace;">${escapeReportHtml(arrivalTime)}</td>
+                <td dir="ltr" class="text-center" style="font-size:0.85rem; font-family:monospace;">${escapeReportHtml(completionTime)}</td>
+                <td class="fw-bold text-success" style="font-size:0.85rem;">${escapeReportHtml(duration)}</td>
                 <td>${statusHtml}</td>
-                <td><div dir="ltr" style="font-size:0.85em;" class="text-center fw-bold">${dateStr}</div></td>
+                <td><div dir="ltr" style="font-size:0.85em;" class="text-center fw-bold">${escapeReportHtml(dateStr)}</div></td>
                 ${isPersonalExecutorReport ? '' : `<td>${by}</td>`}
             `;
     return tr;
@@ -230,20 +258,24 @@ function buildMobileCard(tx) {
     else statusHtml = '<span class="badge-st st-pending">قيد التنفيذ</span>';
     const dateObj = new Date(tx.createdAt);
     const dateStr = dateObj.toLocaleDateString('en-GB', { timeZone: 'Africa/Tripoli' });
-    const typeLabel = tx.transferTypeLabel || 'محافظ كاش';
+    const typeLabel = escapeReportHtml(tx.transferTypeLabel || 'محافظ كاش');
+    const customId = escapeReportHtml(tx.customId || String(tx.id || '').slice(-6));
+    const amountLabel = escapeReportHtml(
+        Number(tx.amount || 0).toLocaleString('en-US', { maximumFractionDigits: 0 })
+    );
     card.innerHTML = `
                 <div class="x-mobile-card-header">
-                    <span class="x-mobile-card-id">#${tx.customId || String(tx.id || '').slice(-6)}</span>
+                    <span class="x-mobile-card-id">#${customId}</span>
                     <span>${statusHtml}</span>
                 </div>
                 <div class="x-mobile-card-body">
-                    <span class="x-mobile-amount">${Number(tx.amount || 0).toLocaleString('en-US', { maximumFractionDigits: 0 })} ج.م</span>
+                    <span class="x-mobile-amount">${amountLabel} ج.م</span>
                     <span class="x-mobile-meta">${typeLabel}</span>
                 </div>
                 <div class="x-mobile-card-details">
-                    <span>المستلم <b dir="ltr">${tx.recipientNumber || '---'}</b></span>
-                    <span>التاريخ <b dir="ltr">${dateStr}</b></span>
-                    ${isPersonalExecutorReport ? '' : `<span>المنفذ <b>${tx.executorName || '---'}</b></span>`}
+                    <span>المستلم <b dir="ltr">${escapeReportHtml(tx.recipientNumber || '---')}</b></span>
+                    <span>التاريخ <b dir="ltr">${escapeReportHtml(dateStr)}</b></span>
+                    ${isPersonalExecutorReport ? '' : `<span>المنفذ <b>${escapeReportHtml(tx.executorName || '---')}</b></span>`}
                 </div>
             `;
     return card;
