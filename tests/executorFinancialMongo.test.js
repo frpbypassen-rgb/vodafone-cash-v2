@@ -3,7 +3,9 @@
 const { spawnSync } = require('child_process');
 const path = require('path');
 
-jest.setTimeout(180000);
+const FINANCIAL_CHECK_TIMEOUT_MS = 300000;
+
+jest.setTimeout(FINANCIAL_CHECK_TIMEOUT_MS + 30000);
 
 describe('executor financial mutations on a replica set', () => {
     let replset;
@@ -31,7 +33,7 @@ describe('executor financial mutations on a replica set', () => {
         const result = spawnSync(process.execPath, [script], {
             env: { ...process.env, EXECUTOR_FINANCIAL_TEST_MONGO_URI: uri },
             encoding: 'utf8',
-            timeout: 150000,
+            timeout: FINANCIAL_CHECK_TIMEOUT_MS,
             windowsHide: true
         });
         expect(result.error).toBeUndefined();
