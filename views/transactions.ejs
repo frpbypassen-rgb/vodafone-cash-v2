@@ -1115,6 +1115,10 @@
                                                 <button class="btn-action-sm api-log" data-log="<%= encodeURIComponent(apiLog) %>" onclick="showApiLog(this)" title="سجل Terminal للـ API"><i class="fa-solid fa-terminal"></i></button>
                                             <% } %>
 
+                                            <% if (canResolveProviderResult && (tx.apiResultData?.providerResultUnresolved === true || tx.apiResultData?.providerDispatchResult === 'pending_reference')) { %>
+                                                <button type="button" class="btn-action-sm send" onclick="resolveProviderPaid('<%= tx._id %>', '<%= tx.updatedAt.toISOString() %>')" title="اعتماد أن المبلغ خُصم من المزود" aria-label="اعتماد أن المبلغ خُصم من المزود"><i class="fa-solid fa-shield-check"></i></button>
+                                            <% } %>
+
                                             <% if (tx.status === 'completed' && (tx.proofImage || (tx.proofImages && tx.proofImages.length > 0))) { %>
                                                 <form action="/transaction/<%= tx._id %>/resend-proof" method="POST" class="m-0" onsubmit="return confirm('إعادة إرسال الإيصال للعميل؟')">
                                                     <button type="submit" class="btn-action-sm send" title="إعادة الإرسال"><i class="fa-solid fa-paper-plane"></i></button>
@@ -1289,6 +1293,9 @@
                                 <% if (hasApiLog) { %>
                                      <button type="button" class="btn btn-sm fw-bold rounded-3 px-3 <%= !isPendingOrProcessing ? 'w-100' : '' %>" style="background: rgba(16, 185, 129, 0.1); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.2);" data-log="<%= encodeURIComponent(mobileApiLog) %>" onclick="showApiLog(this)" title="سجل Terminal للـ API"><i class="fa-solid fa-terminal text-success <%= !isPendingOrProcessing ? 'me-1' : '' %>"></i><%= !isPendingOrProcessing ? ' سجل الـ API' : '' %></button>
                                  <% } %>
+                                <% if (canResolveProviderResult && (tx.apiResultData?.providerResultUnresolved === true || tx.apiResultData?.providerDispatchResult === 'pending_reference')) { %>
+                                    <button type="button" class="btn btn-sm btn-success fw-bold rounded-3 px-3" onclick="resolveProviderPaid('<%= tx._id %>', '<%= tx.updatedAt.toISOString() %>')" title="اعتماد أن المبلغ خُصم من المزود"><i class="fa-solid fa-shield-check me-1"></i> اعتماد الخصم</button>
+                                <% } %>
                             </div>
                         <% } %>
                     </div>
@@ -2141,6 +2148,42 @@
     document.addEventListener('visibilitychange', () => {
         if (!document.hidden) refreshTransactionsList();
     });
+
+    async function resolveProviderPaid(transactionId, expectedUpdatedAt) {
+        const evidenceReference = window.prompt('أدخل مرجع العملية لدى المزود:');
+        if (!evidenceReference?.trim()) return;
+        const note = window.prompt('اكتب ملاحظة التحقق (مثال: تأكيد الخصم من لوحة المزود):');
+        if (!note?.trim()) return;
+
+        const endpoint = `/transaction/${encodeURIComponent(transactionId)}/resolve-provider-result`;
+        const body = { outcome: 'provider_paid', evidenceReference: evidenceReference.trim(), note: note.trim(), expectedUpdatedAt };
+        try {
+            const previewResponse = await fetch(endpoint, {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'Accept': 'application/json', 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                body: JSON.stringify(body)
+            });
+            const preview = await previewResponse.json().catch(() => ({}));
+            if (!previewResponse.ok || !preview.success) throw new Error(preview.message || preview.error || 'تعذر معاينة الاعتماد.');
+            const movement = preview.preview?.moneyMovements?.find((item) => item.apply);
+            const amountText = movement ? `سيُسجل خصم ${Number(Math.abs(movement.amount)).toLocaleString('en-US')} من رصيد المنفذ.` : 'لن تُنشأ حركة خصم إضافية.';
+            if (!window.confirm(`تأكيد اعتماد أن المبلغ مخصوم من المزود؟\n${amountText}\nلن يُعاد استدعاء المزود.`)) return;
+
+            const confirmResponse = await fetch(endpoint, {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'Accept': 'application/json', 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                body: JSON.stringify({ ...body, confirm: true })
+            });
+            const result = await confirmResponse.json().catch(() => ({}));
+            if (!confirmResponse.ok || !result.success) throw new Error(result.message || result.error || 'تعذر اعتماد العملية.');
+            await refreshTransactionsList();
+            Swal.fire({ toast: true, position: 'top', icon: 'success', title: 'تم اعتماد العملية كمكتملة دون إعادة التنفيذ.', showConfirmButton: false, timer: 3000 });
+        } catch (error) {
+            Swal.fire('تعذر الاعتماد', error.message || 'تعذر تحديث العملية حالياً.', 'error');
+        }
+    }
 
     function filterMobileCards(group, btn) {
         if (btn) {

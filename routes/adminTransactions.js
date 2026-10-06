@@ -441,6 +441,12 @@ const renderTransactions = async (req, res, operationsWorkspace = false) => {
             executorDisplayByTransaction[String(tx._id)] = { companyName, executorName };
         });
 
+        const adminRole = String(req.session.adminRole || req.user?.role || '');
+        const adminPermissions = Array.isArray(req.session.adminPermissions) ? req.session.adminPermissions : [];
+        const canResolveProviderResult = adminRole === 'master'
+            || adminPermissions.includes('*')
+            || adminPermissions.includes(PROVIDER_RESOLUTION_PERMISSION);
+
         res.render('transactions', { 
             transactions, 
             executorGroups: executorGroupsForView,
@@ -463,6 +469,7 @@ const renderTransactions = async (req, res, operationsWorkspace = false) => {
             executorBalanceGroups,
             executorId,
             operationWorkspace: operationsWorkspace,
+            canResolveProviderResult,
             operationsSummary,
             query: req.query
         });
