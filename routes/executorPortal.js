@@ -29,7 +29,7 @@ const executorSupportService = require('../services/executorSupportService');
 const { ExecutorSupportError } = executorSupportService;
 const { logExecutorFailure } = require('../services/executorTransactionError');
 const executorWebPushService = require('../services/executorWebPushService');
-const { invalidateExecutorAuth, loadExecutorEmployee } = require('../services/executorAuthCache');
+const { clearExecutorPortalSession, invalidateExecutorAuth, loadExecutorEmployee } = require('../services/executorAuthCache');
 
 const supportErrorResponse = (res, error, fallback) => {
     if (error instanceof ExecutorSupportError) {
@@ -67,10 +67,7 @@ const requireExecutorAuth = async (req, res, next) => {
         if (!employee || employee.status !== 'active' || !employee.groupId || employee.groupId.status !== 'active'
             || Number(employee.sessionVersion || 0) !== Number(req.session.executorSessionVersion || 0)) {
             invalidateExecutorAuth(req.session.executorId);
-            delete req.session.isExecutorLoggedIn;
-            delete req.session.executorId;
-            delete req.session.executorGroupId;
-            delete req.session.executorSessionVersion;
+            clearExecutorPortalSession(req.session);
             return rejectExecutorSession(req, res);
         }
         req.executorEmployee = employee;
@@ -88,6 +85,7 @@ const requireExecutorManager = async (req, res, next) => {
         if (!emp || emp.status !== 'active' || !emp.groupId || emp.groupId.status !== 'active'
             || Number(emp.sessionVersion || 0) !== Number(req.session.executorSessionVersion || 0)) {
             invalidateExecutorAuth(req.session.executorId);
+            clearExecutorPortalSession(req.session);
             return rejectExecutorSession(req, res);
         }
         if (emp.role !== 'manager') {

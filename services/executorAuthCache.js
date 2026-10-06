@@ -66,6 +66,14 @@ const invalidateExecutorAuth = (executorId) => {
     if (key) cache.delete(key);
 };
 
+const clearExecutorPortalSession = (session) => {
+    if (!session) return;
+    delete session.isExecutorLoggedIn;
+    delete session.executorId;
+    delete session.executorGroupId;
+    delete session.executorSessionVersion;
+};
+
 const clearExecutorAuthCache = () => {
     cache.clear();
 };
@@ -104,6 +112,7 @@ module.exports = {
     clearExecutorAuthCache,
     getCachedExecutor,
     invalidateExecutorAuth,
+    clearExecutorPortalSession,
     loadExecutorEmployee,
     setCachedExecutor
 };
