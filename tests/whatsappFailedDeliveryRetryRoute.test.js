@@ -1,6 +1,7 @@
 'use strict';
 
 const path = require('path');
+const { once } = require('node:events');
 const express = require('express');
 const request = require('supertest');
 
@@ -46,7 +47,9 @@ const { retryFailedDeliveries, previewFailedRetries } = require('../services/wha
 const csrfProtection = require('../middlewares/csrfProtection');
 const router = require('../routes/whatsappMonitoring');
 
-const buildApp = (session, { tenantId = null, tenantMode = 'single' } = {}) => {
+const testServers = new Set();
+
+const buildApp = async (session, { tenantId = null, tenantMode = 'single' } = {}) => {
     process.env.TENANT_MODE = tenantMode;
     const app = express();
     app.set('view engine', 'ejs');
@@ -63,7 +66,10 @@ const buildApp = (session, { tenantId = null, tenantMode = 'single' } = {}) => {
     });
     app.use(csrfProtection);
     app.use('/whatsapp-monitor', router);
-    return app;
+    const server = app.listen(0, '127.0.0.1');
+    testServers.add(server);
+    await once(server, 'listening');
+    return server;
 };
 
 describe('whatsapp monitor bulk retry route', () => {
@@ -92,6 +98,14 @@ describe('whatsapp monitor bulk retry route', () => {
         });
     });
 
+    afterEach(async () => {
+        await Promise.all([...testServers].map((server) => new Promise((resolve, reject) => {
+            server.closeAllConnections();
+            server.close((error) => error ? reject(error) : resolve());
+        })));
+        testServers.clear();
+    });
+
     afterAll(() => {
         if (previousTenantMode === undefined) delete process.env.TENANT_MODE;
         else process.env.TENANT_MODE = previousTenantMode;
@@ -106,7 +120,7 @@ describe('whatsapp monitor bulk retry route', () => {
     });
 
     test('renders the bulk retry button and confirmation copy for a master admin', async () => {
-        const response = await request(buildApp(masterSession()))
+        const response = await request(await buildApp(masterSession()))
             .get('/whatsapp-monitor')
             .expect(200);
 
@@ -118,7 +132,7 @@ describe('whatsapp monitor bulk retry route', () => {
     });
 
     test('hides the bulk retry button from an admin who is not master', async () => {
-        const response = await request(buildApp({
+        const response = await request(await buildApp({
             isLoggedIn: true,
             adminRole: 'admin',
             adminPermissions: ['support.manage'],
@@ -133,7 +147,7 @@ describe('whatsapp monitor bulk retry route', () => {
     });
 
     test('rejects a bulk retry without a CSRF token', async () => {
-        const response = await request(buildApp(masterSession()))
+        const response = await request(await buildApp(masterSession()))
             .post('/whatsapp-monitor/failed-retries')
             .set('Accept', 'application/json')
             .send({ window: '72h' });
@@ -144,7 +158,7 @@ describe('whatsapp monitor bulk retry route', () => {
     });
 
     test('denies a non-master admin even with support.manage', async () => {
-        const response = await request(buildApp({
+        const response = await request(await buildApp({
             isLoggedIn: true,
             adminRole: 'admin',
             adminPermissions: ['support.manage'],
@@ -161,7 +175,7 @@ describe('whatsapp monitor bulk retry route', () => {
     });
 
     test('runs the retry inside the current tenant scope for a master admin', async () => {
-        const response = await request(buildApp(masterSession(), { tenantId: 'tenant-a', tenantMode: 'multi' }))
+        const response = await request(await buildApp(masterSession(), { tenantId: 'tenant-a', tenantMode: 'multi' }))
             .post('/whatsapp-monitor/failed-retries')
             .set('Accept', 'application/json')
             .send({ _csrf: 'csrf-token', window: '24h' });
@@ -177,7 +191,7 @@ describe('whatsapp monitor bulk retry route', () => {
     });
 
     test('requires a master admin to preview the eligible count', async () => {
-        const denied = await request(buildApp({
+        const denied = await request(await buildApp({
             isLoggedIn: true,
             adminRole: 'admin',
             adminPermissions: ['support.read', 'support.manage'],
@@ -189,7 +203,7 @@ describe('whatsapp monitor bulk retry route', () => {
         expect(denied.status).toBe(403);
         expect(previewFailedRetries).not.toHaveBeenCalled();
 
-        const allowed = await request(buildApp(masterSession(), { tenantId: 'tenant-a', tenantMode: 'multi' }))
+        const allowed = await request(await buildApp(masterSession(), { tenantId: 'tenant-a', tenantMode: 'multi' }))
             .get('/whatsapp-monitor/failed-retries/preview?window=72h')
             .set('Accept', 'application/json');
 

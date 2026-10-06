@@ -1050,6 +1050,9 @@
     const connectRealtime = () => {
         if (typeof window.io !== 'function') return;
         state.socket = window.io();
+        state.socket.emit('support:subscribe', (result) => {
+            if (!result?.success) state.socket.disconnect();
+        });
         state.socket.on('support:ticket-updated', (payload) => {
             loadTickets({ silent: true });
             loadSummary();

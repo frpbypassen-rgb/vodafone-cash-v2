@@ -3,6 +3,7 @@
 const User = require('../models/User');
 const { loadWalletHubAccount } = require('../services/clientHubContextService');
 const clientDepositRequestService = require('../services/clientDepositRequestService');
+const { emitSupportTicketUpdate } = require('../services/supportRealtimeService');
 
 async function loadDirectClient(req) {
     if (req.session.accountType !== 'user') return null;
@@ -53,7 +54,7 @@ exports.postDepositRequest = async (req, res) => {
             note: req.body?.note
         });
 
-        req.app.get('io')?.emit('support:ticket-updated', { source: 'client_deposit_request' });
+        emitSupportTicketUpdate(req, { source: 'client_deposit_request' });
         return res.status(201).json({
             success: true,
             request,

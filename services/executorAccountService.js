@@ -6,6 +6,7 @@ const Employee = require('../models/Employee');
 const ExecutorGroup = require('../models/ExecutorGroup');
 const Transaction = require('../models/Transaction');
 const { escapeRegex } = require('../utils/helpers');
+const { EXECUTOR_PASSWORD_MESSAGE, isValidNewExecutorPassword } = require('../utils/executorPasswordPolicy');
 const { normalizeExecutorServiceKey } = require('../utils/executorServiceCatalog');
 const { reserveManualExecutorReceiptPrefix } = require('./manualExecutorReceiptReferenceService');
 
@@ -46,8 +47,8 @@ const assertManagerData = (managerData) => {
     if (name.length < 3) {
         throw new ExecutorAccountError('INVALID_MANAGER_NAME', 'يرجى إدخال اسم مسؤول المنفذ كاملاً.');
     }
-    if (password.length < 6) {
-        throw new ExecutorAccountError('WEAK_PASSWORD', 'كلمة المرور يجب ألا تقل عن 6 أحرف.');
+    if (!isValidNewExecutorPassword(password)) {
+        throw new ExecutorAccountError('WEAK_PASSWORD', EXECUTOR_PASSWORD_MESSAGE);
     }
 
     return {

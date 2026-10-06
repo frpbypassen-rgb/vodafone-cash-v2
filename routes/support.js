@@ -15,6 +15,7 @@ const { createSupportReplyNotifications } = require('../services/clientNotificat
 const { requireAdminActor, isAdminActorError, ACTOR_MESSAGE } = require('../utils/adminActor');
 const { resolveDepositTicket } = require('../services/executorDepositRequestService');
 const { resolveClientDepositTicket } = require('../services/clientDepositRequestService');
+const { emitSupportTicketUpdate } = require('../services/supportRealtimeService');
 const { recordWhatsAppDeliveryAttempt } = require('../services/whatsappReceiptDeliveryService');
 const {
     SUPPORT_STATUSES,
@@ -32,7 +33,7 @@ const {
 } = require('../services/supportWorkspaceService');
 
 const emitTicketUpdate = (req, ticket) => {
-    req.app.get('io')?.emit('support:ticket-updated', {
+    emitSupportTicketUpdate(req, {
         ticketId: String(ticket._id),
         channel: ticket.channel || 'portal',
         status: ticket.status

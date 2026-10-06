@@ -6,7 +6,9 @@ const ExecutorBalancePool = require('../models/ExecutorBalancePool');
 const ExecutorGroup = require('../models/ExecutorGroup');
 const Notification = require('../models/Notification');
 const Transaction = require('../models/Transaction');
-const { primaryServiceBalanceInc, snapshotServiceLedgers } = require('../utils/executorServiceLedger');
+const { withOptionalMongoTransaction } = require('./adminFinancialMutationService');
+const { allocatedFromRows, primaryServiceBalanceInc, snapshotServiceLedgers } = require('../utils/executorServiceLedger');
+const { lockExecutorLedger, queryWithSession } = require('../utils/executorLedgerGuard');
 
 class ExecutorBalancePoolError extends Error {
     constructor(code, message, status = 400) {
@@ -34,6 +36,12 @@ const fail = (code, message, status = 400) => {
     throw new ExecutorBalancePoolError(code, message, status);
 };
 
+const withLedgerTransaction = (groupId, work) => withOptionalMongoTransaction(async (session) => {
+    const group = await lockExecutorLedger(groupId, session);
+    if (!group) fail('GROUP_NOT_FOUND', 'مجموعة التنفيذ غير موجودة.', 404);
+    return work(session, group);
+});
+
 const parseAmount = (amount) => {
     const parsed = Number(amount);
     if (!Number.isFinite(parsed) || parsed <= 0) {
@@ -57,15 +65,6 @@ const managerGroupId = (manager) => {
 const belongsToManagerGroup = (doc, groupId) => (
     Boolean(doc) && objectIdString(doc.groupId) === objectIdString(groupId)
 );
-
-const allocatedFromRows = ({ pools = [], employees = [] }) => {
-    const pooledIds = new Set(pools.map((pool) => objectIdString(pool._id)));
-    const poolTotal = pools.reduce((sum, pool) => sum + Number(pool.balance || 0), 0);
-    const soloTotal = employees
-        .filter((employee) => employee.role === 'external' && !pooledIds.has(objectIdString(employee.balancePoolId)))
-        .reduce((sum, employee) => sum + Number(employee.balance || 0), 0);
-    return poolTotal + soloTotal;
-};
 
 const snapshotFromParts = ({ group, pools = [], employees = [] }) => {
     const allocatedBalance = allocatedFromRows({ pools, employees });
@@ -211,31 +210,31 @@ async function workingBalanceForEmployee(employee) {
     };
 }
 
-async function assertUniquePoolName({ groupId, name, excludeId = null }) {
-    const existing = await ExecutorBalancePool.findOne({
+async function assertUniquePoolName({ groupId, name, excludeId = null, session = null }) {
+    const existing = await queryWithSession(ExecutorBalancePool.findOne({
         ...activePoolFilter(groupId),
         name,
         ...(excludeId ? { _id: { $ne: excludeId } } : {})
-    }).select('_id').lean();
+    }).select('_id').lean(), session);
     if (existing) fail('POOL_NAME_TAKEN', 'يوجد مجموعة رصيد بنفس الاسم داخل شركة التنفيذ.');
 }
 
-async function loadOwnedPool({ manager, poolId }) {
+async function loadOwnedPool({ manager, poolId, session = null }) {
     const groupId = managerGroupId(manager);
-    const pool = await ExecutorBalancePool.findById(poolId);
+    const pool = await queryWithSession(ExecutorBalancePool.findById(poolId), session);
     if (!pool || !isActiveRecord(pool) || !belongsToManagerGroup(pool, groupId)) {
         fail('POOL_NOT_FOUND', 'مجموعة الرصيد غير موجودة.', 404);
     }
     return { groupId, pool };
 }
 
-async function loadExternalEmployees({ groupId, memberIds }) {
+async function loadExternalEmployees({ groupId, memberIds, session = null }) {
     const ids = uniqueIds(memberIds);
     if (!ids.length) return [];
-    const employees = await Employee.find({
+    const employees = await queryWithSession(Employee.find({
         _id: { $in: ids },
         ...activeEmployeeFilter(groupId)
-    });
+    }), session);
     if (employees.length !== ids.length) {
         fail('EMPLOYEE_NOT_FOUND', 'أحد المنفذين الخارجيين غير موجود أو لا يتبع هذه الشركة.', 404);
     }
@@ -247,7 +246,7 @@ async function loadExternalEmployees({ groupId, memberIds }) {
     return employees;
 }
 
-async function attachEmployeesToPool({ pool, employees }) {
+async function attachEmployeesToPool({ pool, employees, session = null }) {
     let incomingSolo = 0;
     for (const employee of employees) {
         const currentPoolId = objectIdString(employee.balancePoolId);
@@ -258,14 +257,14 @@ async function attachEmployeesToPool({ pool, employees }) {
             incomingSolo += Number(employee.balance || 0);
             employee.balance = 0;
             employee.balancePoolId = pool._id;
-            await employee.save();
+            await employee.save(session ? { session } : {});
         }
     }
     if (incomingSolo) {
         const updated = await ExecutorBalancePool.findByIdAndUpdate(
             pool._id,
             { $inc: { balance: incomingSolo } },
-            { new: true }
+            { returnDocument: 'after', ...(session ? { session } : {}) }
         );
         if (!updated) fail('POOL_NOT_FOUND', 'مجموعة الرصيد غير موجودة.', 404);
         pool.balance = updated.balance;
@@ -277,16 +276,16 @@ async function createPool({ manager, name, memberIds = [] }) {
     const groupId = managerGroupId(manager);
     const poolName = cleanPoolName(name);
     if (poolName.length < 2) fail('INVALID_NAME', 'أدخل اسمًا واضحًا لمجموعة الرصيد (حرفان على الأقل).');
-    await assertUniquePoolName({ groupId, name: poolName });
-    const members = await loadExternalEmployees({ groupId, memberIds });
-    const pool = await ExecutorBalancePool.create({
-        name: poolName,
-        groupId,
-        balance: 0,
-        tenantId: manager.tenantId || undefined
+    return withLedgerTransaction(groupId, async (session) => {
+        await assertUniquePoolName({ groupId, name: poolName, session });
+        const members = await loadExternalEmployees({ groupId, memberIds, session });
+        const data = { name: poolName, groupId, balance: 0, tenantId: manager.tenantId || undefined };
+        const pool = session
+            ? (await ExecutorBalancePool.create([data], { session }))[0]
+            : await ExecutorBalancePool.create(data);
+        await attachEmployeesToPool({ pool, employees: members, session });
+        return serializePool(pool, members);
     });
-    await attachEmployeesToPool({ pool, employees: members });
-    return serializePool(pool, members);
 }
 
 async function renamePool({ manager, poolId, name }) {
@@ -300,64 +299,73 @@ async function renamePool({ manager, poolId, name }) {
 }
 
 async function attachMembers({ manager, poolId, memberIds = [] }) {
-    const { groupId, pool } = await loadOwnedPool({ manager, poolId });
-    const members = await loadExternalEmployees({ groupId, memberIds });
-    if (!members.length) fail('NO_MEMBERS', 'اختر منفذًا خارجيًا واحدًا على الأقل.');
-    await attachEmployeesToPool({ pool, employees: members });
+    const groupId = managerGroupId(manager);
+    await withLedgerTransaction(groupId, async (session) => {
+        const { pool } = await loadOwnedPool({ manager, poolId, session });
+        const members = await loadExternalEmployees({ groupId, memberIds, session });
+        if (!members.length) fail('NO_MEMBERS', 'اختر منفذًا خارجيًا واحدًا على الأقل.');
+        await attachEmployeesToPool({ pool, employees: members, session });
+    });
     return listExternalBalanceWorkspace({ manager });
 }
 
 async function detachMember({ manager, poolId, employeeId }) {
-    const { groupId, pool } = await loadOwnedPool({ manager, poolId });
-    const employee = await Employee.findById(employeeId);
-    if (!employee || !belongsToManagerGroup(employee, groupId) || employee.role !== 'external') {
-        fail('EMPLOYEE_NOT_FOUND', 'المنفذ الخارجي غير موجود ضمن هذه الشركة.', 404);
-    }
-    if (objectIdString(employee.balancePoolId) !== objectIdString(pool._id)) {
-        fail('NOT_IN_POOL', 'هذا المنفذ غير مرتبط بهذه المجموعة.');
-    }
-
-    const remaining = await Employee.countDocuments({
-        ...activeEmployeeFilter(groupId),
-        role: 'external',
-        balancePoolId: pool._id,
-        _id: { $ne: employee._id }
-    });
-
-    employee.balancePoolId = null;
-    if (remaining === 0) {
-        const poolBalance = Number(pool.balance || 0);
-        employee.balance = Number(employee.balance || 0) + poolBalance;
-        if (poolBalance) {
-            const updated = await ExecutorBalancePool.findOneAndUpdate(
-                { _id: pool._id, balance: { $gte: poolBalance } },
-                { $inc: { balance: -poolBalance } },
-                { new: true }
-            );
-            if (!updated) fail('POOL_BALANCE_CHANGED', 'تعذر نقل رصيد المجموعة. أعد المحاولة.');
-            pool.balance = updated.balance;
+    const groupId = managerGroupId(manager);
+    await withLedgerTransaction(groupId, async (session) => {
+        const { pool } = await loadOwnedPool({ manager, poolId, session });
+        const employee = await queryWithSession(Employee.findById(employeeId), session);
+        if (!employee || !isActiveRecord(employee) || !belongsToManagerGroup(employee, groupId) || employee.role !== 'external') {
+            fail('EMPLOYEE_NOT_FOUND', 'المنفذ الخارجي غير موجود ضمن هذه الشركة.', 404);
         }
-    } else {
-        employee.balance = 0;
-    }
-    await employee.save();
+        if (objectIdString(employee.balancePoolId) !== objectIdString(pool._id)) {
+            fail('NOT_IN_POOL', 'هذا المنفذ غير مرتبط بهذه المجموعة.');
+        }
+
+        const remaining = await queryWithSession(Employee.countDocuments({
+            ...activeEmployeeFilter(groupId),
+            role: 'external',
+            balancePoolId: pool._id,
+            _id: { $ne: employee._id }
+        }), session);
+
+        employee.balancePoolId = null;
+        if (remaining === 0) {
+            const poolBalance = Number(pool.balance || 0);
+            employee.balance = Number(employee.balance || 0) + poolBalance;
+            if (poolBalance) {
+                const updated = await ExecutorBalancePool.findOneAndUpdate(
+                    { _id: pool._id, balance: { $gte: poolBalance } },
+                    { $inc: { balance: -poolBalance } },
+                    { returnDocument: 'after', ...(session ? { session } : {}) }
+                );
+                if (!updated) fail('POOL_BALANCE_CHANGED', 'تعذر نقل رصيد المجموعة. أعد المحاولة.');
+                pool.balance = updated.balance;
+            }
+        } else {
+            employee.balance = 0;
+        }
+        await employee.save(session ? { session } : {});
+    });
     return listExternalBalanceWorkspace({ manager });
 }
 
 async function archivePool({ manager, poolId }) {
-    const { groupId, pool } = await loadOwnedPool({ manager, poolId });
-    const memberCount = await Employee.countDocuments({
-        ...activeEmployeeFilter(groupId),
-        role: 'external',
-        balancePoolId: pool._id
+    const groupId = managerGroupId(manager);
+    await withLedgerTransaction(groupId, async (session) => {
+        const { pool } = await loadOwnedPool({ manager, poolId, session });
+        const memberCount = await queryWithSession(Employee.countDocuments({
+            ...activeEmployeeFilter(groupId),
+            role: 'external',
+            balancePoolId: pool._id
+        }), session);
+        if (memberCount) fail('POOL_HAS_MEMBERS', 'افصل كل المنفذين من المجموعة قبل أرشفتها.');
+        if (Number(pool.balance || 0) > 0) {
+            fail('POOL_HAS_BALANCE', 'انقل رصيد المجموعة إلى منفذ فردي بفصل آخر عضو قبل الأرشفة.');
+        }
+        pool.archivedAt = new Date();
+        pool.archivedBy = objectIdString(manager._id);
+        await pool.save(session ? { session } : {});
     });
-    if (memberCount) fail('POOL_HAS_MEMBERS', 'افصل كل المنفذين من المجموعة قبل أرشفتها.');
-    if (Number(pool.balance || 0) > 0) {
-        fail('POOL_HAS_BALANCE', 'انقل رصيد المجموعة إلى منفذ فردي بفصل آخر عضو قبل الأرشفة.');
-    }
-    pool.archivedAt = new Date();
-    pool.archivedBy = objectIdString(manager._id);
-    await pool.save();
     return listExternalBalanceWorkspace({ manager });
 }
 
@@ -373,13 +381,13 @@ async function detachEmployeeOnArchive(employee) {
     }
 }
 
-async function fundExternalExecutor({ manager, employeeId, type, amount, note = '' }) {
+async function fundExternalExecutor({ manager, employeeId, type, amount, note = '', requestId = null }) {
     const groupId = managerGroupId(manager);
     if (!['deposit', 'deduction'].includes(type)) {
         fail('INVALID_TYPE', 'نوع العملية غير صالح.');
     }
     const parsedAmount = parseAmount(amount);
-    const employee = await Employee.findById(employeeId);
+    let employee = await Employee.findById(employeeId);
     if (!employee || !belongsToManagerGroup(employee, groupId)) {
         fail('EMPLOYEE_NOT_FOUND', 'الموظف غير موجود.', 404);
     }
@@ -387,101 +395,158 @@ async function fundExternalExecutor({ manager, employeeId, type, amount, note = 
         fail('INVALID_MEMBER', 'هذا الإجراء مخصص للمنفذين الخارجيين فقط.');
     }
 
-    const group = await ExecutorGroup.findById(groupId);
+    let group = await ExecutorGroup.findById(groupId);
     if (!group) fail('GROUP_NOT_FOUND', 'مجموعة التنفيذ غير موجودة.', 404);
 
-    const pool = employee.balancePoolId
+    let pool = employee.balancePoolId
         ? await ExecutorBalancePool.findById(employee.balancePoolId)
         : null;
     if (employee.balancePoolId && (!pool || !isActiveRecord(pool) || !belongsToManagerGroup(pool, groupId))) {
         fail('POOL_NOT_FOUND', 'مجموعة الرصيد المرتبطة بهذا المنفذ غير صالحة.', 404);
     }
 
-    const creditTarget = pool || employee;
-    const creditLabel = pool ? `مجموعة «${pool.name}»` : employee.name;
+    const actionLabel = type === 'deposit' ? 'إيداع' : 'خصم';
+    const normalizedRequestId = String(requestId || '').trim();
+    if (normalizedRequestId && !/^[A-Za-z0-9_-]{16,80}$/.test(normalizedRequestId)) {
+        fail('INVALID_REQUEST_ID', 'معرّف طلب التمويل غير صالح.');
+    }
+    const customId = normalizedRequestId
+        ? `EXT-${crypto.createHash('sha256').update(`${objectIdString(manager._id)}:${employeeId}:${type}:${normalizedRequestId}`).digest('hex').slice(0, 24).toUpperCase()}`
+        : `EXT-${Date.now().toString().slice(-8)}-${crypto.randomBytes(2).toString('hex').toUpperCase()}`;
+    const matchingMovement = (tx) => tx && String(tx.operatorId) === objectIdString(employee._id)
+        && String(tx.executorGroupId) === objectIdString(groupId)
+        && tx.status === type && Number(tx.amount) === parsedAmount
+        && String(tx.notes || '').trim() === String(note || '').trim().slice(0, 1000);
+    const existingMovement = normalizedRequestId ? await Transaction.findOne({ customId }) : null;
+    if (existingMovement && !matchingMovement(existingMovement)) fail('REQUEST_ID_CONFLICT', 'معرّف الطلب مستخدم لحركة مختلفة.', 409);
+    const resultForMovement = async (tx, replayed = false) => {
+        const [latestGroup, latestEmployee, allocated] = await Promise.all([
+            ExecutorGroup.findById(groupId),
+            Employee.findById(employeeId),
+            loadAllocatedByGroupIds([groupId])
+        ]);
+        const working = await workingBalanceForEmployee(latestEmployee);
+        return {
+            customId,
+            transactionId: objectIdString(tx._id),
+            companyPrivateBalance: Number(latestGroup.balance || 0),
+            companyTotalBalance: Number(latestGroup.balance || 0) + (allocated.get(objectIdString(groupId)) || 0),
+            employeeBalance: working.balance,
+            workingBalance: working.balance,
+            membership: working.kind,
+            pool: working.pool,
+            recipientId: objectIdString(employee._id),
+            replayed
+        };
+    };
+    if (existingMovement) return resultForMovement(existingMovement, true);
 
-    if (type === 'deposit') {
-        const updatedGroup = await ExecutorGroup.findOneAndUpdate(
-            { _id: group._id, balance: { $gte: parsedAmount } },
-            { $inc: primaryServiceBalanceInc(group, -parsedAmount) },
-            { new: true }
-        );
-        if (!updatedGroup) fail('INSUFFICIENT_PRIVATE_BALANCE', 'الرصيد الخاص للشركة غير كافٍ لإتمام الإيداع.');
-        group.balance = updatedGroup.balance;
-        try {
+    const { tx, replayed } = await withLedgerTransaction(groupId, async (session, lockedGroup) => {
+        const options = session ? { session } : {};
+        group = lockedGroup;
+        employee = await queryWithSession(Employee.findById(employeeId), session);
+        if (!employee || !isActiveRecord(employee) || !belongsToManagerGroup(employee, groupId) || employee.role !== 'external') {
+            fail('EMPLOYEE_NOT_FOUND', 'المنفذ الخارجي غير متاح.', 404);
+        }
+        pool = employee.balancePoolId
+            ? await queryWithSession(ExecutorBalancePool.findById(employee.balancePoolId), session)
+            : null;
+        if (employee.balancePoolId && (!pool || !isActiveRecord(pool) || !belongsToManagerGroup(pool, groupId))) {
+            fail('POOL_NOT_FOUND', 'مجموعة الرصيد المرتبطة بهذا المنفذ غير صالحة.', 404);
+        }
+        const creditTarget = pool || employee;
+        const creditLabel = pool ? `مجموعة «${pool.name}»` : employee.name;
+
+        if (type === 'deposit') {
+            const updatedGroup = await ExecutorGroup.findOneAndUpdate(
+                { _id: group._id, balance: { $gte: parsedAmount } },
+                { $inc: primaryServiceBalanceInc(group, -parsedAmount) },
+                { returnDocument: 'after', ...options }
+            );
+            if (!updatedGroup) fail('INSUFFICIENT_PRIVATE_BALANCE', 'الرصيد الخاص للشركة غير كافٍ لإتمام الإيداع.');
+            group.balance = updatedGroup.balance;
             if (pool) {
                 const updatedPool = await ExecutorBalancePool.findByIdAndUpdate(
                     pool._id,
                     { $inc: { balance: parsedAmount } },
-                    { new: true }
+                    { returnDocument: 'after', ...options }
                 );
+                if (!updatedPool) fail('POOL_NOT_FOUND', 'مجموعة الرصيد غير متاحة.', 409);
                 pool.balance = updatedPool.balance;
             } else {
                 const updatedEmployee = await Employee.findByIdAndUpdate(
                     employee._id,
                     { $inc: { balance: parsedAmount } },
-                    { new: true }
+                    { returnDocument: 'after', ...options }
                 );
+                if (!updatedEmployee) fail('EMPLOYEE_NOT_FOUND', 'حساب المنفذ غير متاح.', 409);
                 employee.balance = updatedEmployee.balance;
             }
-        } catch (error) {
-            await ExecutorGroup.findByIdAndUpdate(group._id, { $inc: primaryServiceBalanceInc(group, parsedAmount) }).catch(() => {});
-            throw error;
-        }
-    } else {
-        const currentCredit = Number(creditTarget.balance || 0);
-        if (currentCredit < parsedAmount) {
-            fail('INSUFFICIENT_EXECUTOR_BALANCE', `رصيد ${creditLabel} غير كافٍ للخصم.`);
-        }
-        if (pool) {
-            const updatedPool = await ExecutorBalancePool.findOneAndUpdate(
-                { _id: pool._id, balance: { $gte: parsedAmount } },
-                { $inc: { balance: -parsedAmount } },
-                { new: true }
-            );
-            if (!updatedPool) fail('INSUFFICIENT_EXECUTOR_BALANCE', `رصيد ${creditLabel} غير كافٍ للخصم.`);
-            pool.balance = updatedPool.balance;
         } else {
-            const updatedEmployee = await Employee.findOneAndUpdate(
-                { _id: employee._id, balance: { $gte: parsedAmount } },
-                { $inc: { balance: -parsedAmount } },
-                { new: true }
+            const currentCredit = Number(creditTarget.balance || 0);
+            if (currentCredit < parsedAmount) {
+                fail('INSUFFICIENT_EXECUTOR_BALANCE', `رصيد ${creditLabel} غير كافٍ للخصم.`);
+            }
+            if (pool) {
+                const updatedPool = await ExecutorBalancePool.findOneAndUpdate(
+                    { _id: pool._id, balance: { $gte: parsedAmount } },
+                    { $inc: { balance: -parsedAmount } },
+                    { returnDocument: 'after', ...options }
+                );
+                if (!updatedPool) fail('INSUFFICIENT_EXECUTOR_BALANCE', `رصيد ${creditLabel} غير كافٍ للخصم.`);
+                pool.balance = updatedPool.balance;
+            } else {
+                const updatedEmployee = await Employee.findOneAndUpdate(
+                    { _id: employee._id, balance: { $gte: parsedAmount } },
+                    { $inc: { balance: -parsedAmount } },
+                    { returnDocument: 'after', ...options }
+                );
+                if (!updatedEmployee) fail('INSUFFICIENT_EXECUTOR_BALANCE', `رصيد ${creditLabel} غير كافٍ للخصم.`);
+                employee.balance = updatedEmployee.balance;
+            }
+            const updatedGroup = await ExecutorGroup.findByIdAndUpdate(
+                group._id,
+                { $inc: primaryServiceBalanceInc(group, parsedAmount) },
+                { returnDocument: 'after', ...options }
             );
-            if (!updatedEmployee) fail('INSUFFICIENT_EXECUTOR_BALANCE', `رصيد ${creditLabel} غير كافٍ للخصم.`);
-            employee.balance = updatedEmployee.balance;
+            if (!updatedGroup) fail('GROUP_NOT_FOUND', 'مجموعة التنفيذ غير متاحة.', 409);
+            group.balance = updatedGroup.balance;
         }
-        const updatedGroup = await ExecutorGroup.findByIdAndUpdate(
-            group._id,
-            { $inc: primaryServiceBalanceInc(group, parsedAmount) },
-            { new: true }
-        );
-        group.balance = updatedGroup.balance;
-    }
 
-    const customId = `EXT-${Date.now().toString().slice(-8)}-${crypto.randomBytes(2).toString('hex').toUpperCase()}`;
-    const actionLabel = type === 'deposit' ? 'إيداع' : 'خصم';
-    const poolNote = pool ? ` — رصيد مجموعة «${pool.name}»` : '';
-    const tx = await Transaction.create({
-        customId,
-        userId: 'external-employee',
-        executorGroupId: groupId,
-        managerGroupId: groupId,
-        operatorId: objectIdString(employee._id),
-        executorName: employee.name,
-        employeeName: employee.name,
-        amount: parsedAmount,
-        costLYD: 0,
-        status: type,
-        notes: String(note || '').trim().slice(0, 1000),
-        adminNotes: `${actionLabel} منفذ خارجي (${employee.name})${poolNote} بواسطة المدير`,
-        companyName: 'منفذ خارجي',
-        vodafoneNumber: '---',
-        transferType: 'external_balance',
-        executorWebAlert: {
-            type: type === 'deposit' ? 'success' : 'error',
-            text: `تم ${actionLabel} ${parsedAmount.toLocaleString('en-US', { maximumFractionDigits: 2 })} ج.م ${type === 'deposit' ? 'إلى' : 'من'} ${pool ? `رصيد مجموعة «${pool.name}»` : 'رصيدك'} بواسطة مدير شركة التنفيذ.`
+        const poolNote = pool ? ` — رصيد مجموعة «${pool.name}»` : '';
+        const transactionData = {
+            customId,
+            userId: 'external-employee',
+            executorGroupId: groupId,
+            managerGroupId: groupId,
+            operatorId: objectIdString(employee._id),
+            executorName: employee.name,
+            employeeName: employee.name,
+            amount: parsedAmount,
+            costLYD: 0,
+            status: type,
+            notes: String(note || '').trim().slice(0, 1000),
+            adminNotes: `${actionLabel} منفذ خارجي (${employee.name})${poolNote} بواسطة المدير`,
+            companyName: 'منفذ خارجي',
+            vodafoneNumber: '---',
+            transferType: 'external_balance',
+            executorWebAlert: {
+                type: type === 'deposit' ? 'success' : 'error',
+                text: `تم ${actionLabel} ${parsedAmount.toLocaleString('en-US', { maximumFractionDigits: 2 })} ج.م ${type === 'deposit' ? 'إلى' : 'من'} ${pool ? `رصيد مجموعة «${pool.name}»` : 'رصيدك'} بواسطة مدير شركة التنفيذ.`
+            }
+        };
+        const tx = session
+            ? (await Transaction.create([transactionData], { session }))[0]
+            : await Transaction.create(transactionData);
+        return { tx };
+    }).catch(async (error) => {
+        if (normalizedRequestId && error.code === 11000) {
+            const committed = await Transaction.findOne({ customId });
+            if (matchingMovement(committed)) return { tx: committed, replayed: true };
         }
+        throw error;
     });
+    if (replayed) return resultForMovement(tx, true);
 
     if (employee.webUsername) {
         await Notification.create({
@@ -502,18 +567,7 @@ async function fundExternalExecutor({ manager, employeeId, type, amount, note = 
         }).catch(() => null);
     }
 
-    const working = await workingBalanceForEmployee(employee);
-    return {
-        customId,
-        transactionId: objectIdString(tx._id),
-        companyPrivateBalance: Number(group.balance || 0),
-        companyTotalBalance: Number(group.balance || 0) + (await loadAllocatedByGroupIds([groupId])).get(objectIdString(groupId)),
-        employeeBalance: working.balance,
-        workingBalance: working.balance,
-        membership: working.kind,
-        pool: working.pool,
-        recipientId: objectIdString(employee._id)
-    };
+    return resultForMovement(tx);
 }
 
 module.exports = {

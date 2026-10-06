@@ -1,5 +1,8 @@
 'use strict';
 
+const fs = require('fs');
+const path = require('path');
+
 jest.mock('../models/Admin', () => ({}));
 jest.mock('../models/Employee', () => ({}));
 jest.mock('../models/ExecutorGroup', () => ({}));
@@ -62,10 +65,10 @@ describe('Executor support service', () => {
     });
 
     test('accepts supported image data and rejects unsupported attachments', () => {
-        const jpeg = parseSupportImage(`data:image/jpeg;base64,${Buffer.from('image-bytes').toString('base64')}`);
+        const jpeg = parseSupportImage(`data:image/jpeg;base64,${fs.readFileSync(path.join(__dirname, '..', 'public', 'images', 'login-otp-logo.jpg')).toString('base64')}`);
 
         expect(jpeg.ext).toBe('jpg');
-        expect(jpeg.buffer.toString()).toBe('image-bytes');
+        expect(jpeg.buffer.length).toBeGreaterThan(0);
         expect(() => parseSupportImage('data:image/gif;base64,AAAA')).toThrow('غير صالحة');
     });
 

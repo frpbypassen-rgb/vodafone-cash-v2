@@ -75,6 +75,8 @@ const logAction = async (params) => {
             holdLock = false
         } = params;
 
+        if (params.eventKey && await AuditLog.exists({ eventKey: params.eventKey })) return undefined;
+
         const ipAddress = req
             ? (req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.headers['x-real-ip'] || req.ip || 'unknown')
             : 'system';
@@ -135,6 +137,7 @@ const logAction = async (params) => {
         }
 
         auditLock = await acquireLock('audit-log-chain', 10000, { retryCount: 20, retryDelay: 100 });
+        if (params.eventKey && await AuditLog.exists({ eventKey: params.eventKey })) return undefined;
 
         // حساب تشفير السلسلة المترابطة (Hash Chained Audit Trail)
         let lastEntryQuery = AuditLog.findOne().sort({ _id: -1 }).select('hash');
@@ -143,6 +146,7 @@ const logAction = async (params) => {
         const previousHash = lastEntry ? lastEntry.hash : 'GENESIS';
 
         const entryData = {
+            eventKey: params.eventKey || undefined,
             action,
             performedBy: performedById || null,
             performedByModel: performedByModel || 'System',

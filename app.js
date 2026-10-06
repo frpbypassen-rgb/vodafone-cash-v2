@@ -60,8 +60,8 @@ const upload = multer({
 const { mongoSessionStoreOptions } = require('./config/sessionStore');
 const connectDB = require('./config/database');
 const { initRedis, isRedis } = require('./config/redis');
-const { requireAuth, requireMaster } = require('./middlewares/auth');
-const restrictClientRawUploads = require('./middlewares/restrictClientRawUploads');
+const { requireAuth } = require('./middlewares/auth');
+const createRawUploadsRouter = require('./routes/rawUploads');
 const { errorHandler, notFoundHandler } = require('./middlewares/errorHandler');
 const requestLogger = require('./middlewares/requestLogger');
 const { metricsMiddleware, metricsEndpoint } = require('./middlewares/metrics');
@@ -148,6 +148,14 @@ const io = new Server(server, {
 app.set('io', io);
 systemMonitor.attachSocketServer(io);
 io.on('connection', (socket) => {
+    socket.on('support:subscribe', (ack) => {
+        const sessionData = socket.request?.session;
+        const permissions = new Set(sessionData?.adminPermissions || []);
+        const allowed = Boolean(sessionData?.isLoggedIn)
+            && (sessionData.adminRole === 'master' || permissions.has('*') || permissions.has('support.read'));
+        if (allowed) socket.join('admin:support');
+        if (typeof ack === 'function') ack({ success: allowed });
+    });
     if (
         String(socket.handshake?.query?.monitor || '') === '1'
         && !isAuthorizedOperationalSocket(socket, 'SYSTEM_MONITOR_AUTH_TOKEN')
@@ -390,33 +398,6 @@ io.on('connection', (socket) => {
 
 app.use(systemMonitor.trackRequest);
 
-app.use('/uploads/proofs', (req, res, next) => {
-    // Customer receipts are delivered only through /client/proxy/image, which
-    // verifies transaction ownership.  A logged-in customer must not be able
-    // to guess a storage filename and bypass that check.
-    if (req.session && (req.session.isLoggedIn || req.session.isExecutorLoggedIn)) {
-        return next();
-    }
-    return res.status(403).send('Forbidden');
-});
-// وثائق الهوية والتراخيص لا تُعرض كرابط عام؛ لا يمكن فتحها إلا من جلسة
-// الإدارة الرئيسية التي تملك صلاحية تعديل الحسابات.
-app.use('/uploads/account-documents', requireAuth, requireMaster, express.static(path.join(__dirname, 'uploads')));
-// المرفقات قد تتضمن إثبات هوية أو محادثات دعم أو إيصالات. لا يجوز أن تكون
-// قابلة للفتح من رابط عام؛ العرض التفصيلي يمر لاحقاً عبر مسارات Proxy تتحقق
-// من ملكية السجل، أما هذه البوابة فتمنع الوصول غير المسجّل من الأصل.
-app.use('/uploads', (req, res, next) => {
-    // Customer screens use ownership-checked proxy endpoints for receipts,
-    // support images, and profile photos. Do not allow a client session to
-    // bypass them by guessing any raw storage filename.
-    return restrictClientRawUploads(req, res, next);
-}, (req, res, next) => {
-    if (req.session && (req.session.isLoggedIn || req.session.isClientLoggedIn || req.session.isExecutorLoggedIn)) {
-        return next();
-    }
-    return res.status(403).send('Forbidden');
-}, express.static(path.join(__dirname, 'uploads')));
-
 // روابط الإيصالات الموقعة المخصصة لقوالب واتساب. لا تتطلب جلسة، لكنها تنتهي تلقائياً.
 app.use('/public', require('./routes/publicReceipts'));
 
@@ -435,6 +416,9 @@ const {
 } = require('./middlewares/securityControl');
 app.use(enforceSecuritySession);
 app.use(enforceEmergencyLockdown);
+
+// Raw files must not bypass tenant routing, session expiry or device checks.
+app.use('/uploads', createRawUploadsRouter({ uploadDir: path.join(__dirname, 'uploads') }));
 
 const { adminHrefVisible } = require('./config/adminRoles');
 const { EGYPTIAN_BANKS, bankLabelForTransaction } = require('./utils/egyptianBanks');
@@ -549,6 +533,12 @@ Promise.all([connectDB(), initRedis()]).then(async () => {
     await startExecutorPushNotificationWorker().catch((error) => {
         logger.error('Executor push notification worker failed to start', { error: error.message });
     });
+    const {
+        ensureExecutorCompletionOutboxIndexes,
+        startExecutorCompletionOutboxWorker
+    } = require('./services/executorCompletionOutboxService');
+    await ensureExecutorCompletionOutboxIndexes();
+    await startExecutorCompletionOutboxWorker();
     // 🟢 التأكد من وجود الإعدادات الافتراضية في قاعدة البيانات لتفادي أخطاء null pointer
     server.listen(PORT, () => {
         logger.info(`🟢 Al-Ahram Pay v2.0 running on port ${PORT}`, { port: PORT, env: process.env.NODE_ENV || 'development' });

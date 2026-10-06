@@ -14,7 +14,7 @@ exports.getReports = async (req, res) => {
             ? await workingBalanceForEmployee(emp).catch(() => null)
             : null;
         return res.render('executor/reports', { emp, showMfaNotice, companyBalances, workingBalance });
-    } catch (e) { 
-        res.redirect('/executor-portal/dashboard'); 
+    } catch {
+        res.redirect('/executor-portal/dashboard');
     }
 };

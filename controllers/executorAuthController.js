@@ -2,9 +2,11 @@ const Employee = require('../models/Employee');
 const RegistrationRequest = require('../models/RegistrationRequest');
 const Admin = require('../models/Admin');
 const { escapeRegex, verifyAndUpgradePassword, getTodayString } = require('../utils/helpers');
+const { EXECUTOR_PASSWORD_MESSAGE, isValidNewExecutorPassword } = require('../utils/executorPasswordPolicy');
 const { normalizeSubmittedOtp, verifyOtp } = require('../utils/otp');
 const accountMfaService = require('../services/accountMfaService');
 const { logAction } = require('../services/auditService');
+const { logExecutorFailure } = require('../services/executorTransactionError');
 const securityControl = require('../services/securityControlService');
 const { establishAuthenticatedSession } = require('../utils/sessionSecurity');
 const { readExecutorManualPolicy, webSessionMaxAgeMsForPolicy } = require('../utils/executorManualPolicy');
@@ -69,6 +71,7 @@ const completeExecutorLogin = async (req, res, executor, { showMfaNotice = false
     await establishAuthenticatedSession(req, {
         isExecutorLoggedIn: true,
         executorId: executor._id,
+        executorSessionVersion: Number(executor.sessionVersion || 0),
         executorGroupId: executor.groupId ? executor.groupId._id : null,
         executorName: executor.name || 'منفذ'
     });
@@ -235,7 +238,7 @@ exports.postLogin = async (req, res) => {
 
         return continueExecutorAfterPassword(req, res, executor, { showMfaNotice: true });
     } catch (e) {
-        console.error(e);
+        logExecutorFailure('login', e);
         res.render('executor/login', { error: 'حدث خطأ في النظام.', mfaRequired: false, mfaNotice: false, submittedUsername: '' });
     }
 };
@@ -261,8 +264,8 @@ exports.postRegister = async (req, res) => {
         if (webPassword !== confirmPassword) {
             return renderExecutorRegistration(res, { error: 'كلمات المرور غير متطابقة.', formData });
         }
-        if (String(webPassword).length < 6) {
-            return renderExecutorRegistration(res, { error: 'كلمة المرور يجب ألا تقل عن 6 أحرف.', formData });
+        if (!isValidNewExecutorPassword(webPassword)) {
+            return renderExecutorRegistration(res, { error: EXECUTOR_PASSWORD_MESSAGE, formData });
         }
 
         const finalUsername = normalizeExecutorUsername(formData.webUsername);
@@ -307,16 +310,18 @@ exports.postRegister = async (req, res) => {
                     title: 'طلب تسجيل منفذ جديد',
                     message: `🚨 طلب تسجيل منفذ جديد!\n\nالشركة: ${companyName}\nالمدير: ${managerName}\nالهاتف: ${phone}\nالخدمة: ${formData.executorServiceKey}\nرقم الطلب: ${regRequest.refCode}`,
                     type: 'registration'
-                }).catch(() => {});
+                }).catch((error) => logExecutorFailure('registration-notification', error));
             }
-        } catch (err) { }
+        } catch (error) {
+            logExecutorFailure('registration-notification', error);
+        }
         
         return renderExecutorRegistration(res, {
             success: { refCode: regRequest.refCode, username: finalUsername },
             formData: {}
         });
     } catch (e) {
-        console.error(e);
+        logExecutorFailure('registration', e);
         const errorMessage = e instanceof ExecutorAccountError
             ? e.message
             : 'حدث خطأ داخلي، يرجى المحاولة لاحقاً.';
@@ -349,7 +354,7 @@ exports.postVerify = async (req, res) => {
                 const updated = await Employee.findOneAndUpdate(
                     { _id: account._id, otpChallengeId },
                     { $inc: { otpAttempts: 1 } },
-                    { new: true }
+                    { returnDocument: 'after' }
                 ).lean();
                 if (Number(updated?.otpAttempts || 0) >= 5) {
                     await Employee.updateOne(
@@ -373,7 +378,7 @@ exports.postVerify = async (req, res) => {
                 $set: { lastOtpDate: getTodayString() },
                 $unset: { otpCode: 1, otpExpires: 1, otpChallengeId: 1, otpIssuedAt: 1, otpAttempts: 1 }
             },
-            { new: true }
+            { returnDocument: 'after' }
         ).populate('groupId').lean();
         if (!consumedAccount) {
             return res.render('executor/verify', { error: 'تم استخدام الرمز أو انتهت صلاحيته. سجل الدخول من جديد.' });
@@ -384,7 +389,7 @@ exports.postVerify = async (req, res) => {
         delete req.session.tempAccountType;
         return completeExecutorLogin(req, res, consumedAccount, { showMfaNotice: true });
     } catch (e) {
-        console.error('[Executor OTP] verify failed:', e.message);
+        logExecutorFailure('otp-verification', e);
         return res.render('executor/verify', { error: 'تعذر إكمال التحقق. أعد المحاولة.' });
     }
 };

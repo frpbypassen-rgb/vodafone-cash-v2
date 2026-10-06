@@ -2,17 +2,20 @@
 // ====================================================
 // 🔧 الدوال المساعدة المركزية — لمنع تكرار الكود
 // ====================================================
-const ExecutorGroup = require('../models/ExecutorGroup');
 const Transaction = require('../models/Transaction');
+const Employee = require('../models/Employee');
+const ExecutorBalancePool = require('../models/ExecutorBalancePool');
+const { withOptionalMongoTransaction } = require('../services/adminFinancialMutationService');
+const { lockExecutorLedger, queryWithSession } = require('./executorLedgerGuard');
 const bcrypt = require('bcryptjs');
 const { getExecutorPrimaryServiceKey } = require('./executorServiceCatalog');
-const { ledgerServiceKeyForTransaction } = require('./executorServiceLedger');
+const { allocatedFromRows, ledgerServiceKeyForTransaction } = require('./executorServiceLedger');
 
 // ────────────────────────────────────────────────────────────
 // 1️⃣ مزامنة رصيد البوت المنفذ من العمليات المالية
 // ────────────────────────────────────────────────────────────
-const syncBotBalance = async (botId) => {
-    const bot = await ExecutorGroup.findById(botId);
+const reconcileBotBalance = async (botId, session) => {
+    const bot = await lockExecutorLedger(botId, session);
     if (!bot) return 0;
     
     let queryFilter = {};
@@ -41,7 +44,7 @@ const syncBotBalance = async (botId) => {
     }
 
     const primary = getExecutorPrimaryServiceKey(bot);
-    const txs = await Transaction.find(queryFilter);
+    const txs = await queryWithSession(Transaction.find(queryFilter), session);
     const byService = {};
     txs.forEach((t) => {
         const serviceKey = ledgerServiceKeyForTransaction(t, primary);
@@ -52,11 +55,20 @@ const syncBotBalance = async (botId) => {
         else if (t.status === 'deduction') byService[serviceKey] = current - Math.abs(Number(t.amount || 0));
     });
 
+    const active = { $or: [{ archivedAt: null }, { archivedAt: { $exists: false } }] };
+    const pools = await queryWithSession(ExecutorBalancePool.find({ groupId: bot._id, ...active }), session);
+    const employees = await queryWithSession(Employee.find({ groupId: bot._id, role: 'external', ...active }), session);
+    const allocated = allocatedFromRows({ pools, employees });
+    byService[primary] = Number(byService[primary] || 0) - allocated;
     bot.serviceBalances = byService;
     bot.balance = Number(byService[primary] || 0);
-    await bot.save();
+    await bot.save(session ? { session } : {});
     return bot.balance;
 };
+
+const syncBotBalance = (botId, options = {}) => Object.prototype.hasOwnProperty.call(options, 'session')
+    ? reconcileBotBalance(botId, options.session)
+    : withOptionalMongoTransaction((session) => reconcileBotBalance(botId, session));
 
 // ────────────────────────────────────────────────────────────
 // 2️⃣ التحقق من كلمة المرور + ترقية تلقائية إلى bcrypt

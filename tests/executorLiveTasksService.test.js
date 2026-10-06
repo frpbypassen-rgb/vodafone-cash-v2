@@ -7,6 +7,7 @@ jest.mock('../models/Transaction', () => ({
 }));
 
 const Transaction = require('../models/Transaction');
+const mongoose = require('mongoose');
 const {
     COMPLETED_TODAY_LIMIT,
     DEP_ALERT_LIMIT,
@@ -48,6 +49,19 @@ describe('executor live-tasks hot path', () => {
         expect(serialized).not.toContain('executorReceivedAt');
         expect(query.$and[1]).toEqual({ operatorId: 'employee-1' });
     });
+
+    test.each(['manager', 'accountant'])(
+        'casts only group IDs for %s aggregation matches', (role) => {
+            const id = '507f1f77bcf86cd799439021';
+            const query = completedTodayQuery({ role, groupId: id });
+            for (const scope of query.$and[1].$or) {
+                expect(Object.values(scope)[0]).toBeInstanceOf(mongoose.Types.ObjectId);
+                expect(String(Object.values(scope)[0])).toBe(id);
+            }
+            expect(completedTodayQuery({ role: 'operator', _id: id, groupId: id }).$and[1])
+                .toEqual({ operatorId: id });
+        }
+    );
 
     test('loads live tasks with a lean projection and derives alerts without a second collection scan', async () => {
         const liveQuery = chain([{

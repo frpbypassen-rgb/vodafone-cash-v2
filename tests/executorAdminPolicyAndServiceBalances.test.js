@@ -10,6 +10,10 @@ jest.mock('../models/ExecutorGroup', () => ({
     findByIdAndUpdate: jest.fn()
 }));
 jest.mock('../models/Transaction', () => ({ find: jest.fn() }));
+jest.mock('../models/ExecutorBalancePool', () => ({ find: jest.fn().mockResolvedValue([]) }));
+jest.mock('../services/adminFinancialMutationService', () => ({
+    withOptionalMongoTransaction: jest.fn((work) => work(null))
+}));
 jest.mock('../services/executorDeviceSessionService', () => ({
     enforceExecutorDeviceLimit: jest.fn().mockResolvedValue(undefined)
 }));
@@ -44,6 +48,7 @@ const EXECUTORS_VIEW = path.join(ROOT, 'views', 'executors.ejs');
 describe('admin-only per-executor policy and per-service balances', () => {
     beforeEach(() => {
         jest.clearAllMocks();
+        Employee.find.mockResolvedValue([]);
     });
 
     test('manager updateEmployeeExecutionPolicy is rejected as ADMIN_ONLY', async () => {
@@ -57,7 +62,7 @@ describe('admin-only per-executor policy and per-service balances', () => {
 
     test('portal POST and PUT handlers refuse manager mutation of per-executor overrides', async () => {
         const portalRoutes = read('routes/executorPortal.js');
-        const controllerSource = read('controllers/executorDashboardController.js');
+        const controllerSource = read('controllers/executor/dashboard/routingController.js');
         expect(portalRoutes).toContain("router.put('/api/employees/:id/execution-policy'");
         expect(controllerSource).toContain("code: 'ADMIN_ONLY'");
         expect(controllerSource).toContain('تعديل صلاحيات المنفذ متاح للإدارة المركزية فقط');

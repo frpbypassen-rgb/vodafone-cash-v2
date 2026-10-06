@@ -28,7 +28,7 @@ describe('executor settings mobile workspace', () => {
         const routes = read('routes/executorPortal.js');
         expect(routes).toContain("router.patch('/api/settings/profile', requireExecutorAuth");
         expect(routes).toContain("router.post('/api/settings/password', requireExecutorAuth, settingsPasswordLimiter");
-        const controller = read('controllers/executorDashboardController.js');
+        const controller = read('controllers/executor/dashboard/settingsController.js');
         expect(controller).toContain('bcrypt.compare(currentPassword, employee.webPassword');
         expect(controller).toContain('newPassword !== confirmPassword');
         expect(controller).toContain('normalizeExecutorPhone(req.body?.phone)');

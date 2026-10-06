@@ -4,6 +4,7 @@ const mongoose = require('mongoose');
 const { installAppendOnlyGuards } = require('../utils/financialRecordImmutability');
 
 const auditLogSchema = new mongoose.Schema({
+    eventKey: { type: String, unique: true, sparse: true, maxlength: 260 },
     // ── نوع العملية ──────────────────────────────────────────
     action: {
         type: String,

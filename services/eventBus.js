@@ -33,7 +33,20 @@ class FinancialEventBus extends EventEmitter {
      */
     publish(eventName, data) {
         logger.info(`📢 [EventBus] Publishing event: ${eventName}`, summarizeEventForLog(eventName, data));
-        this.emit(eventName, data);
+        for (const listener of this.listeners(eventName)) {
+            try {
+                Promise.resolve(listener(data)).catch((error) => {
+                    logger.error('Async financial event listener failed', { eventName, error: error.message });
+                });
+            } catch (error) {
+                logger.error('Financial event listener failed', { eventName, error: error.message });
+            }
+        }
+    }
+
+    async publishAsync(eventName, data) {
+        logger.info(`📢 [EventBus] Publishing durable event: ${eventName}`, summarizeEventForLog(eventName, data));
+        await Promise.all(this.listeners(eventName).map((listener) => Promise.resolve().then(() => listener(data))));
     }
 }
 
@@ -42,14 +55,10 @@ const eventBus = new FinancialEventBus();
 
 const dispatchMerchantWebhook = (eventType, data) => {
     const transaction = data?.tx || data?.transaction;
-    if (!transaction) return;
-    Promise.resolve().then(() => {
+    if (!transaction) return Promise.resolve();
+    return Promise.resolve().then(() => {
         const { enqueueTransactionWebhook } = require('./merchantWebhookService');
         return enqueueTransactionWebhook(eventType, transaction);
-    }).catch((error) => {
-        logger.error('Failed to enqueue merchant webhook', {
-            eventType, customId: transaction.customId, error: error.message
-        });
     });
 };
 
@@ -88,7 +97,6 @@ eventBus.on('transfer:created', async (data) => {
 
 // 2. عند إتمام تحويل مالي
 eventBus.on('transfer:completed', async (data) => {
-    try {
         const { tx, emp } = data;
         logger.financial('Transfer Completed Event Received', { customId: tx.customId, status: tx.status });
 
@@ -98,14 +106,10 @@ eventBus.on('transfer:completed', async (data) => {
         const receiptDelivery = (isSplitPartProofTransfer(tx)
             ? require('./splitPartProofService').issueSplitPartProofs(tx._id || tx)
             : require('./whatsappReceiptDeliveryService').sendCompletedTransactionReceipt(tx)
-        ).catch((error) => {
-            logger.error('Failed to send customer receipt', { customId: tx.customId, error: error.message });
-        });
+        );
 
         const { recordTransferRealization } = require('./agencyJournalService');
-        await recordTransferRealization(tx).catch((error) => {
-            logger.error('Failed to realize agency journal transfer', { customId: tx.customId, error: error.message });
-        });
+        await recordTransferRealization(tx);
         
         const { addNotificationJob } = require('./bullQueueService');
         const msg = `✅ تم إتمام الحوالة رقم ${tx.customId} بقيمة ${tx.amount} EGP بنجاح عبر المنفذ ${emp.name}`;
@@ -120,11 +124,7 @@ eventBus.on('transfer:completed', async (data) => {
                 `${tx.customId || tx._id}:${tx.userId}:transfer_complete`
             );
         }
-
         await receiptDelivery;
-    } catch (err) {
-        logger.error('Failed to handle transfer:completed event', { error: err.message });
-    }
 });
 
 // 3. عند إلغاء تحويل مالي

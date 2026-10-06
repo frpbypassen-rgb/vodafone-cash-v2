@@ -8,15 +8,27 @@ const Admin = require('../models/Admin');
 const Notification = require('../models/Notification');
 const SupportTicket = require('../models/SupportTicket');
 const Transaction = require('../models/Transaction');
+const ExecutorGroup = require('../models/ExecutorGroup');
+const logger = require('../utils/logger');
 const { syncBotBalance } = require('../utils/helpers');
+const { withOptionalMongoTransaction } = require('./adminFinancialMutationService');
+const { queryWithSession } = require('../utils/executorLedgerGuard');
 const { getExecutorPrimaryServiceKey } = require('../utils/executorServiceCatalog');
 const { fundingFieldsForService } = require('../utils/executorServiceLedger');
+const { parseExecutorImageDataUrl } = require('../utils/executorImageValidation');
 
 const MAX_RECEIPTS = 5;
 const MAX_RECEIPT_BYTES = 5 * 1024 * 1024;
-const IMAGE_TYPES = { jpeg: 'jpg', jpg: 'jpg', png: 'png', webp: 'webp' };
 
-const failure = (message, status = 400) => Object.assign(new Error(message), { status });
+class ExecutorDepositRequestError extends Error {
+    constructor(message, status = 400) {
+        super(message);
+        this.name = 'ExecutorDepositRequestError';
+        this.status = status;
+    }
+}
+
+const failure = (message, status) => new ExecutorDepositRequestError(message, status);
 const objectId = (value) => String(value?._id || value || '');
 const isAdminInitiatedTicket = (ticket) => (
     ticket?.metadata?.depositRequest?.submittedByRole === 'admin'
@@ -26,25 +38,45 @@ const isAdminInitiatedTicket = (ticket) => (
 );
 
 function parseReceipt(value) {
-    const match = String(value || '').match(/^data:image\/(jpeg|jpg|png|webp);base64,([A-Za-z0-9+/=\r\n]+)$/i);
-    if (!match) throw failure('صيغة أحد الإيصالات غير صالحة. استخدم JPG أو PNG أو WEBP.');
-    const buffer = Buffer.from(match[2], 'base64');
-    if (!buffer.length || buffer.length > MAX_RECEIPT_BYTES) throw failure('حجم كل إيصال يجب ألا يتجاوز 5 ميجابايت.');
-    return { buffer, ext: IMAGE_TYPES[match[1].toLowerCase()] };
+    try {
+        const parsed = parseExecutorImageDataUrl(value, {
+            maxBytes: MAX_RECEIPT_BYTES,
+            allowWrappedBase64: true,
+            errorCode: 'INVALID_DEPOSIT_RECEIPT'
+        });
+        return { buffer: parsed.buffer, ext: parsed.extension };
+    } catch (_error) {
+        throw failure('صيغة أحد الإيصالات غير صالحة أو تالفة. استخدم JPG أو PNG أو WEBP بحد أقصى 5 ميجابايت.');
+    }
 }
 
-function saveReceipts(receipts, reference) {
+async function saveReceipts(receipts, reference) {
     const items = Array.isArray(receipts) ? receipts.filter(Boolean) : [];
     if (!items.length) throw failure('أرفق إيصال إيداع واحدًا على الأقل.');
     if (items.length > MAX_RECEIPTS) throw failure(`يمكن إرفاق ${MAX_RECEIPTS} إيصالات كحد أقصى.`);
     const destination = path.join(process.cwd(), 'uploads', 'proofs');
-    fs.mkdirSync(destination, { recursive: true });
-    return items.map((item, index) => {
-        const { buffer, ext } = parseReceipt(item);
+    const parsed = items.map(parseReceipt);
+    await fs.promises.mkdir(destination, { recursive: true });
+    const saved = [];
+    try {
+        for (const [index, { buffer, ext }] of parsed.entries()) {
         const filename = `${reference}_deposit_${index + 1}_${crypto.randomBytes(5).toString('hex')}.${ext}`;
-        fs.writeFileSync(path.join(destination, filename), buffer);
-        return `proofs/${filename}`;
-    });
+            saved.push(`proofs/${filename}`);
+            await fs.promises.writeFile(path.join(destination, filename), buffer, { flag: 'wx' });
+        }
+        return saved;
+    } catch (error) {
+        await removeReceipts(saved);
+        throw error;
+    }
+}
+
+async function removeReceipts(receipts) {
+    for (const receipt of receipts) {
+        await fs.promises.unlink(path.join(process.cwd(), 'uploads', receipt)).catch((error) => {
+            if (error.code !== 'ENOENT') logger.error('Executor deposit receipt cleanup failed', { code: error.code });
+        });
+    }
 }
 
 function depositMessage({ group, employee, amount, note, customId }) {
@@ -73,31 +105,42 @@ async function createDepositRequest({ employee, group: requestedGroup, submitted
         throw failure('تعذر تحديد المدير الذي سجّل طلب الإيداع.', 401);
     }
     const customId = `DEPREQ-${Date.now().toString().slice(-8)}-${crypto.randomBytes(2).toString('hex').toUpperCase()}`;
-    const receiptImages = saveReceipts(receipts, customId);
+    const receiptImages = await saveReceipts(receipts, customId);
     const createdAt = new Date();
-
+    const transactionId = new mongoose.Types.ObjectId();
+    const ticketId = new mongoose.Types.ObjectId();
+    let tx;
+    try {
+    await withOptionalMongoTransaction(async (session) => {
+    const persistedGroup = await queryWithSession(ExecutorGroup.findOneAndUpdate(
+        { _id: group._id, status: { $ne: 'archived' } }, { $inc: { __v: 1 } },
+        { returnDocument: 'after', ...(session ? { session } : {}) }
+    ), session);
+    if (!persistedGroup) throw failure('شركة التنفيذ غير متاحة لتسجيل الإيداع.', 409);
     const funding = fundingFieldsForService(serviceKey || getExecutorPrimaryServiceKey(group));
-    const tx = await Transaction.create({
+    [tx] = await Transaction.create([{
+        _id: transactionId,
         userId: 'admin', executorGroupId: group._id, managerGroupId: group.isManagerGroup ? group._id : undefined,
         operatorId: objectId(submitter.id), amount: parsedAmount, costLYD: 0, vodafoneNumber: 'طلب إيداع شركة تنفيذ',
         status: 'deposit_pending', customId, companyName: group.name || 'شركة التنفيذ', employeeName: submitter.name,
         executorName: submitter.name, notes: cleanNote, proofImage: receiptImages[0], proofImages: receiptImages,
         executorWebAlert: submittedFromAdmin ? { type: 'warning', text: `تم تسجيل طلب إيداع إداري ${customId} بقيمة ${parsedAmount} EGP وهو قيد المراجعة.` } : undefined,
-        depositRequest: { note: cleanNote, receiptImages, submittedById: submitter.id, submittedByName: submitter.name, submittedByRole: submittedFromAdmin ? 'admin' : 'executor' },
+        depositRequest: { supportTicketId: ticketId, note: cleanNote, receiptImages, submittedById: submitter.id, submittedByName: submitter.name, submittedByRole: submittedFromAdmin ? 'admin' : 'executor' },
         ...(submittedFromAdmin ? {
             performedByAdminId: String(submitter.id),
             performedByAdminName: String(submitter.name),
             performedByAdminAt: createdAt
         } : {}),
         ...funding
-    });
+    }], session ? { session } : {});
 
     const messageActor = { name: submitter.name };
     const messageSender = submittedFromAdmin ? 'admin' : 'user';
     const messageDirection = submittedFromAdmin ? 'outbound' : 'inbound';
     const messages = [{ sender: messageSender, senderName: submitter.name, text: depositMessage({ group, employee: messageActor, amount: parsedAmount, note: cleanNote, customId }), channel: 'portal', direction: messageDirection, messageType: 'text', createdAt }];
     receiptImages.forEach((image) => messages.push({ sender: messageSender, senderName: submitter.name, text: '', imageUrl: `/uploads/${image}`, channel: 'portal', direction: messageDirection, messageType: 'image', createdAt }));
-    const ticket = await SupportTicket.create({
+    await SupportTicket.create([{
+        _id: ticketId,
         entityType: 'executor_group', entityId: group._id, name: group.name || 'شركة التنفيذ', phone: submitter.phone || '',
         channel: 'portal', status: 'open', priority: 'high', category: 'deposit', unreadAdmin: 1, unreadUser: 0, messages,
         metadata: {
@@ -117,10 +160,16 @@ async function createDepositRequest({ employee, group: requestedGroup, submitted
                 status: 'pending'
             }
         }
+    }], session ? { session } : {});
     });
-    tx.depositRequest.supportTicketId = ticket._id;
-    await tx.save();
-    await notifyAdmins({ title: 'طلب إيداع جديد لشركة تنفيذ', message: `${group.name}: ${customId} بقيمة ${parsedAmount} EGP` });
+    } catch (error) {
+        // An uncertain commit must retain its files until reconciliation; never
+        // delete proofs that may already belong to a committed deposit request.
+        if (!error.hasErrorLabel?.('UnknownTransactionCommitResult')) await removeReceipts(receiptImages);
+        throw error;
+    }
+    await notifyAdmins({ title: 'طلب إيداع جديد لشركة تنفيذ', message: `${group.name}: ${customId} بقيمة ${parsedAmount} EGP` })
+        .catch((error) => logger.error('Executor deposit notification failed after commit', { code: error.code }));
     return { id: objectId(tx._id), customId, status: 'pending', receiptCount: receiptImages.length, createdAt };
 }
 
@@ -205,9 +254,9 @@ async function listDepositRequests({ employee }) {
     });
 }
 
-async function resolveDepositTicket({ ticketId, admin, approved, reason = '' }) {
+async function resolveDepositTicketInSession({ ticketId, admin, approved, reason = '', session }) {
     if (!mongoose.isValidObjectId(ticketId)) throw failure('طلب الدعم غير صالح.', 404);
-    const ticket = await SupportTicket.findById(ticketId);
+    const ticket = await queryWithSession(SupportTicket.findById(ticketId), session);
     const transactionId = ticket?.metadata?.type === 'executor_deposit' ? ticket.metadata?.depositRequest?.transactionId : null;
     if (!ticket || !mongoose.isValidObjectId(transactionId)) throw failure('طلب الإيداع غير موجود.', 404);
     const reviewedAt = new Date();
@@ -231,7 +280,7 @@ async function resolveDepositTicket({ ticketId, admin, approved, reason = '' }) 
             executorWebAlert: { type: 'success', text: `تم قبول طلب الإيداع ${ticket.metadata.depositRequest.customId} وإضافة ${ticket.metadata.depositRequest.amount} EGP إلى رصيد الشركة.`, imageUrl: '' }
         }
         : { status: 'rejected', 'depositRequest.reviewedById': reviewerId, 'depositRequest.reviewedByName': reviewerName, 'depositRequest.reviewedAt': reviewedAt, 'depositRequest.rejectionReason': cleanReason, executorWebAlert: { type: 'error', text: `تم رفض طلب الإيداع ${ticket.metadata.depositRequest.customId}. السبب: ${cleanReason}` } };
-    const tx = await Transaction.findOneAndUpdate({ _id: transactionId, status: 'deposit_pending', 'depositRequest.supportTicketId': ticket._id }, { $set: update }, { new: true });
+    const tx = await Transaction.findOneAndUpdate({ _id: transactionId, status: 'deposit_pending', 'depositRequest.supportTicketId': ticket._id }, { $set: update }, { returnDocument: 'after', ...(session ? { session } : {}) });
     if (!tx) throw failure('تمت مراجعة طلب الإيداع سابقًا أو لم يعد متاحًا.', 409);
     ticket.status = approved ? 'resolved' : 'closed';
     ticket.resolvedAt = approved ? reviewedAt : ticket.resolvedAt;
@@ -243,10 +292,15 @@ async function resolveDepositTicket({ ticketId, admin, approved, reason = '' }) 
     ticket.metadata.depositRequest.reviewedAt = reviewedAt;
     if (!approved) ticket.metadata.depositRequest.rejectionReason = cleanReason;
     ticket.messages.push({ sender: 'admin', senderName: reviewerName, text: approved ? `تم قبول الإيداع وإضافة ${tx.amount} EGP إلى رصيد الشركة.` : `تم رفض طلب الإيداع. السبب: ${cleanReason}`, channel: 'portal', direction: 'outbound', messageType: 'text', createdAt: reviewedAt });
-    await ticket.save();
-    if (approved) await syncBotBalance(tx.executorGroupId);
+    ticket.markModified('metadata');
+    await ticket.save(session ? { session } : {});
+    if (approved) await syncBotBalance(tx.executorGroupId, { session });
     return { transaction: tx, ticket };
 }
+
+const resolveDepositTicket = (request) => withOptionalMongoTransaction((session) => (
+    resolveDepositTicketInSession({ ...request, session })
+));
 
 async function reviewAdminDepositRequest({ employee, requestId, approved, reason = '' }) {
     if (!employee?.groupId || employee.role !== 'manager') throw failure('الموافقة على إيداعات الإدارة متاحة لمدير شركة التنفيذ فقط.', 403);
@@ -263,4 +317,4 @@ async function reviewAdminDepositRequest({ employee, requestId, approved, reason
     return resolveDepositTicket({ ticketId: String(tx.depositRequest.supportTicketId), admin: { id: objectId(employee._id), name: employee.name }, approved, reason });
 }
 
-module.exports = { createDepositRequest, listDepositRequests, resolveDepositTicket, reviewAdminDepositRequest };
+module.exports = { ExecutorDepositRequestError, createDepositRequest, listDepositRequests, resolveDepositTicket, reviewAdminDepositRequest };

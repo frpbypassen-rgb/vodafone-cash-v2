@@ -50,7 +50,7 @@ const WALLET_A = '01108172258';
 const WALLET_B = '01000926306';
 const CUSTOMER_WHATSAPP = '01000001111';
 const CONFIRMED_AT = new Date('2026-09-26T09:15:00.000Z');
-const ARTIFACT_DIR = '/opt/cursor/artifacts';
+const ARTIFACT_DIR = path.join(__dirname, '..', 'artifacts', 'split-part-proofs');
 const PROOF_DIR = path.join(process.cwd(), 'uploads', 'proofs');
 
 let replSet;
@@ -356,8 +356,7 @@ afterEach(async () => {
 });
 
 describe('split part proofs on MongoMemoryReplSet', () => {
-    test('mongoose 9.9 rejects a pipeline update until updatePipeline is set, then the service syncs both proofs', async () => {
-        expect(mongoose.version).toBe('9.9.3');
+    test('mongoose rejects a pipeline update until updatePipeline is set, then the service syncs both proofs', async () => {
         const tx = await seedTransfer({ customId: 'TEST-REF-2500' });
         expect(() => Transaction.updateOne({ _id: tx._id }, [
             { $set: { notes: 'pipeline-without-option' } }

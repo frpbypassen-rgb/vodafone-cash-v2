@@ -3,6 +3,7 @@
 const express = require('express');
 const router = express.Router();
 const logger = require('../utils/logger');
+const { emitSupportTicketUpdate } = require('../services/supportRealtimeService');
 const {
     normalizeWhatChimpDeliveryWebhook,
     normalizeWhatChimpWebhookPayload,
@@ -45,7 +46,7 @@ router.post('/messages', async (req, res) => {
 
         const result = await recordWhatChimpSupportMessage(event);
         if (result.ticket) {
-            req.app.get('io')?.emit('support:ticket-updated', {
+            emitSupportTicketUpdate(req, {
                 ticketId: String(result.ticket._id),
                 channel: 'whatsapp',
                 direction: event.direction

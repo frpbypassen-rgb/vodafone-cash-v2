@@ -7,9 +7,12 @@ jest.mock('../models/Employee', () => ({
 const Employee = require('../models/Employee');
 const {
     DEFAULT_TTL_MS,
+    MAX_CACHE_ENTRIES,
     cacheTtlMs,
     clearExecutorAuthCache,
-    loadExecutorEmployee
+    loadExecutorEmployee,
+    getCachedExecutor,
+    setCachedExecutor
 } = require('../services/executorAuthCache');
 
 describe('executor auth cache', () => {
@@ -62,5 +65,14 @@ describe('executor auth cache', () => {
         expect(cacheTtlMs({})).toBe(DEFAULT_TTL_MS);
         expect(cacheTtlMs({ EXECUTOR_AUTH_CACHE_MS: '500' })).toBe(DEFAULT_TTL_MS);
         expect(cacheTtlMs({ EXECUTOR_AUTH_CACHE_MS: '20000' })).toBe(20000);
+    });
+
+    test('evicts the oldest entry when the cache reaches its bound', () => {
+        for (let index = 0; index < MAX_CACHE_ENTRIES; index += 1) {
+            setCachedExecutor(`employee-${index}`, { index }, { now: 1000, ttlMs: 100000 });
+        }
+        setCachedExecutor('new-employee', { index: MAX_CACHE_ENTRIES }, { now: 1000, ttlMs: 100000 });
+        expect(getCachedExecutor('employee-0', 1000)).toBeNull();
+        expect(getCachedExecutor('new-employee', 1000)).toEqual({ index: MAX_CACHE_ENTRIES });
     });
 });

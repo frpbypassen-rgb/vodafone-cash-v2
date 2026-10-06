@@ -2,7 +2,8 @@ const fs = require('fs');
 const path = require('path');
 
 const root = path.join(__dirname, '..');
-const dashboard = fs.readFileSync(path.join(root, 'views/executor/dashboard.ejs'), 'utf8');
+const { readPortalView } = require('./helpers/executorPortalSources');
+const dashboard = readPortalView('dashboard');
 const mobileStyles = fs.readFileSync(path.join(root, 'public/css/executor-dashboard-mobile.css'), 'utf8');
 const sharedStyles = fs.readFileSync(path.join(root, 'public/css/executor-os.css'), 'utf8');
 const executorPages = ['dashboard', 'employees', 'deposits', 'reports', 'support', 'settings'];
@@ -29,7 +30,7 @@ describe('executor manager mobile dashboard', () => {
     test('keeps the received task details and distinguishes cash, bank, and post-card types', () => {
         expect(dashboard).toContain("? 'task-post-card'");
         expect(dashboard).toContain("'task-bank-transfer'");
-        expect(dashboard).toContain("normalizedTransferType === 'vodafone' ? 'task-cash-transfer'");
+        expect(dashboard).toMatch(/normalizedTransferType === 'vodafone'\s*\? 'task-cash-transfer'/);
         expect(dashboard).toContain('task-card ${cardClass} ${transferVisualClass}');
         expect(dashboard).toContain('${recipientLabel}');
         expect(dashboard).toContain('${formattedAmount}');
@@ -50,7 +51,7 @@ describe('executor manager mobile dashboard', () => {
         expect(dashboard).toContain('window.location.assign(activeTaskUrl(id))');
         expect(dashboard).toContain("activeTaskId ? 'العملية النشطة' : 'منصة التنفيذ'");
         expect(dashboard).toContain('جار فتح العملية النشطة');
-        expect(dashboard).toContain('ownedTasks.filter(t => String(t._id) === activeTaskId)');
+        expect(dashboard).toMatch(/ownedTasks\.filter\(\(?t\)? => String\(t\._id\) === activeTaskId\)/);
         expect(dashboard).toContain("window.location.assign('/executor-portal/dashboard')");
         expect(dashboard).toContain("${activeTaskId ? '' : `<button onclick=\"returnTask(");
         expect(mobileStyles).toContain('body.executor-page-dashboard.executor-active-task .exo-dock');

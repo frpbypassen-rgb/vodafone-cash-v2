@@ -1,5 +1,9 @@
 'use strict';
 
+jest.mock('../services/adminFinancialMutationService', () => ({
+    withOptionalMongoTransaction: jest.fn((work) => work(null))
+}));
+
 jest.mock('../models/Employee', () => {
     const { makeCollectionModel } = require('./helpers/executorPoolStore');
     return makeCollectionModel('employees');
@@ -13,7 +17,7 @@ jest.mock('../models/ExecutorGroup', () => ({
     findOneAndUpdate: jest.fn(),
     findByIdAndUpdate: jest.fn()
 }));
-jest.mock('../models/Transaction', () => ({ create: jest.fn() }));
+jest.mock('../models/Transaction', () => ({ create: jest.fn(), findOne: jest.fn() }));
 jest.mock('../models/Notification', () => ({ create: jest.fn() }));
 
 const ExecutorGroup = require('../models/ExecutorGroup');
@@ -75,6 +79,8 @@ describe('executor shared-balance pools', () => {
             store.transactions.push(tx);
             return tx;
         });
+        Transaction.findOne.mockImplementation(async ({ customId }) =>
+            store.transactions.find((item) => item.customId === customId) || null);
         Notification.create.mockImplementation(async (data) => {
             store.notifications.push(data);
             return data;
@@ -190,6 +196,20 @@ describe('executor shared-balance pools', () => {
         expect(store.employees.get('mounir').balance).toBe(400);
         expect(store.employees.get('mounir').balancePoolId).toBeNull();
         expect(snapshot.totalBalance).toBe(10000);
+    });
+
+    test('replaying a funding request does not move balances or notify twice', async () => {
+        const input = { manager, employeeId: 'mounir', type: 'deposit', amount: 400,
+            note: 'تمويل', requestId: 'request-1234567890123456' };
+        const first = await fundExternalExecutor(input);
+        const second = await fundExternalExecutor(input);
+        expect(second).toMatchObject({ customId: first.customId, replayed: true });
+        expect(store.groups.get('group-1').balance).toBe(9600);
+        expect(store.employees.get('mounir').balance).toBe(400);
+        expect(store.transactions).toHaveLength(1);
+        expect(store.notifications).toHaveLength(1);
+        await expect(fundExternalExecutor({ ...input, amount: 500 }))
+            .rejects.toMatchObject({ code: 'REQUEST_ID_CONFLICT' });
     });
 
     test('deposit receipt and notification are only for the targeted executor, not every pool member', async () => {

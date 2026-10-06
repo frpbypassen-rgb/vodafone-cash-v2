@@ -28,7 +28,7 @@ const nextCounterValue = async (name) => {
     const counter = await Counter.findOneAndUpdate(
         { name },
         { $inc: { value: 1 } },
-        { upsert: true, new: true, setDefaultsOnInsert: true }
+        { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }
     );
     const value = Number(counter?.value);
     if (!Number.isInteger(value) || value < 1) {
@@ -93,7 +93,7 @@ const ensureGroupReceiptPrefix = async (group) => {
                 ]
             },
             { $set: { manualReceiptPrefix: prefix } },
-            { new: true }
+            { returnDocument: 'after' }
         );
         if (claimedGroup?.manualReceiptPrefix) return normalizeManualExecutorReceiptPrefix(claimedGroup.manualReceiptPrefix);
 

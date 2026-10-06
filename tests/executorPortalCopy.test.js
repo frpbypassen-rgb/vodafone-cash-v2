@@ -6,11 +6,12 @@ const path = require('path');
 const ROOT = path.join(__dirname, '..');
 const read = (relativePath) => fs.readFileSync(path.join(ROOT, relativePath), 'utf8');
 
-const dashboardView = read('views/executor/dashboard.ejs');
+const { readPortalView, readDashboardHandlers } = require('./helpers/executorPortalSources');
+const dashboardView = readPortalView('dashboard');
 const settingsView = read('views/executor/settings.ejs');
 const depositsView = read('views/executor/deposits.ejs');
 const navigationView = read('views/executor/partials/navigation.ejs');
-const dashboardController = read('controllers/executorDashboardController.js');
+const dashboardController = readDashboardHandlers();
 
 describe('executor portal copy contracts', () => {
     test('live-queue cards name bank / sefa / bankak instead of defaulting to cash', () => {

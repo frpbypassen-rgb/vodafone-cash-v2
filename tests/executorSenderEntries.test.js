@@ -1,9 +1,6 @@
 'use strict';
 
-const {
-    ExecutorSenderEntriesError,
-    normalizeExecutorSenderEntries
-} = require('../utils/executorSenderEntries');
+const { normalizeExecutorSenderEntries } = require('../utils/executorSenderEntries');
 
 describe('executor sender entries', () => {
     test('allows completing without a sender number', () => {

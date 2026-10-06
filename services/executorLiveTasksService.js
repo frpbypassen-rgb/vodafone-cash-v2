@@ -1,5 +1,6 @@
 'use strict';
 
+const mongoose = require('mongoose');
 const Transaction = require('../models/Transaction');
 const { taskOwnershipFilter } = require('./executorTaskRoutingService');
 const { toExecutorPortalTaskDto } = require('../utils/executorTaskPrivacy');
@@ -55,7 +56,11 @@ const taskArrivalTime = (tx) => {
 };
 
 const completedTodayScope = (emp) => {
-    const groupId = objectIdString(emp.groupId);
+    const rawGroupId = objectIdString(emp.groupId);
+    // Aggregation does not apply Mongoose's query casting. Employee IDs are
+    // strings in Transaction, while executor/manager group IDs are ObjectIds.
+    const groupId = mongoose.isObjectIdOrHexString(rawGroupId)
+        ? new mongoose.Types.ObjectId(rawGroupId) : rawGroupId;
     const seesGroupCompletedToday = emp.role === 'manager' || emp.role === 'accountant';
     if (seesGroupCompletedToday) {
         return { $or: [{ executorGroupId: groupId }, { managerGroupId: groupId }] };

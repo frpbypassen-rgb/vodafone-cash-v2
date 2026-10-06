@@ -4,6 +4,7 @@ const Employee = require('../models/Employee');
 
 const DEFAULT_TTL_MS = 15 * 1000;
 const MAX_TTL_MS = 60 * 1000;
+const MAX_CACHE_ENTRIES = 2000;
 const EMPLOYEE_FIELDS = 'name phone role status groupId webUsername telegramId canViewAllReports balance executionPolicyOverride sessionVersion ussdNetwork ussdWalletPinSetAt';
 const GROUP_FIELDS = [
     'name',
@@ -48,6 +49,15 @@ const getCachedExecutor = (executorId, now = Date.now()) => {
 const setCachedExecutor = (executorId, value, { now = Date.now(), ttlMs = cacheTtlMs() } = {}) => {
     const key = cacheKey(executorId);
     if (!key || !value) return;
+    cache.delete(key);
+    if (cache.size >= MAX_CACHE_ENTRIES) {
+        for (const [cachedKey, entry] of cache) {
+            if (now >= entry.expiresAt) cache.delete(cachedKey);
+        }
+    }
+    while (cache.size >= MAX_CACHE_ENTRIES) {
+        cache.delete(cache.keys().next().value);
+    }
     cache.set(key, { value, expiresAt: now + ttlMs });
 };
 
@@ -87,6 +97,7 @@ const loadExecutorEmployee = async (executorId, { fresh = false, lean = true } =
 
 module.exports = {
     DEFAULT_TTL_MS,
+    MAX_CACHE_ENTRIES,
     EMPLOYEE_FIELDS,
     GROUP_FIELDS,
     cacheTtlMs,

@@ -2,6 +2,7 @@ const express = require('express');
 const mongoose = require('mongoose');
 const rateLimit = require('express-rate-limit');
 const crypto = require('crypto');
+const { emitSupportTicketUpdate } = require('../services/supportRealtimeService');
 const User = require('../models/User');
 const ClientEmployee = require('../models/ClientEmployee');
 const ClientCompany = require('../models/ClientCompany');
@@ -1231,7 +1232,7 @@ const sendMobileWorkspaceError = (res, req, error, fallbackMessage) => {
         INVALID_INPUT: [422, 'INVALID_INPUT', 'بيانات الطلب غير مكتملة أو غير صالحة.'],
         INVALID_USERNAME: [422, 'INVALID_USERNAME', 'اسم المستخدم يجب أن يتكون من أحرف إنجليزية وأرقام وشرطة سفلية فقط.'],
         USERNAME_TAKEN: [409, 'USERNAME_TAKEN', 'اسم المستخدم مستخدم بالفعل.'],
-        WEAK_PASSWORD: [422, 'WEAK_PASSWORD', 'كلمة المرور يجب أن تتكون من 6 أحرف على الأقل.']
+        WEAK_PASSWORD: [422, 'WEAK_PASSWORD', 'كلمة المرور يجب أن تتكون من 8 أحرف على الأقل.']
     };
     if (known[code]) {
         const [status, stableCode, message] = known[code];
@@ -2923,7 +2924,7 @@ router.post('/client/tickets/:id/reply', authenticateJWT, async (req, res) => {
         ticket.status = 'open';
         ticket.unreadAdmin = (ticket.unreadAdmin || 0) + 1;
         await ticket.save();
-        req.app.get('io')?.emit('support:ticket-updated', {
+        emitSupportTicketUpdate(req, {
             ticketId: String(ticket._id),
             channel: ticket.channel || 'portal',
             direction: 'inbound',
@@ -3717,7 +3718,7 @@ router.post('/executor/support/group-chat/replies', authenticateJWT, async (req,
             executorId: req.user.userId,
             payload: req.body
         });
-        req.app.get('io')?.emit('support:ticket-updated', {
+        emitSupportTicketUpdate(req, {
             ticketId: workspace.ticket.id,
             channel: 'portal',
             direction: 'inbound',
@@ -3739,7 +3740,7 @@ router.post('/executor/support/tickets', authenticateJWT, async (req, res) => {
             executorId: req.user.userId,
             payload: req.body
         });
-        req.app.get('io')?.emit('support:ticket-updated', {
+        emitSupportTicketUpdate(req, {
             ticketId: ticket.id,
             channel: 'portal',
             direction: 'inbound',
@@ -3791,7 +3792,7 @@ router.post('/executor/support/tickets/:id/replies', authenticateJWT, async (req
             ticketId: req.params.id,
             payload: req.body
         });
-        req.app.get('io')?.emit('support:ticket-updated', {
+        emitSupportTicketUpdate(req, {
             ticketId: ticket.id,
             channel: 'portal',
             direction: 'inbound',
@@ -3979,6 +3980,9 @@ router.post('/executor/reports/filter', authenticateJWT, executorReportsValidato
         if (e.message === 'INVALID_PERIOD') {
             return sendMobileError(res, 422, 'INVALID_PERIOD', 'الفترة غير صالحة أو تتجاوز سنة واحدة', req.correlationId);
         }
+        if (e.message === 'REPORT_TOO_LARGE') {
+            return sendMobileError(res, 413, 'REPORT_TOO_LARGE', 'التقرير كبير جداً. اختر فترة أقصر أو موظفاً محدداً', req.correlationId);
+        }
         return sendServerError(res, req, 'حدث خطأ أثناء جلب التقارير');
     }
 });
@@ -4028,6 +4032,9 @@ router.post('/executor/reports/download-link', authenticateJWT, executorReportsV
         if (e.message === 'INVALID_PERIOD') {
             return sendMobileError(res, 422, 'INVALID_PERIOD', 'الفترة غير صالحة أو تتجاوز سنة واحدة', req.correlationId);
         }
+        if (e.message === 'REPORT_TOO_LARGE') {
+            return sendMobileError(res, 413, 'REPORT_TOO_LARGE', 'التقرير كبير جداً. اختر فترة أقصر أو موظفاً محدداً', req.correlationId);
+        }
         return sendServerError(res, req, 'حدث خطأ أثناء تجهيز ملف التقرير');
     }
 });
@@ -4057,10 +4064,14 @@ router.get('/executor/reports/download.pdf', async (req, res) => {
         return res.end(pdf);
     } catch (e) {
         console.error('[mobile/executor-report-pdf] failed:', e.stack || e.message);
-        const status = e.code === 'PDF_BROWSER_NOT_FOUND' ? 503 : 403;
+        const status = e.code === 'PDF_BROWSER_NOT_FOUND' ? 503
+            : e.code === 'PDF_BUSY' ? 429
+                : e.message === 'REPORT_TOO_LARGE' ? 413 : 403;
         return res.status(status).send(
             e.code === 'PDF_BROWSER_NOT_FOUND'
                 ? 'تعذر تشغيل محرك PDF على الخادم.'
+                : e.code === 'PDF_BUSY' ? 'هناك تقارير قيد التجهيز. أعد المحاولة بعد قليل.'
+                    : e.message === 'REPORT_TOO_LARGE' ? 'التقرير كبير جداً. اختر فترة أقصر أو موظفاً محدداً.'
                 : 'رابط تنزيل التقرير غير صالح أو انتهت صلاحيته.'
         );
     }
@@ -4355,7 +4366,8 @@ router.post('/executor/employees/:id/external-transaction', authenticateJWT, asy
             employeeId: req.params.id,
             type: req.body?.type,
             amount: req.body?.amount,
-            note: req.body?.note
+            note: req.body?.note,
+            requestId: req.body?.requestId
         });
         return res.json({ success: true, ...result });
     } catch (error) {

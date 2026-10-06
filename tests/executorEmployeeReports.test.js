@@ -90,6 +90,16 @@ describe('executor employee reports', () => {
         expect(report.cancelledOperations.map((item) => item.customId)).toEqual(['ATT-2']);
     });
 
+    test('rejects an oversized report instead of returning incomplete totals', async () => {
+        const limit = jest.fn().mockReturnValue(leanResult(Array.from({ length: 5001 }, () => ({ status: 'completed' }))));
+        Transaction.find.mockReturnValue({ sort: jest.fn().mockReturnValue({ limit }) });
+
+        await expect(getExecutorReports({
+            executorId: 'employee-1', dateType: 'all'
+        })).rejects.toThrow('REPORT_TOO_LARGE');
+        expect(limit).toHaveBeenCalledWith(5001);
+    });
+
     test('uses the raw group id when the web portal provides a populated group', async () => {
         Employee.findById.mockResolvedValue({
             _id: 'manager-1',

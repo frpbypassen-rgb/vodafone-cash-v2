@@ -52,7 +52,7 @@ describe('Executor account service', () => {
                 name: 'مدير منفذ طرابلس',
                 phone: '091-123-4567',
                 webUsername: 'Tripoli_Executor',
-                webPassword: 'secret1'
+                webPassword: 'secret12'
             },
             openingBalance: 5000
         });
@@ -85,7 +85,7 @@ describe('Executor account service', () => {
                 name: 'مدير منفذ مدين',
                 phone: '0911234568',
                 webUsername: 'debit_executor',
-                webPassword: 'secret1'
+                webPassword: 'secret12'
             },
             openingBalance: -350
         });
@@ -126,7 +126,7 @@ describe('Executor account service', () => {
                 name: 'مدير مكرر',
                 phone: '0911234570',
                 webUsername: 'duplicate',
-                webPassword: 'secret1'
+                webPassword: 'secret12'
             }
         })).rejects.toMatchObject({ code: 'USERNAME_TAKEN' });
 
@@ -140,7 +140,7 @@ describe('Executor account service', () => {
                 name: 'مدير الرصيد',
                 phone: '0911234572',
                 webUsername: 'invalid_balance_executor',
-                webPassword: 'secret1'
+                webPassword: 'secret12'
             },
             openingBalance: Number.NaN
         })).rejects.toMatchObject({ code: 'INVALID_BALANCE' });
@@ -165,7 +165,7 @@ describe('Executor account service', () => {
                 name: 'مدير متراجع',
                 phone: '0911234571',
                 webUsername: 'rollback_executor',
-                webPassword: 'secret1'
+                webPassword: 'secret12'
             }
         })).rejects.toThrow('database failure');
 

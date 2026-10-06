@@ -59,7 +59,7 @@ const eventBus = require('../services/eventBus');
 const { saveProofImage } = require('../services/proofStorageService');
 const { saveApiReceiptProof } = require('../services/externalApiService');
 const { listProviderPaidAwaitingCompletion } = require('../scripts/listProviderPaidAwaitingCompletion');
-const { MongoServerError } = require('mongodb');
+const { MongoServerError } = mongoose.mongo;
 
 jest.setTimeout(180000);
 

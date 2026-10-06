@@ -719,6 +719,7 @@ const completeExecutorSession = async (req, executor, res = null) => {
     await establishAuthenticatedSession(req, {
         isExecutorLoggedIn: true,
         executorId: executor._id,
+        executorSessionVersion: Number(executor.sessionVersion || 0),
         executorGroupId: executor.groupId ? executor.groupId._id : null,
         executorName: executor.name || 'منفذ'
     });

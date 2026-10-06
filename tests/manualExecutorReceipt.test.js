@@ -151,7 +151,7 @@ describe('Manual executor receipt references', () => {
         expect(Counter.findOneAndUpdate).toHaveBeenLastCalledWith(
             { name: 'manual-executor-receipt-sequence:group-1' },
             { $inc: { value: 1 } },
-            expect.objectContaining({ upsert: true, new: true })
+            expect.objectContaining({ upsert: true, returnDocument: 'after' })
         );
     });
 });
