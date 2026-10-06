@@ -335,8 +335,9 @@ body.executor-portal-v2 .task-card.task-mine::before {
 }
 
 body.executor-portal-v2 .task-card.task-locked {
-  opacity: 0.65 !important;
-  filter: saturate(0.6) !important;
+  opacity: 1 !important;
+  filter: none !important;
+  border-style: dashed !important;
 }
 
 body.executor-portal-v2 .task-card.task-locked::before { background: var(--x-muted) !important; }
