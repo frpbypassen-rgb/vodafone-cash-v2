@@ -1,6 +1,7 @@
 const Employee = require('../../../models/Employee');
 const Transaction = require('../../../models/Transaction');
 const {
+    executorRequestTenantScope,
     findOwnedAcceptedExecutorTask,
     taskGroupFilter,
 } = require('../../../services/executorTaskRoutingService');
@@ -82,6 +83,7 @@ exports.getLiveTasks = async (req, res) => {
         const payload = await loadPortalLiveTasks({
             emp,
             includeCompletedList: !lite,
+            tenantId: executorRequestTenantScope(req),
         });
         return res.json(payload);
     } catch (_) {
@@ -93,11 +95,14 @@ exports.postClearAlert = async (req, res) => {
     try {
         const emp = req.executorEmployee || (await Employee.findById(req.session.executorId));
         if (!emp) return res.status(401).json({ success: false, error: 'انتهت جلسة الدخول.' });
+        const alertFilter = {
+            _id: req.params.id,
+            $or: [{ executorGroupId: emp.groupId }, { managerGroupId: emp.groupId }],
+        };
+        const tenantScope = executorRequestTenantScope(req);
+        if (tenantScope) alertFilter.tenantId = tenantScope;
         const result = await Transaction.updateOne(
-            {
-                _id: req.params.id,
-                $or: [{ executorGroupId: emp.groupId }, { managerGroupId: emp.groupId }],
-            },
+            alertFilter,
             { $unset: { emergencyAlert: 1 } },
             { strict: false }
         );
@@ -113,15 +118,18 @@ exports.postClearDepAlert = async (req, res) => {
     try {
         const emp = req.executorEmployee || (await Employee.findById(req.session.executorId));
         if (!emp) return res.status(401).json({ success: false, error: 'انتهت جلسة الدخول.' });
+        const alertFilter = {
+            _id: req.params.id,
+            $or: [
+                { operatorId: emp._id.toString() },
+                { executorGroupId: emp.groupId },
+                { managerGroupId: emp.groupId },
+            ],
+        };
+        const tenantScope = executorRequestTenantScope(req);
+        if (tenantScope) alertFilter.tenantId = tenantScope;
         const result = await Transaction.updateOne(
-            {
-                _id: req.params.id,
-                $or: [
-                    { operatorId: emp._id.toString() },
-                    { executorGroupId: emp.groupId },
-                    { managerGroupId: emp.groupId },
-                ],
-            },
+            alertFilter,
             { $unset: { executorWebAlert: 1 } },
             { strict: false }
         );
