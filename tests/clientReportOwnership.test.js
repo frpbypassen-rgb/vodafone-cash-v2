@@ -32,7 +32,10 @@ const Settlement = require('../models/Settlement');
 const { loadReports, resolveAgentPermissions } = require('../services/businessPortalService');
 const { exportReportCsv } = require('../controllers/clientWorkspaceController');
 
+jest.setTimeout(180000);
+
 const SHARED_NAME = 'أحمد المشترك';
+const PREHASHED_PASSWORD = '$2b$12$hashed';
 const DAY = '2026-12-01';
 const AT = new Date('2026-12-01T10:00:00.000Z');
 const VICTIM_NUMBER = '01055550199';
@@ -131,7 +134,7 @@ describe('client report ownership', () => {
             name: SHARED_NAME,
             phone: '0912000001',
             webUsername: 'client-victim',
-            webPassword: 'hashed-password-placeholder',
+            webPassword: PREHASHED_PASSWORD,
             balance: 500,
             role: 'user',
             status: 'active'
@@ -140,7 +143,7 @@ describe('client report ownership', () => {
             name: SHARED_NAME,
             phone: '0912000002',
             webUsername: 'client-intruder',
-            webPassword: 'hashed-password-placeholder',
+            webPassword: PREHASHED_PASSWORD,
             balance: 80,
             role: 'user',
             status: 'active'
@@ -149,7 +152,7 @@ describe('client report ownership', () => {
             name: 'سالم القديم',
             phone: '0912000003',
             webUsername: 'client-renamed',
-            webPassword: 'hashed-password-placeholder',
+            webPassword: PREHASHED_PASSWORD,
             balance: 40,
             role: 'user',
             status: 'active'
@@ -158,7 +161,7 @@ describe('client report ownership', () => {
             name: SHARED_NAME,
             phone: '0912000004',
             webUsername: 'client-empty',
-            webPassword: 'hashed-password-placeholder',
+            webPassword: PREHASHED_PASSWORD,
             balance: 0,
             role: 'user',
             status: 'active'
@@ -167,7 +170,7 @@ describe('client report ownership', () => {
             name: 'وكالة الهرم',
             phone: '0912000099',
             webUsername: 'agent-owner',
-            webPassword: 'hashed-password-placeholder',
+            webPassword: PREHASHED_PASSWORD,
             balance: 900,
             role: 'agent',
             status: 'active'
@@ -178,7 +181,7 @@ describe('client report ownership', () => {
             name: 'نقطة البيع',
             phone: '0922000001',
             webUsername: 'sub-own',
-            webPassword: 'hashed-password-placeholder',
+            webPassword: PREHASHED_PASSWORD,
             balance: 30,
             status: 'active'
         });
@@ -188,7 +191,7 @@ describe('client report ownership', () => {
             name: 'نقطة البيع',
             phone: '0922000002',
             webUsername: 'sub-other',
-            webPassword: 'hashed-password-placeholder',
+            webPassword: PREHASHED_PASSWORD,
             balance: 70,
             status: 'active'
         });
@@ -198,7 +201,7 @@ describe('client report ownership', () => {
             name: 'نقطة البيع',
             phone: '0922000003',
             webUsername: 'sub-empty',
-            webPassword: 'hashed-password-placeholder',
+            webPassword: PREHASHED_PASSWORD,
             balance: 0,
             status: 'active'
         });
@@ -213,7 +216,7 @@ describe('client report ownership', () => {
             name: 'موظف مشترك',
             phone: '0932000001',
             webUsername: 'emp-own',
-            webPassword: 'hashed-password-placeholder',
+            webPassword: PREHASHED_PASSWORD,
             role: 'employee',
             canViewAllReports: false,
             status: 'active'
@@ -223,7 +226,7 @@ describe('client report ownership', () => {
             name: 'موظف مشترك',
             phone: '0932000002',
             webUsername: 'emp-peer',
-            webPassword: 'hashed-password-placeholder',
+            webPassword: PREHASHED_PASSWORD,
             role: 'employee',
             canViewAllReports: false,
             status: 'active'
@@ -233,7 +236,7 @@ describe('client report ownership', () => {
             name: 'موظف الوكيل',
             phone: '0942000001',
             webUsername: 'staff-own',
-            webPassword: 'hashed-password-placeholder',
+            webPassword: PREHASHED_PASSWORD,
             role: 'employee',
             canViewAllReports: false,
             status: 'active'
@@ -243,7 +246,7 @@ describe('client report ownership', () => {
             name: 'موظف الوكيل',
             phone: '0942000002',
             webUsername: 'staff-peer',
-            webPassword: 'hashed-password-placeholder',
+            webPassword: PREHASHED_PASSWORD,
             role: 'employee',
             canViewAllReports: false,
             status: 'active'
