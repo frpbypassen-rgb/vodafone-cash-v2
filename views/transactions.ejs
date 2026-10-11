@@ -2176,7 +2176,7 @@
                 method: 'POST',
                 credentials: 'same-origin',
                 headers: { 'Accept': 'application/json', 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
-                body: JSON.stringify({ ...body, confirm: true })
+                body: JSON.stringify({ ...body, expectedUpdatedAt: preview.expectedUpdatedAt, confirm: true })
             });
             const result = await confirmResponse.json().catch(() => ({}));
             if (!confirmResponse.ok || !result.success) throw new Error(result.message || result.error || 'تعذر اعتماد العملية.');
