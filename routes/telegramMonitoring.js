@@ -12,7 +12,14 @@ router.get('/', requireAuth, async (req, res, next) => {
         const filter = {};
         if (['sending', 'sent', 'failed', 'skipped'].includes(status)) filter.status = status;
         if (search) filter.$or = [{ reference: new RegExp(search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i') }, { chatId: new RegExp(search, 'i') }, { failureReason: new RegExp(search, 'i') }];
-        const deliveries = await TelegramDelivery.find({ ...filter, ...adminAccountScope(req) }).sort({ updatedAt: -1 }).limit(250).lean();
+        const deliveries = await TelegramDelivery.find({ ...filter, ...adminAccountScope(req) })
+            .populate({ path: 'transactionId', select: 'companyId companyName employeeName subAccountName', populate: { path: 'companyId', select: 'name' } })
+            .sort({ updatedAt: -1 }).limit(250).lean();
+        deliveries.forEach((delivery) => {
+            const transaction = delivery.transactionId;
+            delivery.accountName = transaction?.companyId?.name || transaction?.companyName || transaction?.subAccountName || transaction?.employeeName || 'غير محدد';
+            delivery.transactionId = transaction?._id || null;
+        });
         const summary = await TelegramDelivery.aggregate([{ $match: { ...adminAccountScope(req) } }, { $group: { _id: '$status', count: { $sum: 1 } } }]);
         const counts = Object.fromEntries(summary.map((row) => [row._id, row.count]));
         return res.render('telegram_monitor', { deliveries, search, status, counts });
