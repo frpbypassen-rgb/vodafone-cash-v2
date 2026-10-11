@@ -391,13 +391,14 @@ io.use((socket, next) => sessionMiddleware(socket.request, {
     end: () => undefined
 }, next));
 io.on('connection', (socket) => {
+    const sessionData = socket.request?.session;
+    const permissions = new Set(sessionData?.adminPermissions || []);
+    const canReadTransactions = Boolean(sessionData?.isLoggedIn)
+        && (sessionData.adminRole === 'master' || permissions.has('*') || permissions.has('transactions.read'));
+    if (canReadTransactions) socket.join('admin:transactions');
     socket.on('transactions:subscribe', (ack) => {
-        const sessionData = socket.request?.session;
-        const permissions = new Set(sessionData?.adminPermissions || []);
-        const allowed = Boolean(sessionData?.isLoggedIn)
-            && (sessionData.adminRole === 'master' || permissions.has('*') || permissions.has('transactions.read'));
-        if (allowed) socket.join('admin:transactions');
-        if (typeof ack === 'function') ack({ success: allowed });
+        if (canReadTransactions) socket.join('admin:transactions');
+        if (typeof ack === 'function') ack({ success: canReadTransactions });
     });
     socket.on('client:transactions:subscribe', (ack) => {
         const allowed = Boolean(socket.request?.session?.isClientLoggedIn && socket.request?.session?.clientId);
