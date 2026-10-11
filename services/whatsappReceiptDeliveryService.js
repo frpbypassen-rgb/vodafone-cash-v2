@@ -355,6 +355,19 @@ const sendTransactionReceipt = async (transactionInput, {
             return failure;
         }
 
+        const telegram = require('./telegramService');
+        const telegramLink = await telegram.findLinkForTransaction(transaction);
+        if (telegramLink?.deliveryMode === 'telegram' && telegramLink.chatId) {
+            const telegramResult = await telegram.sendReceipt({
+                transaction,
+                receiptUrl,
+                reference: transaction.customId || String(transaction._id),
+                amount: formatReceiptAmount(transaction.amount),
+                currency: receiptCurrency(transaction)
+            });
+            return { success: Boolean(telegramResult.ok), provider: 'telegram', skipped: !telegramResult.ok, transactionId: String(transaction._id), reference: transaction.customId };
+        }
+
         const delivery = existing || new WhatsAppDelivery({
             kind,
             transactionId: transaction._id,
@@ -395,6 +408,16 @@ const sendTransactionReceipt = async (transactionInput, {
             completedAt: timestamp(transaction),
             receiptUrl
         });
+
+        if (telegramLink?.deliveryMode === 'both' && telegramLink.chatId) {
+            await telegram.sendReceipt({
+                transaction,
+                receiptUrl,
+                reference: transaction.customId || String(transaction._id),
+                amount: formatReceiptAmount(transaction.amount),
+                currency: receiptCurrency(transaction)
+            }).catch(() => {});
+        }
 
         delivery.status = result.success ? 'sent' : 'failed';
         delivery.messageId = result.messageId || '';
