@@ -1115,7 +1115,8 @@
                                                 <button class="btn-action-sm api-log" data-log="<%= encodeURIComponent(apiLog) %>" onclick="showApiLog(this)" title="سجل Terminal للـ API"><i class="fa-solid fa-terminal"></i></button>
                                             <% } %>
 
-                                            <% if (canResolveProviderResult && (tx.apiResultData?.providerResultUnresolved === true || tx.apiResultData?.providerDispatchResult === 'pending_reference')) { %>
+                                            <% const apiStalledOver60s = tx.apiResultData && ['pending', 'processing', 'accepted'].includes(tx.status) && (Date.now() - new Date(tx.createdAt).getTime()) > 60000; %>
+                                            <% if (canResolveProviderResult && (tx.apiResultData?.providerResultUnresolved === true || tx.apiResultData?.providerDispatchResult === 'pending_reference' || apiStalledOver60s)) { %>
                                                 <button type="button" class="btn-action-sm send" style="width:auto;min-width:36px;padding-inline:10px;gap:6px;white-space:nowrap" onclick="resolveProviderPaid('<%= tx._id %>', '<%= tx.updatedAt.toISOString() %>')" title="إنجاح العملية بالرقم المرجعي من المزوّد" aria-label="إنجاح العملية"><i class="fa-solid fa-circle-check"></i><span>إنجاح العملية</span></button>
                                             <% } %>
 
@@ -1293,7 +1294,8 @@
                                 <% if (hasApiLog) { %>
                                      <button type="button" class="btn btn-sm fw-bold rounded-3 px-3 <%= !isPendingOrProcessing ? 'w-100' : '' %>" style="background: rgba(16, 185, 129, 0.1); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.2);" data-log="<%= encodeURIComponent(mobileApiLog) %>" onclick="showApiLog(this)" title="سجل Terminal للـ API"><i class="fa-solid fa-terminal text-success <%= !isPendingOrProcessing ? 'me-1' : '' %>"></i><%= !isPendingOrProcessing ? ' سجل الـ API' : '' %></button>
                                  <% } %>
-                                <% if (canResolveProviderResult && (tx.apiResultData?.providerResultUnresolved === true || tx.apiResultData?.providerDispatchResult === 'pending_reference')) { %>
+                                 <% const mobileApiStalledOver60s = tx.apiResultData && ['pending', 'processing', 'accepted'].includes(tx.status) && (Date.now() - new Date(tx.createdAt).getTime()) > 60000; %>
+                                 <% if (canResolveProviderResult && (tx.apiResultData?.providerResultUnresolved === true || tx.apiResultData?.providerDispatchResult === 'pending_reference' || mobileApiStalledOver60s)) { %>
                                     <button type="button" class="btn btn-sm btn-success fw-bold rounded-3 px-3" onclick="resolveProviderPaid('<%= tx._id %>', '<%= tx.updatedAt.toISOString() %>')" title="إنجاح العملية بالرقم المرجعي من المزوّد"><i class="fa-solid fa-circle-check me-1"></i> إنجاح العملية</button>
                                 <% } %>
                             </div>
