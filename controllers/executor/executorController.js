@@ -56,6 +56,13 @@ const acceptTask = async (req, res) => {
 
         if (!tx) return res.json({ success: false, code: 'ALREADY_TAKEN', message: 'عذراً، تم سحب الطلب من قِبل زميل آخر' });
 
+        const io = req.app?.get('io');
+        io?.to('admin:transactions').emit('transaction:accepted', {
+            transactionId: String(tx._id),
+            customId: tx.customId || '',
+            status: 'accepted',
+            executorName: tx.executorName || emp.name || ''
+        });
         eventBus.publish('executor:task-accepted', { transactionId: tx._id, tx, employee: emp });
 
         // Audit Log
