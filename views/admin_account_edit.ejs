@@ -243,6 +243,20 @@
                 </section>
             <% } %>
 
+            <% if (['user', 'agent', 'company', 'subaccount'].includes(accountType)) { %>
+                <section class="form-section">
+                    <h2 class="section-heading"><i class="fa-brands fa-telegram"></i> إيصالات Telegram</h2>
+                    <div class="security-note"><i class="fa-solid fa-lock"></i><span>كود الربط يظهر للإدارة فقط. أرسله للحساب المعني ليكتبه وحده في محادثة البوت.</span></div>
+                    <% if (query.telegramCode) { %><div class="security-note"><strong dir="ltr"><%= query.telegramCode %></strong> — احفظه وأرسله للحساب، ولن يظهر مرة أخرى.</div><% } %>
+                    <% if (telegramLink) { %><div class="security-note">حالة الربط: <%= telegramLink.chatId ? 'مرتبط' : 'غير مرتبط' %> | قناة الإيصال: <%= ({off:'متوقفة', whatsapp:'واتساب فقط', telegram:'Telegram فقط', both:'واتساب وTelegram'})[telegramLink.deliveryMode] %></div><% } %>
+                    <div class="field-grid two">
+                        <div class="field"><label for="deliveryMode">قناة إرسال الإيصالات</label><select id="deliveryMode" name="deliveryMode" form="telegram-settings-form" class="form-select"><% [['off','متوقفة'],['whatsapp','واتساب فقط'],['telegram','Telegram فقط'],['both','واتساب وTelegram']].forEach(([value,label]) => { %><option value="<%= value %>" <%= telegramLink?.deliveryMode === value ? 'selected' : '' %>><%= label %></option><% }) %></select></div>
+                    </div>
+                    <form id="telegram-settings-form" action="/admin/accounts/<%= accountType %>/<%= account._id %>/telegram-settings" method="POST" class="d-flex gap-2 mt-3"><button class="btn btn-success" type="submit">حفظ قناة الإرسال</button></form>
+                    <form action="/admin/accounts/<%= accountType %>/<%= account._id %>/telegram-code" method="POST" class="mt-2"><button class="btn btn-outline-primary" type="submit"><i class="fa-solid fa-rotate"></i> توليد كود / إعادة الربط</button></form>
+                </section>
+            <% } %>
+
             <% if (profileTypes.includes(accountType)) { %>
                 <section class="form-section">
                     <h2 class="section-heading"><i class="fa-solid fa-building-circle-check"></i> الملف التجاري والتواصل</h2>
