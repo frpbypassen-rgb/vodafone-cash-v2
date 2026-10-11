@@ -2269,6 +2269,9 @@
         transactionSocket?.on('transactions:changed', () => {
             if (!document.hidden && typeof refreshTransactionsList === 'function') refreshTransactionsList();
         });
+        transactionSocket?.on('transaction:accepted', () => {
+            if (!document.hidden && typeof refreshTransactionsList === 'function') refreshTransactionsList();
+        });
         const activeTab = document.querySelector('.mobile-tab-btn.active');
         if (activeTab) {
             filterMobileCards('all', activeTab);

@@ -71,6 +71,7 @@ const {
 } = require('./middlewares/operationalAccess');
 const csrfProtection = require('./middlewares/csrfProtection');
 const logger = require('./utils/logger');
+const eventBus = require('./services/eventBus');
 const {
     startApiCompletionMonitor,
     warnProviderPaidAwaitingCompletion
@@ -189,6 +190,15 @@ const triggerUpdate = (doc) => {
         transactionBroadcastTimer.unref?.();
     }
 };
+eventBus.on('executor:task-accepted', ({ tx, employee } = {}) => {
+    if (!tx?._id) return;
+    io.to('admin:transactions').emit('transaction:accepted', {
+        transactionId: String(tx._id),
+        customId: tx.customId || '',
+        status: 'accepted',
+        executorName: employee?.name || tx.executorName || tx.assignedExecutorName || ''
+    });
+});
 Transaction.schema.post('save', triggerUpdate);
 Transaction.schema.post('findOneAndUpdate', triggerUpdate);
 Transaction.schema.post('updateOne', triggerUpdate);

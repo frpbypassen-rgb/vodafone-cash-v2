@@ -11,6 +11,7 @@ const transferService = require('../../services/transferService');
 const { logAction } = require('../../services/auditService');
 const { acquireLock, releaseLock } = require('../../services/lockService');
 const { completedTransferLedgerInc } = require('../../utils/executorServiceLedger');
+const eventBus = require('../../services/eventBus');
 
 /**
  * GET /executor/live-tasks — المهام المتاحة
@@ -55,7 +56,7 @@ const acceptTask = async (req, res) => {
 
         if (!tx) return res.json({ success: false, code: 'ALREADY_TAKEN', message: 'عذراً، تم سحب الطلب من قِبل زميل آخر' });
 
-        // 🟢 الإشعارات ستتم عبر Socket.IO بدلاً من التيليجرام
+        eventBus.publish('executor:task-accepted', { transactionId: tx._id, tx, employee: emp });
 
         // Audit Log
         await logAction({
