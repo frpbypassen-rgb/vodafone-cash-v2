@@ -6,6 +6,7 @@ const TelegramAccountLink = require('../models/TelegramAccountLink');
 const User = require('../models/User');
 const ClientCompany = require('../models/ClientCompany');
 const SubAccount = require('../models/SubAccount');
+const TelegramDelivery = require('../models/TelegramDelivery');
 
 const token = () => String(process.env.TELEGRAM_BOT_TOKEN || '').trim();
 const api = (method) => `https://api.telegram.org/bot${token()}/${method}`;
@@ -77,7 +78,15 @@ const sendReceipt = async ({ transaction, receiptUrl, reference, amount, currenc
     const link = await findLinkForTransaction(transaction);
     if (!link?.chatId || link.deliveryMode === 'off' || link.deliveryMode === 'whatsapp') return { success: false, skipped: true, code: 'TELEGRAM_NOT_SELECTED' };
     const caption = `إيصال العملية ${reference || transaction.customId || ''}\nالمبلغ: ${amount || transaction.amount || ''} ${currency || ''}`;
-    return telegramRequest('sendPhoto', { chat_id: link.chatId, photo: receiptUrl, caption });
+    const delivery = await TelegramDelivery.findOneAndUpdate({ transactionId: transaction._id, chatId: link.chatId }, { $set: { tenantId: link.tenantId || transaction.tenantId, reference: reference || transaction.customId || '', receiptUrl, status: 'sending', failureCode: '', failureReason: '' } }, { upsert: true, new: true, setDefaultsOnInsert: true });
+    try {
+        const result = await telegramRequest('sendPhoto', { chat_id: link.chatId, photo: receiptUrl, caption });
+        delivery.status = 'sent'; delivery.messageId = String(result.result?.message_id || ''); delivery.sentAt = new Date(); await delivery.save();
+        return { ...result, success: true, deliveryId: delivery._id };
+    } catch (error) {
+        delivery.status = 'failed'; delivery.failureCode = error.code || 'TELEGRAM_SEND_FAILED'; delivery.failureReason = String(error.message || 'تعذر إرسال إيصال Telegram.').slice(0, 500); await delivery.save();
+        throw error;
+    }
 };
 
 module.exports = { telegramConfigured, createAccountCode, linkChatByCode, setWebhook, sendMessage, findLinkForTransaction, sendReceipt };
