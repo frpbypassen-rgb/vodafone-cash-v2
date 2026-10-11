@@ -252,8 +252,8 @@
                     <div class="field-grid two">
                         <div class="field"><label for="deliveryMode">قناة إرسال الإيصالات</label><select id="deliveryMode" name="deliveryMode" form="telegram-settings-form" class="form-select"><% [['off','متوقفة'],['whatsapp','واتساب فقط'],['telegram','Telegram فقط'],['both','واتساب وTelegram']].forEach(([value,label]) => { %><option value="<%= value %>" <%= telegramLink?.deliveryMode === value ? 'selected' : '' %>><%= label %></option><% }) %></select></div>
                     </div>
-                    <form id="telegram-settings-form" action="/admin/accounts/<%= accountType %>/<%= account._id %>/telegram-settings" method="POST" class="d-flex gap-2 mt-3"><button class="btn btn-success" type="submit">حفظ قناة الإرسال</button></form>
-                    <form action="/admin/accounts/<%= accountType %>/<%= account._id %>/telegram-code" method="POST" class="mt-2"><button class="btn btn-outline-primary" type="submit"><i class="fa-solid fa-rotate"></i> توليد كود / إعادة الربط</button></form>
+                    <form id="telegram-settings-form" action="/admin/accounts/<%= accountType %>/<%= account._id %>/telegram-settings" method="POST" class="d-flex gap-2 mt-3"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><button class="btn btn-success" type="submit">حفظ قناة الإرسال</button></form>
+                    <form action="/admin/accounts/<%= accountType %>/<%= account._id %>/telegram-code" method="POST" class="mt-2"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><button class="btn btn-outline-primary" type="submit"><i class="fa-solid fa-rotate"></i> توليد كود / إعادة الربط</button></form>
                 </section>
             <% } %>
 

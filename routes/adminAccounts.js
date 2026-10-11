@@ -184,7 +184,8 @@ const renderEditor = async (req, res, { error = '', submitted = null, statusCode
         returnUrl: getReturnUrl(definition.type, account),
         activePage: activePageForType(definition.type),
         error,
-        query: req.query || {}
+        query: req.query || {},
+        csrfToken: req.session?.csrfToken || ''
         , telegramLink
     });
 };
