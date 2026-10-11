@@ -42,6 +42,7 @@ const {
     reassignTransactionExecutor
 } = require('../services/adminFinancialMutationService');
 const eventBus = require('../services/eventBus');
+const { sendCompletedTransactionReceipt } = require('../services/whatsappReceiptDeliveryService');
 const { adminVisibleTransactionQuery, applyAdminTxPrivacy } = require('../services/adminAccountVisibilityService');
 const { adminAccountScope } = require('../utils/tenantScope');
 const {
@@ -1171,6 +1172,19 @@ router.get('/transactions/:id/details', async (req, res) => {
     } catch (e) {
         console.error('[adminTransactions/GET details] خطأ:', e.message);
         res.status(500).json({ success: false, error: 'حدث خطأ أثناء تحميل تفاصيل العملية.' });
+    }
+});
+
+router.post('/transaction/:id/resend-proof', requireAuth, async (req, res) => {
+    try {
+        const transaction = await Transaction.findOne(adminTxById(req, req.params.id));
+        if (!transaction || transaction.status !== 'completed') return res.status(404).send('(404) العملية غير موجودة أو غير مكتملة');
+        const result = await sendCompletedTransactionReceipt(transaction);
+        if (!result.success && !result.skipped) return res.status(502).send(result.message || 'تعذر إعادة إرسال الإيصال.');
+        return res.redirect('/transactions?resend=success');
+    } catch (error) {
+        console.error('[adminTransactions/resend-proof] failed:', error.message);
+        return res.status(500).send('تعذر إعادة إرسال الإيصال.');
     }
 });
 
