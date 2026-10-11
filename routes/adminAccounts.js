@@ -172,6 +172,9 @@ const renderEditor = async (req, res, { error = '', submitted = null, statusCode
         ? await findCompanyLoginOwner(account._id)
         : null;
     const options = await loadEditOptions(definition.type, account);
+    const telegramCode = req.session.telegramCodeFlash?.ownerId === String(account._id)
+        ? req.session.telegramCodeFlash.code : '';
+    if (telegramCode) delete req.session.telegramCodeFlash;
     const telegramLink = ['user', 'agent', 'company', 'subaccount'].includes(definition.type)
         ? await TelegramAccountLink.findOne({ ownerModel: definition.modelName, ownerId: account._id }).select('+codeHint').lean()
         : null;
@@ -185,8 +188,9 @@ const renderEditor = async (req, res, { error = '', submitted = null, statusCode
         activePage: activePageForType(definition.type),
         error,
         query: req.query || {},
-        csrfToken: req.session?.csrfToken || ''
-        , telegramLink
+        csrfToken: req.session?.csrfToken || '',
+        telegramLink,
+        telegramCode
     });
 };
 
@@ -194,16 +198,15 @@ router.post('/admin/accounts/:type/:id/telegram-code', requireAuth, requireMaste
     const { definition, account } = await findEditableAccount(req.params.type, req.params.id);
     const result = await createAccountCode({ ownerModel: definition.modelName, ownerId: account._id, tenantId: account.tenantId });
     await logAction({ action: 'ADMIN_TELEGRAM_CODE_REGENERATED', req, performedById: req.session.adminId, performedByModel: 'Admin', targetId: account._id, targetModel: definition.modelName, result: 'ناجح' }).catch(() => {});
-    const returnUrl = getReturnUrl(definition.type, account);
-    return res.redirect(`${returnUrl}${returnUrl.includes('?') ? '&' : '?'}telegramCode=${encodeURIComponent(result.code)}`);
+    req.session.telegramCodeFlash = { ownerId: String(account._id), code: result.code };
+    return res.redirect(`/admin/accounts/${definition.type}/${account._id}/edit`);
 });
 
 router.post('/admin/accounts/:type/:id/telegram-settings', requireAuth, requireMaster, async (req, res) => {
     const { definition, account } = await findEditableAccount(req.params.type, req.params.id);
     const deliveryMode = ['off', 'whatsapp', 'telegram', 'both'].includes(req.body?.deliveryMode) ? req.body.deliveryMode : 'off';
     await TelegramAccountLink.findOneAndUpdate({ ownerModel: definition.modelName, ownerId: account._id }, { $set: { deliveryMode, active: deliveryMode !== 'off' } }, { upsert: true, setDefaultsOnInsert: true });
-    const returnUrl = getReturnUrl(definition.type, account);
-    return res.redirect(`${returnUrl}${returnUrl.includes('?') ? '&' : '?'}telegramSaved=1`);
+    return res.redirect(`/admin/accounts/${definition.type}/${account._id}/edit?telegramSaved=1`);
 });
 
 const ownerOtpErrorCode = (error) => {
