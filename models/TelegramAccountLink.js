@@ -15,7 +15,7 @@ const telegramAccountLinkSchema = new mongoose.Schema({
     active: { type: Boolean, default: true, index: true }
 }, { timestamps: true });
 
-telegramAccountLinkSchema.index({ ownerModel: 1, ownerId: 1 }, { unique: true });
+telegramAccountLinkSchema.index({ ownerModel: 1, ownerId: 1 });
 telegramAccountLinkSchema.index({ chatId: 1 }, { unique: true, sparse: true });
 
 module.exports = mongoose.models.TelegramAccountLink

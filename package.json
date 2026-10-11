@@ -18,6 +18,7 @@
     "check:mongo-transactions": "node scripts/checkMongoTransactionSupport.js",
     "check:executor-readiness": "node scripts/checkExecutorReadiness.js",
     "telegram:webhook": "node scripts/registerTelegramWebhook.js",
+    "telegram:prepare-links": "node scripts/prepareTelegramMultiLinkIndex.js",
     "repair:env": "node scripts/repairProductionEnv.js .env --apply",
     "rotate:admin": "node scripts/rotateAdminCredentials.js",
     "rotate:leaked-seed-account": "node scripts/rotateLeakedSeedAccount.js",

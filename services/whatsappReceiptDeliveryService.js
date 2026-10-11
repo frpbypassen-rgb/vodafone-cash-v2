@@ -356,8 +356,9 @@ const sendTransactionReceipt = async (transactionInput, {
         }
 
         const telegram = require('./telegramService');
-        const telegramLink = await telegram.findLinkForTransaction(transaction);
-        if (telegramLink?.deliveryMode === 'telegram' && telegramLink.chatId) {
+        const telegramLinks = await telegram.findLinkForTransaction(transaction);
+        const telegramOnly = telegramLinks.some((link) => link.deliveryMode === 'telegram' && link.chatId);
+        if (telegramOnly) {
             const telegramResult = await telegram.sendReceipt({
                 transaction,
                 receiptUrl,
@@ -409,7 +410,7 @@ const sendTransactionReceipt = async (transactionInput, {
             receiptUrl
         });
 
-        if (telegramLink?.deliveryMode === 'both' && telegramLink.chatId) {
+        if (telegramLinks.some((link) => link.deliveryMode === 'both' && link.chatId)) {
             await telegram.sendReceipt({
                 transaction,
                 receiptUrl,

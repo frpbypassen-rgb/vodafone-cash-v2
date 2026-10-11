@@ -29,11 +29,7 @@ const telegramRequest = async (method, body) => {
 
 const createAccountCode = async ({ ownerModel, ownerId, tenantId }) => {
     const code = generateCode();
-    const link = await TelegramAccountLink.findOneAndUpdate(
-        { ownerModel, ownerId },
-        { $set: { codeHash: hash(code), codeHint: code.slice(-4), tenantId, active: true, chatId: '', linkedAt: null } },
-        { upsert: true, new: true, setDefaultsOnInsert: true }
-    );
+    const link = await TelegramAccountLink.create({ ownerModel, ownerId, tenantId, codeHash: hash(code), codeHint: code.slice(-4), active: true, chatId: '', linkedAt: null, deliveryMode: 'telegram' });
     return { link, code };
 };
 
@@ -71,22 +67,21 @@ const findLinkForTransaction = async (transaction) => {
         if (user) { ownerModel = 'User'; ownerId = user._id; }
     }
     if (!ownerModel || !ownerId) return null;
-    return TelegramAccountLink.findOne({ ownerModel, ownerId, active: true }).select('+codeHash').lean();
+    return TelegramAccountLink.find({ ownerModel, ownerId, active: true, chatId: { $nin: ['', null] } }).select('+codeHash').lean();
 };
 
 const sendReceipt = async ({ transaction, receiptUrl, reference, amount, currency }) => {
     const link = await findLinkForTransaction(transaction);
-    if (!link?.chatId || link.deliveryMode === 'off' || link.deliveryMode === 'whatsapp') return { success: false, skipped: true, code: 'TELEGRAM_NOT_SELECTED' };
+    const links = (await findLinkForTransaction(transaction)).filter((item) => item.chatId && item.deliveryMode !== 'off' && item.deliveryMode !== 'whatsapp');
+    if (!links.length) return { success: false, skipped: true, code: 'TELEGRAM_NOT_SELECTED' };
     const caption = `إيصال العملية ${reference || transaction.customId || ''}\nالمبلغ: ${amount || transaction.amount || ''} ${currency || ''}`;
-    const delivery = await TelegramDelivery.findOneAndUpdate({ transactionId: transaction._id, chatId: link.chatId }, { $set: { tenantId: link.tenantId || transaction.tenantId, reference: reference || transaction.customId || '', receiptUrl, status: 'sending', failureCode: '', failureReason: '' } }, { upsert: true, new: true, setDefaultsOnInsert: true });
-    try {
-        const result = await telegramRequest('sendPhoto', { chat_id: link.chatId, photo: receiptUrl, caption });
-        delivery.status = 'sent'; delivery.messageId = String(result.result?.message_id || ''); delivery.sentAt = new Date(); await delivery.save();
-        return { ...result, success: true, deliveryId: delivery._id };
-    } catch (error) {
-        delivery.status = 'failed'; delivery.failureCode = error.code || 'TELEGRAM_SEND_FAILED'; delivery.failureReason = String(error.message || 'تعذر إرسال إيصال Telegram.').slice(0, 500); await delivery.save();
-        throw error;
-    }
+    const results = await Promise.allSettled(links.map(async (link) => {
+        const delivery = await TelegramDelivery.findOneAndUpdate({ transactionId: transaction._id, chatId: link.chatId }, { $set: { tenantId: link.tenantId || transaction.tenantId, reference: reference || transaction.customId || '', receiptUrl, status: 'sending', failureCode: '', failureReason: '' } }, { upsert: true, new: true, setDefaultsOnInsert: true });
+        try { const result = await telegramRequest('sendPhoto', { chat_id: link.chatId, photo: receiptUrl, caption }); delivery.status = 'sent'; delivery.messageId = String(result.result?.message_id || ''); delivery.sentAt = new Date(); await delivery.save(); return result; }
+        catch (error) { delivery.status = 'failed'; delivery.failureCode = error.code || 'TELEGRAM_SEND_FAILED'; delivery.failureReason = String(error.message || 'تعذر إرسال إيصال Telegram.').slice(0, 500); await delivery.save(); throw error; }
+    }));
+    const successful = results.filter((item) => item.status === 'fulfilled');
+    return { success: successful.length > 0, provider: 'telegram', recipients: links.length, delivered: successful.length, failed: links.length - successful.length };
 };
 
 module.exports = { telegramConfigured, createAccountCode, linkChatByCode, setWebhook, sendMessage, findLinkForTransaction, sendReceipt };

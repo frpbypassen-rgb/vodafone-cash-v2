@@ -175,9 +175,9 @@ const renderEditor = async (req, res, { error = '', submitted = null, statusCode
     const telegramCode = req.session.telegramCodeFlash?.ownerId === String(account._id)
         ? req.session.telegramCodeFlash.code : '';
     if (telegramCode) delete req.session.telegramCodeFlash;
-    const telegramLink = ['user', 'agent', 'company', 'subaccount'].includes(definition.type)
-        ? await TelegramAccountLink.findOne({ ownerModel: definition.modelName, ownerId: account._id }).select('+codeHint').lean()
-        : null;
+    const telegramLinks = ['user', 'agent', 'company', 'subaccount'].includes(definition.type)
+        ? await TelegramAccountLink.find({ ownerModel: definition.modelName, ownerId: account._id }).sort({ createdAt: -1 }).lean()
+        : [];
     return res.status(statusCode).render('admin_account_edit', {
         account,
         accountType: definition.type,
@@ -189,7 +189,8 @@ const renderEditor = async (req, res, { error = '', submitted = null, statusCode
         error,
         query: req.query || {},
         csrfToken: req.session?.csrfToken || '',
-        telegramLink,
+        telegramLink: telegramLinks[0] || null,
+        telegramLinks,
         telegramCode
     });
 };
@@ -205,7 +206,7 @@ router.post('/admin/accounts/:type/:id/telegram-code', requireAuth, requireMaste
 router.post('/admin/accounts/:type/:id/telegram-settings', requireAuth, requireMaster, async (req, res) => {
     const { definition, account } = await findEditableAccount(req.params.type, req.params.id);
     const deliveryMode = ['off', 'whatsapp', 'telegram', 'both'].includes(req.body?.deliveryMode) ? req.body.deliveryMode : 'off';
-    await TelegramAccountLink.findOneAndUpdate({ ownerModel: definition.modelName, ownerId: account._id }, { $set: { deliveryMode, active: deliveryMode !== 'off' } }, { upsert: true, setDefaultsOnInsert: true });
+    await TelegramAccountLink.updateMany({ ownerModel: definition.modelName, ownerId: account._id }, { $set: { deliveryMode, active: deliveryMode !== 'off' } });
     return res.redirect(`/admin/accounts/${definition.type}/${account._id}/edit?telegramSaved=1`);
 });
 
