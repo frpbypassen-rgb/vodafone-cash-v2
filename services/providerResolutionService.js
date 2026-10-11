@@ -244,7 +244,9 @@ const resolveProviderResult = async (input = {}) => {
             'apiResultData.providerResolutionOutcome': { $exists: false },
             $or: [
                 { 'apiResultData.providerResultUnresolved': true },
-                { 'apiResultData.providerDispatchResult': 'pending_reference' }
+                { 'apiResultData.providerDispatchResult': 'pending_reference' },
+                { 'apiResultData.providerDispatchStartedAt': { $exists: true } },
+                { 'apiResultData.providerDispatchAttemptId': { $exists: true, $nin: ['', null] } }
             ]
         },
         {
