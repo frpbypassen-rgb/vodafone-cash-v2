@@ -249,11 +249,13 @@
                     <div class="security-note"><i class="fa-solid fa-lock"></i><span>كود الربط يظهر للإدارة فقط. أرسله للحساب المعني ليكتبه وحده في محادثة البوت.</span></div>
                     <% if (telegramCode) { %><div class="security-note"><strong dir="ltr"><%= telegramCode %></strong> — احفظه وأرسله للحساب، ولن يظهر مرة أخرى.</div><% } %>
                     <div class="security-note">عدد أكواد الربط: <%= Array.isArray(telegramLinks) ? telegramLinks.length : 0 %> — الروابط النشطة: <%= Array.isArray(telegramLinks) ? telegramLinks.filter((item) => item.active && item.chatId).length : 0 %> | قناة الإيصالات: <%= ({off:'متوقفة', whatsapp:'واتساب فقط', telegram:'Telegram فقط', both:'واتساب وTelegram'})[telegramLink?.deliveryMode || 'off'] %></div>
+                    <% if (Array.isArray(telegramLinks) && telegramLinks.length) { %><div class="account-strip mt-3"><% telegramLinks.forEach((link, index) => { %><div class="strip-item"><span>كود <%= index + 1 %> — <bdi dir="ltr">TG-****<%= link.codeHint || '----' %></bdi></span><strong><%= link.active ? (link.chatId ? 'مستخدم ومربوط' : 'نشط وغير مستخدم') : 'متوقف' %><% if (link.active) { %> <form action="/admin/accounts/<%= accountType %>/<%= account._id %>/telegram-links/<%= link._id %>/disable" method="POST" class="d-inline"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><button class="btn btn-sm btn-outline-danger ms-2" type="submit">إيقاف</button></form><% } %></strong></div><% }) %></div><% } %>
                     <div class="field-grid two">
                         <div class="field"><label for="deliveryMode">قناة إرسال الإيصالات</label><select id="deliveryMode" name="deliveryMode" form="telegram-settings-form" class="form-select"><% [['off','متوقفة'],['whatsapp','واتساب فقط'],['telegram','Telegram فقط'],['both','واتساب وTelegram']].forEach(([value,label]) => { %><option value="<%= value %>" <%= telegramLink?.deliveryMode === value ? 'selected' : '' %>><%= label %></option><% }) %></select></div>
                     </div>
                     <button form="telegram-settings-form" class="btn btn-success" type="submit">حفظ قناة الإرسال</button>
                     <button form="telegram-code-form" class="btn btn-outline-primary" type="submit"><i class="fa-solid fa-rotate"></i> توليد كود / إعادة الربط</button>
+                    <button form="telegram-disable-all-form" class="btn btn-outline-danger" type="submit">إيقاف جميع الأكواد</button>
                 </section>
             <% } %>
 
@@ -399,6 +401,7 @@
         <% if (['user', 'agent', 'company', 'subaccount'].includes(accountType)) { %>
             <form id="telegram-settings-form" action="/admin/accounts/<%= accountType %>/<%= account._id %>/telegram-settings" method="POST"><input type="hidden" name="_csrf" value="<%= csrfToken %>"></form>
             <form id="telegram-code-form" action="/admin/accounts/<%= accountType %>/<%= account._id %>/telegram-code" method="POST"><input type="hidden" name="_csrf" value="<%= csrfToken %>"></form>
+            <form id="telegram-disable-all-form" action="/admin/accounts/<%= accountType %>/<%= account._id %>/telegram-links/disable-all" method="POST"><input type="hidden" name="_csrf" value="<%= csrfToken %>"></form>
         <% } %>
     </div>
 </main>

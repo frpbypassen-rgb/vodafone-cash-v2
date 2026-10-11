@@ -17,9 +17,12 @@ router.post('/', async (req, res) => {
     if (!chatId || !text) return res.sendStatus(200);
     try {
         const result = await linkChatByCode({ code: text, chatId });
-        await sendMessage(chatId, result.success
-            ? 'تم ربط حسابك بنجاح. ستصل إيصالاتك إلى هذه المحادثة.'
-            : 'الكود غير صحيح أو منتهي. اطلب كوداً جديداً من الإدارة.');
+        const message = result.success
+            ? 'تم ربط حسابك بنجاح. ستصل إيصالات الحساب إلى هذه المحادثة.'
+            : result.code === 'CODE_ALREADY_USED'
+                ? 'هذا الكود مستخدم بالفعل على جهاز آخر. إذا كنت صاحب الحساب وتعتقد أن هناك مشكلة، تواصل مع الدعم الفني أو اطلب من الإدارة إصدار كود جديد.'
+                : 'تعذر التعرف على الكود. تأكد من كتابته كما أرسله لك مسؤول الحساب، أو اطلب كوداً جديداً من الإدارة.';
+        await sendMessage(chatId, message);
     } catch (_) {
         await sendMessage(chatId, 'تعذر إتمام الربط حالياً، حاول لاحقاً.').catch(() => {});
     }

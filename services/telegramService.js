@@ -36,12 +36,15 @@ const createAccountCode = async ({ ownerModel, ownerId, tenantId }) => {
 const linkChatByCode = async ({ code, chatId }) => {
     const normalized = String(code || '').trim().toUpperCase();
     if (!/^TG-[A-F0-9]{12}$/.test(normalized)) return { success: false, code: 'INVALID_CODE' };
+    const existing = await TelegramAccountLink.findOne({ codeHash: hash(normalized) }).select('+codeHash').lean();
+    if (!existing || !existing.active) return { success: false, code: 'CODE_NOT_FOUND' };
+    if (existing.chatId && String(existing.chatId) !== String(chatId)) return { success: false, code: 'CODE_ALREADY_USED' };
     const link = await TelegramAccountLink.findOneAndUpdate(
-        { codeHash: hash(normalized), active: true },
+        { _id: existing._id, active: true, chatId: { $in: ['', null] } },
         { $set: { chatId: String(chatId), linkedAt: new Date(), linkedBy: 'telegram' } },
         { new: true }
     ).select('+codeHash');
-    return link ? { success: true, link } : { success: false, code: 'CODE_NOT_FOUND' };
+    return link ? { success: true, link } : { success: false, code: 'CODE_ALREADY_USED' };
 };
 
 const setWebhook = async () => {

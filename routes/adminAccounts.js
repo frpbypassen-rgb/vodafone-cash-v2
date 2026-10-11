@@ -176,7 +176,7 @@ const renderEditor = async (req, res, { error = '', submitted = null, statusCode
         ? req.session.telegramCodeFlash.code : '';
     if (telegramCode) delete req.session.telegramCodeFlash;
     const telegramLinks = ['user', 'agent', 'company', 'subaccount'].includes(definition.type)
-        ? await TelegramAccountLink.find({ ownerModel: definition.modelName, ownerId: account._id }).sort({ createdAt: -1 }).lean()
+        ? await TelegramAccountLink.find({ ownerModel: definition.modelName, ownerId: account._id }).select('+codeHint').sort({ createdAt: -1 }).lean()
         : [];
     return res.status(statusCode).render('admin_account_edit', {
         account,
@@ -207,6 +207,18 @@ router.post('/admin/accounts/:type/:id/telegram-settings', requireAuth, requireM
     const { definition, account } = await findEditableAccount(req.params.type, req.params.id);
     const deliveryMode = ['off', 'whatsapp', 'telegram', 'both'].includes(req.body?.deliveryMode) ? req.body.deliveryMode : 'off';
     await TelegramAccountLink.updateMany({ ownerModel: definition.modelName, ownerId: account._id }, { $set: { deliveryMode, active: deliveryMode !== 'off' } });
+    return res.redirect(`/admin/accounts/${definition.type}/${account._id}/edit?telegramSaved=1`);
+});
+
+router.post('/admin/accounts/:type/:id/telegram-links/:linkId/disable', requireAuth, requireMaster, async (req, res) => {
+    const { definition, account } = await findEditableAccount(req.params.type, req.params.id);
+    await TelegramAccountLink.updateOne({ _id: req.params.linkId, ownerModel: definition.modelName, ownerId: account._id }, { $set: { active: false } });
+    return res.redirect(`/admin/accounts/${definition.type}/${account._id}/edit?telegramSaved=1`);
+});
+
+router.post('/admin/accounts/:type/:id/telegram-links/disable-all', requireAuth, requireMaster, async (req, res) => {
+    const { definition, account } = await findEditableAccount(req.params.type, req.params.id);
+    await TelegramAccountLink.updateMany({ ownerModel: definition.modelName, ownerId: account._id }, { $set: { active: false } });
     return res.redirect(`/admin/accounts/${definition.type}/${account._id}/edit?telegramSaved=1`);
 });
 
