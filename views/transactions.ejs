@@ -14,6 +14,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&family=JetBrains+Mono:wght@700;800&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="/socket.io/socket.io.js"></script>
 
     <style>
         .operation-age { display: block; margin-top: 7px; color: var(--text-muted); font-size: .7rem; font-weight: 800; white-space: nowrap; }
@@ -2263,6 +2264,11 @@
     }
 
     document.addEventListener('DOMContentLoaded', () => {
+        const transactionSocket = window.io ? window.io({ transports: ['websocket', 'polling'] }) : null;
+        transactionSocket?.on('connect', () => transactionSocket.emit('transactions:subscribe'));
+        transactionSocket?.on('transactions:changed', () => {
+            if (!document.hidden && typeof refreshTransactionsList === 'function') refreshTransactionsList();
+        });
         const activeTab = document.querySelector('.mobile-tab-btn.active');
         if (activeTab) {
             filterMobileCards('all', activeTab);
