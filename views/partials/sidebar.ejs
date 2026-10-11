@@ -825,6 +825,11 @@
             </span>
             <i class="fa-solid fa-angle-left menu-chevron"></i>
         </a>
+        <% if (canSeeAdminHref('/telegram-monitor')) { %>
+        <a href="/telegram-monitor" class="<%= typeof activePage !== 'undefined' && activePage === 'telegram_monitor' ? 'active' : '' %>">
+            <i class="fa-brands fa-telegram"></i> <span class="menu-link-text">مراقبة Telegram</span>
+        </a>
+        <% } %>
         <% } %>
         <% if (canSeeAdminHref('/admin/webhooks')) { %>
         <a href="/admin/webhooks" class="<%= typeof activePage !== 'undefined' && activePage === 'webhooks' ? 'active' : '' %>">
