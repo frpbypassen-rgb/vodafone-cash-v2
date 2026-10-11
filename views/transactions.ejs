@@ -1094,7 +1094,7 @@
                                                 </ul>
                                             </div>
                                         <% } else if(tx.status === 'processing' || tx.status === 'accepted') { %>
-                                            <form action="/transaction/<%= tx._id %>/pull-task" method="POST" class="mb-0 js-transaction-action" data-confirm="تأكيد سحب المهمة؟">
+                                            <form action="/transaction/<%= tx._id %>/pull-task" method="POST" class="mb-0 js-transaction-action" data-pull-task="true" data-pull-summary="<%= encodeURIComponent(`العملية: ${tx.customId || tx._id}\nالمنفذ: ${tx.executorName || tx.assignedExecutorName || 'المنفذ الحالي'}\nالحالة: ${tx.status === 'accepted' ? 'مقبولة لدى المنفذ' : 'قيد التنفيذ'}`) %>">
                                                 <button class="btn btn-sm btn-warning fw-bold rounded-3 text-dark px-3" title="سحب للإدارة">سحب</button>
                                             </form>
                                             <form action="/transaction/<%= tx._id %>/emergency-alert" method="POST" class="mb-0" onsubmit="return confirmEmergencyAlert(this);">
@@ -1268,7 +1268,7 @@
                                         </ul>
                                     </div>
                                 <% } else if(tx.status === 'processing' || tx.status === 'accepted') { %>
-                                    <form action="/transaction/<%= tx._id %>/pull-task" method="POST" class="m-0 flex-fill js-transaction-action" data-confirm="تأكيد سحب المهمة؟">
+                                    <form action="/transaction/<%= tx._id %>/pull-task" method="POST" class="m-0 flex-fill js-transaction-action" data-pull-task="true" data-pull-summary="<%= encodeURIComponent(`العملية: ${tx.customId || tx._id}\nالمنفذ: ${tx.executorName || tx.assignedExecutorName || 'المنفذ الحالي'}\nالحالة: ${tx.status === 'accepted' ? 'مقبولة لدى المنفذ' : 'قيد التنفيذ'}`) %>">
                                         <button class="btn btn-sm btn-warning fw-bold rounded-3 text-dark w-100"><i class="fa-solid fa-hand me-1"></i> سحب</button>
                                     </form>
                                     <form action="/transaction/<%= tx._id %>/emergency-alert" method="POST" class="m-0 flex-fill" onsubmit="return confirmEmergencyAlert(this);">
@@ -2061,6 +2061,22 @@
         if (!form) return;
         event.preventDefault();
 
+        if (form.dataset.pullTask === 'true') {
+            const summary = decodeURIComponent(form.dataset.pullSummary || '');
+            const result = await Swal.fire({
+                icon: 'warning',
+                title: 'سحب العملية من المنفذ؟',
+                text: `${summary}\n\nقد يكون المنفذ بدأ العمل عليها. هل تريد سحبها إلى الإدارة؟`,
+                showCancelButton: true,
+                confirmButtonText: 'تأكيد السحب',
+                cancelButtonText: 'تراجع',
+                confirmButtonColor: '#dc3545',
+                cancelButtonColor: '#6c757d',
+                reverseButtons: true,
+                focusCancel: true
+            });
+            if (!result.isConfirmed) return;
+        }
         const confirmation = String(form.dataset.confirm || '').trim();
         if (confirmation && !window.confirm(confirmation)) return;
         if (form.querySelector('.cancel-reason-input') && !promptGlobalCancel(form)) return;
