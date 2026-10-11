@@ -1,6 +1,7 @@
 'use strict';
 
 const crypto = require('crypto');
+const mongoose = require('mongoose');
 const TelegramAccountLink = require('../models/TelegramAccountLink');
 const User = require('../models/User');
 const ClientCompany = require('../models/ClientCompany');
@@ -62,7 +63,10 @@ const findLinkForTransaction = async (transaction) => {
     } else if (transaction?.companyId) {
         ownerModel = 'ClientCompany'; ownerId = transaction.companyId;
     } else if (transaction?.userId) {
-        const user = await User.findOne({ $or: [{ _id: transaction.userId }, { phone: transaction.userId }, { webUsername: transaction.userId }] }).select('_id').lean();
+        const rawUserId = String(transaction.userId).trim();
+        const userFilters = [{ phone: rawUserId }, { webUsername: rawUserId }];
+        if (mongoose.Types.ObjectId.isValid(rawUserId)) userFilters.unshift({ _id: rawUserId });
+        const user = await User.findOne({ $or: userFilters }).select('_id').lean();
         if (user) { ownerModel = 'User'; ownerId = user._id; }
     }
     if (!ownerModel || !ownerId) return null;
