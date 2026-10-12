@@ -21,6 +21,14 @@ const {
 
 const SUPPORT_PHONE = '01108172258';
 
+const redactProviderPayload = (value) => {
+    if (Array.isArray(value)) return value.map(redactProviderPayload);
+    if (!value || typeof value !== 'object') return value;
+    return Object.fromEntries(Object.entries(value).map(([key, item]) => [key,
+        /token|password|authorization|secret|paymentbillinfo/i.test(key) ? '[REDACTED]' : redactProviderPayload(item)
+    ]));
+};
+
 const normalizeBaseUrl = (value) => {
     let baseUrl = String(value || '').trim().replace(/\/+$/, '');
     if (baseUrl && !baseUrl.startsWith('http')) baseUrl = `https://${baseUrl}`;
@@ -405,7 +413,9 @@ const executeTransferViaApi = async (tx, apiBot) => {
         addLog("PROVIDER", `${preset.name} | ServiceId=${serviceId} | CurrentServiceProviderId=${providerId} | FieldId=${fieldId}`);
         addLog("INQUIRY", `جاري الاستعلام وفحص الرقم [${targetNumber}]...`);
         const inquiryPayload = buildInquiryPayload(config, targetNumber, amount);
+        addLog('INQUIRY_REQUEST', JSON.stringify({ method: 'POST', path: '/api/V1/Transactions/Inquiry', body: redactProviderPayload(inquiryPayload) }));
         const inquiryRes = await axios.post(`${baseUrl}/api/V1/Transactions/Inquiry`, inquiryPayload, { headers, timeout: 20000 });
+        addLog('INQUIRY_RESPONSE', JSON.stringify({ status: inquiryRes.status, body: redactProviderPayload(inquiryRes.data) }));
         const inquiryData = inquiryRes.data || {};
         if (!hasSuccessCode(inquiryData) || !inquiryData.Data || !inquiryData.Data.PaymentBillInfo) {
             const message = providerMessage(inquiryData, 'تم رفض الاستعلام عن التحويل من المزود');
@@ -435,10 +445,13 @@ const executeTransferViaApi = async (tx, apiBot) => {
             MachineSerial: machineSerial
         };
         paymentPayload.PaymentBillInfo = inquiryData.Data.PaymentBillInfo;
+        addLog('PAYMENT_REQUEST', JSON.stringify({ method: 'POST', path: '/api/V1/Transactions/Payment', body: redactProviderPayload(paymentPayload) }));
         let paymentRes;
         try {
             paymentRes = await axios.post(`${baseUrl}/api/V1/Transactions/Payment`, paymentPayload, { headers, timeout: 180000 });
+            addLog('PAYMENT_RESPONSE', JSON.stringify({ status: paymentRes.status, body: redactProviderPayload(paymentRes.data) }));
         } catch (paymentError) {
+            addLog('PAYMENT_RESPONSE_ERROR', JSON.stringify({ status: paymentError.response?.status || null, code: paymentError.code || '', body: redactProviderPayload(paymentError.response?.data || null), responseReceived: Boolean(paymentError.response) }));
             const message = errorMessage(paymentError, 'خطأ في الاتصال بسيرفر الشركة');
             addLog('SYSTEM_ERROR', message);
             const classification = classifyPaymentTransportError(paymentError);
@@ -547,6 +560,7 @@ const executeTransferViaApi = async (tx, apiBot) => {
     } catch (error) {
         const message = errorMessage(error, 'خطأ في الاتصال بسيرفر الشركة');
         addLog("SYSTEM_ERROR", message);
+        addLog('PROVIDER_RESPONSE_ERROR', JSON.stringify({ status: error.response?.status || null, code: error.code || '', body: redactProviderPayload(error.response?.data || null), responseReceived: Boolean(error.response) }));
         const attemptId = tx && tx.apiResultData && tx.apiResultData.providerDispatchAttemptId;
         if (attemptId) {
             return {
