@@ -299,6 +299,18 @@ const sendTransactionReceipt = async (transactionInput, {
             return failure;
         }
 
+        const telegram = require('./telegramService');
+        const telegramLinks = (await telegram.findLinkForTransaction(transaction)) || [];
+        const telegramOnly = telegramLinks.some((link) => link.deliveryMode === 'telegram' && link.chatId);
+        const conditionalTelegram = telegramLinks.some((link) => link.deliveryMode === 'both' && link.chatId)
+            && !String(transaction.serviceDetails?.clientPhone || '').trim();
+        if (telegramOnly || conditionalTelegram) {
+            const receiptUrl = createReceiptImageUrl({ transactionId: transaction._id, index: proofIndex });
+            if (!receiptUrl) return { success: false, code: 'RECEIPT_PUBLIC_URL_UNAVAILABLE', message: 'تعذر إنشاء رابط الإيصال.' };
+            const result = await telegram.sendReceipt({ transaction, receiptUrl, reference: transaction.customId || String(transaction._id), amount: formatReceiptAmount(transaction.amount), currency: receiptCurrency(transaction) });
+            return { ...result, transactionId: String(transaction._id), reference: transaction.customId };
+        }
+
         const configuration = getWhatChimpConfigurationStatus();
         if (!configuration.receiptReady) {
             const failure = {
@@ -355,20 +367,6 @@ const sendTransactionReceipt = async (transactionInput, {
             return failure;
         }
 
-        const telegram = require('./telegramService');
-        const telegramLinks = await telegram.findLinkForTransaction(transaction);
-        const telegramOnly = telegramLinks.some((link) => link.deliveryMode === 'telegram' && link.chatId);
-        if (telegramOnly) {
-            const telegramResult = await telegram.sendReceipt({
-                transaction,
-                receiptUrl,
-                reference: transaction.customId || String(transaction._id),
-                amount: formatReceiptAmount(transaction.amount),
-                currency: receiptCurrency(transaction)
-            });
-            return { success: Boolean(telegramResult.ok), provider: 'telegram', skipped: !telegramResult.ok, transactionId: String(transaction._id), reference: transaction.customId };
-        }
-
         const delivery = existing || new WhatsAppDelivery({
             kind,
             transactionId: transaction._id,
@@ -409,16 +407,6 @@ const sendTransactionReceipt = async (transactionInput, {
             completedAt: timestamp(transaction),
             receiptUrl
         });
-
-        if (telegramLinks.some((link) => link.deliveryMode === 'both' && link.chatId)) {
-            await telegram.sendReceipt({
-                transaction,
-                receiptUrl,
-                reference: transaction.customId || String(transaction._id),
-                amount: formatReceiptAmount(transaction.amount),
-                currency: receiptCurrency(transaction)
-            }).catch(() => {});
-        }
 
         delivery.status = result.success ? 'sent' : 'failed';
         delivery.messageId = result.messageId || '';
