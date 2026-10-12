@@ -7,5 +7,5 @@ const source = fs.readFileSync(path.join(__dirname, '../services/externalApiServ
 test('Zayn providers retain the documented Inquiry before Payment flow', () => {
     expect(source).toContain('buildInquiryPayload(config, targetNumber, amount)');
     expect(source).toContain('inquiryData.Data.PaymentBillInfo');
-    expect(source).toContain('PaymentBillInfo: inquiryData.Data.PaymentBillInfo');
+    expect(source).toContain('paymentPayload.PaymentBillInfo = inquiryData.Data.PaymentBillInfo');
 });
