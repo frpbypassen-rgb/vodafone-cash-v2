@@ -245,7 +245,7 @@ const buildInquiryPayload = (config, targetNumber, amount) => ({
     ...(config.preset.inquiryUsesFieldKey ? {} : { CurrentServiceProviderId: config.providerId }),
     ServiceId: config.serviceId,
     MachineSerial: config.machineSerial,
-    InqueryAmount: amount
+    InqueryAmount: config.preset.inquiryUsesFieldKey ? String(amount) : amount
 });
 
 const getApiProviderBalanceWithAuth = async (config, headers, addLog) => {
