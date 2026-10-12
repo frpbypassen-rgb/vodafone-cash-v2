@@ -625,6 +625,7 @@
                 html: `<div style="direction:rtl;text-align:right;line-height:1.8">
                     <div class="mb-2">${escapeHtml(data.message || 'تعذر إكمال الاختبار')}</div>
                     <div class="rounded-3 px-3" style="background:#0f172a">${renderApiPreflightChecks(data.checks)}</div>
+                    <details class="mt-3"><summary>الطلب المرسل والرد المستلم وسجل الاختبار</summary><pre dir="ltr" style="text-align:left;white-space:pre-wrap;overflow-wrap:anywhere;max-height:360px;overflow:auto">${escapeHtml(data.processLog || 'لا يوجد سجل اتصال.')}</pre></details>
                     <div class="small text-muted mt-3">لم يتم إرسال أي دفعة في هذا الاختبار.</div>
                 </div>`,
                 background: '#1e293b',

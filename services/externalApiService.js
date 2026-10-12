@@ -327,12 +327,14 @@ const runApiTransferPreflight = async (apiBot, input = {}) => {
 
         stage = 'inquiry';
         addLog('INQUIRY_TEST', `Safe test for [${targetNumber}] amount [${amount}] without payment.`);
+        addLog('REQUEST', JSON.stringify({ method: 'POST', path: '/api/V1/Transactions/Inquiry', headers: { 'Content-Type': 'application/json', Authorization: '[REDACTED]', 'app-version': config.defaultHeaders['app-version'], 'Accept-Language': 'ar-EG' }, body: buildInquiryPayload(config, targetNumber, amount) }));
         const inquiryRes = await axios.post(
             `${config.baseUrl}/api/V1/Transactions/Inquiry`,
             buildInquiryPayload(config, targetNumber, amount),
             { headers: auth.headers, timeout: 20000 }
         );
         const inquiryData = inquiryRes.data || {};
+        addLog('RESPONSE', JSON.stringify({ status: inquiryRes.status, body: { Code: inquiryData.Code, Message: inquiryData.Message, Data: inquiryData.Data ? { ...inquiryData.Data, PaymentBillInfo: inquiryData.Data.PaymentBillInfo ? '[REDACTED]' : undefined } : null } }));
         const paymentBillInfo = inquiryData.Data?.PaymentBillInfo;
         if (!hasSuccessCode(inquiryData) || !paymentBillInfo) {
             const message = providerMessage(inquiryData, 'تم رفض الاستعلام عن التحويل من المزود');
