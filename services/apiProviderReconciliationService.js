@@ -19,6 +19,7 @@ const DEFAULT_RETURN_LOOKBACK_DAYS = 45;
 const executorChains = new Map();
 let returnMonitorTimer = null;
 let initialReturnMonitorTimer = null;
+let returnMonitorRunInFlight = false;
 
 const numericOrNull = (value) => {
     const parsed = Number(value);
@@ -419,16 +420,24 @@ const syncProviderReturnedOperations = async (executorGroup, options = {}) => {
 };
 
 const reviewAllApiExecutors = async () => {
-    const groups = await ExecutorGroup.find({ isApiBot: true, status: 'active' });
-    for (const group of groups) {
-        try {
-            await syncProviderReturnedOperations(group, { limit: 25 });
-        } catch (error) {
-            logger.error('Automatic API provider return review failed', {
-                executorGroupId: String(group._id),
-                error: error.message
-            });
+    if (returnMonitorRunInFlight) return { skipped: true, reason: 'previous_run_in_flight' };
+    returnMonitorRunInFlight = true;
+    try {
+        const groups = await ExecutorGroup.find({ isApiBot: true, status: 'active' });
+        const maxGroups = Math.min(Math.max(Number(process.env.API_RETURN_MONITOR_MAX_GROUPS) || 100, 1), 500);
+        for (const group of groups.slice(0, maxGroups)) {
+            try {
+                await syncProviderReturnedOperations(group, { limit: 25 });
+            } catch (error) {
+                logger.error('Automatic API provider return review failed', {
+                    executorGroupId: String(group._id),
+                    error: error.message
+                });
+            }
         }
+        return { skipped: false, groupCount: Math.min(groups.length, maxGroups) };
+    } finally {
+        returnMonitorRunInFlight = false;
     }
 };
 
@@ -436,7 +445,7 @@ const startApiProviderReturnMonitor = () => {
     if (!isFinancialSchedulersEnabled()) return null;
     if (returnMonitorTimer || process.env.API_RETURN_MONITOR_ENABLED === 'false') return returnMonitorTimer;
     const configured = Number(process.env.API_RETURN_MONITOR_INTERVAL_MS);
-    const intervalMs = Number.isFinite(configured) && configured >= 60000
+    const intervalMs = Number.isFinite(configured) && configured >= 5000
         ? configured
         : DEFAULT_RETURN_MONITOR_INTERVAL_MS;
 
