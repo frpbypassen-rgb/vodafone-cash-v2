@@ -397,19 +397,23 @@ const executeTransferViaApi = async (tx, apiBot) => {
         }
         const headers = auth.headers;
         
+        const directPayment = preset.key === 'zayn_external_aggregator';
         addLog("PROVIDER", `${preset.name} | ServiceId=${serviceId} | CurrentServiceProviderId=${providerId} | FieldId=${fieldId}`);
-        addLog("INQUIRY", `جاري الاستعلام وفحص الرقم [${targetNumber}]...`);
-        const inquiryPayload = buildInquiryPayload(config, targetNumber, amount);
-        const inquiryRes = await axios.post(`${baseUrl}/api/V1/Transactions/Inquiry`, inquiryPayload, { headers, timeout: 20000 });
-        const inquiryData = inquiryRes.data || {};
-
-        if (!hasSuccessCode(inquiryData) || !inquiryData.Data || !inquiryData.Data.PaymentBillInfo) {
-            const message = providerMessage(inquiryData, 'تم رفض الاستعلام عن التحويل من المزود');
-            addLog("INQUIRY_FAIL", message || "Unexpected provider response");
-            return { success: false, message, processLog: processLog.join('\n') };
+        let inquiryData = {};
+        if (directPayment) {
+            addLog('PAYMENT_DIRECT', 'تم اعتماد الدفع المباشر لهذا المزود بدون Inquiry حسب تأكيد المزود.');
+        } else {
+            addLog("INQUIRY", `جاري الاستعلام وفحص الرقم [${targetNumber}]...`);
+            const inquiryPayload = buildInquiryPayload(config, targetNumber, amount);
+            const inquiryRes = await axios.post(`${baseUrl}/api/V1/Transactions/Inquiry`, inquiryPayload, { headers, timeout: 20000 });
+            inquiryData = inquiryRes.data || {};
+            if (!hasSuccessCode(inquiryData) || !inquiryData.Data || !inquiryData.Data.PaymentBillInfo) {
+                const message = providerMessage(inquiryData, 'تم رفض الاستعلام عن التحويل من المزود');
+                addLog("INQUIRY_FAIL", message || "Unexpected provider response");
+                return { success: false, message, processLog: processLog.join('\n') };
+            }
+            addLog("INQUIRY_SUCCESS", "الرقم سليم ومتاح للتحويل.");
         }
-        
-        addLog("INQUIRY_SUCCESS", "الرقم سليم ومتاح للتحويل.");
         addLog("PAYMENT", `جاري إرسال الدفعة النهائية بقيمة [${amount} EGP]...`);
 
         const claim = await claimProviderDispatch(tx);
@@ -428,10 +432,10 @@ const executeTransferViaApi = async (tx, apiBot) => {
             Fields: [{ Id: fieldId, Value: targetNumber }],
             CurrentServiceProviderId: providerId,
             ServiceId: serviceId,
-            PaymentBillInfo: inquiryData.Data.PaymentBillInfo,
             Amount: amount,
             MachineSerial: machineSerial
         };
+        if (!directPayment) paymentPayload.PaymentBillInfo = inquiryData.Data.PaymentBillInfo;
         let paymentRes;
         try {
             paymentRes = await axios.post(`${baseUrl}/api/V1/Transactions/Payment`, paymentPayload, { headers, timeout: 180000 });
