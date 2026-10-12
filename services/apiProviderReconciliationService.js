@@ -14,7 +14,7 @@ const logger = require('../utils/logger');
 const { isFinancialSchedulersEnabled } = require('../utils/runtimeControls');
 
 const DEFAULT_BALANCE_TOLERANCE = 0.01;
-const DEFAULT_RETURN_MONITOR_INTERVAL_MS = 5 * 60 * 1000;
+const DEFAULT_RETURN_MONITOR_INTERVAL_MS = 5 * 1000;
 const DEFAULT_RETURN_LOOKBACK_DAYS = 45;
 const executorChains = new Map();
 let returnMonitorTimer = null;

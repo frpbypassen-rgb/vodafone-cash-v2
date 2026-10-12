@@ -43,6 +43,7 @@ const {
 } = require('../services/adminFinancialMutationService');
 const eventBus = require('../services/eventBus');
 const { sendCompletedTransactionReceipt } = require('../services/whatsappReceiptDeliveryService');
+const { syncProviderReturnedOperations } = require('../services/apiProviderReconciliationService');
 const { adminVisibleTransactionQuery, applyAdminTxPrivacy } = require('../services/adminAccountVisibilityService');
 const { adminAccountScope } = require('../utils/tenantScope');
 const {
@@ -1185,6 +1186,20 @@ router.post('/transaction/:id/resend-proof', requireAuth, async (req, res) => {
     } catch (error) {
         console.error('[adminTransactions/resend-proof] failed:', error.message);
         return res.status(500).send('تعذر إعادة إرسال الإيصال.');
+    }
+});
+
+router.post('/transaction/:id/check-api-result', requireAuth, async (req, res) => {
+    try {
+        const tx = await Transaction.findOne(adminTxById(req, req.params.id)).select('_id executorGroupId status customId');
+        if (!tx || !tx.executorGroupId || !['processing', 'accepted', 'completed'].includes(tx.status)) return res.status(409).json({ success: false, message: 'العملية غير مؤهلة للاستعلام حالياً.' });
+        const executorGroup = await ExecutorGroup.findById(tx.executorGroupId).lean();
+        if (!executorGroup) return res.status(409).json({ success: false, message: 'منفذ API غير موجود.' });
+        const summary = await syncProviderReturnedOperations(executorGroup, { force: true, limit: 100, lookbackDays: 30 });
+        const fresh = await Transaction.findById(tx._id).select('status executorName apiResultData').lean();
+        return res.json({ success: true, customId: tx.customId, status: fresh?.status || tx.status, executorName: fresh?.executorName || '', providerStatus: fresh?.apiResultData?.providerReportedStatus || '', summary });
+    } catch (error) {
+        return res.status(502).json({ success: false, message: error.message || 'تعذر الاستعلام من مزود API.' });
     }
 });
 

@@ -1115,6 +1115,9 @@
                                             <% if (apiLog) { %>
                                                 <button class="btn-action-sm api-log" data-log="<%= encodeURIComponent(apiLog) %>" onclick="showApiLog(this)" title="سجل Terminal للـ API"><i class="fa-solid fa-terminal"></i></button>
                                             <% } %>
+                                            <% if (tx.apiResultData && ['processing', 'accepted'].includes(tx.status) && tx.executorGroupId) { %>
+                                                <button type="button" class="btn-action-sm api-log" data-check-api="<%= tx._id %>" title="استعلام عن رد API"><i class="fa-solid fa-arrows-rotate"></i></button>
+                                            <% } %>
 
                                             <% const apiStalledOver60s = tx.apiResultData && ['pending', 'processing', 'accepted'].includes(tx.status) && (Date.now() - new Date(tx.createdAt).getTime()) > 60000; %>
                                             <% if (canResolveProviderResult && (tx.apiResultData?.providerResultUnresolved === true || tx.apiResultData?.providerDispatchResult === 'pending_reference' || apiStalledOver60s)) { %>
@@ -2264,6 +2267,19 @@
     }
 
     document.addEventListener('DOMContentLoaded', () => {
+        document.addEventListener('click', async (event) => {
+            const button = event.target.closest('[data-check-api]');
+            if (!button) return;
+            button.disabled = true;
+            try {
+                const response = await fetch(`/transaction/${encodeURIComponent(button.dataset.checkApi)}/check-api-result`, { method: 'POST', headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' } });
+                const result = await response.json();
+                if (!response.ok || !result.success) throw new Error(result.message || 'تعذر الاستعلام.');
+                Swal.fire({ toast: true, position: 'top', icon: 'success', title: `تم الاستعلام: ${result.providerStatus || 'لا توجد نتيجة نهائية بعد'}`, showConfirmButton: false, timer: 2500 });
+                refreshTransactionsList();
+            } catch (error) { Swal.fire('تعذر الاستعلام', error.message, 'error'); }
+            finally { button.disabled = false; }
+        });
         const transactionSocket = window.io ? window.io({ transports: ['websocket', 'polling'] }) : null;
         transactionSocket?.on('connect', () => transactionSocket.emit('transactions:subscribe'));
         transactionSocket?.on('transactions:changed', () => {
