@@ -116,6 +116,7 @@ const resolveApiProviderConfig = (apiBot = {}, env = process.env) => {
     });
     const baseUrl = decision.refused ? '' : normalizeBaseUrl(decision.baseUrl);
 
+    const usePresetServiceConfig = preset.key === 'zayn_external_aggregator';
     return {
         preset,
         baseUrl,
@@ -124,9 +125,9 @@ const resolveApiProviderConfig = (apiBot = {}, env = process.env) => {
         apiUsername: apiBot.apiUsername || process.env.ZAYN_USERNAME || process.env.ZAYNPAY_USERNAME,
         apiPassword: apiBot.apiPassword || process.env.ZAYN_PASSWORD || process.env.ZAYNPAY_PASSWORD,
         staticToken: (apiBot.apiToken || process.env.ZAYN_API_TOKEN || process.env.ZAYNPAY_API_TOKEN || '').replace(/^Bearer\s+/i, '').trim(),
-        serviceId: parseNumberOrDefault(apiBot.apiServiceId || process.env.ZAYN_AGGREGATOR_SERVICE_ID || process.env.ZAYNPAY_SERVICE_ID, preset.serviceId),
-        providerId: parseNumberOrDefault(apiBot.apiProviderId || process.env.ZAYN_AGGREGATOR_PROVIDER_ID || process.env.ZAYNPAY_PROVIDER_ID, preset.providerId),
-        fieldId: parseNumberOrDefault(apiBot.apiFieldId || process.env.ZAYN_AGGREGATOR_FIELD_ID || process.env.ZAYNPAY_FIELD_ID, preset.fieldId),
+        serviceId: usePresetServiceConfig ? preset.serviceId : parseNumberOrDefault(apiBot.apiServiceId || process.env.ZAYN_AGGREGATOR_SERVICE_ID || process.env.ZAYNPAY_SERVICE_ID, preset.serviceId),
+        providerId: usePresetServiceConfig ? preset.providerId : parseNumberOrDefault(apiBot.apiProviderId || process.env.ZAYN_AGGREGATOR_PROVIDER_ID || process.env.ZAYNPAY_PROVIDER_ID, preset.providerId),
+        fieldId: usePresetServiceConfig ? preset.fieldId : parseNumberOrDefault(apiBot.apiFieldId || process.env.ZAYN_AGGREGATOR_FIELD_ID || process.env.ZAYNPAY_FIELD_ID, preset.fieldId),
         machineSerial: apiBot.apiMachineSerial || process.env.ZAYN_AGGREGATOR_MACHINE_SERIAL || process.env.ZAYNPAY_MACHINE_SERIAL || preset.machineSerial,
         defaultHeaders: {
             'Content-Type': 'application/json',
