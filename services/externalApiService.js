@@ -230,8 +230,10 @@ const getApiConfigurationIssues = (config) => {
 };
 
 const buildInquiryPayload = (config, targetNumber, amount) => ({
-    Fields: [{ Id: config.fieldId, Value: targetNumber }],
-    CurrentServiceProviderId: config.providerId,
+    Fields: [config.preset.inquiryUsesFieldKey
+        ? { Key: config.preset.fieldKey, Value: targetNumber }
+        : { Id: config.fieldId, Value: targetNumber }],
+    ...(config.preset.inquiryUsesFieldKey ? {} : { CurrentServiceProviderId: config.providerId }),
     ServiceId: config.serviceId,
     MachineSerial: config.machineSerial,
     InqueryAmount: amount

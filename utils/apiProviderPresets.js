@@ -7,9 +7,11 @@ const API_PROVIDER_PRESETS = {
         nameAr: 'Zayn External Aggregator',
         // Production fallback only. Staging refuses this host; see resolveProviderBaseUrl.
         apiUrl: 'https://zaynpay.com',
-        serviceId: 85,
+        serviceId: 307,
         providerId: 16,
         fieldId: 5488,
+        fieldKey: 'Key1',
+        inquiryUsesFieldKey: true,
         machineSerial: 'XP1',
         appType: '1',
         appId: 'app12',
