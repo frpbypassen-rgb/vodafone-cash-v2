@@ -1444,6 +1444,13 @@
                                         <span class="small text-muted fw-bold">سعر الصرف للخدمة:</span>
                                         <span class="fw-bold fs-5 ms-2" style="color: #0ea5e9;" id="tf_service_rate">0.00</span>
                                         <span class="d-block small fw-bold text-muted mt-1" id="tf_rate_formula">1 د.ل = 0.00 EGP</span>
+                                        <% if (typeof allowCustomExchangeRate !== 'undefined' && allowCustomExchangeRate) { %>
+                                            <label class="d-flex align-items-center justify-content-center gap-2 mt-3 small fw-bold" for="tf_custom_rate">
+                                                <span>سعر خاص لهذه العملية</span>
+                                                <input type="number" id="tf_custom_rate" class="form-control text-center mono-num" min="0.01" max="1000" step="0.01" placeholder="اتركه فارغاً للسعر العام" style="max-width: 220px;">
+                                            </label>
+                                            <small class="d-block text-muted mt-1">السعر المخصص لهذه العملية فقط ولا يغير سعر الحساب العام.</small>
+                                        <% } %>
                                     </div>
 
                                     <!-- مبلغ الخدمة -->
@@ -1722,6 +1729,8 @@
                 'بنكك السودان': 'bankak_sudan'
             };
             const key = serviceKeyByType[currentTransferType] || 'vodafone';
+            const customRate = parseFloat(document.getElementById('tf_custom_rate')?.value);
+            if (Number.isFinite(customRate) && customRate > 0) return customRate;
             const rate = parseFloat(serviceRates[key]);
             return Number.isFinite(rate) && rate > 0 ? rate : currentRate;
         }
@@ -1774,6 +1783,11 @@
                 document.getElementById('tf_amount').value = lyd > 0 ? (lyd * rate).toFixed(2) : '';
             }
         }
+
+        document.getElementById('tf_custom_rate')?.addEventListener('input', () => {
+            updateServiceRateDisplay();
+            calcFromEGP();
+        });
 
         // Keep old updateCost for compatibility
         function updateCost() { calcFromEGP(); updateServiceRateDisplay(); }
@@ -2096,6 +2110,8 @@
                 transferData.set('nationalId', nationalId);
                 transferData.set('governorate', governorate);
                 transferData.set('clientPhone', clientPhone);
+                const customRateInput = document.getElementById('tf_custom_rate');
+                if (customRateInput?.value.trim()) transferData.set('exchangeRate', customRateInput.value.trim());
                 if (operationPin) transferData.set('operationPin', operationPin);
                 if (idCardFile) transferData.set('idCardImage', idCardFile);
                 

@@ -58,6 +58,9 @@ const {
     financialTransactionsUnavailableError
 } = require('../services/walletService');
 
+const CUSTOM_RATE_MIN = 0.01;
+const CUSTOM_RATE_MAX = 1000;
+
 const clientOwnershipFilter = async (req) => {
     const accountId = req.session.clientId;
     if (req.session.accountType === 'sub_client') return { subAccountId: accountId };
@@ -349,6 +352,16 @@ exports.postTransfer = async (req, res) => {
             walletDoc = await withSess(User.findById(account.agentId));
             if (!walletDoc || walletDoc.status !== 'active' || walletDoc.role !== 'agent') throw new Error('AGENT_NOT_FOUND');
         }
+        const customRateInput = String(req.body.exchangeRate ?? '').trim();
+        const canSetCustomExchangeRate = !isSubAccount && Boolean(walletDoc.allowCustomExchangeRate);
+        let requestedCustomRate = null;
+        if (customRateInput) {
+            if (!canSetCustomExchangeRate) throw createClientError('لا يسمح هذا الحساب بتعديل سعر الصرف.', 403);
+            requestedCustomRate = Number(customRateInput);
+            if (!Number.isFinite(requestedCustomRate) || requestedCustomRate < CUSTOM_RATE_MIN || requestedCustomRate > CUSTOM_RATE_MAX) {
+                throw createClientError(`سعر الصرف يجب أن يكون بين ${CUSTOM_RATE_MIN} و${CUSTOM_RATE_MAX}.`, 400);
+            }
+        }
         transferTenantId = resolveStampTenant({ req, account: walletDoc });
         idempotencyState = await beginIdempotentFinancialRequest({
             key: req.headers['idempotency-key'],
@@ -359,6 +372,7 @@ exports.postTransfer = async (req, res) => {
                 type: transferType,
                 serviceKey,
                 amount,
+                exchangeRate: requestedCustomRate,
                 phone,
                 accountNumber,
                 accountName,
@@ -476,19 +490,19 @@ exports.postTransfer = async (req, res) => {
         } else {
             if (req.session.accountType === 'company') {
                 const company = await withSess(ClientCompany.findById(account.companyId));
-                masterRate = getCompanyServiceRates(company, settings)[serviceKey];
+                masterRate = requestedCustomRate || getCompanyServiceRates(company, settings)[serviceKey];
                 masterCostLYD = calculateTransferCostLYD({ serviceKey, amount, exchangeRate: masterRate });
                 balanceModel = company; companyId = company._id; companyName = company.name; telegramId = account.phone || account.webUsername;
             } else if (isAgentStaff) {
                 const agent = await withSess(User.findById(account.agentId));
                 if (!agent || agent.status !== 'active' || agent.role !== 'agent') throw new Error('AGENT_NOT_FOUND');
-                masterRate = getServiceRateForTier(serviceKey, agent.tier || 1, settings);
+                masterRate = requestedCustomRate || getServiceRateForTier(serviceKey, agent.tier || 1, settings);
                 masterCostLYD = calculateTransferCostLYD({ serviceKey, amount, exchangeRate: masterRate });
                 balanceModel = agent;
                 companyName = agent.name;
                 telegramId = agent.phone || agent.webUsername;
             } else {
-                masterRate = getServiceRateForTier(serviceKey, account.tier || 1, settings);
+                masterRate = requestedCustomRate || getServiceRateForTier(serviceKey, account.tier || 1, settings);
                 masterCostLYD = calculateTransferCostLYD({ serviceKey, amount, exchangeRate: masterRate });
                 balanceModel = account; telegramId = account.phone || account.webUsername;
             }

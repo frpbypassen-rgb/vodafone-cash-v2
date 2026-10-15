@@ -90,7 +90,7 @@ async function notifyAdmins({ title, message, type = 'deposit_pending' }) {
     }).catch(() => null)));
 }
 
-async function createDepositRequest({ employee, group: requestedGroup, submittedBy, amount, note, receipts, submittedFromAdmin = false, serviceKey }) {
+async function createDepositRequest({ employee, group: requestedGroup, submittedBy, amount, note, receipts, submittedFromAdmin = false, serviceKey, settlementDetails, apiResultData }) {
     if ((!employee?.groupId && !requestedGroup) || (employee && employee.role === 'accountant')) throw failure('هذا الحساب لا يملك صلاحية طلب إيداع للشركة.', 403);
     const parsedAmount = Number(amount);
     if (!Number.isFinite(parsedAmount) || parsedAmount <= 0 || parsedAmount > 1000000) throw failure('قيمة الإيداع غير صالحة.');
@@ -105,7 +105,9 @@ async function createDepositRequest({ employee, group: requestedGroup, submitted
         throw failure('تعذر تحديد المدير الذي سجّل طلب الإيداع.', 401);
     }
     const customId = `DEPREQ-${Date.now().toString().slice(-8)}-${crypto.randomBytes(2).toString('hex').toUpperCase()}`;
-    const receiptImages = await saveReceipts(receipts, customId);
+    const receiptImages = submittedFromAdmin && (!Array.isArray(receipts) || receipts.length === 0)
+        ? []
+        : await saveReceipts(receipts, customId);
     const createdAt = new Date();
     const transactionId = new mongoose.Types.ObjectId();
     const ticketId = new mongoose.Types.ObjectId();
@@ -125,7 +127,9 @@ async function createDepositRequest({ employee, group: requestedGroup, submitted
         status: 'deposit_pending', customId, companyName: group.name || 'شركة التنفيذ', employeeName: submitter.name,
         executorName: submitter.name, notes: cleanNote, proofImage: receiptImages[0], proofImages: receiptImages,
         executorWebAlert: submittedFromAdmin ? { type: 'warning', text: `تم تسجيل طلب إيداع إداري ${customId} بقيمة ${parsedAmount} EGP وهو قيد المراجعة.` } : undefined,
-        depositRequest: { supportTicketId: ticketId, note: cleanNote, receiptImages, submittedById: submitter.id, submittedByName: submitter.name, submittedByRole: submittedFromAdmin ? 'admin' : 'executor' },
+        depositRequest: { supportTicketId: ticketId, note: cleanNote, receiptImages, ...(mongoose.isValidObjectId(submitter.id) ? { submittedById: submitter.id } : {}), submittedByName: submitter.name, submittedByRole: submittedFromAdmin ? 'admin' : 'executor' },
+        ...(settlementDetails ? { settlementDetails } : {}),
+        ...(apiResultData ? { apiResultData } : {}),
         ...(submittedFromAdmin ? {
             performedByAdminId: String(submitter.id),
             performedByAdminName: String(submitter.name),
@@ -155,6 +159,7 @@ async function createDepositRequest({ employee, group: requestedGroup, submitted
                 note: cleanNote,
                 receiptCount: receiptImages.length,
                 receiptImages,
+                financialSource: apiResultData?.financialSource || '',
                 submittedByName: submitter.name,
                 submittedByRole: submittedFromAdmin ? 'admin' : 'executor',
                 status: 'pending'
@@ -210,7 +215,14 @@ async function listDepositRequests({ employee }) {
         throw failure('لا تملك صلاحية عرض إيداعات الشركة.', 403);
     }
 
-    const rows = await Transaction.find({ executorGroupId: employee.groupId._id, status: { $in: ['deposit_pending', 'deposit', 'rejected'] }, 'depositRequest.submittedById': { $exists: true } })
+    const rows = await Transaction.find({
+        executorGroupId: employee.groupId._id,
+        status: { $in: ['deposit_pending', 'deposit', 'rejected'] },
+        $or: [
+            { 'depositRequest.submittedById': { $exists: true } },
+            { 'depositRequest.submittedByRole': 'admin' }
+        ]
+    })
         .select('customId amount status createdAt updatedAt proofImages depositRequest executorWebAlert')
         .sort({ createdAt: -1 }).limit(100).lean();
     const toReceiptUrl = (imagePath) => {
@@ -266,6 +278,9 @@ async function resolveDepositTicketInSession({ ticketId, admin, approved, reason
     const cleanReason = String(reason || '').trim().slice(0, 1000);
     if (!approved && cleanReason.length < 3) throw failure('اكتب سبب الرفض بوضوح.');
     const panelAdmin = ['master', 'admin', 'accountant'].includes(String(admin.role || '').trim());
+    if (panelAdmin && ticket.metadata?.depositRequest?.financialSource === 'merchant') {
+        throw failure('يجب أن يراجع مدير شركة التنفيذ هذا الإيداع.', 403);
+    }
     const update = approved
         ? {
             status: 'deposit',
@@ -282,6 +297,10 @@ async function resolveDepositTicketInSession({ ticketId, admin, approved, reason
         : { status: 'rejected', 'depositRequest.reviewedById': reviewerId, 'depositRequest.reviewedByName': reviewerName, 'depositRequest.reviewedAt': reviewedAt, 'depositRequest.rejectionReason': cleanReason, executorWebAlert: { type: 'error', text: `تم رفض طلب الإيداع ${ticket.metadata.depositRequest.customId}. السبب: ${cleanReason}` } };
     const tx = await Transaction.findOneAndUpdate({ _id: transactionId, status: 'deposit_pending', 'depositRequest.supportTicketId': ticket._id }, { $set: update }, { returnDocument: 'after', ...(session ? { session } : {}) });
     if (!tx) throw failure('تمت مراجعة طلب الإيداع سابقًا أو لم يعد متاحًا.', 409);
+    if (approved && ticket.metadata?.depositRequest?.financialSource === 'merchant') {
+        const { settleMerchantExecutorDepositRequest } = require('./merchantExecutorDepositService');
+        await settleMerchantExecutorDepositRequest({ transactionId, actor: admin, session });
+    }
     ticket.status = approved ? 'resolved' : 'closed';
     ticket.resolvedAt = approved ? reviewedAt : ticket.resolvedAt;
     ticket.closedAt = approved ? ticket.closedAt : reviewedAt;

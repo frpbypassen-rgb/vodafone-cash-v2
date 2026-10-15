@@ -4,14 +4,108 @@ const express = require('express');
 const router = express.Router();
 const Ledger = require('../models/Ledger');
 const Transaction = require('../models/Transaction');
+const User = require('../models/User');
+const ClientCompany = require('../models/ClientCompany');
+const ExecutorGroup = require('../models/ExecutorGroup');
+const MerchantAccount = require('../models/MerchantAccount');
+const FinancialOffice = require('../models/FinancialOffice');
+const { createMerchantExecutorDepositRequest, reverseMerchantExecutorDeposit } = require('../services/merchantExecutorDepositService');
+const { requireMaster } = require('../middlewares/auth');
+const { requireAdminActor } = require('../utils/adminActor');
+const { loadCentralLedgerOverview } = require('../services/centralLedgerOverviewService');
 const { requireAuth } = require('../middlewares/auth');
 const { applyAdminTxPrivacy } = require('../services/adminAccountVisibilityService');
 const { escapeRegex } = require('../middlewares/sanitize');
 const { systemDateKey, systemDayEnd, systemDayStart } = require('../config/systemTime');
+const { adminAccountScope } = require('../utils/tenantScope');
+const { normalizeExecutorServiceKey } = require('../utils/executorServiceCatalog');
 
 const MOVEMENT_TYPES = ['DEPOSIT', 'DEDUCTION', 'TRANSFER', 'INTERNAL_TRANSFER', 'COMMISSION', 'REFUND', 'REVERSAL'];
 const ENTITY_MODELS = ['User', 'ClientCompany', 'ClientBot', 'ExecutorBot', 'ExecutorGroup'];
 const SORT_FIELDS = new Set(['createdAt', 'amount', 'balanceBefore', 'balanceAfter', 'type', 'entityModel']);
+
+router.get('/financial-center', requireAuth, async (req, res) => {
+    try {
+        const overview = await loadCentralLedgerOverview({
+            Transaction,
+            ClientCompany,
+            User,
+            MerchantAccount,
+            ExecutorGroup,
+            source: req
+        });
+        return res.render('financial_center', {
+            activePage: 'financial_center',
+            adminName: req.session.adminName,
+            csrfToken: res.locals.csrfToken || req.session.csrfToken || '',
+            overview,
+            offices: await FinancialOffice.find({ ...adminAccountScope(req), status: 'active' }).sort({ name: 1 }).lean(),
+            executors: await ExecutorGroup.find({ ...adminAccountScope(req), status: { $nin: ['archived', 'inactive'] } }).select('name balance serviceKey serviceKeys').sort({ name: 1 }).lean()
+        });
+    } catch (error) {
+        console.error('[financial-center] error:', error.stack || error.message);
+        return res.status(500).send('تعذر تحميل المركز المالي');
+    }
+});
+
+router.post('/financial-center/offices', requireAuth, requireMaster, async (req, res) => {
+    try {
+        const name = String(req.body.name || '').trim();
+        if (!name) return res.status(400).json({ success: false, error: 'اسم المكتب مطلوب' });
+        const office = await FinancialOffice.create({ name, code: String(req.body.code || '').trim(), tenantId: req.tenant?._id });
+        return res.status(201).json({ success: true, office });
+    } catch (error) { return res.status(400).json({ success: false, error: error.message }); }
+});
+
+router.post('/financial-center/merchants', requireAuth, requireMaster, async (req, res) => {
+    try {
+        const name = String(req.body.name || '').trim();
+        if (!name) return res.status(400).json({ success: false, error: 'اسم التاجر مطلوب' });
+        const merchant = await MerchantAccount.create({ name, code: String(req.body.code || '').trim(), officeId: req.body.officeId || null, tenantId: req.tenant?._id });
+        return res.status(201).json({ success: true, merchant });
+    } catch (error) { return res.status(400).json({ success: false, error: error.message }); }
+});
+
+router.post('/financial-center/merchant-deposits', requireAuth, requireMaster, async (req, res) => {
+    try {
+        const actor = requireAdminActor(req);
+        const result = await createMerchantExecutorDepositRequest({
+            merchantId: req.body.merchantId,
+            executorId: req.body.executorId,
+            amountEGP: req.body.amountEGP,
+            exchangeRate: req.body.exchangeRate,
+            serviceKey: normalizeExecutorServiceKey(req.body.serviceKey, null),
+            note: String(req.body.note || '').trim(),
+            actor,
+            tenantId: req.tenant?._id
+        });
+        return res.status(201).json({ success: true, message: 'تم إرسال طلب الإيداع إلى المنفذ بانتظار القبول', ...result, transactionId: result.customId });
+    } catch (error) {
+        const messages = { INVALID_AMOUNT: 'قيمة الإيداع غير صحيحة', INVALID_EXCHANGE_RATE: 'سعر الصرف غير صحيح', MERCHANT_NOT_FOUND: 'التاجر غير موجود', EXECUTOR_NOT_FOUND: 'المنفذ غير موجود', INVALID_EXECUTOR_SERVICE: 'نوع الإيداع غير متاح لهذا المنفذ' };
+        return res.status(400).json({ success: false, error: messages[error.message] || error.message });
+    }
+});
+
+router.post('/financial-center/merchant-deposits/:transactionId/reverse', requireAuth, requireMaster, async (req, res) => {
+    try {
+        const actor = requireAdminActor(req);
+        const result = await reverseMerchantExecutorDeposit({ transactionId: req.params.transactionId, actor, tenantId: req.tenant?._id, reason: String(req.body.reason || '').trim() });
+        return res.json({ success: true, message: 'تم عكس الحركة وإرجاع الأثر المالي', ...result });
+    } catch (error) {
+        const messages = { MERCHANT_DEPOSIT_NOT_FOUND: 'الحركة غير موجودة أو ليست إيداع تاجر', MERCHANT_DEPOSIT_ALREADY_REVERSED: 'تم عكس الحركة سابقًا', MERCHANT_NOT_FOUND: 'التاجر غير موجود' };
+        return res.status(400).json({ success: false, error: messages[error.message] || error.message });
+    }
+});
+
+router.get('/financial-center/merchants/:id/movements', requireAuth, async (req, res) => {
+    try {
+        const merchant = await MerchantAccount.findOne({ _id: req.params.id, ...adminAccountScope(req) }).select('name balance code').lean();
+        if (!merchant) return res.status(404).json({ success: false, error: 'التاجر غير موجود' });
+        const movements = await Ledger.find({ entityModel: 'MerchantAccount', entityId: merchant._id })
+            .sort({ createdAt: -1 }).limit(100).lean();
+        return res.json({ success: true, merchant, movements });
+    } catch (error) { return res.status(400).json({ success: false, error: 'تعذر تحميل سجل حركات التاجر' }); }
+});
 
 const parseDateRange = (query) => {
     const range = {};

@@ -157,19 +157,61 @@ const loadFundedExecutorBalances = async (ExecutorGroup, source) => {
     }));
 };
 
+const loadExecutorBalanceTotals = async (ExecutorGroup, source) => {
+    const groups = await ExecutorGroup.find({
+        ...adminAccountScope(source),
+        status: { $nin: ['archived', 'inactive', 'deleted'] }
+    }).select('balance').lean();
+    return groups.reduce((totals, group) => {
+        const balance = Number(group.balance) || 0;
+        if (balance >= 0) totals.availableEGP += balance;
+        else totals.debtEGP += Math.abs(balance);
+        return totals;
+    }, { availableEGP: 0, debtEGP: 0 });
+};
+
 const loadCentralLedgerOverview = async ({
     Transaction,
     ClientCompany,
+    User,
+    MerchantAccount,
     ExecutorGroup,
     source,
     now = new Date()
 }) => {
-    const [periodStats, activeClientCompanies, fundedExecutorCompanies] = await Promise.all([
+    const [periodStats, activeClientCompanies, fundedExecutorCompanies, clientUsers, merchantAccounts, executorBalanceTotals] = await Promise.all([
         loadSuccessfulOpsPeriodStats(Transaction, source, now),
         loadActiveClientCompanyBalances(ClientCompany, source),
-        loadFundedExecutorBalances(ExecutorGroup, source)
+        loadFundedExecutorBalances(ExecutorGroup, source),
+        User ? User.find({ ...adminAccountScope(source), status: { $nin: ['deleted', 'inactive', 'archived'] }, role: { $nin: ['accountant'] } }).select('name balance phone accountCode').lean() : [],
+        MerchantAccount ? MerchantAccount.find({ ...adminAccountScope(source), status: 'active' }).select('name balance code officeId').sort({ name: 1 }).lean() : [],
+        loadExecutorBalanceTotals(ExecutorGroup, source)
     ]);
-    return { periodStats, activeClientCompanies, fundedExecutorCompanies };
+    const accountBalances = [
+        ...activeClientCompanies.map((account) => ({ ...account, type: 'company' })),
+        ...clientUsers.map((account) => ({ id: String(account._id), name: account.name || account.phone || 'عميل بدون اسم', balance: Number(account.balance) || 0, accountCode: account.accountCode || '', phone: account.phone || '', type: 'client' }))
+    ];
+    const totalDebts = accountBalances.reduce((sum, account) => sum + Math.max(0, -Number(account.balance || 0)), 0);
+    const totalPositiveBalances = accountBalances.reduce((sum, account) => sum + Math.max(0, Number(account.balance || 0)), 0);
+    const totalMerchantBalance = merchantAccounts.reduce((sum, account) => sum + Number(account.balance || 0), 0);
+    const profitRows = MerchantAccount ? await Transaction.aggregate([
+        { $match: { ...successfulOpsLedgerMatch(source), status: SUCCESS_STATUS, exchangeRate: { $gt: 0 }, costLYD: { $gt: 0 } } },
+        { $project: { amount: { $ifNull: ['$amount', 0] }, exchangeRate: 1, costLYD: 1, customId: 1, companyName: 1, executorName: 1, createdAt: 1 } },
+        { $addFields: { revenueLYD: { $divide: ['$amount', '$exchangeRate'] }, profitLYD: { $subtract: [{ $divide: ['$amount', '$exchangeRate'] }, '$costLYD'] } } },
+        { $group: { _id: null, totalProfitLYD: { $sum: '$profitLYD' }, count: { $sum: 1 } } }
+    ]) : [];
+    return {
+        periodStats,
+        activeClientCompanies,
+        fundedExecutorCompanies,
+        accountBalances,
+        merchantAccounts,
+        totalDebts,
+        totalPositiveBalances,
+        totalMerchantBalance,
+        executorBalanceTotals,
+        exchangeProfit: { totalProfitLYD: Number(profitRows[0]?.totalProfitLYD || 0), count: Number(profitRows[0]?.count || 0) }
+    };
 };
 
 module.exports = {
@@ -181,6 +223,7 @@ module.exports = {
     loadActiveClientCompanyBalances,
     loadCentralLedgerOverview,
     loadFundedExecutorBalances,
+    loadExecutorBalanceTotals,
     loadSuccessfulOpsPeriodStats,
     mapActiveClientCompanies,
     mapFundedExecutorBalances,

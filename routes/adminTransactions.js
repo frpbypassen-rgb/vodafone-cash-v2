@@ -793,6 +793,7 @@ router.post('/transaction/:id/accept-deposit-web', async (req, res) => {
         const actor = requireAdminActor(req);
         const tx = await Transaction.findOne(adminTxById(req, req.params.id));
         if (!tx || tx.status !== 'deposit_pending') return res.json({ success: false, error: 'الطلب غير متاح' });
+        if (tx.apiResultData?.financialSource === 'merchant') return res.status(403).json({ success: false, error: 'هذا الطلب بانتظار قرار مدير شركة التنفيذ.' });
 
         if (tx.depositRequest?.submittedByRole === 'client' && tx.depositRequest?.supportTicketId) {
             const { resolveClientDepositTicket } = require('../services/clientDepositRequestService');
@@ -838,6 +839,7 @@ router.post('/transaction/:id/reject-deposit-web', async (req, res) => {
         const actor = requireAdminActor(req);
         const { reason } = req.body; const tx = await Transaction.findOne(adminTxById(req, req.params.id));
         if (!tx || tx.status !== 'deposit_pending') return res.redirect('/transactions');
+        if (tx.apiResultData?.financialSource === 'merchant') return res.status(403).json({ success: false, error: 'هذا الطلب بانتظار قرار مدير شركة التنفيذ.' });
 
         if (tx.depositRequest?.submittedByRole === 'client' && tx.depositRequest?.supportTicketId) {
             const { resolveClientDepositTicket } = require('../services/clientDepositRequestService');
@@ -1167,6 +1169,10 @@ router.get('/transactions/:id/details', async (req, res) => {
         }
         
         const transaction = typeof tx.toObject === 'function' ? tx.toObject() : tx;
+        if (transaction.status === 'completed' && Number(transaction.exchangeRate) > 0 && Number(transaction.costLYD) >= 0) {
+            transaction.exchangeProfitLYD = Number(((Number(transaction.amount || 0) / Number(transaction.exchangeRate)) - Number(transaction.costLYD || 0)).toFixed(3));
+            transaction.exchangeProfitFormula = 'المبلغ المصري ÷ سعر العميل − تكلفة تمويل المنفذ بالدينار الليبي';
+        }
         const partProofs = describeSplitPartProofs(tx);
         if (partProofs.length) transaction.partProofs = partProofs;
         res.json({ success: true, transaction, ledgerInfo, balanceTransferPair });

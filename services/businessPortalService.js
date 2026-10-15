@@ -1319,6 +1319,7 @@ const buildBaseContext = async (req, page, workspace) => {
         statusMeta: STATUS_META,
         serviceCatalog: rates.services,
         serviceRates: rates.serviceRates,
+        allowCustomExchangeRate: Boolean(workspace.entity.allowCustomExchangeRate),
         ratesUpdatedAt: rates.ratesUpdatedAt,
         pendingRateUpdate,
         lowBalanceAlert: buildLowBalanceAlert(workspace),

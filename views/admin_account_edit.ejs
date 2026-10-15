@@ -116,6 +116,7 @@
         </section>
 
         <form class="editor-form" action="/admin/accounts/<%= accountType %>/<%= account._id %>/edit" method="POST" enctype="multipart/form-data" autocomplete="off">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
             <section class="form-section">
                 <h2 class="section-heading"><i class="fa-solid fa-address-card"></i> البيانات الأساسية</h2>
                 <div class="field-grid">
@@ -221,6 +222,13 @@
                             <label for="creditLimit">الحد الائتماني</label>
                             <input id="creditLimit" name="creditLimit" type="number" step="0.01" min="0" class="form-control mono" value="<%= value('creditLimit', 0) %>">
                         </div>
+                            <% if (['user', 'agent', 'company'].includes(accountType)) { %>
+                                <label class="permission-option field full">
+                                    <input type="checkbox" name="allowCustomExchangeRate" value="true" <%= checked('allowCustomExchangeRate') ? 'checked' : '' %>>
+                                    <span>السماح بتعديل سعر الصرف لكل عملية</span>
+                                </label>
+                                <div class="security-note field full"><i class="fa-solid fa-circle-info"></i><span>عند التفعيل يستطيع الحساب إدخال سعر صرف خاص أثناء إنشاء العملية. السعر لا يتغير للحسابات الأخرى ولا يؤثر على السعر العام.</span></div>
+                            <% } %>
                         <div class="field">
                             <label for="accountCode">رقم الحساب <%= options.accountCodeLength ? '(' + options.accountCodeLength + ' أرقام)' : '' %></label>
                             <input id="accountCode" name="accountCode" class="form-control mono" value="<%= value('accountCode') %>" inputmode="numeric" pattern="<%= options.accountCodeLength ? '\\d{' + options.accountCodeLength + '}' : '\\d+' %>" maxlength="<%= options.accountCodeLength || 12 %>">
@@ -249,7 +257,7 @@
                     <div class="security-note"><i class="fa-solid fa-lock"></i><span>كود الربط يظهر للإدارة فقط. أرسله للحساب المعني ليكتبه وحده في محادثة البوت.</span></div>
                     <% if (telegramCode) { %><div class="security-note"><strong dir="ltr"><%= telegramCode %></strong> — احفظه وأرسله للحساب، ولن يظهر مرة أخرى.</div><% } %>
                     <div class="security-note">عدد أكواد الربط: <%= Array.isArray(telegramLinks) ? telegramLinks.length : 0 %> — الروابط النشطة: <%= Array.isArray(telegramLinks) ? telegramLinks.filter((item) => item.active && item.chatId).length : 0 %> | قناة الإيصالات: <%= ({off:'متوقفة', whatsapp:'واتساب فقط', telegram:'Telegram فقط', both:'واتساب وTelegram'})[telegramLink?.deliveryMode || 'off'] %></div>
-                    <% if (Array.isArray(telegramLinks) && telegramLinks.length) { %><div class="account-strip mt-3"><% telegramLinks.forEach((link, index) => { %><div class="strip-item"><span>كود <%= index + 1 %> — <bdi dir="ltr">TG-****<%= link.codeHint || '----' %></bdi></span><strong><%= link.active ? (link.chatId ? 'مستخدم ومربوط' : 'نشط وغير مستخدم') : 'متوقف' %><% if (link.active) { %> <form action="/admin/accounts/<%= accountType %>/<%= account._id %>/telegram-links/<%= link._id %>/disable" method="POST" class="d-inline"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><button class="btn btn-sm btn-outline-danger ms-2" type="submit">إيقاف</button></form><% } %></strong></div><% }) %></div><% } %>
+                    <% if (Array.isArray(telegramLinks) && telegramLinks.length) { %><div class="account-strip mt-3"><% telegramLinks.forEach((link, index) => { %><div class="strip-item"><span>كود <%= index + 1 %> — <bdi dir="ltr">TG-****<%= link.codeHint || '----' %></bdi></span><strong><%= link.active ? (link.chatId ? 'مستخدم ومربوط' : 'نشط وغير مستخدم') : 'متوقف' %><% if (link.active) { %> <button class="btn btn-sm btn-outline-danger ms-2" type="submit" form="telegram-disable-link-<%= link._id %>">إيقاف</button><% } %></strong></div><% }) %></div><% } %>
                     <div class="field-grid two">
                         <div class="field"><label for="deliveryMode">قناة إرسال الإيصالات</label><select id="deliveryMode" name="deliveryMode" form="telegram-settings-form" class="form-select"><% [['off','متوقفة'],['whatsapp','واتساب فقط'],['telegram','Telegram فقط'],['both','واتساب وTelegram']].forEach(([value,label]) => { %><option value="<%= value %>" <%= telegramLink?.deliveryMode === value ? 'selected' : '' %>><%= label %></option><% }) %></select></div>
                     </div>
@@ -402,6 +410,11 @@
             <form id="telegram-settings-form" action="/admin/accounts/<%= accountType %>/<%= account._id %>/telegram-settings" method="POST"><input type="hidden" name="_csrf" value="<%= csrfToken %>"></form>
             <form id="telegram-code-form" action="/admin/accounts/<%= accountType %>/<%= account._id %>/telegram-code" method="POST"><input type="hidden" name="_csrf" value="<%= csrfToken %>"></form>
             <form id="telegram-disable-all-form" action="/admin/accounts/<%= accountType %>/<%= account._id %>/telegram-links/disable-all" method="POST"><input type="hidden" name="_csrf" value="<%= csrfToken %>"></form>
+            <% if (Array.isArray(telegramLinks)) { telegramLinks.filter((link) => link.active).forEach((link) => { %>
+                <form id="telegram-disable-link-<%= link._id %>" action="/admin/accounts/<%= accountType %>/<%= account._id %>/telegram-links/<%= link._id %>/disable" method="POST">
+                    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                </form>
+            <% }); } %>
         <% } %>
     </div>
 </main>

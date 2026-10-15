@@ -234,11 +234,11 @@
                     ? `<div class="deposit-meta text-danger">سبب الرفض: ${esc(request.rejectionReason)}</div><button type="button" class="deposit-new-btn" data-scroll-form="1"><i class="fa-solid fa-rotate-right ms-1"></i>إنشاء طلب جديد</button>`
                     : '';
                 const fromAdmin = request.submittedByRole === 'admin' || request.submittedByRole === 'manager';
-                const receiptSummary = isExternalDepositView ? '' : ` · ${request.receiptCount || 0} إيصال`;
+                const receiptSummary = isExternalDepositView || fromAdmin ? '' : ` · ${request.receiptCount || 0} إيصال`;
                 const reviewActions = request.status === 'pending' && canReviewAdminDeposits
                     ? `<div class="deposit-review-box">
                         <div class="deposit-review-box-label"><i class="fa-solid fa-scale-balanced"></i> قرار المراجعة</div>
-                        <p class="deposit-review-box-note">راجع الإيصالات ثم اختر قبول الإيداع لإضافة الرصيد، أو إلغاء الطلب مع توضيح السبب.</p>
+                        <p class="deposit-review-box-note">راجع قيمة الطلب والملاحظة ثم اختر قبول الإيداع لإضافة الرصيد، أو إلغاء الطلب مع توضيح السبب.</p>
                         <div class="deposit-review-actions">
                             <button type="button" class="deposit-review-action is-approve" data-admin-deposit-review="approve" data-request-id="${esc(request.id)}"><i class="fa-solid fa-circle-check"></i> قبول الإيداع</button>
                             <button type="button" class="deposit-review-action is-cancel" data-admin-deposit-review="reject" data-request-id="${esc(request.id)}"><i class="fa-solid fa-ban"></i> إلغاء الطلب</button>

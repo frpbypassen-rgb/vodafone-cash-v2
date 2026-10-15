@@ -176,6 +176,7 @@ exports.getDashboard = async (req, res) => {
         let set = await Settings.findOne({});
         if (!set) set = await Settings.create({});
         let balance, currentRate, serviceRates, clientTier = 1;
+        let allowCustomExchangeRate = false;
 
         let accountCode = account.accountCode || '';
 
@@ -192,11 +193,13 @@ exports.getDashboard = async (req, res) => {
             const company = await ClientCompany.findById(account.companyId);
             if (!company || company.status !== 'active') return res.redirect('/client/logout');
             balance = company.balance; clientTier = company.tier || 1;
+            allowCustomExchangeRate = Boolean(company.allowCustomExchangeRate);
             accountCode = company.accountCode || '';
             serviceRates = getCompanyServiceRates(company, set);
             currentRate = serviceRates.vodafone;
         } else {
             balance = account.balance; clientTier = account.tier || 1;
+            allowCustomExchangeRate = Boolean(account.allowCustomExchangeRate);
             serviceRates = getServiceRatesForTier(clientTier, set);
             currentRate = serviceRates.vodafone;
         }
@@ -277,7 +280,7 @@ exports.getDashboard = async (req, res) => {
         delete req.session.showMfaEnableNotice;
         res.render('client/dashboard', {
             user: { name: account.name, phone: account.phone || account.webUsername, balance, role: account.role || 'user', accountType: req.session.accountType, accountCode, canViewBalance, canRequestDeposit },
-            isSubAccount, isMaster: !isSubAccount, masterTotalProfit, transactions: sanitizedTransactions, transactionsTruncated, recentTransactions, todayStats, walletHub: isWalletHubUser, currentRate, serviceRates, totals, targetDate, dateLabel, showMonth, search, query: req.query, storeCatalog,
+            isSubAccount, isMaster: !isSubAccount, allowCustomExchangeRate, masterTotalProfit, transactions: sanitizedTransactions, transactionsTruncated, recentTransactions, todayStats, walletHub: isWalletHubUser, currentRate, serviceRates, totals, targetDate, dateLabel, showMonth, search, query: req.query, storeCatalog,
             isSystemOpen,
             profile,
             pendingRateUpdate,

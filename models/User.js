@@ -6,6 +6,8 @@ const userSchema = new mongoose.Schema({
     phone: { type: String, unique: true, sparse: true },
     balance: { type: Number, default: 0 },
     tier: { type: Number, default: 3 },
+    // Allows the administration to let this client/agent choose a rate per transfer.
+    allowCustomExchangeRate: { type: Boolean, default: false },
     status: { type: String, default: 'active' }, 
     creditLimit: { type: Number, default: 0 },
     accountCode: { type: String, trim: true, unique: true, sparse: true },

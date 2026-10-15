@@ -453,6 +453,7 @@ const updateUser = async ({ type, definition, account, payload }) => {
         requirePhone: true
     });
     account.tier = parseNumber(payload.tier, 'tier', { min: 1, max: 3, integer: true });
+    account.allowCustomExchangeRate = isChecked(payload.allowCustomExchangeRate);
     account.creditLimit = parseNumber(payload.creditLimit || 0, 'creditLimit', { min: 0, max: 1e12 });
     setBusinessProfile(account, payload);
     setLoginOtpDelivery(type, account, payload);
@@ -478,6 +479,7 @@ const updateCompany = async ({ account, payload, companyOwner = null }) => {
     }
     account.phone = phone || undefined;
     account.tier = parseNumber(payload.tier, 'tier', { min: 1, max: 3, integer: true });
+    account.allowCustomExchangeRate = isChecked(payload.allowCustomExchangeRate);
     account.creditLimit = parseNumber(payload.creditLimit || 0, 'creditLimit', { min: 0, max: 1e12 });
     setBusinessProfile(account, payload);
     return { passwordChanged: false, ownerOtpChanged };

@@ -6,6 +6,8 @@ const clientCompanySchema = new mongoose.Schema({
     phone: { type: String },
     // 🟢 تم التعديل: جعل المستوى الافتراضي 3 للشركات الجديدة
     tier: { type: Number, default: 3 },
+    // Allows the administration to let this company choose a rate per transfer.
+    allowCustomExchangeRate: { type: Boolean, default: false },
     balance: { type: Number, default: 0 },
     accountCode: { type: String, trim: true, unique: true, sparse: true },
     token: {

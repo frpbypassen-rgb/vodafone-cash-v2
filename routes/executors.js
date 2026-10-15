@@ -1,7 +1,6 @@
 const express = require('express');
 const crypto = require('crypto');
 const router = express.Router();
-const { emitSupportTicketUpdate } = require('../services/supportRealtimeService');
 const ExecutorGroup = require('../models/ExecutorGroup');
 const Transaction = require('../models/Transaction');
 const Employee = require('../models/Employee');
@@ -51,7 +50,6 @@ const { enforceExecutorDeviceLimit } = require('../services/executorDeviceSessio
 const { clearExecutorAuthCache } = require('../services/executorAuthCache');
 const multer = require('multer');
 const { updateEmployeeExecutionPolicyAsAdmin } = require('../services/mobileWebParityService');
-const { createDepositRequest } = require('../services/executorDepositRequestService');
 const { snapshotServiceLedgers } = require('../utils/executorServiceLedger');
 const { loadAllocatedByGroupIds } = require('../services/executorBalancePoolService');
 
@@ -487,20 +485,34 @@ router.get('/executor/:id', requireAuth, async (req, res) => {
         const managerBots = await ExecutorGroup.find({ isManagerBot: true, status: 'active', _id: { $ne: bot._id } });
 
         if (bot.isApiBot) {
+            // API Logs must contain provider-facing operations only. Internal
+            // deposits, deductions, and deposit requests belong to their own
+            // financial/deposit views and must not be presented as provider
+            // responses (for example, a DEPREQ is not an API failure).
+            const apiLogFilter = {
+                $and: [
+                    queryFilter,
+                    { depositRequest: { $exists: false } },
+                    { status: { $nin: ['deposit_pending', 'deposit', 'deduction'] } }
+                ]
+            };
+            const apiTransactions = await Transaction.find(apiLogFilter)
+                .sort({ updatedAt: -1 })
+                .limit(100);
             const [balanceAudits, providerReturns] = await Promise.all([
                 ApiBalanceAudit.find({ executorGroupId: bot._id }).sort({ createdAt: -1 }).limit(100).lean(),
                 ApiProviderReturn.find({ executorGroupId: bot._id }).sort({ firstDetectedAt: -1 }).limit(100).lean()
             ]);
             const stats = {
-                successCount: transactions.filter(t => t.status === 'completed').length,
-                failedCount: transactions.filter(t => t.status === 'pending' && t.adminNotes && t.adminNotes.includes('فشل')).length,
+                successCount: apiTransactions.filter(t => t.status === 'completed').length,
+                failedCount: apiTransactions.filter(t => t.status === 'pending' && t.adminNotes && t.adminNotes.includes('فشل')).length,
                 balanceAlertCount: balanceAudits.filter(item => item.reviewStatus === 'pending').length,
                 providerReturnCount: providerReturns.filter(item => item.status === 'pending_review').length
             };
             return res.render('api_room', {
                 bot,
                 apiProviderPreset: getApiProviderPreset(bot.apiProviderKey),
-                transactions,
+                transactions: apiTransactions,
                 balanceAudits,
                 providerReturns,
                 stats,
@@ -792,6 +804,13 @@ router.post('/executor/:id/settle', requireAuth, requireMaster, adminDepositUplo
         }
         const bot = await ExecutorGroup.findById(req.params.id); const amount = parseFloat(req.body.amount); const notes = req.body.notes ? req.body.notes.trim() : ''; 
         if (!bot || bot.status === 'archived') return res.redirect('/executors?tab=archive&archiveError=READ_ONLY');
+        if (Number.isFinite(amount) && amount > 0) {
+            const message = 'إضافة الإيداعات متاحة الآن من المركز المالي فقط.';
+            if (req.get('x-requested-with') === 'XMLHttpRequest') {
+                return res.status(410).json({ success: false, error: message, redirect: '/financial-center' });
+            }
+            return res.redirect('/financial-center?depositSource=financial-center-only');
+        }
         const fundingServiceKey = fundingServiceFromBody(req.body, bot);
         const fundingFields = fundingFieldsForService(fundingServiceKey);
         let targetBotId = bot._id; let targetBotName = bot.name;
@@ -799,31 +818,6 @@ router.post('/executor/:id/settle', requireAuth, requireMaster, adminDepositUplo
         const parentGroupId = bot.parentGroupId || bot.parentBotId;
         if (!bot.isManagerBot && parentGroupId) { targetBotId = parentGroupId; const parentBot = await ExecutorGroup.findById(targetBotId); if (parentBot) { targetBotName = parentBot.name; } }
         
-        if (Number.isFinite(amount) && amount > 0) {
-            const receipts = Array.isArray(req.files) && req.files.length
-                ? req.files.map((file) => `data:${file.mimetype};base64,${file.buffer.toString('base64')}`)
-                : (Array.isArray(req.body?.receiptsBase64) ? req.body.receiptsBase64 : []);
-            if (!receipts.length) {
-                return res.redirect(`/executor/${bot._id}?settlementError=RECEIPT_REQUIRED`);
-            }
-            const actor = requireAdminActor(req);
-            const targetBot = await ExecutorGroup.findById(targetBotId);
-            const request = await createDepositRequest({
-                group: targetBot,
-                submittedBy: { id: actor.id, name: actor.name, role: actor.role },
-                amount,
-                note: notes,
-                receipts,
-                submittedFromAdmin: true,
-                serviceKey: fundingServiceKey
-            });
-            emitSupportTicketUpdate(req, { source: 'admin_executor_deposit_request' });
-            if (req.get('x-requested-with') === 'XMLHttpRequest') {
-                return res.status(201).json({ success: true, request, message: 'تم إرسال طلب الإيداع إلى الدعم للمراجعة.' });
-            }
-            return res.redirect(`/executor/${bot._id}?depositRequest=${encodeURIComponent(request.customId)}`);
-        }
-
         if (!isNaN(amount) && amount !== 0) {
             const actor = requireAdminActor(req);
             const tx = await Transaction.create({
