@@ -19,6 +19,7 @@ const { escapeRegex } = require('../middlewares/sanitize');
 const { systemDateKey, systemDayEnd, systemDayStart } = require('../config/systemTime');
 const { adminAccountScope } = require('../utils/tenantScope');
 const { normalizeExecutorServiceKey } = require('../utils/executorServiceCatalog');
+const { createMerchantBalanceTransfer } = require('../services/merchantBalanceTransferService');
 
 const MOVEMENT_TYPES = ['DEPOSIT', 'DEDUCTION', 'TRANSFER', 'INTERNAL_TRANSFER', 'COMMISSION', 'REFUND', 'REVERSAL'];
 const ENTITY_MODELS = ['User', 'ClientCompany', 'ClientBot', 'ExecutorBot', 'ExecutorGroup'];
@@ -64,6 +65,29 @@ router.post('/financial-center/merchants', requireAuth, requireMaster, async (re
         const merchant = await MerchantAccount.create({ name, code: String(req.body.code || '').trim(), officeId: req.body.officeId || null, tenantId: req.tenant?._id });
         return res.status(201).json({ success: true, merchant });
     } catch (error) { return res.status(400).json({ success: false, error: error.message }); }
+});
+
+router.post('/financial-center/merchant-transfers', requireAuth, requireMaster, async (req, res) => {
+    try {
+        const result = await createMerchantBalanceTransfer({
+            fromMerchantId: req.body.fromMerchantId,
+            toMerchantId: req.body.toMerchantId,
+            amount: req.body.amount,
+            note: req.body.note,
+            actor: requireAdminActor(req),
+            tenantId: req.tenant?._id
+        });
+        return res.status(201).json({ success: true, message: 'تم نقل الرصيد بين التجار بنجاح', ...result });
+    } catch (error) {
+        const messages = {
+            INVALID_AMOUNT: 'قيمة النقل غير صحيحة',
+            INVALID_MERCHANTS: 'اختر تاجرين مختلفين',
+            INVALID_ACTOR: 'تعذر تحديد المدير المنفذ للعملية',
+            MERCHANT_NOT_FOUND: 'أحد التجار غير موجود أو غير نشط',
+            INSUFFICIENT_BALANCE: 'رصيد التاجر المصدر غير كافٍ'
+        };
+        return res.status(400).json({ success: false, error: messages[error.message] || error.message });
+    }
 });
 
 router.post('/financial-center/merchant-deposits', requireAuth, requireMaster, async (req, res) => {

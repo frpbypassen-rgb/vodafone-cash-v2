@@ -228,6 +228,7 @@ const buildContext = async ({ req, actor, agent, actorModel, forceToday = false 
         transactions,
         totals: summarizeTransactions(transactions),
         serviceRates,
+        allowCustomExchangeRate: Boolean(agent.allowCustomExchangeRate),
         currentRate: serviceRates.vodafone || 0,
         statusLabels,
         serviceLabels,
