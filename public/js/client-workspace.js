@@ -247,6 +247,7 @@
     const transferAccountNumber = document.getElementById('transferAccountNumber');
     const transferAmount = document.getElementById('transferAmount');
     const transferAmountLyd = document.getElementById('transferAmountLyd');
+    const transferCustomExchangeRate = document.getElementById('transferCustomExchangeRate');
     const transferAmountLabel = document.getElementById('transferAmountLabel');
     const transferAmountCurrency = document.getElementById('transferAmountCurrency');
     const transferAmountFlag = document.getElementById('transferAmountFlag');
@@ -313,6 +314,10 @@
     const formatRateFormula = (service = activeService) => isSourceToLydRate(service)
         ? `${sourceCurrencyLabel(service)} × السعر = LYD`
         : `${sourceCurrencyLabel(service)} ÷ السعر = LYD`;
+    const effectiveTransferRate = (service = activeService) => {
+        const customRate = Number(transferCustomExchangeRate?.value || 0);
+        return customRate > 0 ? customRate : Number(service?.rate || 0);
+    };
 
     const setSmartStatus = (message, tone = 'info') => {
         if (!smartTransferStatus) return;
@@ -401,9 +406,11 @@
     const updateCostEstimate = (syncLyd = true) => {
         if (!activeService || !costEstimate) return;
         const amount = Number(transferAmount?.value || 0);
-        const rate = Number(activeService.rate || 0);
+        const rate = effectiveTransferRate();
         const estimate = calculateCostLyd(amount, rate, activeService);
         costEstimate.textContent = `${formatNumber(estimate, 3)} LYD`;
+        if (costRate) costRate.textContent = formatExchangeRate(rate, activeService);
+        if (transferRateBridge) transferRateBridge.textContent = formatExchangeRate(rate, activeService);
         if (syncLyd && transferAmountLyd) transferAmountLyd.value = estimate > 0 ? estimate.toFixed(2) : '';
         if (smartParsedData) renderSmartPreview();
     };
@@ -493,11 +500,13 @@
         if (transferAmountCurrency) transferAmountCurrency.textContent = sourceCurrencyLabel(service);
         if (transferAmountFlag) transferAmountFlag.textContent = sourceCurrencyLabel(service) === 'EGP' ? '🇪🇬' : '🇳🇪';
         if (costServiceLabel) costServiceLabel.textContent = service.label;
-        if (costRate) costRate.textContent = formatExchangeRate(service.rate, service);
-        if (transferRateBridge) transferRateBridge.textContent = formatExchangeRate(service.rate, service);
+        if (costRate) costRate.textContent = formatExchangeRate(effectiveTransferRate(service), service);
+        if (transferRateBridge) transferRateBridge.textContent = formatExchangeRate(effectiveTransferRate(service), service);
         if (transferRateFormula) transferRateFormula.textContent = formatRateFormula(service);
         updateCostEstimate();
     };
+
+    transferCustomExchangeRate?.addEventListener('input', () => updateCostEstimate());
 
     const updateBankMethodFields = () => {
         if (!transferDestination || activeService?.key !== 'bank_account') return;
@@ -998,6 +1007,7 @@
             sessionStorage.setItem(draftStorageKey, JSON.stringify({
                 phone: transferDestination?.value || '',
                 amount: transferAmount?.value || '',
+                exchangeRate: transferCustomExchangeRate?.value || '',
                 notes: transferNotes?.value || '',
                 name: transferBeneficiary?.value || '',
                 bankCode: transferBank?.value || '',
@@ -1016,6 +1026,7 @@
         if (transferDestination && draft.phone) transferDestination.value = draft.phone;
         if (transferAccountNumber && draft.phone) transferAccountNumber.value = draft.phone;
         if (transferAmount && draft.amount) transferAmount.value = draft.amount;
+        if (transferCustomExchangeRate && draft.exchangeRate) transferCustomExchangeRate.value = draft.exchangeRate;
         if (transferNotes && draft.notes) transferNotes.value = draft.notes;
         if (transferBeneficiary && draft.name) transferBeneficiary.value = draft.name;
         if (transferBank && draft.bankCode) transferBank.value = draft.bankCode;
@@ -1056,6 +1067,7 @@
                 phone: formData.get('phone') || '',
                 number: formData.get('number') || '',
                 amount: formData.get('amount') || '',
+                exchangeRate: formData.get('exchangeRate') || '',
                 name: formData.get('name') || '',
                 notes: formData.get('notes') || ''
             });

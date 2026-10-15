@@ -90,6 +90,13 @@
                     <div class="bw-input-affix bw-currency-input"><span class="bw-currency-flag" aria-hidden="true">🇱🇾</span><input type="number" id="transferAmountLyd" min="0.01" step="0.01" inputmode="decimal" placeholder="0.00"><b>LYD</b></div>
                 </label>
             </div>
+            <% if (typeof allowCustomExchangeRate !== 'undefined' && allowCustomExchangeRate) { %>
+            <label class="bw-field span-2" data-custom-rate-field>
+                <span>سعر صرف خاص لهذه العملية</span>
+                <input type="number" name="exchangeRate" id="transferCustomExchangeRate" class="bw-input bw-mono" min="0.01" max="1000" step="0.01" inputmode="decimal" placeholder="اتركه فارغاً للسعر العام">
+                <small>يُطبق على هذه العملية فقط ولا يغير السعر العام للحساب.</small>
+            </label>
+            <% } %>
             <div class="bw-amount-shortcuts span-2" aria-label="قيم سريعة">
                 <span>إضافة سريعة</span>
                 <button type="button" data-amount-add="100">+100</button>
