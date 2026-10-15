@@ -170,6 +170,7 @@ const clientWorkspaceController = require('../controllers/clientWorkspaceControl
 const clientHubController = require('../controllers/clientHubController');
 const clientDepositController = require('../controllers/clientDepositController');
 const businessPortalService = require('../services/businessPortalService');
+const { resolvePortalDepositReferences } = require('../services/financialReferenceService');
 
 const clientDocumentUpload = multer({
     storage: multer.diskStorage({
@@ -230,6 +231,7 @@ router.get('/account', requireClientAuth, clientHubController.getAccount);
 router.get('/transfers', requireClientAuth, clientHubController.getTransfers);
 router.get('/deposits', requireClientAuth, clientDepositController.getDepositsPage);
 router.get('/api/deposits', requireClientAuth, clientDepositController.getDepositRequests);
+router.get('/api/deposit-references', requireClientAuth, clientDepositController.getDepositReferences);
 router.post('/api/deposits', requireClientAuth, clientDepositController.postDepositRequest);
 router.get('/profile-photo', requireClientAuth, clientDashboardController.getProfilePhoto);
 router.post('/profile', requireClientAuth, clientDashboardController.postUpdateOwnProfile);
@@ -666,7 +668,7 @@ router.get('/api/support/tickets/:ticketId/images/:index', requireClientAuth, as
 router.post('/api/support/messages', requireClientAuth, async (req, res) => {
     let storedImagePath = null;
     try {
-        const text = String(req.body.text || '').trim().slice(0, 1000);
+        let text = String(req.body.text || '').trim().slice(0, 1000);
         const parsedImage = parseSupportImage(req.body.imageBase64);
         if (!text && !parsedImage) {
             return res.status(400).json({ success: false, error: 'اكتب رسالة أو أرفق صورة.' });
@@ -676,6 +678,14 @@ router.post('/api/support/messages', requireClientAuth, async (req, res) => {
         if (!account) return res.status(401).json({ success: false, error: 'Unauthorized' });
 
         const companyDepositRequest = businessPortalService.isCompanyDepositCreateIntent(text);
+        let depositReferences = null;
+        if (companyDepositRequest) {
+            depositReferences = await resolvePortalDepositReferences(req, {
+                officeId: req.body.officeId,
+                merchantId: req.body.merchantId
+            });
+            text = `${text}\nالمكتب: ${depositReferences.office.name}\nالتاجر: ${depositReferences.merchant.name}`.slice(0, 1000);
+        }
         if (companyDepositRequest) {
             const workspace = await businessPortalService.resolveWorkspace(req);
             if (!businessPortalService.canCreateCompanyDepositRequest(workspace)) {
@@ -722,6 +732,16 @@ router.post('/api/support/messages', requireClientAuth, async (req, res) => {
             const metadata = ticket.metadata && typeof ticket.metadata === 'object' ? { ...ticket.metadata } : {};
             if (!metadata.type) metadata.type = 'company_deposit';
             ticket.metadata = metadata;
+            if (depositReferences) {
+                metadata.depositRequest = {
+                    ...(metadata.depositRequest || {}),
+                    officeId: String(depositReferences.office._id),
+                    officeName: depositReferences.office.name,
+                    merchantId: String(depositReferences.merchant._id),
+                    merchantName: depositReferences.merchant.name
+                };
+                ticket.metadata = metadata;
+            }
             if (typeof ticket.markModified === 'function') ticket.markModified('metadata');
         }
         setPortalSupportReplyChannel(ticket);

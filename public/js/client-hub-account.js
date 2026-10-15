@@ -124,7 +124,7 @@
             const status = map[filter];
             const rows = (data.requests || []).filter((r) => r.status === status);
             listEl.innerHTML = rows.length
-                ? rows.map((r) => `<div class="p-3 border rounded-3 mb-2"><strong class="mono-num">${escapeHtml(r.customId)}</strong><div>${Number(r.amount || 0).toFixed(2)} LYD · ${escapeHtml(r.status)}</div><small class="text-muted">${escapeHtml(r.note)}</small></div>`).join('')
+                ? rows.map((r) => `<div class="p-3 border rounded-3 mb-2"><strong class="mono-num">${escapeHtml(r.customId)}</strong><div>${Number(r.amount || 0).toFixed(2)} LYD · ${escapeHtml(r.status)}</div><small class="text-muted">${escapeHtml(r.officeName || 'المكتب غير محدد')} · ${escapeHtml(r.merchantName || 'التاجر غير محدد')} · ${escapeHtml(r.note)}</small></div>`).join('')
                 : '<p class="text-muted text-center py-3">لا توجد طلبات في هذا القسم.</p>';
         } catch (_) {
             listEl.innerHTML = '<p class="text-danger text-center py-3">تعذر تحميل الطلبات.</p>';
@@ -141,7 +141,9 @@
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     amount: document.getElementById('depositAmount').value,
-                    note: document.getElementById('depositNote').value
+                    note: document.getElementById('depositNote').value,
+                    officeId: document.getElementById('depositOfficeId').value,
+                    merchantId: document.getElementById('depositMerchantId').value
                 })
             });
             const data = await res.json();
@@ -154,6 +156,17 @@
         } finally {
             btn.disabled = false;
         }
+    });
+
+    const depositOffice = document.getElementById('depositOfficeId');
+    const depositMerchant = document.getElementById('depositMerchantId');
+    depositOffice?.addEventListener('change', () => {
+        const officeId = depositOffice.value;
+        [...(depositMerchant?.options || [])].forEach((option, index) => {
+            if (!index) return;
+            option.hidden = Boolean(option.dataset.officeId && option.dataset.officeId !== officeId);
+        });
+        if (depositMerchant?.selectedOptions[0]?.hidden) depositMerchant.value = '';
     });
 
     document.addEventListener('DOMContentLoaded', () => {

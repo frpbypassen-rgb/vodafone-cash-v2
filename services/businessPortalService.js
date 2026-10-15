@@ -40,6 +40,7 @@ const {
     CLIENT_PORTAL_THEME_META
 } = require('../utils/clientPortalTheme');
 const { buildAgentMobileNav } = require('../utils/customerPortalNav');
+const { listPortalDepositReferences } = require('./financialReferenceService');
 const {
     resolveCompanyAccess,
     toPortalPermissions,
@@ -302,7 +303,7 @@ const resolveAgentPermissions = (actor) => {
         canViewReports: true,
         canEditSettings: owner || manager,
         canInternalTransfer: !accountant,
-        canRequestDeposit: false
+        canRequestDeposit: manager
     };
 };
 
@@ -428,6 +429,7 @@ const buildNavigation = (workspace, activePage) => {
             { key: 'overview', href: '/client/dashboard?home=1', label: 'الرئيسية', icon: 'fa-grid-2', group: 'العمل اليومي', visible: true },
             { key: 'services', href: '/client/services', label: 'الخدمات والتحويل', icon: 'fa-paper-plane', group: 'العمل اليومي', visible: workspace.permissions.canTransfer },
             { key: 'transactions', href: '/client/transactions', label: 'المعاملات', icon: 'fa-list-check', group: 'العمل اليومي', visible: true },
+            { key: 'deposits', href: '/client/company/deposits', label: 'طلب إيداع', icon: 'fa-building-columns', group: 'العمل اليومي', visible: workspace.isAgent && workspace.permissions.canRequestDeposit },
             { key: 'finance', href: '/client/finance', label: 'الحركات المالية', icon: 'fa-scale-balanced', group: 'العمل اليومي', visible: workspace.permissions.canViewBalance },
             { key: 'agency_balances', href: '/client/finance/customer-balances', label: 'أرصدة العملاء', icon: 'fa-wallet', group: 'محاسبة الوكالة', visible: workspace.permissions.canViewBalance },
             { key: 'agency_debts', href: '/client/finance/customer-debts', label: 'ديون العملاء', icon: 'fa-file-invoice-dollar', group: 'محاسبة الوكالة', visible: workspace.permissions.canViewBalance },
@@ -486,7 +488,7 @@ const canAccessPage = (workspace, page) => {
         return workspace.permissions.canTransfer;
     }
     if (page === 'internal_transfer') return workspace.permissions.canInternalTransfer === true;
-    if (page === 'deposits') return workspace.isCompany && workspace.permissions.canRequestDeposit === true;
+    if (page === 'deposits') return (workspace.isCompany || workspace.isAgent) && workspace.permissions.canRequestDeposit === true;
     if (page === 'finance') return workspace.permissions.canViewBalance;
     if (['agency_balances', 'agency_debts', 'agency_account', 'agency_position', 'agency_profits'].includes(page)) {
         return workspace.isAgent && workspace.permissions.canViewBalance;
@@ -1282,6 +1284,9 @@ const buildLowBalanceAlert = (workspace) => {
 
 const buildBaseContext = async (req, page, workspace) => {
     const rates = await getSettingsAndRates(workspace, req.app);
+    const depositReferences = workspace.permissions.canRequestDeposit
+        ? await listPortalDepositReferences(req)
+        : { offices: [], merchants: [] };
     const pendingRateUpdate = await buildPendingRateAlertForClient({
         accountType: workspace.isCompany
             ? 'company'
@@ -1320,6 +1325,7 @@ const buildBaseContext = async (req, page, workspace) => {
         serviceCatalog: rates.services,
         serviceRates: rates.serviceRates,
         allowCustomExchangeRate: Boolean(workspace.entity.allowCustomExchangeRate),
+        depositReferences,
         ratesUpdatedAt: rates.ratesUpdatedAt,
         pendingRateUpdate,
         lowBalanceAlert: buildLowBalanceAlert(workspace),
@@ -1372,16 +1378,19 @@ const isCompanyDepositCreateIntent = (text) => {
     return true;
 };
 
-const canCreateCompanyDepositRequest = (workspace) => Boolean(workspace?.isCompany && workspace.permissions?.manager);
+const canCreateCompanyDepositRequest = (workspace) => Boolean((workspace?.isCompany || workspace?.isAgent) && workspace.permissions?.manager);
 
 const countPendingCompanyDeposits = async (workspace, ownershipFilterValue) => {
     const ownership = ownershipFilterValue || await ownershipFilter(workspace);
-    const staffIds = await ClientEmployee.find({ companyId: workspace.entity._id }).distinct('_id');
+    const staffIds = workspace.isCompany
+        ? await ClientEmployee.find({ companyId: workspace.entity._id }).distinct('_id')
+        : [workspace.actor._id];
+    const supportEntityType = workspace.isCompany ? 'client_company' : 'client_user';
     const [txCount, tickets] = await Promise.all([
         Transaction.countDocuments({ $and: [ownership, { status: 'deposit_pending' }] }),
         staffIds.length
             ? SupportTicket.find({
-                entityType: 'client_company',
+                entityType: supportEntityType,
                 entityId: { $in: staffIds },
                 status: { $nin: ['closed', 'resolved'] },
                 'messages.text': { $regex: 'طلب إيداع رصيد' }

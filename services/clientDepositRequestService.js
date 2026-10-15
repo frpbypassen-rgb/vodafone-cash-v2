@@ -9,6 +9,7 @@ const Transaction = require('../models/Transaction');
 const User = require('../models/User');
 const { updateBalanceWithLedger } = require('./walletService');
 const { createClientNotifications, notifyBalanceAdjustment } = require('./clientNotificationService');
+const { resolvePortalDepositReferences } = require('./financialReferenceService');
 
 const failure = (message, status = 400) => Object.assign(new Error(message), { status });
 const objectId = (value) => String(value?._id || value || '');
@@ -28,8 +29,10 @@ function depositMessage({ client, amount, note, customId }) {
     return `طلب إيداع رصيد\nرقم الطلب: ${customId}\nالعميل: ${client.name || 'عميل مباشر'}\nالقيمة: ${Number(amount).toLocaleString('en-US', { maximumFractionDigits: 2 })} LYD\nالملاحظة: ${note || 'لا توجد ملاحظة'}`;
 }
 
-async function createClientDepositRequest({ client, amount, note }) {
+async function createClientDepositRequest({ client, amount, note, officeId, merchantId, req }) {
     if (!client || client.role === 'agent') throw failure('هذا الحساب لا يمكنه طلب إيداع من هذه الشاشة.', 403);
+
+    const references = await resolvePortalDepositReferences(req, { officeId, merchantId });
 
     const userKey = clientUserKey(client);
     const pending = await Transaction.findOne({
@@ -64,6 +67,10 @@ async function createClientDepositRequest({ client, amount, note }) {
         notes: cleanNote,
         depositRequest: {
             note: cleanNote,
+            officeId: references.office._id,
+            officeName: references.office.name,
+            merchantId: references.merchant._id,
+            merchantName: references.merchant.name,
             receiptImages: [],
             submittedById: client._id,
             submittedByName: client.name || 'عميل مباشر',
@@ -86,7 +93,7 @@ async function createClientDepositRequest({ client, amount, note }) {
         messages: [{
             sender: 'user',
             senderName: client.name || 'عميل مباشر',
-            text: depositMessage({ client, amount: parsedAmount, note: cleanNote, customId }),
+        text: `${depositMessage({ client, amount: parsedAmount, note: cleanNote, customId })}\nالمكتب: ${references.office.name}\nالتاجر: ${references.merchant.name}`,
             channel: 'portal',
             direction: 'inbound',
             messageType: 'text',
@@ -102,6 +109,10 @@ async function createClientDepositRequest({ client, amount, note }) {
                 customId,
                 amount: parsedAmount,
                 note: cleanNote,
+                officeId: String(references.office._id),
+                officeName: references.office.name,
+                merchantId: String(references.merchant._id),
+                merchantName: references.merchant.name,
                 receiptCount: 0,
                 receiptImages: [],
                 submittedByName: client.name || 'عميل مباشر',
@@ -146,6 +157,8 @@ async function listClientDepositRequests({ client }) {
         amount: Number(row.amount || 0),
         status: row.status === 'deposit_pending' ? 'pending' : row.status,
         note: row.depositRequest?.note || row.notes || '',
+        officeName: row.depositRequest?.officeName || '',
+        merchantName: row.depositRequest?.merchantName || '',
         rejectionReason: row.depositRequest?.rejectionReason || '',
         reviewedByName: row.depositRequest?.reviewedByName || '',
         reviewedAt: row.depositRequest?.reviewedAt || null,

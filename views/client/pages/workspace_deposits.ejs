@@ -18,6 +18,8 @@
             <span class="bw-meta-chip"><%= pendingDepositCount || 0 %> قيد المراجعة</span>
         </header>
         <form id="companyDepositForm" class="bw-form bw-form-grid">
+            <label class="bw-field"><span>المكتب</span><select name="officeId" id="companyDepositOffice" required><option value="">اختر المكتب</option><% (depositReferences?.offices || []).forEach((office) => { %><option value="<%= office._id %>"><%= office.name %></option><% }) %></select></label>
+            <label class="bw-field"><span>التاجر</span><select name="merchantId" id="companyDepositMerchant" required><option value="">اختر التاجر</option><% (depositReferences?.merchants || []).forEach((merchant) => { %><option value="<%= merchant._id %>" data-office-id="<%= merchant.officeId || '' %>"><%= merchant.name %></option><% }) %></select></label>
             <label class="bw-field"><span>القيمة بالدينار</span><input type="number" name="amount" id="companyDepositAmount" min="1" step="0.01" required></label>
             <label class="bw-field span-2"><span>مرجع التحويل أو البيان</span><textarea name="note" id="companyDepositNote" rows="3" minlength="3" maxlength="1000" required placeholder="رقم الحوالة أو اسم البنك أو أي مرجع يوضح الإيداع"></textarea></label>
             <div class="bw-form-actions span-2"><button type="submit" class="bw-button primary" id="companyDepositSubmit"><i class="fa-solid fa-building-columns"></i>إرسال طلب الإيداع</button></div>

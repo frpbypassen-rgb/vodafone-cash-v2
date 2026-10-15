@@ -68,6 +68,10 @@ const transactionSchema = new mongoose.Schema({
     // طلب إيداع شركة التنفيذ: لا يتحول إلى رصيد فعلي إلا بعد اعتماد الدعم.
     depositRequest: {
         note: { type: String, trim: true, maxlength: 1000 },
+        officeId: { type: mongoose.Schema.Types.ObjectId, ref: 'FinancialOffice' },
+        officeName: { type: String, trim: true },
+        merchantId: { type: mongoose.Schema.Types.ObjectId, ref: 'MerchantAccount' },
+        merchantName: { type: String, trim: true },
         receiptImages: [{ type: String }],
         supportTicketId: { type: mongoose.Schema.Types.ObjectId, ref: 'SupportTicket' },
         submittedById: { type: mongoose.Schema.Types.ObjectId, ref: 'Employee' },

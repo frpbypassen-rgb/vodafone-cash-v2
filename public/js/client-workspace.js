@@ -1731,10 +1731,26 @@
 
     const companyDepositForm = document.getElementById('companyDepositForm');
     const companyDepositResult = document.getElementById('companyDepositResult');
+    const companyDepositOffice = document.getElementById('companyDepositOffice');
+    const companyDepositMerchant = document.getElementById('companyDepositMerchant');
+    companyDepositOffice?.addEventListener('change', () => {
+        const officeId = companyDepositOffice.value;
+        [...(companyDepositMerchant?.options || [])].forEach((option, index) => {
+            if (!index) return;
+            option.hidden = Boolean(option.dataset.officeId && option.dataset.officeId !== officeId);
+        });
+        if (companyDepositMerchant?.selectedOptions[0]?.hidden) companyDepositMerchant.value = '';
+    });
     companyDepositForm?.addEventListener('submit', async (event) => {
         event.preventDefault();
         const amount = Number(document.getElementById('companyDepositAmount')?.value || 0);
         const note = String(document.getElementById('companyDepositNote')?.value || '').trim();
+        const officeId = String(document.getElementById('companyDepositOffice')?.value || '').trim();
+        const merchantId = String(document.getElementById('companyDepositMerchant')?.value || '').trim();
+        if (!officeId || !merchantId) {
+            showFormResult(companyDepositResult, 'اختر المكتب والتاجر قبل إرسال طلب الإيداع.', false);
+            return;
+        }
         if (!(amount > 0) || note.length < 3) {
             showFormResult(companyDepositResult, 'أدخل قيمة صحيحة وملاحظة توضح مرجع الإيداع.', false);
             return;
@@ -1746,7 +1762,9 @@
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'x-csrf-token': config.csrfToken || '' },
                 body: JSON.stringify({
-                    text: `طلب إيداع رصيد\nالقيمة: ${amount.toFixed(2)} LYD\nالملاحظة: ${note}`
+                    text: `طلب إيداع رصيد\nالقيمة: ${amount.toFixed(2)} LYD\nالملاحظة: ${note}`,
+                    officeId,
+                    merchantId
                 })
             });
             const payload = await parseJsonResponse(response);

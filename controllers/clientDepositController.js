@@ -4,6 +4,7 @@ const User = require('../models/User');
 const { loadWalletHubAccount } = require('../services/clientHubContextService');
 const clientDepositRequestService = require('../services/clientDepositRequestService');
 const { emitSupportTicketUpdate } = require('../services/supportRealtimeService');
+const { listPortalDepositReferences } = require('../services/financialReferenceService');
 
 async function loadDirectClient(req) {
     if (req.session.accountType !== 'user') return null;
@@ -43,6 +44,14 @@ exports.getDepositRequests = async (req, res) => {
     }
 };
 
+exports.getDepositReferences = async (req, res) => {
+    try {
+        return res.json({ success: true, ...(await listPortalDepositReferences(req)) });
+    } catch (error) {
+        return res.status(500).json({ success: false, error: 'تعذر تحميل المكاتب والتجار.' });
+    }
+};
+
 exports.postDepositRequest = async (req, res) => {
     try {
         const user = await loadDirectClient(req);
@@ -51,7 +60,10 @@ exports.postDepositRequest = async (req, res) => {
         const request = await clientDepositRequestService.createClientDepositRequest({
             client: user,
             amount: req.body?.amount,
-            note: req.body?.note
+            note: req.body?.note,
+            officeId: req.body?.officeId,
+            merchantId: req.body?.merchantId,
+            req
         });
 
         emitSupportTicketUpdate(req, { source: 'client_deposit_request' });

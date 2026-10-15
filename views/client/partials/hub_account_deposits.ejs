@@ -12,6 +12,8 @@
     <% } else if (depTab === 'deposits-new') { %>
         <div class="client-hub-readonly-row mb-3"><span>الرصيد الحالي</span><strong dir="ltr" class="mono-num" id="currentBalance">— LYD</strong></div>
         <form id="depositForm" class="client-hub-field-grid">
+            <label>المكتب<select name="officeId" id="depositOfficeId" class="form-select mt-1" required><option value="">اختر المكتب</option><% (depositReferences?.offices || []).forEach((office) => { %><option value="<%= office._id %>"><%= office.name %></option><% }) %></select></label>
+            <label>التاجر<select id="depositMerchantId" class="form-select mt-1" required><option value="">اختر التاجر</option><% (depositReferences?.merchants || []).forEach((merchant) => { %><option value="<%= merchant._id %>" data-office-id="<%= merchant.officeId || '' %>"><%= merchant.name %></option><% }) %></select></label>
             <label class="span-2">قيمة الإيداع (LYD)<input id="depositAmount" class="form-control mt-1" type="number" min="1" max="1000000" step="0.01" required placeholder="500"></label>
             <label class="span-2">ملاحظة للإدارة<textarea id="depositNote" class="form-control mt-1" rows="3" maxlength="1000" required placeholder="مرجع التحويل، البنك…"></textarea></label>
             <div class="span-2"><button type="submit" class="btn btn-primary fw-bold w-100" id="submitDepositBtn"><i class="fa-solid fa-paper-plane me-1"></i> إرسال للإدارة</button></div>

@@ -9,6 +9,7 @@ const { buildPendingRateAlertForClient } = require('../services/rateAlerts/rateA
 const { getServiceRatesForTier } = require('../utils/rateHelper');
 const { applyCustomerRateMargins } = require('../utils/agencyPricing');
 const { clientThemeLocals } = require('../utils/clientPortalTheme');
+const { listPortalDepositReferences } = require('./financialReferenceService');
 
 async function loadWalletHubAccount(req) {
     if (!req.session?.isClientLoggedIn || !req.session.clientId) return null;
@@ -118,6 +119,7 @@ async function buildHubRenderContext(req) {
         currentRate,
         pendingRateUpdate,
         canRequestDeposit,
+        depositReferences: canRequestDeposit ? await listPortalDepositReferences(req) : { offices: [], merchants: [] },
         csrfToken: req.session?.csrfToken || '',
         ...clientThemeLocals(account, req.session?.clientTheme)
     };
