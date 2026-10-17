@@ -404,7 +404,6 @@ app.use('/public', require('./routes/publicReceipts'));
 // WhatChimp delivers external messages here. This must remain before CSRF protection.
 app.use('/webhooks/whatchimp', require('./routes/whatChimpWebhook'));
 app.use('/webhooks/telegram', require('./routes/telegramWebhook'));
-app.use('/telegram-monitor', require('./routes/telegramMonitoring'));
 app.use(csrfProtection);
 app.use('/', require('./routes/emergencySecurity'));
 
@@ -466,6 +465,7 @@ app.use('/settings', require('./routes/settings'));
 app.use('/', require('./routes/employees'));
 app.use('/', require('./routes/broadcast'));
 app.use('/', require('./routes/support'));
+app.use('/telegram-monitor', require('./routes/telegramMonitoring'));
 app.use('/whatsapp-monitor', require('./routes/whatsappMonitoring'));
 app.use('/', require('./routes/registrationRequests'));
 app.use('/audit-log', requireAuth, require('./routes/auditLog'));

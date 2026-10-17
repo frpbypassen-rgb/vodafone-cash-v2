@@ -20,6 +20,7 @@ const REQUIRED_ADMIN_HREFS = [
     '/transactions/deposits?party=executor',
     '/reports',
     '/whatsapp-monitor',
+    '/telegram-monitor',
     '/admin/webhooks',
     '/audit-log',
     '/clients',

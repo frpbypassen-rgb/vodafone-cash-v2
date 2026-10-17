@@ -52,6 +52,7 @@ const ACCOUNTANT_BLOCKED_PATHS = [
     /^\/support(?:\/|$)/,
     /^\/complaints(?:\/|$)/,
     /^\/whatsapp-monitor(?:\/|$)/,
+    /^\/telegram-monitor(?:\/|$)/,
     /^\/admin\/webhooks(?:\/|$)/,
     /^\/sub-account(?:\/|$)/,
     /^\/employees(?:\/|$)/,
