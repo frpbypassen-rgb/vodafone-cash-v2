@@ -82,7 +82,7 @@ describe('admin sidebar navigation', () => {
         expect(monitoringBlock.indexOf('/financial-movements')).toBeLessThan(monitoringBlock.indexOf('/transactions/deposits?party=company'));
         expect(monitoringBlock.indexOf('/transactions/deposits?party=company')).toBeLessThan(monitoringBlock.indexOf('/transactions/deposits?party=executor'));
         expect(monitoringBlock.indexOf('/transactions/deposits?party=executor')).toBeLessThan(monitoringBlock.indexOf('/transactions/live'));
-        expect(monitoringBlock).toMatch(/السجل المركزي \(الحركات المالية\)/);
+        expect(monitoringBlock).toMatch(/المركز المالي/);
         expect(monitoringBlock).toMatch(/المراقبة الحية/);
         expect(monitoringBlock).toMatch(/التقارير الشاملة/);
     });
