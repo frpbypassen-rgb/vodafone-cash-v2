@@ -11,10 +11,10 @@ class ZaynPayAPI {
         const preset = getApiProviderPreset('zayn_external_aggregator');
         this.username = process.env.ZAYN_USERNAME || process.env.ZAYNPAY_USERNAME;
         this.password = process.env.ZAYN_PASSWORD || process.env.ZAYNPAY_PASSWORD;
-        this.serviceId = parseInt(process.env.ZAYN_AGGREGATOR_SERVICE_ID || process.env.ZAYNPAY_SERVICE_ID || preset.serviceId);
-        this.providerId = parseInt(process.env.ZAYN_AGGREGATOR_PROVIDER_ID || process.env.ZAYNPAY_PROVIDER_ID || preset.providerId);
-        this.fieldId = parseInt(process.env.ZAYN_AGGREGATOR_FIELD_ID || process.env.ZAYNPAY_FIELD_ID || preset.fieldId);
-        this.machineSerial = process.env.ZAYN_AGGREGATOR_MACHINE_SERIAL || process.env.ZAYNPAY_MACHINE_SERIAL || preset.machineSerial;
+        this.serviceId = preset.serviceId;
+        this.providerId = preset.providerId;
+        this.fieldKey = preset.fieldKey || 'Key1';
+        this.machineSerial = preset.machineSerial;
         this.token = null;
         try {
             this.baseURL = this.resolveBaseUrl();
@@ -98,13 +98,11 @@ class ZaynPayAPI {
             this.assertOutboundAllowed();
             const headers = await this.getHeaders();
             const payload = {
-                Fields: [
-                    { Id: this.fieldId, Value: walletNumber }
-                ],
-                CurrentServiceProviderId: this.providerId,
-                ServiceId: this.serviceId,
-                MachineSerial: this.machineSerial,
-                InqueryAmount: amount
+                fields: [{ value: walletNumber, key: this.fieldKey }],
+                serviceId: this.serviceId,
+                currentServiceProviderId: this.providerId,
+                inqueryAmount: amount,
+                machineSerial: this.machineSerial
             };
 
             let res = await axios.post(`${this.baseURL}/api/V1/Transactions/Inquiry`, payload, { headers });
@@ -130,14 +128,12 @@ class ZaynPayAPI {
             this.assertOutboundAllowed();
             const headers = await this.getHeaders();
             const payload = {
-                Fields: [
-                    { Id: this.fieldId, Value: walletNumber }
-                ],
-                CurrentServiceProviderId: this.providerId,
-                ServiceId: this.serviceId,
-                PaymentBillInfo: paymentBillInfo,
-                Amount: amount,
-                MachineSerial: this.machineSerial
+                fields: [{ value: walletNumber, key: this.fieldKey }],
+                serviceId: this.serviceId,
+                currentServiceProviderId: this.providerId,
+                paymentBillInfo,
+                amount,
+                machineSerial: this.machineSerial
             };
 
             let res = await axios.post(`${this.baseURL}/api/V1/Transactions/Payment`, payload, { headers });

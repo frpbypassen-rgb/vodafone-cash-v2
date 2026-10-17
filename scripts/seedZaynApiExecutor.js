@@ -46,6 +46,7 @@ async function main() {
                 apiPassword,
                 apiServiceId: Number(process.env.ZAYN_EXECUTOR_SERVICE_ID || preset.serviceId),
                 apiProviderId: Number(process.env.ZAYN_EXECUTOR_PROVIDER_ID || preset.providerId),
+                apiFieldKey: process.env.ZAYN_EXECUTOR_FIELD_KEY || preset.fieldKey,
                 apiFieldId: Number(process.env.ZAYN_EXECUTOR_FIELD_ID || preset.fieldId),
                 apiMachineSerial: process.env.ZAYN_EXECUTOR_MACHINE_SERIAL || preset.machineSerial
             },

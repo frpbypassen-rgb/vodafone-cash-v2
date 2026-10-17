@@ -231,6 +231,7 @@ router.post('/executors/add', requireAuth, requireMaster, async (req, res) => {
                 apiPassword: isApiBot ? normalizeText(body.apiPassword) : '',
                 apiServiceId: isApiBot ? parseNumberOrDefault(body.apiServiceId, apiPreset.serviceId) : apiPreset.serviceId,
                 apiProviderId: isApiBot ? parseNumberOrDefault(body.apiProviderId, apiPreset.providerId) : apiPreset.providerId,
+                apiFieldKey: isApiBot ? (normalizeText(body.apiFieldKey) || apiPreset.fieldKey) : apiPreset.fieldKey,
                 apiFieldId: isApiBot ? parseNumberOrDefault(body.apiFieldId, apiPreset.fieldId) : apiPreset.fieldId,
                 apiMachineSerial: isApiBot ? (normalizeText(body.apiMachineSerial) || apiPreset.machineSerial) : apiPreset.machineSerial
             },

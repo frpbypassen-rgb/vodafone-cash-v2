@@ -75,7 +75,7 @@ describe('externalApiService', () => {
                     Data: {
                         TransactionNumber: '50011611',
                         RefTransactionNumber: '28059087',
-                        Amount: 5,
+                        Amount: 10,
                         BalanceBefore: 100,
                         BalanceAfter: 95,
                         Status: 'عمليه ناجحه'
@@ -88,7 +88,7 @@ describe('externalApiService', () => {
         mockSuccessFlow();
 
         const result = await executeTransferViaApi(
-            { customId: 'ATT-2608-0001', vodafoneNumber: '01271870153', amount: 5 },
+            { customId: 'ATT-2608-0001', vodafoneNumber: '01123064715', amount: 10 },
             {
                 apiProviderKey: 'zayn_external_aggregator',
                 apiUrl: 'https://zayn.example/',
@@ -119,11 +119,11 @@ describe('externalApiService', () => {
             2,
             'https://zayn.example/api/V1/Transactions/Inquiry',
             {
-                Fields: [{ Id: 5488, Value: '01271870153' }],
-                CurrentServiceProviderId: 16,
-                ServiceId: 85,
-                MachineSerial: 'XP1',
-                InqueryAmount: 5
+                fields: [{ value: '01123064715', key: 'Key1' }],
+                serviceId: 307,
+                currentServiceProviderId: 31,
+                inqueryAmount: 10,
+                machineSerial: 'XP1'
             },
             expect.objectContaining({
                 headers: expect.objectContaining({ Authorization: 'Bearer token-123' }),
@@ -135,12 +135,12 @@ describe('externalApiService', () => {
             3,
             'https://zayn.example/api/V1/Transactions/Payment',
             {
-                Fields: [{ Id: 5488, Value: '01271870153' }],
-                CurrentServiceProviderId: 16,
-                ServiceId: 85,
-                PaymentBillInfo: 'payment-bill-info',
-                Amount: 5,
-                MachineSerial: 'XP1'
+                fields: [{ value: '01123064715', key: 'Key1' }],
+                serviceId: 307,
+                currentServiceProviderId: 31,
+                paymentBillInfo: 'payment-bill-info',
+                amount: 10,
+                machineSerial: 'XP1'
             },
             expect.objectContaining({
                 headers: expect.objectContaining({ Authorization: 'Bearer token-123' }),
@@ -169,11 +169,11 @@ describe('externalApiService', () => {
             2,
             'https://zayn.example/api/V1/Transactions/Inquiry',
             expect.objectContaining({
-                Fields: [{ Id: 77, Value: '01000000000' }],
-                CurrentServiceProviderId: 88,
-                ServiceId: 99,
-                MachineSerial: 'SER-1',
-                InqueryAmount: 10
+                fields: [{ value: '01000000000', key: 'Key77' }],
+                serviceId: 99,
+                currentServiceProviderId: 88,
+                inqueryAmount: 10,
+                machineSerial: 'SER-1'
             }),
             expect.any(Object)
         );
@@ -213,11 +213,11 @@ describe('externalApiService', () => {
             3,
             'https://zayn.example/api/V1/Transactions/Inquiry',
             {
-                Fields: [{ Id: 5488, Value: '01271870153' }],
-                CurrentServiceProviderId: 16,
-                ServiceId: 85,
-                MachineSerial: 'XP1',
-                InqueryAmount: 5
+                fields: [{ value: '01271870153', key: 'Key1' }],
+                serviceId: 307,
+                currentServiceProviderId: 31,
+                inqueryAmount: 5,
+                machineSerial: 'XP1'
             },
             expect.objectContaining({
                 headers: expect.objectContaining({ Authorization: 'Bearer preflight-token' }),

@@ -7,9 +7,10 @@ const API_PROVIDER_PRESETS = {
         nameAr: 'Zayn External Aggregator',
         // Production fallback only. Staging refuses this host; see resolveProviderBaseUrl.
         apiUrl: 'https://zaynpay.com',
-        serviceId: 85,
-        providerId: 16,
-        fieldId: 5488,
+        serviceId: 307,
+        providerId: 31,
+        fieldKey: 'Key1',
+        fieldId: 5488, // legacy admin-field compatibility; outbound payload uses fieldKey
         machineSerial: 'XP1',
         appType: '1',
         appId: 'app12',
@@ -21,8 +22,9 @@ const API_PROVIDER_PRESETS = {
         nameAr: 'ZaynPay Legacy',
         apiUrl: 'https://zaynpay.com',
         serviceId: 307,
-        providerId: 29,
-        fieldId: 3488,
+        providerId: 31,
+        fieldKey: 'Key1',
+        fieldId: 3488, // legacy admin-field compatibility; outbound payload uses fieldKey
         machineSerial: 'XP1',
         appType: '1',
         appId: 'app12',

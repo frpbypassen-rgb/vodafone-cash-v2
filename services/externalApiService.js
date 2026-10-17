@@ -109,6 +109,9 @@ const explicitProviderUrl = (apiBot = {}, env = process.env) => [
 
 const resolveApiProviderConfig = (apiBot = {}, env = process.env) => {
     const preset = getApiProviderPreset(apiBot.apiProviderKey);
+    const providerKey = String(apiBot.apiProviderKey || '').trim();
+    const usesExactInquiryContract = providerKey === 'zayn_external_aggregator'
+        || providerKey === 'zaynpay_legacy';
     const decision = resolveProviderBaseUrl({
         explicitUrl: explicitProviderUrl(apiBot, env),
         presetUrl: preset.apiUrl,
@@ -124,10 +127,27 @@ const resolveApiProviderConfig = (apiBot = {}, env = process.env) => {
         apiUsername: apiBot.apiUsername || process.env.ZAYN_USERNAME || process.env.ZAYNPAY_USERNAME,
         apiPassword: apiBot.apiPassword || process.env.ZAYN_PASSWORD || process.env.ZAYNPAY_PASSWORD,
         staticToken: (apiBot.apiToken || process.env.ZAYN_API_TOKEN || process.env.ZAYNPAY_API_TOKEN || '').replace(/^Bearer\s+/i, '').trim(),
-        serviceId: parseNumberOrDefault(apiBot.apiServiceId || process.env.ZAYN_AGGREGATOR_SERVICE_ID || process.env.ZAYNPAY_SERVICE_ID, preset.serviceId),
-        providerId: parseNumberOrDefault(apiBot.apiProviderId || process.env.ZAYN_AGGREGATOR_PROVIDER_ID || process.env.ZAYNPAY_PROVIDER_ID, preset.providerId),
-        fieldId: parseNumberOrDefault(apiBot.apiFieldId || process.env.ZAYN_AGGREGATOR_FIELD_ID || process.env.ZAYNPAY_FIELD_ID, preset.fieldId),
-        machineSerial: apiBot.apiMachineSerial || process.env.ZAYN_AGGREGATOR_MACHINE_SERIAL || process.env.ZAYNPAY_MACHINE_SERIAL || preset.machineSerial,
+        serviceId: usesExactInquiryContract
+            ? preset.serviceId
+            : parseNumberOrDefault(apiBot.apiServiceId || process.env.ZAYN_AGGREGATOR_SERVICE_ID || process.env.ZAYNPAY_SERVICE_ID, preset.serviceId),
+        providerId: usesExactInquiryContract
+            ? preset.providerId
+            : parseNumberOrDefault(apiBot.apiProviderId || process.env.ZAYN_AGGREGATOR_PROVIDER_ID || process.env.ZAYNPAY_PROVIDER_ID, preset.providerId),
+        // The provider identifies the input by its string key (for example
+        // `Key1`), not by the legacy numeric field id.
+        fieldKey: usesExactInquiryContract
+            ? preset.fieldKey
+            : String(
+                apiBot.apiFieldKey
+                || (apiBot.apiFieldId != null ? `Key${apiBot.apiFieldId}` : '')
+                || process.env.ZAYN_AGGREGATOR_FIELD_KEY
+                || process.env.ZAYNPAY_FIELD_KEY
+                || preset.fieldKey
+                || 'Key1'
+            ).trim(),
+        machineSerial: usesExactInquiryContract
+            ? preset.machineSerial
+            : (apiBot.apiMachineSerial || process.env.ZAYN_AGGREGATOR_MACHINE_SERIAL || process.env.ZAYNPAY_MACHINE_SERIAL || preset.machineSerial),
         defaultHeaders: {
             'Content-Type': 'application/json',
             'User-Agent': 'Mozilla/5.0 Ahram-Server/1.0',
@@ -224,17 +244,17 @@ const getApiConfigurationIssues = (config) => {
     }
     if (!Number.isFinite(Number(config.serviceId)) || Number(config.serviceId) <= 0) issues.push('رقم الخدمة غير صالح');
     if (!Number.isFinite(Number(config.providerId)) || Number(config.providerId) <= 0) issues.push('رقم مزود الخدمة غير صالح');
-    if (!Number.isFinite(Number(config.fieldId)) || Number(config.fieldId) <= 0) issues.push('رقم حقل الخدمة غير صالح');
+    if (!String(config.fieldKey || '').trim()) issues.push('مفتاح حقل الخدمة غير موجود');
     if (!String(config.machineSerial || '').trim()) issues.push('الرقم التسلسلي للجهاز غير موجود');
     return issues;
 };
 
 const buildInquiryPayload = (config, targetNumber, amount) => ({
-    Fields: [{ Id: config.fieldId, Value: targetNumber }],
-    CurrentServiceProviderId: config.providerId,
-    ServiceId: config.serviceId,
-    MachineSerial: config.machineSerial,
-    InqueryAmount: amount
+    fields: [{ value: targetNumber, key: config.fieldKey }],
+    serviceId: config.serviceId,
+    currentServiceProviderId: config.providerId,
+    inqueryAmount: amount,
+    machineSerial: config.machineSerial
 });
 
 const getApiProviderBalanceWithAuth = async (config, headers, addLog) => {
@@ -301,7 +321,7 @@ const runApiTransferPreflight = async (apiBot, input = {}) => {
             return { success: false, stage, message, checks, processLog: processLog.join('\n') };
         }
 
-        addLog('CONFIG_SUCCESS', `${config.preset.name} | ServiceId=${config.serviceId} | CurrentServiceProviderId=${config.providerId} | FieldId=${config.fieldId}`);
+        addLog('CONFIG_SUCCESS', `${config.preset.name} | serviceId=${config.serviceId} | currentServiceProviderId=${config.providerId} | fieldKey=${config.fieldKey}`);
         checks.push({ key: 'configuration', label: 'إعدادات الخدمة', status: 'success', message: 'البيانات الأساسية مكتملة' });
 
         stage = 'authentication';
@@ -378,7 +398,7 @@ const executeTransferViaApi = async (tx, apiBot) => {
         const config = resolveApiProviderConfig(apiBot || {});
         const refused = refuseResolvedProvider(config);
         if (refused) return refused;
-        const { preset, baseUrl, serviceId, providerId, fieldId, machineSerial } = config;
+        const { preset, baseUrl, serviceId, providerId, fieldKey, machineSerial } = config;
         const configurationIssues = getApiConfigurationIssues(config);
         if (!targetNumber || targetNumber.length < 5 || targetNumber.length > 20) {
             configurationIssues.push('رقم العميل غير صالح للتحويل عبر API');
@@ -397,7 +417,7 @@ const executeTransferViaApi = async (tx, apiBot) => {
         }
         const headers = auth.headers;
         
-        addLog("PROVIDER", `${preset.name} | ServiceId=${serviceId} | CurrentServiceProviderId=${providerId} | FieldId=${fieldId}`);
+        addLog("PROVIDER", `${preset.name} | serviceId=${serviceId} | currentServiceProviderId=${providerId} | fieldKey=${fieldKey}`);
         addLog("INQUIRY", `جاري الاستعلام وفحص الرقم [${targetNumber}]...`);
         const inquiryPayload = buildInquiryPayload(config, targetNumber, amount);
         const inquiryRes = await axios.post(`${baseUrl}/api/V1/Transactions/Inquiry`, inquiryPayload, { headers, timeout: 20000 });
@@ -425,12 +445,12 @@ const executeTransferViaApi = async (tx, apiBot) => {
         }
 
         const paymentPayload = {
-            Fields: [{ Id: fieldId, Value: targetNumber }],
-            CurrentServiceProviderId: providerId,
-            ServiceId: serviceId,
-            PaymentBillInfo: inquiryData.Data.PaymentBillInfo,
-            Amount: amount,
-            MachineSerial: machineSerial
+            fields: [{ value: targetNumber, key: fieldKey }],
+            serviceId,
+            currentServiceProviderId: providerId,
+            paymentBillInfo: inquiryData.Data.PaymentBillInfo,
+            amount,
+            machineSerial
         };
         let paymentRes;
         try {
