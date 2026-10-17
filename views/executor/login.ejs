@@ -14,6 +14,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/css/executor-workspace.css?v=20260825-reports1">
     <link rel="stylesheet" href="/css/executor-2030-override.css?v=20260825-reports1">
+    <link rel="stylesheet" href="/css/auth-verification-control-room.css?v=20261017-control-room1">
     <style>
         body.executor-portal-v2 { display: grid; place-items: center; min-height: 100vh; padding: 20px; }
         .x-login-card {
@@ -73,7 +74,7 @@
             </div>
         </div>
 
-        <% if (error) { %>
+        <% if (error && !mfaRequired) { %>
         <div class="x-alert x-alert-danger"><i class="fa-solid fa-circle-exclamation me-1"></i> <%= error %></div>
         <% } %>
 
@@ -81,22 +82,32 @@
         <div class="x-alert x-alert-info"><i class="fa-solid fa-shield-halved me-1"></i> حسابك غير محمي برمز Authenticator. نوصي بتفعيله من الإعدادات لأمان أعلى.</div>
         <% } %>
 
-        <form action="/executor-portal/login" method="POST" id="executorLoginForm">
+        <form action="/executor-portal/login" method="POST" id="executorLoginForm" data-auth-verification-form>
             <input type="hidden" name="_csrf" value="<%= typeof csrfToken !== 'undefined' ? csrfToken : '' %>">
             <input type="hidden" name="latitude" id="latitudeInput">
             <input type="hidden" name="longitude" id="longitudeInput">
             <input type="hidden" name="locationAccuracy" id="locationAccuracyInput">
             <% if (mfaRequired) { %>
-            <section class="x-mfa-dialog" role="dialog" aria-modal="true" aria-labelledby="mfa-title" aria-describedby="mfa-description">
-                <div class="x-mfa-icon"><i class="fa-solid fa-shield-halved"></i></div>
-                <h2 id="mfa-title">التحقق برمز Authenticator</h2>
-                <p id="mfa-description">حسابك محمي. أدخل الرمز المكوّن من 6 أرقام الظاهر في تطبيق Authenticator لإكمال الدخول.</p>
-                <div class="mb-3 text-start">
-                    <label class="x-form-label" for="mfaToken">رمز التحقق</label>
-                    <input id="mfaToken" type="text" name="mfaToken" class="x-form-control x-mfa-token" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" placeholder="000000" required dir="ltr" autocomplete="one-time-code" autofocus>
+            <section class="auth-control-room" role="dialog" aria-modal="true" aria-labelledby="executor-auth-control-title">
+                <div class="auth-control-room-head">
+                    <span class="auth-control-room-kicker"><i class="fa-solid fa-satellite-dish"></i> غرفة التحقق الآمن</span>
+                    <span class="auth-control-room-signal"><i></i> اتصال مشفر</span>
                 </div>
-                <button type="submit" class="x-btn-primary">تحقق والدخول <i class="fa-solid fa-arrow-left ms-1"></i></button>
-                <a href="/executor-portal/login" class="x-back-link d-inline-block mt-3"><i class="fa-solid fa-arrow-right me-1"></i> العودة لتسجيل الدخول</a>
+                <div class="auth-control-room-gauge" data-auth-gauge role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+                    <div class="auth-control-room-gauge-copy"><strong data-auth-percent>0%</strong><small data-auth-gauge-label>جاهز</small></div>
+                </div>
+                <h2 id="executor-auth-control-title">التحقق برمز Authenticator</h2>
+                <p class="auth-control-room-description">حسابك محمي. أدخل الرمز المكوّن من 6 أرقام الظاهر في تطبيق Authenticator لإكمال الدخول.</p>
+                <span class="auth-method-chip"><i class="fa-solid fa-shield-halved"></i> تطبيق Authenticator</span>
+                <% if (error) { %><div class="auth-control-room-error" role="alert"><i class="fa-solid fa-triangle-exclamation"></i><span><%= error %></span></div><% } %>
+                <input id="mfaToken" type="text" name="mfaToken" class="auth-code-input" data-auth-code-input inputmode="numeric" pattern="[0-9]{6}" maxlength="6" placeholder="000000" required dir="ltr" autocomplete="one-time-code" autofocus aria-label="رمز Authenticator">
+                <button type="submit" class="auth-control-room-submit" data-auth-submit>تحقق والدخول <i class="fa-solid fa-arrow-left ms-1"></i></button>
+                <div class="auth-control-room-steps" aria-label="مراحل التحقق">
+                    <div class="auth-control-room-step is-active" data-auth-step><i class="fa-solid fa-inbox"></i>استلام الرمز</div>
+                    <div class="auth-control-room-step" data-auth-step><i class="fa-solid fa-fingerprint"></i>فحص الصيغة</div>
+                    <div class="auth-control-room-step" data-auth-step><i class="fa-solid fa-server"></i>تأكيد الخادم</div>
+                </div>
+                <a href="/executor-portal/login" class="auth-control-room-back"><i class="fa-solid fa-arrow-right"></i> العودة لتسجيل الدخول</a>
             </section>
             <% } else { %>
             <div class="mb-3">
@@ -116,6 +127,7 @@
             <a href="/executor-portal/register" class="text-decoration-none small" style="color: var(--x-muted, #94a3b8);">إنشاء حساب منفذ جديد</a>
         </div>
     </div>
+    <script src="/js/auth-verification-control-room.js?v=20261017-control-room1"></script>
     <script>
         const executorLoginForm = document.getElementById('executorLoginForm');
         const LOCATION_WAIT_MS = 3500;

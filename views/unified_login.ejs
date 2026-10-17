@@ -261,6 +261,7 @@
         }
     </style>
     <link rel="stylesheet" href="/css/brand-ui.css?v=20260804-brand1">
+    <link rel="stylesheet" href="/css/auth-verification-control-room.css?v=20261017-control-room1">
 </head>
 <body class="client-os-auth-page unified-login-page">
 
@@ -284,14 +285,14 @@
                 <% } %>
             </div>
 
-            <% if (typeof error !== 'undefined' && error) { %>
+            <% if (typeof error !== 'undefined' && error && !((typeof executorMfaChallenge !== 'undefined' && executorMfaChallenge) || (typeof accountMfaChallenge !== 'undefined' && accountMfaChallenge))) { %>
                 <div class="alert custom-alert" role="alert">
                     <i class="fa-solid fa-triangle-exclamation fs-5 text-danger"></i>
                     <div><%= error %></div>
                 </div>
             <% } %>
 
-            <form action="/login" method="POST" id="loginForm">
+            <form action="/login" method="POST" id="loginForm" data-auth-verification-form>
                 <input type="hidden" name="_csrf" value="<%= typeof csrfToken !== 'undefined' ? csrfToken : '' %>">
                 <% if (typeof clientPortal !== 'undefined' && clientPortal) { %>
                 <input type="hidden" name="portal" value="client">
@@ -309,16 +310,26 @@
                         <button type="button" class="btn-submit" id="passkeyLoginBtn" onclick="triggerPasskeyLogin()">تأكيد مفتاح المرور <i class="fa-solid fa-key"></i></button>
                     </div>
                 <% } else if ((typeof executorMfaChallenge !== 'undefined' && executorMfaChallenge) || (typeof accountMfaChallenge !== 'undefined' && accountMfaChallenge)) { %>
-                    <section class="mfa-challenge" role="dialog" aria-modal="true" aria-labelledby="executor-mfa-title">
-                        <div class="mfa-challenge-icon"><i class="fa-solid fa-shield-halved"></i></div>
-                        <h5 id="executor-mfa-title">تأكيد رمز Authenticator</h5>
-                        <p>تم التحقق من اسم المستخدم وكلمة المرور. أدخل رمز الـ6 أرقام من تطبيق Authenticator لإكمال الدخول.</p>
-                        <div class="form-floating mb-3">
-                            <input type="text" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" class="form-control mfa-token-input" id="mfaTokenInput" name="mfaToken" placeholder="000000" required autocomplete="one-time-code" dir="ltr" autofocus>
-                            <label for="mfaTokenInput">رمز Authenticator</label>
+                    <section class="auth-control-room" role="dialog" aria-modal="true" aria-labelledby="auth-control-room-title">
+                        <div class="auth-control-room-head">
+                            <span class="auth-control-room-kicker"><i class="fa-solid fa-satellite-dish"></i> غرفة التحقق الآمن</span>
+                            <span class="auth-control-room-signal"><i></i> اتصال مشفر</span>
                         </div>
-                        <button type="submit" class="btn-submit" id="submitBtn">تحقق والدخول <i class="fa-solid fa-arrow-left"></i></button>
-                        <a href="/login" class="d-inline-block mt-3 text-muted fw-bold small text-decoration-none">العودة لتسجيل الدخول</a>
+                        <div class="auth-control-room-gauge" data-auth-gauge role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+                            <div class="auth-control-room-gauge-copy"><strong data-auth-percent>0%</strong><small data-auth-gauge-label>جاهز</small></div>
+                        </div>
+                        <h2 id="auth-control-room-title">تأكيد رمز Authenticator</h2>
+                        <p class="auth-control-room-description">تم التحقق من بيانات الدخول. أدخل الرمز المكون من 6 أرقام لإكمال الجلسة بأمان.</p>
+                        <span class="auth-method-chip"><i class="fa-solid fa-shield-halved"></i> تطبيق Authenticator</span>
+                        <% if (typeof error !== 'undefined' && error) { %><div class="auth-control-room-error" role="alert"><i class="fa-solid fa-triangle-exclamation"></i><span><%= error %></span></div><% } %>
+                        <input type="text" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" class="auth-code-input" id="mfaTokenInput" name="mfaToken" placeholder="000000" required autocomplete="one-time-code" dir="ltr" autofocus data-auth-code-input aria-label="رمز Authenticator">
+                        <button type="submit" class="auth-control-room-submit" id="submitBtn" data-auth-submit>تحقق والدخول <i class="fa-solid fa-arrow-left ms-1"></i></button>
+                        <div class="auth-control-room-steps" aria-label="مراحل التحقق">
+                            <div class="auth-control-room-step is-active" data-auth-step><i class="fa-solid fa-inbox"></i>استلام الرمز</div>
+                            <div class="auth-control-room-step" data-auth-step><i class="fa-solid fa-fingerprint"></i>فحص الصيغة</div>
+                            <div class="auth-control-room-step" data-auth-step><i class="fa-solid fa-server"></i>تأكيد الخادم</div>
+                        </div>
+                        <a href="/login" class="auth-control-room-back"><i class="fa-solid fa-arrow-right"></i> العودة لتسجيل الدخول</a>
                     </section>
                 <% } else { %>
                 <div class="position-relative mb-3">
@@ -457,6 +468,7 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="/js/auth-verification-control-room.js?v=20261017-control-room1"></script>
     <script>
         document.getElementById('devicePlatformInput').value = navigator.userAgentData?.platform || navigator.platform || '';
         document.getElementById('deviceNameInput').value = `${navigator.userAgentData?.platform || navigator.platform || 'Device'} - ${navigator.userAgentData?.brands?.[0]?.brand || 'Browser'}`;

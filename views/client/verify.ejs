@@ -118,6 +118,11 @@
     </style>
     <link rel="stylesheet" href="/css/brand-ui.css?v=20260804-brand1">
     <link rel="stylesheet" href="/css/client-nile-theme.css?v=20260826-nile">
+    <link rel="stylesheet" href="/css/auth-verification-control-room.css?v=20261017-control-room1">
+    <style>
+        .auth-verify-host { max-width: 470px; padding: 0; border: 0; background: transparent; box-shadow: none; }
+        .auth-verify-host .auth-control-room { width: 100%; }
+    </style>
 
     <!-- PWA Setup -->
     <link rel="manifest" href="/manifest.json">
@@ -133,31 +138,34 @@
             <span class="client-os-auth-mark-icon"><i class="fa-solid fa-gem"></i></span>
             <span><b>AHRAM</b><small>CLIENT OS</small></span>
         </a>
-        <div class="verify-card client-os-auth-card">
-        <div class="icon-box">
-            <i class="fa-solid fa-shield-halved"></i>
-        </div>
-        <h4 class="fw-bold mb-2" style="color: var(--text-main);">تأمين الدخول للمنصة</h4>
-        <p class="small mb-4 fw-bold" style="color: var(--brand-gold);">أرسلنا رمز تحقق من 6 أرقام إلى واتساب المسجّل على الحساب. أدخله هنا لإكمال الدخول.</p>
-
-        <% if (error) { %>
-            <div class="alert alert-danger fw-bold small rounded-3 mb-4 border-0" style="background: rgba(239, 68, 68, 0.1); color: #ef4444;">
-                <i class="fa-solid fa-circle-exclamation me-1"></i> <%= error %>
-            </div>
-        <% } %>
-
-        <form action="/client/verify" method="POST">
-            <input type="hidden" name="_csrf" value="<%= typeof csrfToken !== 'undefined' ? csrfToken : '' %>">
-            <div class="mb-4">
-                <input type="text" name="otp" class="form-control otp-input" placeholder="------" maxlength="32" inputmode="numeric" autocomplete="one-time-code" data-login-otp required dir="ltr">
-            </div>
-
-            <button type="submit" class="btn-verify w-100 mb-3">تأكيد الرمز والدخول <i class="fa-solid fa-check ms-1"></i></button>
-            
-            <a href="/login?portal=client" class="small text-decoration-none fw-bold" style="color: var(--text-muted); transition: 0.3s;"><i class="fa-solid fa-arrow-right me-1"></i> العودة لتسجيل الدخول</a>
-        </form>
+        <div class="verify-card client-os-auth-card auth-verify-host">
+            <form action="/client/verify" method="POST" data-auth-verification-form>
+                <input type="hidden" name="_csrf" value="<%= typeof csrfToken !== 'undefined' ? csrfToken : '' %>">
+                <section class="auth-control-room" role="dialog" aria-modal="true" aria-labelledby="otp-control-room-title">
+                    <div class="auth-control-room-head">
+                        <span class="auth-control-room-kicker"><i class="fa-solid fa-satellite-dish"></i> غرفة التحقق الآمن</span>
+                        <span class="auth-control-room-signal"><i></i> اتصال مشفر</span>
+                    </div>
+                    <div class="auth-control-room-gauge" data-auth-gauge role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+                        <div class="auth-control-room-gauge-copy"><strong data-auth-percent>0%</strong><small data-auth-gauge-label>جاهز</small></div>
+                    </div>
+                    <h2 id="otp-control-room-title">تأكيد رمز OTP</h2>
+                    <p class="auth-control-room-description">أدخل الرمز المكون من 6 أرقام المرسل إلى وسيلة التحقق المرتبطة بحسابك.</p>
+                    <span class="auth-method-chip"><i class="fa-solid fa-envelope-open-text"></i> رمز تحقق لمرة واحدة</span>
+                    <% if (error) { %><div class="auth-control-room-error" role="alert"><i class="fa-solid fa-triangle-exclamation"></i><span><%= error %></span></div><% } %>
+                    <input type="text" name="otp" class="auth-code-input" data-auth-code-input placeholder="000000" maxlength="32" inputmode="numeric" autocomplete="one-time-code" data-login-otp required dir="ltr" aria-label="رمز OTP">
+                    <button type="submit" class="auth-control-room-submit" data-auth-submit>تأكيد الرمز والدخول <i class="fa-solid fa-arrow-left ms-1"></i></button>
+                    <div class="auth-control-room-steps" aria-label="مراحل التحقق">
+                        <div class="auth-control-room-step is-active" data-auth-step><i class="fa-solid fa-inbox"></i>استلام الرمز</div>
+                        <div class="auth-control-room-step" data-auth-step><i class="fa-solid fa-fingerprint"></i>فحص الصيغة</div>
+                        <div class="auth-control-room-step" data-auth-step><i class="fa-solid fa-server"></i>تأكيد الخادم</div>
+                    </div>
+                    <a href="/login?portal=client" class="auth-control-room-back"><i class="fa-solid fa-arrow-right"></i> العودة لتسجيل الدخول</a>
+                </section>
+            </form>
         </div>
     </div>
     <%- include('../partials/login_otp_field_script') %>
+    <script src="/js/auth-verification-control-room.js?v=20261017-control-room1"></script>
 </body>
 </html>
