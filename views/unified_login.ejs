@@ -261,9 +261,9 @@
         }
     </style>
     <link rel="stylesheet" href="/css/brand-ui.css?v=20260804-brand1">
-    <link rel="stylesheet" href="/css/auth-verification-control-room.css?v=20261017-control-room1">
+    <link rel="stylesheet" href="/css/auth-verification-control-room.css?v=20261017-control-room3">
 </head>
-<body class="client-os-auth-page unified-login-page">
+<body class="client-os-auth-page unified-login-page <%= ((typeof executorMfaChallenge !== 'undefined' && executorMfaChallenge) || (typeof accountMfaChallenge !== 'undefined' && accountMfaChallenge)) ? 'auth-verification-page' : '' %>">
 
     <div class="bg-glow"></div>
 
@@ -310,26 +310,36 @@
                         <button type="button" class="btn-submit" id="passkeyLoginBtn" onclick="triggerPasskeyLogin()">تأكيد مفتاح المرور <i class="fa-solid fa-key"></i></button>
                     </div>
                 <% } else if ((typeof executorMfaChallenge !== 'undefined' && executorMfaChallenge) || (typeof accountMfaChallenge !== 'undefined' && accountMfaChallenge)) { %>
-                    <section class="auth-control-room" role="dialog" aria-modal="true" aria-labelledby="auth-control-room-title">
+                    <section class="auth-control-room" role="dialog" aria-modal="true" aria-labelledby="auth-control-room-title" data-auth-method="authenticator">
                         <div class="auth-control-room-head">
-                            <span class="auth-control-room-kicker"><i class="fa-solid fa-satellite-dish"></i> غرفة التحقق الآمن</span>
-                            <span class="auth-control-room-signal"><i></i> اتصال مشفر</span>
+                            <a class="auth-control-room-back auth-control-room-top-back" href="/login" aria-label="العودة لتسجيل الدخول"><i class="fa-solid fa-arrow-right"></i></a>
+                            <span class="auth-control-room-kicker">التحقق من الهوية</span>
+                            <span class="auth-control-room-signal"><i></i> آمن</span>
+                        </div>
+                        <div class="auth-control-room-scenery" aria-hidden="true"><span></span><i class="fa-solid fa-pyramid"></i><b></b></div>
+                        <h2 id="auth-control-room-title">التحقق من الهوية</h2>
+                        <p class="auth-control-room-description">أدخل رمز التحقق المرسل إلى جهازك</p>
+                        <% if (typeof error !== 'undefined' && error) { %>
+                            <div class="auth-control-room-error" role="alert"><i class="fa-solid fa-triangle-exclamation"></i><span><%= error %></span></div>
+                        <% } %>
+                        <div class="auth-code-grid" dir="ltr" aria-label="رمز التحقق">
+                            <% for (let codeIndex = 0; codeIndex < 6; codeIndex += 1) { %><input type="text" inputmode="numeric" pattern="[0-9]" maxlength="1" class="auth-code-slot" data-auth-code-slot data-slot-index="<%= codeIndex %>" autocomplete="one-time-code" aria-label="رقم <%= codeIndex + 1 %>"><% } %>
+                        </div>
+                        <input type="hidden" id="mfaTokenInput" name="mfaToken" data-auth-code-input>
+                        <div class="auth-method-switch" role="group" aria-label="طريقة التحقق">
+                            <span class="auth-method-chip is-active"><i class="fa-solid fa-mobile-screen-button"></i><span>تطبيق<br><b>Authenticator</b></span><i class="fa-solid fa-circle-check auth-method-check"></i></span>
+                            <span class="auth-method-chip is-muted"><i class="fa-regular fa-envelope"></i><span>رمز البريد</span><i class="fa-regular fa-circle auth-method-check"></i></span>
                         </div>
                         <div class="auth-control-room-gauge" data-auth-gauge role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
                             <div class="auth-control-room-gauge-copy"><strong data-auth-percent>0%</strong><small data-auth-gauge-label>جاهز</small></div>
                         </div>
-                        <h2 id="auth-control-room-title">تأكيد رمز Authenticator</h2>
-                        <p class="auth-control-room-description">تم التحقق من بيانات الدخول. أدخل الرمز المكون من 6 أرقام لإكمال الجلسة بأمان.</p>
-                        <span class="auth-method-chip"><i class="fa-solid fa-shield-halved"></i> تطبيق Authenticator</span>
-                        <% if (typeof error !== 'undefined' && error) { %><div class="auth-control-room-error" role="alert"><i class="fa-solid fa-triangle-exclamation"></i><span><%= error %></span></div><% } %>
-                        <input type="text" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" class="auth-code-input" id="mfaTokenInput" name="mfaToken" placeholder="000000" required autocomplete="one-time-code" dir="ltr" autofocus data-auth-code-input aria-label="رمز Authenticator">
                         <button type="submit" class="auth-control-room-submit" id="submitBtn" data-auth-submit>تحقق والدخول <i class="fa-solid fa-arrow-left ms-1"></i></button>
                         <div class="auth-control-room-steps" aria-label="مراحل التحقق">
                             <div class="auth-control-room-step is-active" data-auth-step><i class="fa-solid fa-inbox"></i>استلام الرمز</div>
                             <div class="auth-control-room-step" data-auth-step><i class="fa-solid fa-fingerprint"></i>فحص الصيغة</div>
                             <div class="auth-control-room-step" data-auth-step><i class="fa-solid fa-server"></i>تأكيد الخادم</div>
                         </div>
-                        <a href="/login" class="auth-control-room-back"><i class="fa-solid fa-arrow-right"></i> العودة لتسجيل الدخول</a>
+                        <a href="/login" class="auth-control-room-back auth-control-room-bottom-back"><i class="fa-solid fa-arrow-right"></i> العودة لتسجيل الدخول</a>
                     </section>
                 <% } else { %>
                 <div class="position-relative mb-3">
