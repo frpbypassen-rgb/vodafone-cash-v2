@@ -39,6 +39,7 @@ const ACCOUNTANT_ALLOWED_HREFS = Object.freeze([
     '/transactions/search',
     '/transactions/deposits',
     '/reports',
+    '/telegram-monitor',
     '/audit-log',
     '/clients'
 ]);
@@ -52,7 +53,6 @@ const ACCOUNTANT_BLOCKED_PATHS = [
     /^\/support(?:\/|$)/,
     /^\/complaints(?:\/|$)/,
     /^\/whatsapp-monitor(?:\/|$)/,
-    /^\/telegram-monitor(?:\/|$)/,
     /^\/admin\/webhooks(?:\/|$)/,
     /^\/sub-account(?:\/|$)/,
     /^\/employees(?:\/|$)/,

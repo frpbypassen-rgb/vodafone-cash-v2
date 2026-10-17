@@ -141,6 +141,7 @@ describe('admin sidebar navigation', () => {
         expect(hrefs.has('/financial-movements')).toBe(true);
         expect(hrefs.has('/clients')).toBe(true);
         expect(hrefs.has('/transactions/live')).toBe(true);
+        expect(hrefs.has('/telegram-monitor')).toBe(true);
         expect(hrefs.has('/settings')).toBe(false);
         expect(hrefs.has('/settings/users')).toBe(false);
         expect(hrefs.has('/broadcast')).toBe(false);
