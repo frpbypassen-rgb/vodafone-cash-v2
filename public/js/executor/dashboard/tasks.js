@@ -1,3 +1,4 @@
+/* global selectedExecutorServiceKey, linkedExecutorServices, latestLiveTasks */
 /* exported showTaskBoardStatus, hideTaskBoardStatus, renderTaskLoadFallback, refreshTasks */
 function showTaskBoardStatus(message, options) {
     const el = document.getElementById('taskBoardStatus');
@@ -22,6 +23,81 @@ function renderTaskLoadFallback(message) {
     container.innerHTML = `<div class="col-12"><div class="executor-board-fallback" role="alert"><p>${escapeTaskHtml(message)}</p><button type="button" class="executor-board-retry" onclick="refreshTasks()">إعادة المحاولة</button></div></div>`;
 }
 
+const executorServiceCardMeta = Object.freeze({
+    vodafone: { title: 'فودافون كاش', icon: 'fa-mobile-screen-button' },
+    postal: { title: 'البريد المصري', icon: 'fa-envelope' },
+    bank_account: { title: 'تحويل بنكي', icon: 'fa-building-columns' },
+    sefa_niger: { title: 'سيفا النيجر', icon: 'fa-globe-africa' },
+    bankak_sudan: { title: 'بنكك السودان', icon: 'fa-landmark' },
+});
+
+const taskServiceKey = (task) => {
+    const transferType = String(task?.transferType || '').trim().toLowerCase();
+    if (['post_account', 'post_card'].includes(transferType)) return 'postal';
+    if (['bank_account', 'bank_transfer'].includes(transferType)) return 'bank_account';
+    if (transferType === 'cash') return 'vodafone';
+    return transferType || 'vodafone';
+};
+
+const executorServiceLabel = (serviceKey) => (
+    executorServiceCardMeta[serviceKey]?.title
+    || linkedExecutorServices.find((service) => service.key === serviceKey)?.label
+    || serviceKey
+);
+
+function renderExecutorServiceTabs(tasks = [], services = linkedExecutorServices) {
+    const tabs = document.getElementById('executorServiceTabs');
+    if (!tabs) return;
+    const taskKeys = [...new Set((Array.isArray(tasks) ? tasks : []).map(taskServiceKey))];
+    const source = Array.isArray(services) && services.length
+        ? services
+        : taskKeys.map((key) => ({ key, label: executorServiceLabel(key) }));
+    const seen = new Set();
+    linkedExecutorServices = source.filter((service) => {
+        const key = String(service?.key || '').trim();
+        if (!key || seen.has(key)) return false;
+        seen.add(key);
+        return true;
+    });
+    taskKeys.forEach((key) => {
+        if (!seen.has(key)) {
+            linkedExecutorServices.push({ key, label: executorServiceLabel(key) });
+            seen.add(key);
+        }
+    });
+    if (!linkedExecutorServices.length) {
+        tabs.innerHTML = '';
+        return;
+    }
+    if (!linkedExecutorServices.some((service) => service.key === selectedExecutorServiceKey)) {
+        selectedExecutorServiceKey = linkedExecutorServices[0].key;
+    }
+    const filterNote = document.getElementById('executorServiceFilterNote');
+    if (filterNote) filterNote.querySelector('span').textContent = `عرض عمليات ${executorServiceLabel(selectedExecutorServiceKey)} فقط`;
+    tabs.innerHTML = linkedExecutorServices.map((service) => {
+        const meta = executorServiceCardMeta[service.key] || { title: service.label || service.key, icon: 'fa-layer-group' };
+        const count = tasks.filter((task) => taskServiceKey(task) === service.key).length;
+        const active = service.key === selectedExecutorServiceKey;
+        return `<button type="button" class="executor-service-card ${active ? 'is-active' : ''}" data-service-key="${escapeTaskHtml(service.key)}" role="tab" aria-selected="${active ? 'true' : 'false'}">
+            <span class="executor-service-card-icon"><i class="fa-solid ${meta.icon}"></i></span>
+            <span class="executor-service-card-copy"><strong>${escapeTaskHtml(meta.title)}</strong><small>${count} عملية حالية</small></span>
+            <span class="executor-service-card-count">${count}</span>
+        </button>`;
+    }).join('');
+    tabs.querySelectorAll('[data-service-key]').forEach((button) => {
+        button.addEventListener('click', () => selectExecutorService(button.dataset.serviceKey));
+    });
+}
+
+function selectExecutorService(serviceKey) {
+    const nextKey = String(serviceKey || '').trim();
+    if (!nextKey || nextKey === selectedExecutorServiceKey) return;
+    selectedExecutorServiceKey = nextKey;
+    renderExecutorServiceTabs(latestLiveTasks, linkedExecutorServices);
+    lastTasksHash = null;
+    refreshTasks();
+}
+
 async function refreshTasks() {
     if (document.hidden) return;
     const requestId = ++liveTasksRequestId;
@@ -40,6 +116,11 @@ async function refreshTasks() {
         }
         manualTaskRoutingEnabled = Boolean(data.manualTaskRoutingEnabled);
         renderManualRoutingControl();
+        latestLiveTasks = Array.isArray(data.tasks) ? data.tasks : [];
+        renderExecutorServiceTabs(
+            latestLiveTasks,
+            Array.isArray(data.executorServices) ? data.executorServices : linkedExecutorServices
+        );
         if (data.executionPolicy) {
             executorManualPolicy = {
                 proofRequired: Boolean(data.executionPolicy.proofRequired),
@@ -235,22 +316,23 @@ async function refreshTasks() {
         activeTasksIds = visibleTasks.map((t) => t._id);
 
         // 🔒 فحص الـ Hash لمنع إعادة الرسم والوميض
-        const currentTasksHash = Array.isArray(visibleTasks)
+        const serviceVisibleTasks = activeTaskId
             ? visibleTasks
-                  .map((task) =>
-                      [
-                          task._id,
-                          task.status,
-                          task.amount,
-                          task.operatorId || '',
-                          task.assignedExecutorId || '',
-                          task.assignedExecutorName || '',
-                          task.routingState || '',
-                          task.recipientNumber || '',
-                          task.emergencyAlert || '',
-                          task.notes || '',
-                      ].join(':')
-                  )
+            : visibleTasks.filter((task) => taskServiceKey(task) === selectedExecutorServiceKey);
+        const currentTasksHash = Array.isArray(serviceVisibleTasks)
+            ? [selectedExecutorServiceKey, ...serviceVisibleTasks]
+                  .map((task) => (typeof task === 'string' ? task : [
+                      task._id,
+                      task.status,
+                      task.amount,
+                      task.operatorId || '',
+                      task.assignedExecutorId || '',
+                      task.assignedExecutorName || '',
+                      task.routingState || '',
+                      task.recipientNumber || '',
+                      task.emergencyAlert || '',
+                      task.notes || '',
+                  ].join(':')))
                   .join('|')
             : '';
         if (currentTasksHash !== lastTasksHash) {
@@ -262,7 +344,7 @@ async function refreshTasks() {
             let pendingTasks = [];
             let othersTasks = [];
 
-            visibleTasks.forEach((t) => {
+            serviceVisibleTasks.forEach((t) => {
                 const ownedByMe =
                     t.isOwnedByCurrentExecutor === true ||
                     (t.operatorId === myExecutorId && t.status === 'accepted');
@@ -506,7 +588,7 @@ async function refreshTasks() {
             });
             container.innerHTML =
                 html ||
-                `<div class="col-12"><div class="executor-empty-state-live"><div><div class="executor-empty-mark" role="img" aria-label="في انتظار عمليات جديدة"><svg viewBox="0 0 72 72" aria-hidden="true" focusable="false"><circle cx="36" cy="36" r="26" fill="none" stroke="currentColor" stroke-width="3.5"/><path d="M36 20v17l12 7" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="36" cy="36" r="3.2" fill="currentColor"/></svg></div><h2>غرفة العمليات هادئة</h2><p>سيظهر الطلب هنا فور وصول عملية جديدة.</p></div></div></div>`;
+                `<div class="col-12"><div class="executor-empty-state-live"><div><div class="executor-empty-mark" role="img" aria-label="لا توجد عمليات"><svg viewBox="0 0 72 72" aria-hidden="true" focusable="false"><circle cx="36" cy="36" r="26" fill="none" stroke="currentColor" stroke-width="3.5"/><path d="M36 20v17l12 7" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="36" cy="36" r="3.2" fill="currentColor"/></svg></div><h2>لا توجد عمليات في ${escapeTaskHtml(executorServiceLabel(selectedExecutorServiceKey))}</h2><p>ستظهر العملية هنا فور وصول طلب جديد لهذه الخدمة.</p></div></div></div>`;
         }
     } catch {
         const offline = navigator.onLine === false;

@@ -6,7 +6,10 @@ const {
 } = require('../../../services/executorTaskRoutingService');
 const mobileWebParityService = require('../../../services/mobileWebParityService');
 const { readExecutorManualPolicy, toPublicExecutionPolicy } = require('../../../utils/executorManualPolicy');
-const { loadPortalLiveTasks } = require('../../../services/executorLiveTasksService');
+const {
+    loadPortalLiveTasks,
+    getLinkedExecutorServices,
+} = require('../../../services/executorLiveTasksService');
 const {
     snapshotCompanyBalances,
     workingBalanceForEmployee,
@@ -33,12 +36,14 @@ exports.getDashboard = async (req, res) => {
         emp?.role === 'manager' ? await snapshotCompanyBalances(emp.groupId).catch(() => null) : null;
     const workingBalance =
         emp?.role === 'external' ? await workingBalanceForEmployee(emp).catch(() => null) : null;
+    const executorServices = await getLinkedExecutorServices(emp).catch(() => []);
     res.render('executor/dashboard', {
         emp,
         showMfaNotice,
         activeTaskId: req.activeTaskId || null,
         companyBalances,
         workingBalance,
+        executorServices,
         executionPolicy: toPublicExecutionPolicy(readExecutorManualPolicy(emp?.groupId, emp)),
     });
 };

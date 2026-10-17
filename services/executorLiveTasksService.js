@@ -2,8 +2,13 @@
 
 const mongoose = require('mongoose');
 const Transaction = require('../models/Transaction');
+const Settings = require('../models/Settings');
 const { taskOwnershipFilter } = require('./executorTaskRoutingService');
 const { toExecutorPortalTaskDto } = require('../utils/executorTaskPrivacy');
+const {
+    getExecutorServiceOptions,
+    normalizeExecutorServiceKey,
+} = require('../utils/executorServiceCatalog');
 const { systemDayStart, systemDayEnd, systemDateKey } = require('../config/systemTime');
 const { readExecutorManualPolicy, toPublicExecutionPolicy } = require('../utils/executorManualPolicy');
 const { toPublicQuickExecuteState } = require('../utils/executorQuickExecuteUssd');
@@ -49,6 +54,43 @@ const LIVE_TASK_PROJECTION = [
 const COMPLETED_TODAY_PROJECTION = 'customId amount transferType vodafoneNumber accountNumber updatedAt completedAt executorName';
 
 const objectIdString = (value) => String(value?._id || value || '');
+
+const transferTypeToServiceKey = (transferType) => {
+    const normalized = String(transferType || '').trim().toLowerCase();
+    if (['post_account', 'post_card'].includes(normalized)) return 'postal';
+    if (['bank_account', 'bank_transfer'].includes(normalized)) return 'bank_account';
+    return normalizeExecutorServiceKey(normalized, null);
+};
+
+// A group keeps a primary service for legacy accounts, while automatic
+// routing can point more than one service at the same group. Return the
+// services that can actually appear in this executor's live queue.
+const getLinkedExecutorServices = async (emp, tasks = []) => {
+    const groupId = objectIdString(emp?.groupId);
+    const linkedKeys = new Set();
+    const primaryService = normalizeExecutorServiceKey(emp?.groupId?.serviceKey, null);
+    if (primaryService) linkedKeys.add(primaryService);
+
+    if (mongoose.isObjectIdOrHexString(groupId)) {
+        try {
+            const settings = await Settings.findOne({}).select('autoRouteRules').lean();
+            (settings?.autoRouteRules || []).forEach((rule) => {
+                if (objectIdString(rule.executorGroupId) !== groupId) return;
+                const serviceKey = normalizeExecutorServiceKey(rule.serviceKey, null);
+                if (serviceKey) linkedKeys.add(serviceKey);
+            });
+        } catch (_) {
+            // Keep serving the primary group service when settings are unavailable.
+        }
+    }
+
+    tasks.forEach((task) => {
+        const serviceKey = transferTypeToServiceKey(task.transferType);
+        if (serviceKey) linkedKeys.add(serviceKey);
+    });
+    if (!linkedKeys.size) linkedKeys.add('vodafone');
+    return getExecutorServiceOptions().filter((service) => linkedKeys.has(service.key));
+};
 
 const taskArrivalTime = (tx) => {
     const value = new Date(tx.executorReceivedAt || tx.createdAt || 0).getTime();
@@ -175,6 +217,7 @@ const loadPortalLiveTasks = async ({ emp, includeCompletedList = true, now = new
     const tasks = Array.isArray(rawTasks) ? [...rawTasks] : [];
     tasks.sort((first, second) => taskArrivalTime(first) - taskArrivalTime(second));
     const liveTasks = await applyLiveTaskHousekeeping(tasks, now.getTime());
+    const executorServices = await getLinkedExecutorServices(emp, liveTasks);
 
     const completedQuery = completedTodayQuery(emp, now);
     const depQuery = Transaction.find(depositAlertQuery(emp, now.getTime()));
@@ -212,6 +255,7 @@ const loadPortalLiveTasks = async ({ emp, includeCompletedList = true, now = new
         })),
         completedToday: includeCompletedList ? (completedToday || []) : [],
         completedTodaySummary,
+        executorServices,
         manualTaskRoutingEnabled: Boolean(emp.groupId?.manualTaskRoutingEnabled),
         canRouteTasks: emp.role === 'manager',
         executionPolicy: toPublicExecutionPolicy(readExecutorManualPolicy(emp.groupId, emp)),
@@ -248,5 +292,6 @@ module.exports = {
     depositAlertQuery,
     loadMobileLiveTasks,
     loadPortalLiveTasks,
+    getLinkedExecutorServices,
     pollIntervalSecondsFor
 };

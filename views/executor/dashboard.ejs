@@ -47,6 +47,7 @@
     const myExecutorId = '<%= emp._id %>';
     const activeTaskId = <%- JSON.stringify(activeTaskId || null) %>;
     const isExecutorManager = <%= emp.role === 'manager' ? 'true' : 'false' %>;
+    const executorServicesFromServer = <%- JSON.stringify(typeof executorServices !== 'undefined' ? executorServices : []) %>;
     const executorTaskTypeMeta = {
         vodafone: { name: 'تحويل محفظة كاش', short: 'كاش', icon: 'fa-mobile-screen-button' },
         post_account: { name: 'تحويل بريد حساب', short: 'بريد', icon: 'fa-envelope' },
@@ -116,6 +117,8 @@
         <div class="executor-task-layout">
             <section class="executor-task-stage">
                 <div id="taskBoardStatus" class="executor-board-status" hidden role="alert"></div>
+                <div id="executorServiceTabs" class="executor-service-tabs" role="tablist" aria-label="الخدمات المرتبطة بالحساب"></div>
+                <div id="executorServiceFilterNote" class="executor-service-filter-note"><i class="fa-solid fa-filter"></i><span></span></div>
                 <div id="tasksList" class="row g-3" aria-live="polite"><% if (activeTaskId) { %><div class="col-12 text-center py-4">جار فتح العملية النشطة...</div><% } %></div>
             </section>
 
