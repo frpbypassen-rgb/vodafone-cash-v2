@@ -74,7 +74,16 @@ const resolutionOutcome = (tx) => String(dataOf(tx).providerResolutionOutcome ||
 // reference still means the provider may have accepted the transfer.
 const providerMoneyHold = (tx) => {
     if (!tx) return false;
+    const data = dataOf(tx);
     const outcome = resolutionOutcome(tx);
+    // A completed API transfer with a masked provider reference is already
+    // settled. Older rows may retain an unresolved marker from before the
+    // reference classification was introduced; do not block their normal
+    // administrative actions because of that stale marker.
+    const completedMaskedProviderSuccess = tx.status === 'completed'
+        && /[*＊×•·]/u.test(String(data.referenceNumber || data.providerReportedReference || tx.executorSenderPhone || ''))
+        && data.providerResolutionOutcome !== 'provider_not_paid';
+    if (completedMaskedProviderSuccess) return false;
     if (outcome === 'provider_not_paid' && tx.status === 'pending' && !isProviderResultUnresolved(tx)) return false;
     if (outcome === 'provider_paid' && tx.status === 'completed') return false;
     if (isProviderResultUnresolved(tx) || needsUnresolvedHold(tx)) return true;

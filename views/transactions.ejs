@@ -32,6 +32,20 @@
         .btn-action-sm.api-log { color: #10b981; background: rgba(16, 185, 129, 0.1); border-color: rgba(16, 185, 129, 0.2);}
         .btn-action-sm.api-log:hover { background: #10b981; color: white; border-color: #10b981; }
 
+        .provider-row-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px; max-width: 235px; }
+        .provider-row-actions .btn { border-radius: 9px; font-size: .68rem; font-weight: 800; white-space: nowrap; padding: 5px 7px; }
+        .provider-row-actions .provider-check { color: #0369a1; background: rgba(14, 165, 233, .1); border-color: rgba(14, 165, 233, .25); }
+        .provider-row-actions .provider-paid { color: #047857; background: rgba(16, 185, 129, .1); border-color: rgba(16, 185, 129, .25); }
+        .provider-row-actions .provider-cancel { color: #b91c1c; background: rgba(239, 68, 68, .1); border-color: rgba(239, 68, 68, .25); }
+        .provider-row-actions .btn:hover { filter: brightness(.95); transform: translateY(-1px); }
+        [data-theme="dark"] .provider-row-actions .provider-check { color: #7dd3fc; }
+        [data-theme="dark"] .provider-row-actions .provider-paid { color: #6ee7b7; }
+        [data-theme="dark"] .provider-row-actions .provider-cancel { color: #fca5a5; }
+        @media (max-width: 991.98px) {
+            .provider-row-actions { width: 100%; max-width: none; }
+            .provider-row-actions .btn { flex: 1 1 30%; min-width: 0; }
+        }
+
         .badge-st { padding: 6px 12px; border-radius: 8px; font-size: 0.75rem; font-weight: 800; display: inline-flex; align-items: center; gap: 6px; border: 1px solid transparent; }
         .st-done { background: rgba(16, 185, 129, 0.1); color: #10b981; border-color: rgba(16, 185, 129, 0.2);}
         .st-wait { background: rgba(245, 158, 11, 0.1); color: #d97706; border-color: rgba(245, 158, 11, 0.2);} [data-theme="dark"] .st-wait { color: var(--brand-gold);}
@@ -976,6 +990,17 @@
                             const executorDisplay = (executorDisplayByTransaction || {})[String(tx._id)] || {};
                             const directClientName = tx.employeeName || tx.accountName || 'غير معروف';
                             const operationAge = operationAgeFor(tx);
+                            const providerData = tx.apiResultData || {};
+                            const providerReference = String(providerData.referenceNumber || providerData.providerReportedReference || tx.executorSenderPhone || '');
+                            const providerReferenceIsMasked = providerData.referenceMasked === true || /[*＊×•·]/u.test(providerReference);
+                            const providerSettledSuccess = tx.status === 'completed'
+                                && providerReferenceIsMasked
+                                && providerData.providerResolutionOutcome !== 'provider_not_paid';
+                            const providerResolutionPending = !providerSettledSuccess
+                                && tx.transferType !== 'balance_transfer'
+                                && (providerData.providerResultUnresolved === true
+                                    || providerData.providerDispatchResult === 'pending_reference'
+                                    || (providerData.referenceMasked === false && (providerData.referenceNumber || providerData.providerTransactionId || providerData.externalTransactionId)));
                         %>
                             <tr style="<%= tx.status === 'deposit_pending' ? 'background: rgba(245, 158, 11, 0.05);' : (tx.status === 'deposit' ? 'background: rgba(16, 185, 129, 0.05);' : (tx.status === 'deduction' ? 'background: rgba(239, 68, 68, 0.05);' : '')) %>">
                             
@@ -1074,6 +1099,14 @@
                                         </form>
                                     <% } else { %>
                                         
+                                        <% if (providerResolutionPending) { %>
+                                            <div class="provider-row-actions" data-provider-row-actions>
+                                                <button type="button" class="btn provider-check" data-provider-row-action="check" data-transaction-id="<%= tx._id %>" data-provider-updated-at="<%= tx.updatedAt ? new Date(tx.updatedAt).toISOString() : '' %>" onclick="runProviderRowAction(this)" title="استعلام عن رد جديد من المزود"><i class="fa-solid fa-rotate"></i> استعلام عن رد جديد</button>
+                                                <button type="button" class="btn provider-paid" data-provider-row-action="paid" data-transaction-id="<%= tx._id %>" data-provider-updated-at="<%= tx.updatedAt ? new Date(tx.updatedAt).toISOString() : '' %>" onclick="runProviderRowAction(this)" title="إنجاح العملية"><i class="fa-solid fa-check"></i> إنجاح</button>
+                                                <button type="button" class="btn provider-cancel" data-provider-row-action="cancel" data-transaction-id="<%= tx._id %>" data-provider-updated-at="<%= tx.updatedAt ? new Date(tx.updatedAt).toISOString() : '' %>" onclick="runProviderRowAction(this)" title="إلغاء ورد الرصيد"><i class="fa-solid fa-rotate-left"></i> إلغاء ورد الرصيد</button>
+                                            </div>
+                                        <% } %>
+
                                         <% if(tx.status === 'pending') { %>
                                             <div class="dropdown">
                                                 <button class="btn btn-sm btn-primary fw-bold rounded-3 dropdown-toggle" type="button" data-bs-toggle="dropdown">توجيه</button>
@@ -1126,7 +1159,7 @@
                                             <% } %>
                                         <% } %>
 
-                                        <% if(['pending', 'processing', 'accepted', 'completed'].includes(tx.status) && tx.transferType !== 'balance_transfer') { %>
+                                        <% if(['pending', 'processing', 'accepted', 'completed'].includes(tx.status) && tx.transferType !== 'balance_transfer' && !providerResolutionPending) { %>
                                             <form action="/transaction/<%= tx._id %>/global-cancel" method="POST" class="m-0 js-transaction-action">
                                                 <input type="hidden" name="reason" class="cancel-reason-input">
                                                 <button class="btn-action-sm undo" title="تراجع"><i class="fa-solid fa-rotate-left"></i></button>
@@ -1168,6 +1201,17 @@
                     const mobileEligibleExecutorBots = (executorBots || []).filter((bot) => (bot.supportedTransferTypes || ['vodafone']).includes(tx.transferType || 'vodafone'));
                     const mobileExecutorDisplay = (executorDisplayByTransaction || {})[String(tx._id)] || {};
                     const mobileDirectClientName = tx.employeeName || tx.accountName || 'غير معروف';
+                    const mobileProviderData = tx.apiResultData || {};
+                    const mobileProviderReference = String(mobileProviderData.referenceNumber || mobileProviderData.providerReportedReference || tx.executorSenderPhone || '');
+                    const mobileProviderReferenceIsMasked = mobileProviderData.referenceMasked === true || /[*＊×•·]/u.test(mobileProviderReference);
+                    const mobileProviderSettledSuccess = tx.status === 'completed'
+                        && mobileProviderReferenceIsMasked
+                        && mobileProviderData.providerResolutionOutcome !== 'provider_not_paid';
+                    const mobileProviderResolutionPending = !mobileProviderSettledSuccess
+                        && tx.transferType !== 'balance_transfer'
+                        && (mobileProviderData.providerResultUnresolved === true
+                            || mobileProviderData.providerDispatchResult === 'pending_reference'
+                            || (mobileProviderData.referenceMasked === false && (mobileProviderData.referenceNumber || mobileProviderData.providerTransactionId || mobileProviderData.externalTransactionId)));
                 %>
                     <div class="data-card mb-3 p-3 mobile-tx-card <%= displayClass %>" 
                           data-status="<%= tx.status %>"
@@ -1239,8 +1283,8 @@
                         <% 
                         const hasApiLog = Boolean(mobileApiLog);
                         const isPendingOrProcessing = ['pending', 'processing', 'accepted'].includes(tx.status);
-                        const canGlobalCancel = ['pending', 'processing', 'accepted', 'completed'].includes(tx.status) && tx.transferType !== 'balance_transfer';
-                        if (isPendingOrProcessing || hasApiLog || canGlobalCancel || canVoidMobileAdjustment) {
+                        const canGlobalCancel = ['pending', 'processing', 'accepted', 'completed'].includes(tx.status) && tx.transferType !== 'balance_transfer' && !mobileProviderResolutionPending;
+                        if (isPendingOrProcessing || hasApiLog || canGlobalCancel || mobileProviderResolutionPending || canVoidMobileAdjustment) {
                         %>
                             <div class="d-flex gap-2 mt-3 pt-2" style="border-top: 1px dashed var(--border-glass);">
                                 <% if(tx.status === 'pending') { %>
@@ -1270,6 +1314,14 @@
                                         <input type="hidden" name="alertMessage" class="alert-message-input">
                                         <button type="submit" class="btn btn-sm btn-danger fw-bold rounded-3 w-100"><i class="fa-solid fa-bell me-1"></i> إنذار</button>
                                     </form>
+                                <% } %>
+
+                                <% if (mobileProviderResolutionPending) { %>
+                                    <div class="provider-row-actions" data-provider-row-actions>
+                                        <button type="button" class="btn provider-check" data-provider-row-action="check" data-transaction-id="<%= tx._id %>" data-provider-updated-at="<%= tx.updatedAt ? new Date(tx.updatedAt).toISOString() : '' %>" onclick="runProviderRowAction(this)" title="استعلام عن رد جديد من المزود"><i class="fa-solid fa-rotate"></i> استعلام عن رد جديد</button>
+                                        <button type="button" class="btn provider-paid" data-provider-row-action="paid" data-transaction-id="<%= tx._id %>" data-provider-updated-at="<%= tx.updatedAt ? new Date(tx.updatedAt).toISOString() : '' %>" onclick="runProviderRowAction(this)" title="إنجاح العملية"><i class="fa-solid fa-check"></i> إنجاح</button>
+                                        <button type="button" class="btn provider-cancel" data-provider-row-action="cancel" data-transaction-id="<%= tx._id %>" data-provider-updated-at="<%= tx.updatedAt ? new Date(tx.updatedAt).toISOString() : '' %>" onclick="runProviderRowAction(this)" title="إلغاء ورد الرصيد"><i class="fa-solid fa-rotate-left"></i> إلغاء ورد الرصيد</button>
+                                    </div>
                                 <% } %>
                                 
                                 <% if(canGlobalCancel) { %>
@@ -2006,6 +2058,109 @@
         if (!reason) return false;
         form.querySelector('.cancel-reason-input').value = reason;
         return true;
+    }
+
+    async function runProviderRowAction(button) {
+        if (!button || button.disabled) return;
+        const action = button.dataset.providerRowAction;
+        const transactionId = button.dataset.transactionId;
+        const updatedAt = button.dataset.providerUpdatedAt || '';
+        if (!action || !transactionId) return;
+
+        const actionGroup = button.closest('[data-provider-row-actions]');
+        const buttons = actionGroup ? Array.from(actionGroup.querySelectorAll('button')) : [button];
+        buttons.forEach((item) => { item.disabled = true; });
+        const post = async (url, body = {}) => {
+            const response = await fetch(url, {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: {
+                    Accept: 'application/json',
+                    'Content-Type': 'application/json',
+                    ...(window.__csrfToken ? { 'x-csrf-token': window.__csrfToken } : {})
+                },
+                body: JSON.stringify(body)
+            });
+            const payload = await response.json().catch(() => ({}));
+            if (!response.ok || (payload.success === false && action !== 'check')) {
+                throw new Error(payload.message || payload.error || 'تعذر تنفيذ الإجراء.');
+            }
+            return payload;
+        };
+
+        try {
+            if (action === 'check') {
+                const result = await post('/transaction/' + encodeURIComponent(transactionId) + '/provider-status-check');
+                const isStillPending = result.code === 'PROVIDER_STILL_PENDING';
+                await Swal.fire({
+                    icon: isStillPending ? 'info' : (result.success ? 'success' : 'warning'),
+                    title: isStillPending ? 'العملية ما زالت معلقة' : (result.message || 'تم تحديث نتيجة المزود.'),
+                    text: isStillPending ? 'لم يرسل المزود نتيجة نهائية بعد.' : undefined,
+                    confirmButtonText: 'حسناً'
+                });
+                await refreshTransactionsList();
+                return;
+            }
+
+            const isCancel = action === 'cancel';
+            const dialog = await Swal.fire({
+                title: isCancel ? 'إلغاء ورد الرصيد' : 'إنجاح العملية',
+                html: '<div style="text-align:right; direction:rtl;">'
+                    + '<label class="form-label fw-bold">مرجع إثبات المزود</label>'
+                    + '<input id="provider-row-evidence" class="swal2-input" style="width:100%; margin:0 0 12px;" placeholder="' + (isCancel ? 'رقم الإلغاء أو الرد من المزود' : 'الرقم المرجعي المؤكد') + '">'
+                    + '<label class="form-label fw-bold">ملاحظة القرار</label>'
+                    + '<textarea id="provider-row-note" class="swal2-textarea" style="width:100%; margin:0;" placeholder="' + (isCancel ? 'اكتب سبب الإلغاء ورد الرصيد' : 'اكتب سبب اعتماد العملية') + '"></textarea>'
+                    + '</div>',
+                showCancelButton: true,
+                reverseButtons: true,
+                focusConfirm: false,
+                confirmButtonText: isCancel ? 'إلغاء ورد الرصيد' : 'إنجاح العملية',
+                cancelButtonText: 'تراجع',
+                confirmButtonColor: isCancel ? '#dc2626' : '#059669',
+                preConfirm: () => {
+                    const popup = Swal.getPopup();
+                    const evidenceReference = popup?.querySelector('#provider-row-evidence')?.value.trim() || '';
+                    const note = popup?.querySelector('#provider-row-note')?.value.trim() || '';
+                    if (!evidenceReference || !note) {
+                        Swal.showValidationMessage('أدخل مرجع إثبات المزود والملاحظة أولاً.');
+                        return false;
+                    }
+                    return { evidenceReference, note };
+                }
+            });
+            if (!dialog.isConfirmed || !dialog.value) return;
+
+            const outcome = isCancel ? 'provider_not_paid' : 'provider_paid';
+            await post('/transaction/' + encodeURIComponent(transactionId) + '/resolve-provider-result', {
+                outcome,
+                evidenceReference: dialog.value.evidenceReference,
+                note: dialog.value.note,
+                confirm: true,
+                expectedUpdatedAt: updatedAt
+            });
+            if (isCancel) {
+                await post('/transaction/' + encodeURIComponent(transactionId) + '/global-cancel', {
+                    reason: 'إلغاء ورد الرصيد بعد تأكيد عدم الدفع من المزود: ' + dialog.value.note
+                });
+            }
+            await refreshTransactionsList();
+            await Swal.fire({
+                toast: true,
+                position: 'top',
+                icon: 'success',
+                title: isCancel ? 'تم إلغاء العملية ورد الرصيد.' : 'تم إنجاح العملية.',
+                showConfirmButton: false,
+                timer: 2200
+            });
+        } catch (error) {
+            await Swal.fire({
+                icon: 'error',
+                title: 'تعذر تنفيذ الإجراء',
+                text: error.message || 'حاول مرة أخرى.'
+            });
+        } finally {
+            buttons.forEach((item) => { item.disabled = false; });
+        }
     }
 
     let currentDepTxId = null;
