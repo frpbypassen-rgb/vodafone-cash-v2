@@ -444,6 +444,18 @@
     border: 1px solid rgba(239, 68, 68, 0.22);
 }
 
+.od-alert-warning {
+    background: rgba(245, 158, 11, 0.1);
+    border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.od-provider-resolution .form-control {
+    min-height: 34px;
+    background: var(--input-bg);
+    color: var(--text-main);
+    border-color: var(--border-glass);
+}
+
 .od-transfer-flow {
     display: flex;
     align-items: stretch;

@@ -58,6 +58,26 @@ const {
 // 🚀 استدعاء محرك الـ API 
 const { reversalService } = require('../src/Application/Services/ReversalService');
 const { apiQueueExecutionBlock } = require('../utils/runtimeControls');
+const {
+    getApiProviderTransaction,
+    isMaskedProviderReference
+} = require('../services/externalApiService');
+const { resolveProviderResult } = require('../services/providerResolutionService');
+
+const providerOperationView = (operation = {}) => ({
+    success: Boolean(operation.success),
+    providerTransactionId: operation.providerTransactionId || '',
+    requestedTransactionId: operation.requestedTransactionId || '',
+    referenceNumber: operation.referenceNumber || '',
+    providerStatus: operation.providerStatus || '',
+    amount: operation.amount,
+    phone: operation.phone || '',
+    serviceName: operation.serviceName || '',
+    providerDate: operation.providerDate || '',
+    providerTime: operation.providerTime || '',
+    isReturned: Boolean(operation.isReturned),
+    message: operation.message || ''
+});
 
 router.use(requireAuth);
 
@@ -966,6 +986,109 @@ router.post('/transaction/:id/resolve-provider-result', requirePermission(PROVID
             success: false,
             code: 'PROVIDER_RESOLUTION_FAILED',
             message: 'تعذر حسم نتيجة المزود حالياً.'
+        });
+    }
+});
+
+// Ask the provider for the latest result without sending Payment again. A
+// masked reference is a settled success; a full reference remains held until
+// an administrator chooses success or cancellation/refund.
+router.post('/transaction/:id/provider-status-check', requirePermission(PROVIDER_RESOLUTION_PERMISSION), async (req, res) => {
+    try {
+        const actor = requireAdminActor(req);
+        const transaction = await Transaction.findOne(adminTxById(req, req.params.id));
+        if (!transaction) return respondTransactionAction(req, res, 404, { success: false, code: 'NOT_FOUND', message: 'العملية غير موجودة.' });
+
+        const data = transaction.apiResultData || {};
+        const isHeld = data.providerResultUnresolved === true
+            || data.providerDispatchResult === 'pending_reference'
+            || data.referenceMasked === false;
+        if (!isHeld) {
+            return respondTransactionAction(req, res, 409, {
+                success: false,
+                code: 'NOT_ELIGIBLE',
+                message: 'العملية ليست معلقة على نتيجة مزود غير محسومة.'
+            });
+        }
+
+        const providerTransactionId = String(
+            data.externalTransactionId
+            || data.providerTransactionId
+            || data.transactionNumber
+            || ''
+        ).trim();
+        if (!providerTransactionId) {
+            return respondTransactionAction(req, res, 409, {
+                success: false,
+                code: 'PROVIDER_REFERENCE_MISSING',
+                message: 'لا يوجد رقم عملية لدى المزود يمكن الاستعلام عنه.'
+            });
+        }
+
+        const executorGroup = await ExecutorGroup.findById(transaction.executorGroupId);
+        if (!executorGroup) {
+            return respondTransactionAction(req, res, 409, {
+                success: false,
+                code: 'EXECUTOR_MISSING',
+                message: 'المنفذ المرتبط بالعملية غير موجود.'
+            });
+        }
+
+        const operation = await getApiProviderTransaction(executorGroup, providerTransactionId);
+        const checkedAt = new Date();
+        transaction.apiResultData = {
+            ...data,
+            providerLastCheckedAt: checkedAt,
+            providerStatusCheckSucceeded: Boolean(operation.success),
+            providerReportedStatus: operation.providerStatus || '',
+            providerReportedReference: operation.referenceNumber || '',
+            providerReportedPhone: operation.phone || '',
+            providerReportedAmount: operation.amount,
+            providerReturnDetectedAt: operation.isReturned ? checkedAt : data.providerReturnDetectedAt || null
+        };
+        if (operation.rawData) transaction.apiResultData.providerLastCheckedRaw = operation.rawData;
+        transaction.markModified('apiResultData');
+        await transaction.save();
+
+        if (operation.success && operation.referenceNumber && isMaskedProviderReference(operation.referenceNumber)) {
+            const latest = await Transaction.findById(transaction._id);
+            const resolved = await resolveProviderResult({
+                transactionId: transaction._id,
+                outcome: 'provider_paid',
+                evidenceReference: operation.referenceNumber,
+                note: `استعلام آلي من المزود بتاريخ ${checkedAt.toISOString()} أكد أن المرجع مقنّع والعملية ناجحة.`,
+                confirm: true,
+                expectedUpdatedAt: latest.updatedAt,
+                actor: {
+                    id: actor.id,
+                    name: actor.name,
+                    role: actor.role || req.session.adminRole,
+                    permissions: req.session.adminPermissions || []
+                },
+                req
+            });
+            return respondTransactionAction(req, res, resolved.statusCode || 200, {
+                ...resolved,
+                providerOperation: providerOperationView(operation),
+                action: 'completed_from_provider_check'
+            });
+        }
+
+        return respondTransactionAction(req, res, 200, {
+            success: Boolean(operation.success),
+            code: operation.isReturned ? 'PROVIDER_RETURNED' : 'PROVIDER_STILL_PENDING',
+            message: operation.isReturned
+                ? 'المزود أفاد بإلغاء أو استرجاع العملية. يمكنك الآن تنفيذ إلغاء ورد الرصيد بعد مراجعة الإثبات.'
+                : (operation.success ? 'العملية ما زالت معلقة لدى المزود.' : (operation.message || 'تعذر الحصول على نتيجة جديدة من المزود.')),
+            providerOperation: providerOperationView(operation)
+        });
+    } catch (error) {
+        if (isAdminActorError(error)) return respondActorRequired(req, res, operationsListReturnUrl(req));
+        console.error('[adminTransactions/provider-status-check] failed:', error.message);
+        return respondTransactionAction(req, res, 502, {
+            success: false,
+            code: 'PROVIDER_STATUS_CHECK_FAILED',
+            message: 'تعذر الاستعلام عن حالة العملية من المزود.'
         });
     }
 });

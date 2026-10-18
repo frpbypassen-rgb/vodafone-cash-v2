@@ -601,6 +601,38 @@
         `;
     }
 
+    function renderProviderResolution(model) {
+        const tx = model && model.tx;
+        const data = tx && tx.apiResultData ? tx.apiResultData : {};
+        const held = data.providerResultUnresolved === true
+            || data.providerDispatchResult === 'pending_reference'
+            || data.referenceMasked === false;
+        if (!held || !tx || !tx._id) return '';
+        const reference = data.referenceNumber || data.providerReportedReference || '';
+        const reportedStatus = data.providerReportedStatus || 'لم يتم الاستعلام بعد';
+        const lastChecked = data.providerLastCheckedAt ? model.formatDate(data.providerLastCheckedAt) : 'لم يتم الاستعلام بعد';
+        return `
+            <div class="od-alert od-alert-warning od-provider-resolution" data-provider-resolution>
+                <div class="fs-2 text-warning"><i class="fa-solid fa-triangle-exclamation"></i></div>
+                <div class="flex-grow-1">
+                    <h6 class="fw-bold m-0">نتيجة مزود API معلّقة</h6>
+                    <div class="small mt-1">المرجع الحالي: <span class="mono-num">${escapeHtml(reference || EMPTY_NONE)}</span></div>
+                    <div class="small mt-1">حالة المزود: <strong>${escapeHtml(reportedStatus)}</strong> · آخر استعلام: ${escapeHtml(lastChecked)}</div>
+                    <div class="row g-2 mt-2">
+                        <div class="col-md-5"><input class="form-control form-control-sm" data-provider-evidence placeholder="مرجع إثبات المزود" value="${escapeHtml(data.providerReportedReference || reference)}"></div>
+                        <div class="col-md-7"><input class="form-control form-control-sm" data-provider-note placeholder="ملاحظة القرار الإداري" value=""></div>
+                    </div>
+                    <div class="d-flex flex-wrap gap-2 mt-2">
+                        <button type="button" class="btn btn-sm btn-outline-info fw-bold" data-provider-action="check"><i class="fa-solid fa-rotate me-1"></i>استعلام عن رد جديد</button>
+                        <button type="button" class="btn btn-sm btn-success fw-bold" data-provider-action="paid"><i class="fa-solid fa-check me-1"></i>إنجاح العملية</button>
+                        <button type="button" class="btn btn-sm btn-outline-danger fw-bold" data-provider-action="cancel"><i class="fa-solid fa-ban me-1"></i>إلغاء ورد الرصيد</button>
+                    </div>
+                    <div class="small text-muted mt-2">الاستعلام لا يرسل دفعة جديدة. الإنجاح والإلغاء يتطلبان مرجع إثبات وملاحظة ويحفظان في سجل التدقيق.</div>
+                </div>
+            </div>
+        `;
+    }
+
     function renderSummaryPane(model) {
         const tx = model.tx;
         const isBalance = tx.transferType === 'balance_transfer';
@@ -641,7 +673,7 @@
                 ${recipient}
             `;
         }
-        return `${renderCancellation(tx, model.formatDate)}${body}`;
+        return `${renderCancellation(tx, model.formatDate)}${renderProviderResolution(model)}${body}`;
     }
 
     function renderPartiesPane(model) {
@@ -840,6 +872,13 @@
                 retryPartProof(root.dataset.transactionId, retryBtn.getAttribute('data-od-retry-part'), retryBtn);
                 return;
             }
+            const providerAction = event.target.closest('[data-provider-action]');
+            if (providerAction && root.contains(providerAction)) {
+                event.preventDefault();
+                event.stopPropagation();
+                resolveProviderAction(root, providerAction);
+                return;
+            }
             const lightboxBtn = event.target.closest('[data-od-lightbox]');
             if (lightboxBtn && root.contains(lightboxBtn)) {
                 openLightbox(lightboxBtn.getAttribute('data-od-lightbox'), lightboxBtn.getAttribute('data-od-caption'));
@@ -869,10 +908,70 @@
         }
     }
 
+    async function resolveProviderAction(root, button) {
+        const transactionId = root.dataset.transactionId;
+        const action = button.getAttribute('data-provider-action');
+        if (!transactionId || !action) return;
+        const card = root.querySelector('[data-provider-resolution]');
+        const evidence = card?.querySelector('[data-provider-evidence]')?.value.trim() || '';
+        const note = card?.querySelector('[data-provider-note]')?.value.trim() || '';
+        if (action !== 'check' && (!evidence || !note)) {
+            window.Swal?.fire({ icon: 'warning', title: 'بيانات القرار ناقصة', text: 'أدخل مرجع إثبات المزود والملاحظة قبل اعتماد القرار.' });
+            return;
+        }
+        if (action !== 'check' && !window.confirm(action === 'paid'
+            ? 'سيتم اعتماد العملية وخصم رصيد المنفذ مرة واحدة فقط. هل تريد المتابعة؟'
+            : 'سيتم إلغاء العملية ورد الرصيد للعميل. تأكد أن المزود ألغى العملية. هل تريد المتابعة؟')) return;
+
+        button.disabled = true;
+        const csrfToken = document.querySelector('input[name="_csrf"]')?.value
+            || document.querySelector('meta[name="csrf-token"]')?.content || '';
+        const post = async (url, body = {}) => {
+            const response = await fetch(url, {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: {
+                    Accept: 'application/json',
+                    'Content-Type': 'application/json',
+                    ...(csrfToken ? { 'x-csrf-token': csrfToken } : {})
+                },
+                body: JSON.stringify(body)
+            });
+            const payload = await response.json().catch(() => ({}));
+            if (!response.ok || payload.success === false) throw new Error(payload.message || payload.error || 'تعذر تنفيذ الإجراء.');
+            return payload;
+        };
+
+        try {
+            if (action === 'check') {
+                await post(`/transaction/${encodeURIComponent(transactionId)}/provider-status-check`);
+            } else {
+                const expectedUpdatedAt = root.dataset.providerUpdatedAt || '';
+                await post(`/transaction/${encodeURIComponent(transactionId)}/resolve-provider-result`, {
+                    outcome: action === 'paid' ? 'provider_paid' : 'provider_not_paid',
+                    evidenceReference: evidence,
+                    note,
+                    confirm: true,
+                    expectedUpdatedAt
+                });
+                if (action === 'cancel') {
+                    await post(`/transaction/${encodeURIComponent(transactionId)}/global-cancel`, {
+                        reason: `إلغاء ورد الرصيد بعد تأكيد عدم الدفع من المزود: ${note}`
+                    });
+                }
+            }
+            window.location.reload();
+        } catch (error) {
+            button.disabled = false;
+            window.Swal?.fire({ icon: 'error', title: 'تعذر تنفيذ الإجراء', text: error.message || 'حاول مرة أخرى.' });
+        }
+    }
+
     function bind(root, model) {
         attachLightboxUi();
         ensureDelegated(root);
         root.dataset.transactionId = String(model.tx?._id || '');
+        root.dataset.providerUpdatedAt = model.tx?.updatedAt ? new Date(model.tx.updatedAt).toISOString() : '';
         const copyOp = root.querySelector('#od-copy-id');
         if (copyOp) copyOp.setAttribute('data-copy-value', model.tx.customId || model.tx._id || '');
         const printBtn = root.querySelector('#od-print-invoice');

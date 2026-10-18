@@ -45,6 +45,11 @@ const normalizeProviderStatus = (value) => String(value || '')
     .replace(/\s+/g, ' ')
     .trim();
 
+// The provider masks the beneficiary/reference phone when the payment is
+// settled. A full number is an accepted-looking response that still needs a
+// provider follow-up and an operator decision.
+const isMaskedProviderReference = (value) => /[*＊×•·]/u.test(String(value || ''));
+
 const isReturnedProviderStatus = (value) => {
     const status = normalizeProviderStatus(value);
     if (!status) return false;
@@ -520,8 +525,23 @@ const executeTransferViaApi = async (tx, apiBot) => {
                 addLog("API_FULL_RESPONSE", prettyLog);
                 return {
                     success: 'pending',
-                    external_transaction_id: extRef,
+                    external_transaction_id: extRef || refTxNum,
                     message: 'قيد الانتظار',
+                    dispatchAttemptId: claim.attemptId,
+                    processLog: processLog.join('\n')
+                };
+            }
+            if (!isMaskedProviderReference(refTxNum)) {
+                addLog("PAYMENT_PENDING_REFERENCE", `تم استلام مرجع كامل من المزود (${refTxNum})؛ العملية معلقة حتى قرار الإدارة.`);
+                addLog("API_FULL_RESPONSE", prettyLog);
+                return {
+                    success: 'pending',
+                    external_transaction_id: extRef || refTxNum,
+                    provider_transaction_id: extRef || refTxNum,
+                    reference_number: refTxNum,
+                    reference_masked: false,
+                    status: pd.Status || providerMessage(paymentData, 'العملية معلقة لدى المزود'),
+                    message: 'العملية معلقة لدى المزود وتحتاج قرار الإدارة',
                     dispatchAttemptId: claim.attemptId,
                     processLog: processLog.join('\n')
                 };
@@ -533,6 +553,7 @@ const executeTransferViaApi = async (tx, apiBot) => {
                 external_transaction_id: extRef || refTxNum,
                 provider_transaction_id: extRef || refTxNum,
                 reference_number: refTxNum,
+                reference_masked: true,
                 message: providerMessage(paymentData, 'تم التحويل الآلي'),
                 sender_number: refTxNum,
                 balance_before: pd.BalanceBefore,
@@ -815,6 +836,7 @@ module.exports = {
     getApiProviderTransaction,
     getApiProviderTransactions,
     isReturnedProviderStatus,
+    isMaskedProviderReference,
     generateCustomReceipt,
     saveApiReceiptProof
 };

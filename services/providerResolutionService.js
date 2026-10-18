@@ -65,9 +65,14 @@ const notPaidEvidenceConflict = async (tx) => {
     const data = tx.apiResultData || {};
     if (data.providerResolutionEffectStartedAt) return 'providerResolutionEffectStartedAt';
     const dispatchResult = clean(data.providerDispatchResult);
-    if (dispatchResult === 'pending_reference' || dispatchResult === 'accepted') return dispatchResult;
+    if (dispatchResult === 'accepted') return dispatchResult;
+    if (dispatchResult === 'pending_reference' && data.referenceMasked !== false) return dispatchResult;
     const reference = storedProviderReference(tx);
-    if (reference) return 'provider_reference';
+    // A full provider reference is the explicit pending outcome supported by
+    // the provider contract. It may be cancelled after evidence confirms that
+    // the provider rejected or returned it. Masked references remain proof of
+    // payment and cannot be resolved as not-paid.
+    if (reference && data.referenceMasked !== false) return 'provider_reference';
     if (data.waitingApiAutoCompletion === true && clean(data.referenceNumber)) return 'waiting_reference';
     if (tx.customId) {
         const debit = await Ledger.findOne({

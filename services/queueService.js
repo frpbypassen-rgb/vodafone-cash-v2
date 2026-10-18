@@ -24,7 +24,7 @@ const {
     guardAutomaticProviderRedispatch
 } = require('./providerDispatchClaimService');
 
-const holdProviderAcceptedWithoutReference = (tx, executorGroup, { note, detailedLog } = {}) => {
+const holdProviderAcceptedWithoutReference = (tx, executorGroup, { note, detailedLog, apiResult = {} } = {}) => {
     const now = new Date();
     tx.status = 'processing';
     tx.executorGroupId = executorGroup._id;
@@ -37,7 +37,13 @@ const holdProviderAcceptedWithoutReference = (tx, executorGroup, { note, detaile
         providerResultUnresolved: true,
         providerResultUnresolvedAt: now,
         providerResultUnresolvedReason: String(note || 'provider accepted without a reference').slice(0, 500),
-        providerResultUnresolvedCode: UNRESOLVED_CODE
+        providerResultUnresolvedCode: UNRESOLVED_CODE,
+        referenceNumber: apiResult.reference_number || null,
+        referenceMasked: apiResult.reference_masked === true,
+        externalTransactionId: apiResult.external_transaction_id || null,
+        providerTransactionId: apiResult.provider_transaction_id || apiResult.external_transaction_id || null,
+        providerReportedStatus: apiResult.status || '',
+        providerResponseMode: apiResult.reference_number ? 'full_reference_pending' : 'missing_reference_pending'
     };
     if (typeof tx.markModified === 'function') tx.markModified('apiResultData');
 };
@@ -238,7 +244,8 @@ class ApiTransferQueue {
 
                 holdProviderAcceptedWithoutReference(tx, executorGroup, {
                     note: '[PROVIDER_RESULT_UNRESOLVED] المزود قبل الدفعة دون رقم مرجعي. لا استرجاع ولا إعادة إرسال حتى المراجعة اليدوية.',
-                    detailedLog
+                    detailedLog,
+                    apiResult
                 });
                 await tx.save();
                 logger.error('API provider accepted payment without a reference; holding as unresolved', {
@@ -247,8 +254,11 @@ class ApiTransferQueue {
                 });
             } else if (apiResult.success === 'pending') {
                 holdProviderAcceptedWithoutReference(tx, executorGroup, {
-                    note: '[PROVIDER_RESULT_UNRESOLVED] المزود أعاد قبول الدفعة دون رقم مرجعي. لا استرجاع ولا إعادة إرسال حتى المراجعة اليدوية.',
-                    detailedLog
+                    note: apiResult.reference_number
+                        ? `[PROVIDER_RESULT_UNRESOLVED] المزود أعاد مرجعاً كاملاً (${apiResult.reference_number})؛ العملية معلقة حتى قرار الإدارة. لا استرجاع ولا إعادة إرسال.`
+                        : '[PROVIDER_RESULT_UNRESOLVED] المزود أعاد قبول الدفعة دون رقم مرجعي. لا استرجاع ولا إعادة إرسال حتى المراجعة اليدوية.',
+                    detailedLog,
+                    apiResult
                 });
                 await tx.save();
                 logger.error('API provider payment pending without a reference; holding as unresolved', {

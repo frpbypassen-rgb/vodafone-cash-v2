@@ -37,7 +37,8 @@ const {
     getApiProviderBalance,
     runApiTransferPreflight,
     getApiProviderTransactions,
-    isReturnedProviderStatus
+    isReturnedProviderStatus,
+    isMaskedProviderReference
 } = require('../services/externalApiService');
 
 describe('externalApiService', () => {
@@ -74,7 +75,7 @@ describe('externalApiService', () => {
                     Message: 'عمليه ناجحه',
                     Data: {
                         TransactionNumber: '50011611',
-                        RefTransactionNumber: '28059087',
+                        RefTransactionNumber: '0121****429',
                         Amount: 10,
                         BalanceBefore: 100,
                         BalanceAfter: 95,
@@ -99,8 +100,8 @@ describe('externalApiService', () => {
 
         expect(result.success).toBe(true);
         expect(result.external_transaction_id).toBe('50011611');
-        expect(result.reference_number).toBe('28059087');
-        expect(result.sender_number).toBe('28059087');
+        expect(result.reference_number).toBe('0121****429');
+        expect(result.sender_number).toBe('0121****429');
 
         expect(axios.post).toHaveBeenNthCalledWith(
             1,
@@ -271,7 +272,7 @@ describe('externalApiService', () => {
                     Code: 200,
                     Data: {
                         IsPaid: 1,
-                        RefTransactionNumber: 'REF-789',
+                        RefTransactionNumber: 'REF-***789',
                         ApprovalNumber: 'APP-789'
                     }
                 }
@@ -284,8 +285,39 @@ describe('externalApiService', () => {
 
         expect(result).toMatchObject({
             success: true,
-            reference_number: 'REF-789',
-            external_transaction_id: 'REF-789'
+            reference_number: 'REF-***789',
+            external_transaction_id: 'REF-***789'
+        });
+    });
+
+    test('holds a full provider reference until an administrator decides', async () => {
+        axios.post
+            .mockResolvedValueOnce({ data: { Code: 200, Data: { Access_Token: 'token-pending' } } })
+            .mockResolvedValueOnce({ data: { Code: 200, Data: { PaymentBillInfo: 'payment-bill-info' } } })
+            .mockResolvedValueOnce({
+                data: {
+                    Code: 200,
+                    Data: {
+                        IsPaid: 1,
+                        TransactionNumber: '6103691',
+                        RefTransactionNumber: '01219429429',
+                        Status: 'عمليه ناجحه'
+                    }
+                }
+            });
+
+        const result = await executeTransferViaApi(
+            { vodafoneNumber: '01093451787', amount: 1000 },
+            { apiUrl: 'https://zayn.example', apiUsername: 'api-user', apiPassword: 'api-pass' }
+        );
+
+        expect(isMaskedProviderReference('0121****429')).toBe(true);
+        expect(isMaskedProviderReference('01219429429')).toBe(false);
+        expect(result).toMatchObject({
+            success: 'pending',
+            reference_number: '01219429429',
+            reference_masked: false,
+            external_transaction_id: '6103691'
         });
     });
 
