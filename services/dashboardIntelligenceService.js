@@ -47,6 +47,46 @@ const percentageChange = (current, previous) => {
 
 const emptyMetric = () => ({ count: 0, amountEGP: 0, costLYD: 0, profitLYD: 0 });
 
+const dashboardChannelExpression = {
+    $cond: [
+        { $or: [
+            { $in: ['$transferType', ['bank', 'bank_transfer', 'bank_account', 'bank_card', 'bank_iban']] },
+            { $ne: [{ $ifNull: ['$serviceDetails.bankName', ''] }, ''] },
+            { $ne: [{ $ifNull: ['$serviceDetails.bankCode', ''] }, ''] },
+            { $ne: [{ $ifNull: ['$serviceDetails.bankMethod', ''] }, ''] },
+            { $regexMatch: { input: { $toLower: { $ifNull: ['$canonicalServiceKey', ''] } }, regex: 'bank|transfer' } }
+        ] },
+        'bank', 'cash'
+    ]
+};
+
+const emptyChannelMetric = () => ({ count: 0, amountEGP: 0 });
+const normalizeChannelRows = (rows = []) => {
+    const output = { cash: emptyChannelMetric(), bank: emptyChannelMetric() };
+    rows.forEach((row) => { const key = row._id === 'bank' ? 'bank' : 'cash'; output[key] = { count: Number(row.count) || 0, amountEGP: Number(row.amountEGP) || 0 }; });
+    output.total = { count: output.cash.count + output.bank.count, amountEGP: output.cash.amountEGP + output.bank.amountEGP };
+    return output;
+};
+const emptyDepositMetric = () => ({ count: 0, amountEGP: 0 });
+const buildTodayOverview = ({ channelRows, executorRows, depositRows, todayStatus, metrics, hourlyRows, now }) => {
+    const operations = normalizeChannelRows(channelRows);
+    const deposits = { clients: emptyDepositMetric(), companies: emptyDepositMetric(), agents: emptyDepositMetric(), executors: emptyDepositMetric() };
+    const deductions = emptyDepositMetric();
+    (depositRows || []).forEach((row) => {
+        const target = row.kind === 'company' ? deposits.companies : row.kind === 'executor' ? deposits.executors : row.kind === 'agent' ? deposits.agents : deposits.clients;
+        const metric = row.status === 'deduction' ? deductions : target;
+        metric.count += 1; metric.amountEGP += Number(row.amount) || 0;
+    });
+    deposits.total = ['clients', 'companies', 'agents', 'executors'].reduce((acc, key) => ({ count: acc.count + deposits[key].count, amountEGP: acc.amountEGP + deposits[key].amountEGP }), emptyDepositMetric());
+    const executors = (executorRows || []).map((row) => {
+        const total = { count: Number(row.totalCount) || 0, amountEGP: Number(row.totalAmountEGP) || 0 };
+        return { id: String(row._id), name: row.name || 'منفذ غير مسمى', total, cash: { count: Number(row.cashCount) || 0, amountEGP: Number(row.cashAmountEGP) || 0 }, bank: { count: Number(row.bankCount) || 0, amountEGP: Number(row.bankAmountEGP) || 0 }, pendingCount: Number(row.pendingCount) || 0 };
+    }).sort((a, b) => b.total.amountEGP - a.total.amountEGP);
+    const hourly = Array.from({ length: 24 }, (_, hour) => { const row = (hourlyRows || []).find((item) => Number(item._id) === hour) || {}; return { hour, label: `${String(hour).padStart(2, '0')}:00`, cashCount: Number(row.cashCount) || 0, cashAmount: Number(row.cashAmount) || 0, bankCount: Number(row.bankCount) || 0, bankAmount: Number(row.bankAmount) || 0 }; });
+    const inflows = { count: operations.total.count + deposits.total.count, amountEGP: operations.total.amountEGP + deposits.total.amountEGP };
+    return { operations, executors, deposits, financialFlow: { inflows, outflows: deductions, net: { count: inflows.count - deductions.count, amountEGP: inflows.amountEGP - deductions.amountEGP }, profitLYD: Number(metrics.today.profitLYD) || 0 }, hourly, pendingCount: Number(todayStatus.pending || 0) + Number(todayStatus.processing || 0), generatedAt: now };
+};
+
 const completedInRange = (start, end) => ({
     $or: [
         { completedAt: { $gte: start, $lte: end } },
@@ -189,7 +229,7 @@ const loadDashboardIntelligence = async (now = new Date(), { tenantId = null } =
         previousMonth: metricFacet(periods.previousMonthStart, periods.previousMonthEnd)
     };
 
-    const [metricRows, weeklyRows, peakRows, executorRows, statusRows] = await Promise.all([
+    const [metricRows, weeklyRows, peakRows, executorRows, statusRows, channelRows, hourlyRows, todayExecutorRows, depositTransactions] = await Promise.all([
         Transaction.aggregate([{
             $match: {
                 ...scopedTenant,
@@ -229,7 +269,29 @@ const loadDashboardIntelligence = async (now = new Date(), { tenantId = null } =
         Transaction.aggregate([
             { $match: { ...scopedTenant, createdAt: { $gte: periods.todayStart, $lte: now } } },
             { $group: { _id: '$status', count: { $sum: 1 } } }
-        ])
+        ]),
+        Transaction.aggregate([
+            { $match: { ...scopedTenant, status: SUCCESS_STATUS, createdAt: { $lte: now } } },
+            { $set: { dashboardCompletedAt: { $ifNull: ['$completedAt', '$createdAt'] }, dashboardChannel: dashboardChannelExpression } },
+            { $match: { dashboardCompletedAt: { $gte: periods.todayStart, $lte: now } } },
+            { $group: { _id: '$dashboardChannel', count: { $sum: 1 }, amountEGP: { $sum: { $ifNull: ['$amount', 0] } } } }
+        ]),
+        Transaction.aggregate([
+            { $match: { ...scopedTenant, status: SUCCESS_STATUS, createdAt: { $lte: now } } },
+            { $set: { dashboardCompletedAt: { $ifNull: ['$completedAt', '$createdAt'] }, dashboardChannel: dashboardChannelExpression } },
+            { $match: { dashboardCompletedAt: { $gte: periods.todayStart, $lte: now } } },
+            { $group: { _id: { hour: { $hour: { date: '$dashboardCompletedAt', timezone: SYSTEM_TIME_ZONE } }, channel: '$dashboardChannel' }, count: { $sum: 1 }, amountEGP: { $sum: { $ifNull: ['$amount', 0] } } } },
+            { $group: { _id: '$_id.hour', cashCount: { $sum: { $cond: [{ $eq: ['$_id.channel', 'cash'] }, '$count', 0] } }, cashAmount: { $sum: { $cond: [{ $eq: ['$_id.channel', 'cash'] }, '$amountEGP', 0] } }, bankCount: { $sum: { $cond: [{ $eq: ['$_id.channel', 'bank'] }, '$count', 0] } }, bankAmount: { $sum: { $cond: [{ $eq: ['$_id.channel', 'bank'] }, '$amountEGP', 0] } } } }
+        ]),
+        Transaction.aggregate([
+            { $match: { ...scopedTenant, status: SUCCESS_STATUS, executorGroupId: { $ne: null }, createdAt: { $lte: now } } },
+            { $set: { dashboardCompletedAt: { $ifNull: ['$completedAt', '$createdAt'] }, dashboardChannel: dashboardChannelExpression } },
+            { $match: { dashboardCompletedAt: { $gte: periods.todayStart, $lte: now } } },
+            { $group: { _id: { executor: '$executorGroupId', name: '$executorGroupName', channel: '$dashboardChannel' }, count: { $sum: 1 }, amountEGP: { $sum: { $ifNull: ['$amount', 0] } } } },
+            { $group: { _id: '$_id.executor', name: { $first: '$_id.name' }, totalCount: { $sum: '$count' }, totalAmountEGP: { $sum: '$amountEGP' }, cashCount: { $sum: { $cond: [{ $eq: ['$_id.channel', 'cash'] }, '$count', 0] } }, cashAmountEGP: { $sum: { $cond: [{ $eq: ['$_id.channel', 'cash'] }, '$amountEGP', 0] } }, bankCount: { $sum: { $cond: [{ $eq: ['$_id.channel', 'bank'] }, '$count', 0] } }, bankAmountEGP: { $sum: { $cond: [{ $eq: ['$_id.channel', 'bank'] }, '$amountEGP', 0] } } } },
+            { $sort: { totalAmountEGP: -1 } }, { $limit: 20 }
+        ]),
+        Transaction.find({ ...scopedTenant, status: { $in: ['deposit', 'deduction'] }, createdAt: { $gte: periods.todayStart, $lte: now } }).select('amount status companyId executorGroupId userId').lean()
     ]);
 
     const rawMetrics = metricRows[0] || {};
@@ -274,6 +336,13 @@ const loadDashboardIntelligence = async (now = new Date(), { tenantId = null } =
         else if (CANCELLED_STATUSES.includes(row._id)) todayStatus.cancelled += row.count;
     });
 
+    const depositUserIds = [...new Set(depositTransactions.map((row) => row.userId).filter(Boolean).map(String))];
+    const depositUsers = depositUserIds.length ? await User.find({ ...adminAccountScope(tenantId), $or: [{ phone: { $in: depositUserIds } }, { webUsername: { $in: depositUserIds } }, { accountCode: { $in: depositUserIds } }] }).select('phone webUsername accountCode role').lean() : [];
+    const userKind = new Map();
+    depositUsers.forEach((user) => { [user.phone, user.webUsername, user.accountCode].filter(Boolean).forEach((key) => userKind.set(String(key), user.role === 'agent' ? 'agent' : 'client')); });
+    const depositRows = depositTransactions.map((row) => ({ status: row.status, amount: row.amount, kind: row.companyId ? 'company' : row.executorGroupId ? 'executor' : (userKind.get(String(row.userId || '')) || 'client') }));
+    const todayOverview = buildTodayOverview({ channelRows, executorRows: todayExecutorRows, depositRows, todayStatus, metrics, hourlyRows, now });
+
     const weekly = fillDailySeries(weeklyRows, periods.weekStart, 7);
     return {
         metrics,
@@ -281,6 +350,7 @@ const loadDashboardIntelligence = async (now = new Date(), { tenantId = null } =
         peakDays,
         executors,
         todayStatus,
+        todayOverview,
         insights: buildInsights({ metrics, weekly, peakDays, executors, todayStatus, now }),
         generatedAt: now
     };
