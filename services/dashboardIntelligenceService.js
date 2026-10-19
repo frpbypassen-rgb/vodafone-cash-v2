@@ -60,14 +60,14 @@ const dashboardChannelExpression = {
     ]
 };
 
-const emptyChannelMetric = () => ({ count: 0, amountEGP: 0 });
+const emptyChannelMetric = () => ({ count: 0, amountLYD: 0 });
 const normalizeChannelRows = (rows = []) => {
     const output = { cash: emptyChannelMetric(), bank: emptyChannelMetric() };
-    rows.forEach((row) => { const key = row._id === 'bank' ? 'bank' : 'cash'; output[key] = { count: Number(row.count) || 0, amountEGP: Number(row.amountEGP) || 0 }; });
-    output.total = { count: output.cash.count + output.bank.count, amountEGP: output.cash.amountEGP + output.bank.amountEGP };
+    rows.forEach((row) => { const key = row._id === 'bank' ? 'bank' : 'cash'; output[key] = { count: Number(row.count) || 0, amountLYD: Number(row.amountLYD) || 0 }; });
+    output.total = { count: output.cash.count + output.bank.count, amountLYD: output.cash.amountLYD + output.bank.amountLYD };
     return output;
 };
-const emptyDepositMetric = () => ({ count: 0, amountEGP: 0 });
+const emptyDepositMetric = () => ({ count: 0, amountLYD: 0, amountEGP: 0 });
 const buildTodayOverview = ({ channelRows, executorRows, depositRows, todayStatus, metrics, hourlyRows, now }) => {
     const operations = normalizeChannelRows(channelRows);
     const deposits = { clients: emptyDepositMetric(), companies: emptyDepositMetric(), agents: emptyDepositMetric(), executors: emptyDepositMetric() };
@@ -75,16 +75,28 @@ const buildTodayOverview = ({ channelRows, executorRows, depositRows, todayStatu
     (depositRows || []).forEach((row) => {
         const target = row.kind === 'company' ? deposits.companies : row.kind === 'executor' ? deposits.executors : row.kind === 'agent' ? deposits.agents : deposits.clients;
         const metric = row.status === 'deduction' ? deductions : target;
-        metric.count += 1; metric.amountEGP += Number(row.amount) || 0;
+        metric.count += 1;
+        if (row.kind === 'executor') {
+            metric.amountEGP += Number(row.amount) || 0;
+            if (row.status === 'deduction') metric.egpCount = (metric.egpCount || 0) + 1;
+        } else {
+            metric.amountLYD += Number(row.amount) || 0;
+            if (row.status === 'deduction') metric.lydCount = (metric.lydCount || 0) + 1;
+        }
     });
-    deposits.total = ['clients', 'companies', 'agents', 'executors'].reduce((acc, key) => ({ count: acc.count + deposits[key].count, amountEGP: acc.amountEGP + deposits[key].amountEGP }), emptyDepositMetric());
+    deposits.total = ['clients', 'companies', 'agents', 'executors'].reduce((acc, key) => ({ count: acc.count + deposits[key].count, amountLYD: acc.amountLYD + deposits[key].amountLYD, amountEGP: acc.amountEGP + deposits[key].amountEGP }), emptyDepositMetric());
     const executors = (executorRows || []).map((row) => {
         const total = { count: Number(row.totalCount) || 0, amountEGP: Number(row.totalAmountEGP) || 0 };
         return { id: String(row._id), name: row.name || 'منفذ غير مسمى', total, cash: { count: Number(row.cashCount) || 0, amountEGP: Number(row.cashAmountEGP) || 0 }, bank: { count: Number(row.bankCount) || 0, amountEGP: Number(row.bankAmountEGP) || 0 }, pendingCount: Number(row.pendingCount) || 0 };
     }).sort((a, b) => b.total.amountEGP - a.total.amountEGP);
-    const hourly = Array.from({ length: 24 }, (_, hour) => { const row = (hourlyRows || []).find((item) => Number(item._id) === hour) || {}; return { hour, label: `${String(hour).padStart(2, '0')}:00`, cashCount: Number(row.cashCount) || 0, cashAmount: Number(row.cashAmount) || 0, bankCount: Number(row.bankCount) || 0, bankAmount: Number(row.bankAmount) || 0 }; });
-    const inflows = { count: operations.total.count + deposits.total.count, amountEGP: operations.total.amountEGP + deposits.total.amountEGP };
-    return { operations, executors, deposits, financialFlow: { inflows, outflows: deductions, net: { count: inflows.count - deductions.count, amountEGP: inflows.amountEGP - deductions.amountEGP }, profitLYD: Number(metrics.today.profitLYD) || 0 }, hourly, pendingCount: Number(todayStatus.pending || 0) + Number(todayStatus.processing || 0), generatedAt: now };
+    const hourly = Array.from({ length: 24 }, (_, hour) => { const row = (hourlyRows || []).find((item) => Number(item._id) === hour) || {}; return { hour, label: `${String(hour).padStart(2, '0')}:00`, cashCount: Number(row.cashCount) || 0, cashAmountLYD: Number(row.cashAmountLYD) || 0, bankCount: Number(row.bankCount) || 0, bankAmountLYD: Number(row.bankAmountLYD) || 0 }; });
+    const customerDeposits = ['clients', 'companies', 'agents'].reduce((sum, key) => sum + deposits[key].amountLYD, 0);
+    const customerDepositCount = ['clients', 'companies', 'agents'].reduce((sum, key) => sum + deposits[key].count, 0);
+    const executorOperationsEGP = executors.reduce((sum, executor) => sum + executor.total.amountEGP, 0);
+    const executorOperationCount = executors.reduce((sum, executor) => sum + executor.total.count, 0);
+    const lydInflows = { count: operations.total.count + customerDepositCount, amount: operations.total.amountLYD + customerDeposits };
+    const egpInflows = { count: executorOperationCount + deposits.executors.count, amount: executorOperationsEGP + deposits.executors.amountEGP };
+    return { operations, executors, deposits, financialFlow: { lyd: { inflows: lydInflows, outflows: { count: deductions.lydCount || 0, amount: deductions.amountLYD }, net: { count: lydInflows.count - (deductions.lydCount || 0), amount: lydInflows.amount - deductions.amountLYD } }, egp: { inflows: egpInflows, outflows: { count: deductions.egpCount || 0, amount: deductions.amountEGP }, net: { count: egpInflows.count - (deductions.egpCount || 0), amount: egpInflows.amount - deductions.amountEGP } }, profitLYD: Number(metrics.today.profitLYD) || 0 }, hourly, pendingCount: Number(todayStatus.pending || 0) + Number(todayStatus.processing || 0), generatedAt: now };
 };
 
 const completedInRange = (start, end) => ({
@@ -274,14 +286,14 @@ const loadDashboardIntelligence = async (now = new Date(), { tenantId = null } =
             { $match: { ...scopedTenant, status: SUCCESS_STATUS, createdAt: { $lte: now } } },
             { $set: { dashboardCompletedAt: { $ifNull: ['$completedAt', '$createdAt'] }, dashboardChannel: dashboardChannelExpression } },
             { $match: { dashboardCompletedAt: { $gte: periods.todayStart, $lte: now } } },
-            { $group: { _id: '$dashboardChannel', count: { $sum: 1 }, amountEGP: { $sum: { $ifNull: ['$amount', 0] } } } }
+            { $group: { _id: '$dashboardChannel', count: { $sum: 1 }, amountLYD: { $sum: { $ifNull: ['$costLYD', 0] } } } }
         ]),
         Transaction.aggregate([
             { $match: { ...scopedTenant, status: SUCCESS_STATUS, createdAt: { $lte: now } } },
             { $set: { dashboardCompletedAt: { $ifNull: ['$completedAt', '$createdAt'] }, dashboardChannel: dashboardChannelExpression } },
             { $match: { dashboardCompletedAt: { $gte: periods.todayStart, $lte: now } } },
-            { $group: { _id: { hour: { $hour: { date: '$dashboardCompletedAt', timezone: SYSTEM_TIME_ZONE } }, channel: '$dashboardChannel' }, count: { $sum: 1 }, amountEGP: { $sum: { $ifNull: ['$amount', 0] } } } },
-            { $group: { _id: '$_id.hour', cashCount: { $sum: { $cond: [{ $eq: ['$_id.channel', 'cash'] }, '$count', 0] } }, cashAmount: { $sum: { $cond: [{ $eq: ['$_id.channel', 'cash'] }, '$amountEGP', 0] } }, bankCount: { $sum: { $cond: [{ $eq: ['$_id.channel', 'bank'] }, '$count', 0] } }, bankAmount: { $sum: { $cond: [{ $eq: ['$_id.channel', 'bank'] }, '$amountEGP', 0] } } } }
+            { $group: { _id: { hour: { $hour: { date: '$dashboardCompletedAt', timezone: SYSTEM_TIME_ZONE } }, channel: '$dashboardChannel' }, count: { $sum: 1 }, amountLYD: { $sum: { $ifNull: ['$costLYD', 0] } } } },
+            { $group: { _id: '$_id.hour', cashCount: { $sum: { $cond: [{ $eq: ['$_id.channel', 'cash'] }, '$count', 0] } }, cashAmountLYD: { $sum: { $cond: [{ $eq: ['$_id.channel', 'cash'] }, '$amountLYD', 0] } }, bankCount: { $sum: { $cond: [{ $eq: ['$_id.channel', 'bank'] }, '$count', 0] } }, bankAmountLYD: { $sum: { $cond: [{ $eq: ['$_id.channel', 'bank'] }, '$amountLYD', 0] } } } }
         ]),
         Transaction.aggregate([
             { $match: { ...scopedTenant, status: SUCCESS_STATUS, executorGroupId: { $ne: null }, createdAt: { $lte: now } } },
@@ -335,6 +347,13 @@ const loadDashboardIntelligence = async (now = new Date(), { tenantId = null } =
         else if (row._id === SUCCESS_STATUS) todayStatus.completed += row.count;
         else if (CANCELLED_STATUSES.includes(row._id)) todayStatus.cancelled += row.count;
     });
+
+    const executorIds = [...new Set(todayExecutorRows.map((row) => String(row._id)).filter(Boolean))];
+    const executorGroups = executorIds.length
+        ? await ExecutorGroup.find({ ...tenantScope(tenantId), _id: { $in: executorIds } }).select('name').lean()
+        : [];
+    const executorNames = new Map(executorGroups.map((group) => [String(group._id), group.name]));
+    todayExecutorRows.forEach((row) => { row.name = executorNames.get(String(row._id)) || row.name || `منفذ ${String(row._id).slice(-6)}`; });
 
     const depositUserIds = [...new Set(depositTransactions.map((row) => row.userId).filter(Boolean).map(String))];
     const depositUsers = depositUserIds.length ? await User.find({ ...adminAccountScope(tenantId), $or: [{ phone: { $in: depositUserIds } }, { webUsername: { $in: depositUserIds } }, { accountCode: { $in: depositUserIds } }] }).select('phone webUsername accountCode role').lean() : [];
