@@ -1,5 +1,6 @@
 const ExecutorGroup = require('../../../models/ExecutorGroup');
 const {
+    executorRequestTenantScope,
     listRouteCandidates,
     routeExecutorTask,
     routingErrorMessage,
@@ -45,7 +46,10 @@ exports.postEmployeeExecutionPolicy = async (req, res) => {
 
 exports.getRouteCandidates = async (req, res) => {
     try {
-        const employees = await listRouteCandidates({ groupId: req.managerEmp.groupId });
+        const employees = await listRouteCandidates({
+            groupId: req.managerEmp.groupId,
+            tenantId: executorRequestTenantScope(req),
+        });
         return res.json({ success: true, employees });
     } catch (_) {
         return res.status(500).json({ success: false, error: 'تعذر جلب المنفذين المتاحين.' });
@@ -58,6 +62,7 @@ exports.postRouteTask = async (req, res) => {
             transactionId: req.params.id,
             manager: req.managerEmp,
             employeeId: req.body?.employeeId,
+            tenantId: executorRequestTenantScope(req),
         });
         if (!result.ok) {
             const status =

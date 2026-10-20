@@ -20,6 +20,7 @@ const {
     getExecutorServiceOptions,
     normalizeExecutorServiceKey
 } = require('../utils/executorServiceCatalog');
+const { executorRequestTenantScope } = require('../services/executorTaskRoutingService');
 
 // Do not leave an authenticated-password step open indefinitely while waiting
 // for the Authenticator code.
@@ -211,9 +212,12 @@ exports.postLogin = async (req, res) => {
         const safeUsername = escapeRegex(username);
         const usernameRegex = new RegExp('^' + safeUsername + '$', 'i');
 
-        const executor = await Employee.findOne({
+        const loginQuery = {
             $or: [{ webUsername: usernameRegex }, { phone: username }]
-        }).populate('groupId').lean();
+        };
+        const tenantScope = executorRequestTenantScope(req);
+        if (tenantScope) loginQuery.tenantId = tenantScope;
+        const executor = await Employee.findOne(loginQuery).populate('groupId').lean();
 
         if (!executor) return res.render('executor/login', { error: 'اسم المستخدم أو كلمة المرور غير صحيحة.', mfaRequired: false, mfaNotice: false, submittedUsername: '' });
 

@@ -4,7 +4,10 @@ jest.mock('../models/Employee', () => ({ findById: jest.fn() }));
 jest.mock('../models/Transaction', () => ({ findById: jest.fn() }));
 jest.mock('../models/Admin', () => ({}));
 jest.mock('../controllers/executorSupportController', () => ({}));
-jest.mock('../services/executorTaskRoutingService', () => ({ acceptExecutorTask: jest.fn() }));
+jest.mock('../services/executorTaskRoutingService', () => ({
+    ...jest.requireActual('../services/executorTaskRoutingService'),
+    acceptExecutorTask: jest.fn()
+}));
 jest.mock('../services/executorTransactionMutationService', () => ({
     editExecutorAmount: jest.fn(), cancelExecutorTask: jest.fn(), returnExecutorTask: jest.fn()
 }));
@@ -17,6 +20,7 @@ jest.mock('../utils/logger', () => ({ error: jest.fn() }));
 
 const Employee = require('../models/Employee');
 const Transaction = require('../models/Transaction');
+const { acceptExecutorTask } = require('../services/executorTaskRoutingService');
 const { retrySplitPartProof } = require('../services/splitPartProofService');
 const { completeExecutorTask } = require('../services/executorCompletionService');
 const { executeExecutorProviderTask } = require('../services/executorProviderExecutionService');
@@ -100,6 +104,25 @@ describe.each(['postRetryPartProof', 'postRateExecutor', 'postVoiceNote'])(
             expectNoMutation();
         });
 
+        test('returns 403 for an accountant and for another operator in the same group', async () => {
+            req.executorEmployee.role = 'accountant';
+            await controller[handler](req, res);
+            expect(res.status).toHaveBeenCalledWith(403);
+            expectNoMutation();
+
+            jest.clearAllMocks();
+            Transaction.findById.mockResolvedValue({
+                ...tx,
+                operatorId: 'someone-else',
+                assignedExecutorId: null,
+                save: jest.fn().mockResolvedValue(true)
+            });
+            req.executorEmployee.role = 'operator';
+            await controller[handler](req, res);
+            expect(res.status).toHaveBeenCalledWith(403);
+            expect(retrySplitPartProof).not.toHaveBeenCalled();
+        });
+
         test('returns 403 without changing a task in another group', async () => {
             tx.executorGroupId = 'foreign-group';
             tx.managerGroupId = 'foreign-manager';
@@ -147,5 +170,81 @@ describe.each(['postRetryPartProof', 'postRateExecutor', 'postVoiceNote'])(
                 expectNoMutation();
             }
         );
+
+        if (handler === 'postVoiceNote') {
+            test('rejects a voice note that can break out of an HTML attribute', async () => {
+                req.body.base64 = 'data:audio/wav"; onfocus="alert(1)" a="';
+                await controller[handler](req, res);
+                expect(res.status).toHaveBeenCalledWith(400);
+                expect(res.json).toHaveBeenCalledWith({ success: false, error: 'ملاحظة صوتية غير صالحة.' });
+                expectNoMutation();
+            });
+        }
+
+        if (handler === 'postRetryPartProof') {
+            test('allows a same-group retry when the completed task has no operator', async () => {
+                const unassigned = {
+                    ...tx,
+                    status: 'completed',
+                    operatorId: undefined,
+                    assignedExecutorId: undefined,
+                    save: jest.fn().mockResolvedValue(true)
+                };
+                Transaction.findById.mockResolvedValue(unassigned);
+                req.executorEmployee.role = 'operator';
+                await controller[handler](req, res);
+                expect(res.status).not.toHaveBeenCalledWith(403);
+                expect(retrySplitPartProof).toHaveBeenCalledWith('tx-1', 'part-1');
+                expect(unassigned.save).not.toHaveBeenCalled();
+            });
+        } else {
+            test('keeps rating and voice notes owner-only when the task has no operator', async () => {
+                const unassigned = {
+                    ...tx,
+                    operatorId: undefined,
+                    assignedExecutorId: undefined,
+                    save: jest.fn().mockResolvedValue(true)
+                };
+                Transaction.findById.mockResolvedValue(unassigned);
+                req.executorEmployee.role = 'operator';
+                await controller[handler](req, res);
+                expect(res.status).toHaveBeenCalledWith(403);
+                expect(unassigned.save).not.toHaveBeenCalled();
+            });
+        }
     }
 );
+
+describe('Executor portal accept tenant scope', () => {
+    const originalMode = process.env.TENANT_MODE;
+
+    afterEach(() => {
+        if (originalMode === undefined) delete process.env.TENANT_MODE;
+        else process.env.TENANT_MODE = originalMode;
+    });
+
+    test('forwards the server tenant and does not accept when that scope is refused', async () => {
+        const req = {
+            params: { id: 'tx-9' },
+            session: { executorId: 'employee-1' },
+            executorEmployee: { _id: 'employee-1', groupId: { _id: 'group-1' } },
+            tenant: { _id: 'tenant-a' }
+        };
+        const res = { status: jest.fn().mockReturnThis(), json: jest.fn().mockReturnThis() };
+        process.env.TENANT_MODE = 'multi';
+        acceptExecutorTask.mockResolvedValue({ ok: false, code: 'TASK_TENANT_MISMATCH' });
+
+        await controller.postAcceptTask(req, res);
+
+        expect(acceptExecutorTask).toHaveBeenCalledWith({
+            transactionId: 'tx-9',
+            executor: req.executorEmployee,
+            tenantId: 'tenant-a'
+        });
+        expect(res.status).toHaveBeenCalledWith(409);
+        expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+            success: false,
+            code: 'TASK_TENANT_MISMATCH'
+        }));
+    });
+});

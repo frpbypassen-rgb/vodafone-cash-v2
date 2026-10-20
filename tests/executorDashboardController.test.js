@@ -397,13 +397,17 @@ describe('Executor dashboard group ownership', () => {
                 webPassword: 'secret12',
                 balancePoolId: 'pool-nour'
             },
-            managerEmp: { _id: 'manager-1', name: 'مدير', groupId: 'group-1' },
+            managerEmp: { _id: 'manager-1', name: 'مدير', groupId: 'group-1', tenantId: 'tenant-a' },
+            tenant: { _id: 'tenant-a' },
             session: { executorId: 'manager-1' }
         };
         const res = response();
 
         await controller.postEmployeesCreate(req, res);
 
+        expect(Employee.create).toHaveBeenCalledWith(expect.objectContaining({
+            tenantId: 'tenant-a'
+        }));
         expect(poolService.attachMembers).toHaveBeenCalledWith({
             manager: req.managerEmp,
             poolId: 'pool-nour',
@@ -426,7 +430,7 @@ describe('Executor dashboard group ownership', () => {
         const req = {
             params: { id: 'tx-1', index: '0' },
             session: {},
-            executorEmployee: { groupId: { _id: 'group-1', name: 'Executor group' } }
+            executorEmployee: { _id: 'employee-1', role: 'manager', groupId: { _id: 'group-1', name: 'Executor group' } }
         };
         const res = response();
 
@@ -435,6 +439,26 @@ describe('Executor dashboard group ownership', () => {
         expect(proofSourceUrl).toHaveBeenCalledWith('proof.png');
         expect(streamProofImage).toHaveBeenCalledWith('/proofs/proof.png', res);
         expect(res.status).not.toHaveBeenCalledWith(403);
+    });
+
+    test('refuses another operator the proof of a completed peer task', async () => {
+        Transaction.findById.mockResolvedValue({
+            executorGroupId: 'group-1',
+            status: 'completed',
+            operatorId: 'employee-2',
+            proofImage: 'proof.png'
+        });
+        const req = {
+            params: { id: 'tx-1', index: '0' },
+            session: {},
+            executorEmployee: { _id: 'employee-1', role: 'operator', groupId: { _id: 'group-1' } }
+        };
+        const res = response();
+
+        await controller.getProxyImage(req, res);
+
+        expect(res.status).toHaveBeenCalledWith(403);
+        expect(streamProofImage).not.toHaveBeenCalled();
     });
 
     test('batches live-task housekeeping and keeps the completed list bounded', async () => {
@@ -504,6 +528,33 @@ describe('Executor dashboard group ownership', () => {
             completedToday: [],
             completedTodaySummary: { count: 3, amount: 900 }
         }));
+    });
+
+    test('scopes live tasks to the resolved tenant in multi mode', async () => {
+        const previousMode = process.env.TENANT_MODE;
+        process.env.TENANT_MODE = 'multi';
+        const chain = (result) => ({
+            select: jest.fn().mockReturnThis(),
+            sort: jest.fn().mockReturnThis(),
+            limit: jest.fn().mockReturnThis(),
+            lean: jest.fn().mockResolvedValue(result)
+        });
+        Transaction.find.mockReturnValue(chain([]));
+        Transaction.aggregate.mockResolvedValue([{ count: 0, amount: 0 }]);
+        const req = {
+            session: { executorId: 'employee-1' },
+            executorEmployee: { _id: 'employee-1', role: 'operator', groupId: 'group-1' },
+            tenant: { _id: 'tenant-a' },
+            query: { lite: '1' }
+        };
+        const res = response();
+
+        await controller.getLiveTasks(req, res);
+
+        expect(Transaction.find).toHaveBeenCalledWith(expect.objectContaining({ tenantId: 'tenant-a' }));
+        expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ tasks: [] }));
+        if (previousMode === undefined) delete process.env.TENANT_MODE;
+        else process.env.TENANT_MODE = previousMode;
     });
 
     test('refuses manager saves of per-executor execution policy overrides', async () => {

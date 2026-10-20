@@ -13,8 +13,9 @@ const { saveProviderReceiptProof } = require('./executorProofStorageService');
 const { withOptionalMongoTransaction } = require('./adminFinancialMutationService');
 const { markProviderResultUnresolved } = require('./providerDispatchClaimService');
 const { ExecutorTransactionError, logExecutorFailure } = require('./executorTransactionError');
+const { taskTenantMatches } = require('./executorTaskRoutingService');
 
-const executeExecutorProviderTask = async ({ transactionId, executorId }) => {
+const executeExecutorProviderTask = async ({ transactionId, executorId, tenantId = null }) => {
     const blocked = directProviderExecutionBlock();
     if (blocked) throw new ExecutorTransactionError(blocked.message, 200, blocked.code);
     let claimedTx = null;
@@ -25,6 +26,9 @@ const executeExecutorProviderTask = async ({ transactionId, executorId }) => {
             throw new ExecutorTransactionError('غير مصرح لك باستخدام بوابة ZaynPay', 200);
         }
         if (!tx) throw new ExecutorTransactionError('الطلب غير موجود', 200);
+        if (tenantId && !taskTenantMatches(tx, tenantId)) {
+            throw new ExecutorTransactionError('الطلب غير متاح ضمن حساب الشركة الحالي.', 403);
+        }
         if (tx.status !== 'accepted' || String(tx.operatorId) !== String(emp._id)
             || String(tx.executorGroupId) !== String(emp.groupId?._id)
             || tx.apiResultData?.providerDispatchAttemptId) {
@@ -42,14 +46,16 @@ const executeExecutorProviderTask = async ({ transactionId, executorId }) => {
         }
 
         const attemptId = crypto.randomUUID();
+        const claimFilter = {
+            _id: tx._id,
+            status: 'accepted',
+            operatorId: String(emp._id),
+            executorGroupId: emp.groupId._id,
+            'apiResultData.providerDispatchAttemptId': { $exists: false }
+        };
+        if (tenantId) claimFilter.tenantId = tenantId;
         claimedTx = await Transaction.findOneAndUpdate(
-            {
-                _id: tx._id,
-                status: 'accepted',
-                operatorId: String(emp._id),
-                executorGroupId: emp.groupId._id,
-                'apiResultData.providerDispatchAttemptId': { $exists: false }
-            },
+            claimFilter,
             { $set: {
                 status: 'processing',
                 'apiResultData.providerDispatchAttemptId': attemptId,

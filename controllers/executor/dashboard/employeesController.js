@@ -98,6 +98,7 @@ exports.postEmployeesCreate = async (req, res) => {
             role,
             status: 'active',
             groupId: req.managerEmp.groupId,
+            tenantId: req.managerEmp.tenantId || req.tenant?._id || undefined,
             webUsername: finalUsername,
             webPassword,
         });

@@ -3,7 +3,7 @@
 const Employee = require('../models/Employee');
 const Transaction = require('../models/Transaction');
 const Admin = require('../models/Admin');
-const { acceptExecutorTask, routingErrorMessage } = require('../services/executorTaskRoutingService');
+const { acceptExecutorTask, executorRequestTenantScope, routingErrorMessage } = require('../services/executorTaskRoutingService');
 const { editExecutorAmount, cancelExecutorTask, returnExecutorTask } = require('../services/executorTransactionMutationService');
 const { completeExecutorTask } = require('../services/executorCompletionService');
 const { executeExecutorProviderTask } = require('../services/executorProviderExecutionService');
@@ -24,6 +24,7 @@ const loadOwnedExecutorTransaction = async (req, res) => {
         res.status(401).json({ success: false, error: 'Unauthorized' });
         return null;
     }
+    if (!req.executorEmployee) req.executorEmployee = emp;
     const employeeGroupId = objectIdString(emp.groupId);
     const ownsExecutorTask = objectIdString(tx.executorGroupId) === employeeGroupId;
     const ownsManagerTask = objectIdString(tx.managerGroupId) === employeeGroupId;
@@ -33,6 +34,35 @@ const loadOwnedExecutorTransaction = async (req, res) => {
     }
     return tx;
 };
+
+const canAnnotateExecutorTask = (emp, tx) => {
+    if (!emp || emp.role === 'accountant') return false;
+    if (emp.role === 'manager') return true;
+    const self = objectIdString(emp._id);
+    return objectIdString(tx.operatorId) === self || objectIdString(tx.assignedExecutorId) === self;
+};
+
+const canRetryPartProof = (emp, tx) => {
+    if (!emp || emp.role === 'accountant') return false;
+    if (emp.role === 'manager') return true;
+    const self = objectIdString(emp._id);
+    const operatorId = objectIdString(tx.operatorId);
+    const assignedId = objectIdString(tx.assignedExecutorId);
+    if (!operatorId && !assignedId) return true;
+    return operatorId === self || assignedId === self;
+};
+
+const rejectUnlessAllowed = (allowed, res) => {
+    if (allowed) return false;
+    res.status(403).json({ success: false, error: 'Forbidden' });
+    return true;
+};
+
+const rejectUnownedAnnotation = (req, res, tx) =>
+    rejectUnlessAllowed(canAnnotateExecutorTask(req.executorEmployee, tx), res);
+
+const MAX_VOICE_NOTE_LENGTH = 2000000;
+const VOICE_NOTE_PATTERN = /^data:audio\/(?:mpeg|mp3|wav|webm|ogg|mp4|x-m4a|aac)(?:;[\w=.-]+)*;base64,[A-Za-z0-9+/]+={0,2}$/;
 
 const respondToError = (operation, error, res, fallback, defaultStatus = 500) => {
     let status = defaultStatus;
@@ -108,7 +138,11 @@ exports.postAcceptTask = async (req, res) => {
     try {
         const emp = req.executorEmployee || await Employee.findById(req.session.executorId).populate('groupId');
         if (!emp || !emp.groupId) return res.status(401).json({ success: false, error: 'حساب المنفذ غير صالح.' });
-        const result = await acceptExecutorTask({ transactionId: req.params.id, executor: emp });
+        const result = await acceptExecutorTask({
+            transactionId: req.params.id,
+            executor: emp,
+            tenantId: executorRequestTenantScope(req)
+        });
         if (!result.ok) {
             const conflictCodes = new Set([
                 'ACTIVE_TASK_EXISTS',
@@ -200,7 +234,8 @@ exports.executeViaZaynPay = async (req, res) => {
     try {
         const result = await executeExecutorProviderTask({
             transactionId: req.params.id,
-            executorId: req.session.executorId
+            executorId: req.session.executorId,
+            tenantId: executorRequestTenantScope(req)
         });
         return res.json({ success: true, ...result });
     } catch (error) {
@@ -211,7 +246,7 @@ exports.executeViaZaynPay = async (req, res) => {
 exports.postRetryPartProof = async (req, res) => {
     try {
         const tx = await loadOwnedExecutorTransaction(req, res);
-        if (!tx) return;
+        if (!tx || rejectUnlessAllowed(canRetryPartProof(req.executorEmployee, tx), res)) return;
 
         const { retrySplitPartProof } = require('../services/splitPartProofService');
         const result = await retrySplitPartProof(tx._id, req.params.partId);
@@ -231,7 +266,7 @@ exports.postRetryPartProof = async (req, res) => {
 exports.postRateExecutor = async (req, res) => {
     try {
         const tx = await loadOwnedExecutorTransaction(req, res);
-        if (!tx) return;
+        if (!tx || rejectUnownedAnnotation(req, res, tx)) return;
         const { rating, note } = req.body;
         if (!Number.isFinite(Number(rating)) || Number(rating) < 1 || Number(rating) > 5) {
             return res.status(400).json({ success: false, error: 'التقييم يجب أن يكون بين 1 و 5.' });
@@ -250,9 +285,9 @@ exports.postRateExecutor = async (req, res) => {
 exports.postVoiceNote = async (req, res) => {
     try {
         const tx = await loadOwnedExecutorTransaction(req, res);
-        if (!tx) return;
+        if (!tx || rejectUnownedAnnotation(req, res, tx)) return;
         const { base64 } = req.body;
-        if (!base64 || !base64.startsWith('data:audio/')) {
+        if (typeof base64 !== 'string' || base64.length > MAX_VOICE_NOTE_LENGTH || !VOICE_NOTE_PATTERN.test(base64)) {
             return res.status(400).json({ success: false, error: 'ملاحظة صوتية غير صالحة.' });
         }
         tx.voiceNote = String(base64);

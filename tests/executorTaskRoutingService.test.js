@@ -19,6 +19,7 @@ const {
     listRouteCandidates,
     isTaskOwnedByExecutor,
     findOwnedAcceptedExecutorTask,
+    executorRequestTenantScope,
     ROUTABLE_EXECUTOR_ROLES
 } = require('../services/executorTaskRoutingService');
 
@@ -266,6 +267,46 @@ describe('executor task routing service', () => {
             code: 'TASK_TAKEN',
             acceptedByName: 'منفذ آخر'
         }));
+    });
+
+    test('does not accept a task from another tenant', async () => {
+        Transaction.exists.mockResolvedValue(false);
+        Transaction.findOne.mockResolvedValue({
+            _id: 'tx-1',
+            status: 'processing',
+            executorGroupId: 'group-1',
+            tenantId: 'tenant-b'
+        });
+        Transaction.findOneAndUpdate.mockResolvedValue(null);
+
+        const result = await acceptExecutorTask({
+            transactionId: 'tx-1',
+            executor: operator,
+            tenantId: 'tenant-a'
+        });
+
+        expect(result).toEqual(expect.objectContaining({
+            ok: false,
+            code: 'TASK_TENANT_MISMATCH'
+        }));
+        expect(Transaction.findOneAndUpdate).toHaveBeenCalledWith(
+            expect.objectContaining({ tenantId: 'tenant-a' }),
+            expect.any(Object),
+            { returnDocument: 'after' }
+        );
+    });
+
+    test('keeps legacy tenant-less rows in single mode and rejects them in multi mode', () => {
+        const previous = process.env.TENANT_MODE;
+        process.env.TENANT_MODE = 'single';
+        expect(executorRequestTenantScope({ tenant: { _id: 'tenant-a' } })).toEqual({
+            $in: ['tenant-a', null]
+        });
+        process.env.TENANT_MODE = 'multi';
+        expect(executorRequestTenantScope({ tenant: { _id: 'tenant-a' } })).toBe('tenant-a');
+        expect(executorRequestTenantScope({})).toBeNull();
+        if (previous === undefined) delete process.env.TENANT_MODE;
+        else process.env.TENANT_MODE = previous;
     });
 
     test('treats a legacy row owned through assignedExecutorId as a replay', async () => {
