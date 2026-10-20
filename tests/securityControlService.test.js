@@ -454,3 +454,53 @@ describe('securityControlService', () => {
         });
     });
 });
+
+describe('trusted device TTL index boot', () => {
+    const collection = () => {
+        const state = { indexes: [{ key: { _id: 1 }, name: '_id_' }] };
+        return {
+            indexes: jest.fn(async () => state.indexes.map((index) => ({ ...index }))),
+            dropIndex: jest.fn(async (name) => {
+                state.indexes = state.indexes.filter((index) => index.name !== name);
+            }),
+            createIndex: jest.fn(async (key, options) => {
+                state.indexes.push({ key, name: options.name, expireAfterSeconds: options.expireAfterSeconds });
+            }),
+            state
+        };
+    };
+
+    test('creates the expiresAt TTL index when it is missing', async () => {
+        const db = collection();
+        const result = await securityControl.syncTrustedDeviceTtlIndex(db);
+        expect(result).toEqual({ created: true, dropped: [] });
+        expect(db.createIndex).toHaveBeenCalledWith(
+            { expiresAt: 1 },
+            { name: 'expiresAt_1', expireAfterSeconds: 0 }
+        );
+    });
+
+    test('leaves a valid TTL index unchanged and replaces a conflicting one', async () => {
+        const valid = collection();
+        valid.state.indexes.push({ key: { expiresAt: 1 }, name: 'expiresAt_1', expireAfterSeconds: 0 });
+        await expect(securityControl.syncTrustedDeviceTtlIndex(valid)).resolves.toEqual({
+            created: false,
+            dropped: []
+        });
+        expect(valid.createIndex).not.toHaveBeenCalled();
+
+        const conflicting = collection();
+        conflicting.state.indexes.push({
+            key: { expiresAt: 1 },
+            name: 'expiresAt_partial',
+            expireAfterSeconds: 60,
+            partialFilterExpression: { active: true }
+        });
+        const replaced = await securityControl.syncTrustedDeviceTtlIndex(conflicting);
+        expect(replaced.dropped).toEqual(['expiresAt_partial']);
+        expect(conflicting.createIndex).toHaveBeenCalledWith(
+            { expiresAt: 1 },
+            { name: 'expiresAt_1', expireAfterSeconds: 0 }
+        );
+    });
+});

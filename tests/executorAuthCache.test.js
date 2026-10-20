@@ -10,6 +10,7 @@ const {
     MAX_CACHE_ENTRIES,
     cacheTtlMs,
     clearExecutorAuthCache,
+    clearExecutorPortalSession,
     loadExecutorEmployee,
     getCachedExecutor,
     setCachedExecutor
@@ -74,5 +75,20 @@ describe('executor auth cache', () => {
         setCachedExecutor('new-employee', { index: MAX_CACHE_ENTRIES }, { now: 1000, ttlMs: 100000 });
         expect(getCachedExecutor('employee-0', 1000)).toBeNull();
         expect(getCachedExecutor('new-employee', 1000)).toEqual({ index: MAX_CACHE_ENTRIES });
+    });
+
+    test('clears the same portal session keys for auth and manager revocation', () => {
+        const session = {
+            isExecutorLoggedIn: true,
+            executorId: 'employee-1',
+            executorGroupId: 'group-1',
+            executorSessionVersion: 4,
+            unrelated: 'keep'
+        };
+        clearExecutorPortalSession(session);
+        expect(session).toEqual({ unrelated: 'keep' });
+        clearExecutorPortalSession(null);
+        const route = require('fs').readFileSync(require('path').join(__dirname, '../routes/executorPortal.js'), 'utf8');
+        expect(route.match(/clearExecutorPortalSession\(req\.session\)/g)).toHaveLength(2);
     });
 });

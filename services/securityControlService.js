@@ -754,7 +754,37 @@ const backfillMissingSecurityChannels = async () => {
     return true;
 };
 
+const syncTrustedDeviceTtlIndex = async (collection) => {
+    const indexes = await collection.indexes();
+    const expiryIndexes = indexes.filter((index) => (
+        index.key?.expiresAt === 1 && Object.keys(index.key).length === 1
+    ));
+    const valid = expiryIndexes.length === 1
+        && expiryIndexes[0].expireAfterSeconds === 0
+        && !expiryIndexes[0].partialFilterExpression;
+    if (valid) return { created: false, dropped: [] };
+    const dropped = [];
+    for (const index of expiryIndexes) {
+        await collection.dropIndex(index.name);
+        dropped.push(index.name);
+    }
+    await collection.createIndex(
+        { expiresAt: 1 },
+        { name: 'expiresAt_1', expireAfterSeconds: 0 }
+    );
+    return { created: true, dropped };
+};
+
+const ensureTrustedDeviceIndexes = async () => {
+    const TrustedDevice = require('../models/TrustedDevice');
+    await TrustedDevice.createCollection().catch((error) => {
+        if (!/already exists|NamespaceExists/i.test(error.message)) throw error;
+    });
+    return syncTrustedDeviceTtlIndex(TrustedDevice.collection);
+};
+
 const ensureSecurityDeviceIndexes = async () => {
+    await ensureTrustedDeviceIndexes();
     await SecurityDevice.createCollection().catch((error) => {
         if (!/already exists|NamespaceExists/i.test(error.message)) throw error;
     });
@@ -899,6 +929,8 @@ module.exports = {
     revokePrincipalDevice,
     reviewPrincipalAccessRequest,
     ensureSecurityDeviceIndexes,
+    ensureTrustedDeviceIndexes,
+    syncTrustedDeviceTtlIndex,
     applySessionSecurity,
     rotateEmergencyCode,
     verifyEmergencyCode,
