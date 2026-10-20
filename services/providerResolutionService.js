@@ -27,6 +27,18 @@ const actorCanResolve = (actor) => {
 
 const clean = (value) => String(value || '').trim();
 
+const applyResolutionNote = (tx, note) => {
+    // Preserve previous notes internally; the public note is the administrator's text only.
+    const previousNotes = [...new Set([clean(tx.notes), clean(tx.customerNotes)])]
+        .filter((previous) => previous && previous !== note);
+    if (previousNotes.length) {
+        tx.adminNotes = [clean(tx.adminNotes), '[ملاحظات قبل الحسم اليدوي]', ...previousNotes]
+            .filter(Boolean).join('\n');
+    }
+    tx.notes = note;
+    tx.customerNotes = note;
+};
+
 const resolutionOutcomeOf = (tx) => clean(tx && tx.apiResultData && tx.apiResultData.providerResolutionOutcome);
 
 const sameInstant = (left, right) => {
@@ -327,6 +339,7 @@ const resolveProviderResult = async (input = {}) => {
         if (!completion) {
             return { success: false, statusCode: 409, code: 'COMPLETION_REJECTED', message: 'مسار الاعتماد الحالي رفض الإثبات.' };
         }
+        applyResolutionNote(current, note);
         current.apiResultData = {
             ...(current.apiResultData || {}),
             providerResolutionOutcome: outcome,
@@ -365,6 +378,7 @@ const resolveProviderResult = async (input = {}) => {
             providerResolvedAt: new Date()
         };
         if (typeof current.markModified === 'function') current.markModified('apiResultData');
+        applyResolutionNote(current, note);
         await queueService.releaseFailedApiExecutionToPending(current, {
             failureNote: `[PROVIDER_NOT_PAID] إثبات المزود: ${evidenceReference}. ${note}`
         });

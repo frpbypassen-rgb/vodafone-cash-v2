@@ -380,6 +380,9 @@ describe('manual provider resolution', () => {
 
     test('dry-run changes nothing and confirm paid posts one executor debit', async () => {
         const { user, executor, tx } = await createHeldTransfer();
+        tx.notes = '[الرقم المرجعي: 01012345678]';
+        tx.customerNotes = 'ملاحظة العميل السابقة';
+        await tx.save();
         const admin = await resolver(['transactions.resolve_provider']);
         const dry = await preview(tx, admin, 'provider_paid');
         const afterDry = await Transaction.findById(tx._id);
@@ -428,6 +431,11 @@ describe('manual provider resolution', () => {
         expect(confirmed.statusAfter).toBe('completed');
         expect(again.applied).toBe(false);
         expect(stored.status).toBe('completed');
+        expect(stored.notes).toBe(note);
+        expect(stored.customerNotes).toBe(note);
+        expect(stored.adminNotes).toContain('[الرقم المرجعي: 01012345678]');
+        expect(stored.adminNotes).toContain('ملاحظة العميل السابقة');
+        expect(stored.apiResultData.providerResolutionEvidence).toBe(evidence);
         expect(debits).toHaveLength(1);
         expect(debits[0].amount).toBe(-AMOUNT);
         expect(debits[0].description).toBe('تنفيذ API آلي');
@@ -445,6 +453,9 @@ describe('manual provider resolution', () => {
 
     test('confirm not_paid follows the existing pending release once when no payment evidence exists', async () => {
         const { executor, tx } = await createAmbiguousTransfer();
+        tx.notes = '[الرقم المرجعي: 01012345678]';
+        tx.customerNotes = 'ملاحظة العميل السابقة';
+        await tx.save();
         const admin = await resolver(['transactions.resolve_provider']);
         const dry = await preview(tx, admin, 'provider_not_paid');
         expect(dry.preview.moneyMovements).toEqual([]);
@@ -474,6 +485,10 @@ describe('manual provider resolution', () => {
         expect(confirmed.applied).toBe(true);
         expect(again.applied).toBe(false);
         expect(stored.status).toBe('pending');
+        expect(stored.notes).toBe(note);
+        expect(stored.customerNotes).toBe(note);
+        expect(stored.adminNotes).toContain('[الرقم المرجعي: 01012345678]');
+        expect(stored.adminNotes).toContain('ملاحظة العميل السابقة');
         expect(stored.executorGroupId).toBeUndefined();
         expect(stored.apiResultData.providerResultUnresolved).toBe(false);
         expect(stored.apiResultData.providerDispatchResult).toBe('rejected');

@@ -956,7 +956,7 @@
                 });
                 if (action === 'cancel') {
                     await post(`/transaction/${encodeURIComponent(transactionId)}/global-cancel`, {
-                        reason: `إلغاء ورد الرصيد بعد تأكيد عدم الدفع من المزود: ${note}`
+                        reason: note
                     });
                 }
             }

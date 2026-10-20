@@ -2140,7 +2140,7 @@
             });
             if (isCancel) {
                 await post('/transaction/' + encodeURIComponent(transactionId) + '/global-cancel', {
-                    reason: 'إلغاء ورد الرصيد بعد تأكيد عدم الدفع من المزود: ' + dialog.value.note
+                    reason: dialog.value.note
                 });
             }
             await refreshTransactionsList();
