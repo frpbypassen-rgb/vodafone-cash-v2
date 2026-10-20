@@ -591,6 +591,14 @@ body.executor-page-dashboard .executor-empty-mark {
     place-items: center;
 }
 
+/* A locked task stays full opacity. The lock icon and "بدأ التنفيذ" label carry the state. */
+body.executor-portal-v2 .task-card.task-locked,
+body.executor-portal-v2 .task-card.task-locked .executor-task-card-body,
+body.executor-portal-v2 .task-card.task-locked .action-zone {
+    opacity: 1 !important;
+    filter: none !important;
+}
+
 body.executor-page-dashboard .executor-empty-mark svg {
     width: 96px;
     height: 96px;
