@@ -47,6 +47,7 @@ const { clearExecutorAuthCache, invalidateExecutorAuth } = require('./executorAu
 const { calculateTransferCostLYD, isSourceToLydRate } = require('../utils/transferPricing');
 const eventBus = require('./eventBus');
 const { findReportTransactions } = require('./unifiedReportService');
+const { clientActorReportScope, directClientReportScope } = require('../utils/clientReportOwnership');
 const { systemDateKey, systemDayEnd, systemDayStart, systemDateRange } = require('../config/systemTime');
 const { buildExecutorOperationSearchQuery } = require('../utils/executorOperationSearch');
 const { completedTransferLedgerInc, servicePrivateBalance } = require('../utils/executorServiceLedger');
@@ -308,16 +309,10 @@ async function getClientReports({ userId, accountType, dateType, dateValue, date
 
     if (isEmployee) {
         const companyScope = { companyId: account.companyId };
+        // Historical company rows without clientActorId cannot be attributed
+        // safely, so a restricted employee does not receive them by name.
         baseQuery = canViewAll ? companyScope : {
-            $and: [
-                companyScope,
-                {
-                    $or: [
-                        { clientActorId: String(account._id) },
-                        { clientActorId: { $exists: false }, employeeName: account.name }
-                    ]
-                }
-            ]
+            $and: [companyScope, clientActorReportScope(account._id)]
         };
     } else if (isAgentStaff) {
         const subAccountIds = await SubAccount
@@ -332,31 +327,13 @@ async function getClientReports({ userId, accountType, dateType, dateValue, date
             return value !== undefined && value !== null;
         }) };
         baseQuery = canViewAll ? agentScope : {
-            $and: [
-                agentScope,
-                {
-                    $or: [
-                        { clientActorId: String(account._id) },
-                        { clientActorId: { $exists: false }, employeeName: account.name }
-                    ]
-                }
-            ]
+            $and: [agentScope, clientActorReportScope(account._id)]
         };
     } else if (isSubAccount) {
         baseQuery.subAccountId = account._id;
         baseQuery.isSubAccountTx = true;
     } else {
-        baseQuery.$or = [
-            { userId: account.phone },
-            { userId: account.webUsername },
-            { employeeName: account.name, companyName: { $regex: /عميل فردي/ } }
-        ];
-        baseQuery.$or = baseQuery.$or.filter(cond => {
-            const val = Object.values(cond)[0];
-            return val !== undefined && val !== null;
-        });
-        baseQuery.companyId = null;
-        baseQuery.isSubAccountTx = { $ne: true };
+        baseQuery = directClientReportScope(account);
     }
 
     // Preserve tenant isolation even when a role-specific scope rebuilds baseQuery.

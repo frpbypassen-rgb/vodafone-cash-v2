@@ -176,7 +176,9 @@ const adminCopyScope = async (req) => {
         return {
             mainCategory: 'company',
             subId: String(employee.companyId),
-            subType: canViewAll ? 'all' : String(employee.name || ''),
+            subType: 'all',
+            actorId: canViewAll ? null : String(employee._id),
+            actorLabel: canViewAll ? '' : String(employee.name || ''),
             forceToday: !canViewAll
         };
     }
@@ -189,7 +191,12 @@ const adminCopyScope = async (req) => {
     if (req.session.accountType === 'sub_client') {
         const account = await SubAccount.findById(accountId).select('masterId').lean();
         if (!account?.masterId) throw new Error('UNAUTHORIZED');
-        return { mainCategory: 'agent', subId: String(account.masterId), subType: String(accountId) };
+        return {
+            mainCategory: 'agent',
+            subId: String(account.masterId),
+            subType: 'all',
+            actorSubAccountId: String(accountId)
+        };
     }
     return { mainCategory: 'direct_client', subId: String(accountId), subType: 'all' };
 };
@@ -200,7 +207,7 @@ router.get('/reports/admin-copy.pdf', requireClientAuth, async (req, res) => {
         const period = adminCopyPeriod(scope.forceToday ? { dateType: 'day' } : req.query);
         const { forceToday, ...reportScope } = scope;
         const input = { ...reportScope, ...period };
-        const report = await loadAdminReport(input);
+        const report = await loadAdminReport({ ...input, readOnly: true });
         const pdf = await generateAdminReportPdf(req.app, {
             report,
             generatedAt: new Date(),

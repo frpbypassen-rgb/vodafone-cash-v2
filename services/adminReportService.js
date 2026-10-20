@@ -5,7 +5,9 @@ const ClientCompany = require('../models/ClientCompany');
 const Employee = require('../models/Employee');
 const ExecutorGroup = require('../models/ExecutorGroup');
 const Ledger = require('../models/Ledger');
+const Settlement = require('../models/Settlement');
 const { findReportTransactions } = require('./unifiedReportService');
+const SubAccount = require('../models/SubAccount');
 const User = require('../models/User');
 const { systemDateKey, systemDayStart, systemDayEnd } = require('../config/systemTime');
 const { adminAccountScope } = require('../utils/tenantScope');
@@ -15,6 +17,7 @@ const {
     sanitizeAccountStatementReport
 } = require('../utils/accountStatementPrivacy');
 const { ensureDailySettlements } = require('./settlementService');
+const { accountKeys, directClientReportScope } = require('../utils/clientReportOwnership');
 
 const REPORT_CHANGE_ACTIONS = [
     'TRANSACTION_RATE_EDITED',
@@ -91,7 +94,15 @@ const buildScopeMetadata = (transaction = {}) => ({
     executorName: transaction.executorName || ''
 });
 
-const resolveReportScope = async ({ mainCategory, subId, subType = 'all', tenantId = null }) => {
+const resolveReportScope = async ({
+    mainCategory,
+    subId,
+    subType = 'all',
+    tenantId = null,
+    actorId = null,
+    actorLabel = '',
+    actorSubAccountId = null
+}) => {
     if (!mainCategory || !subId) throw new Error('REPORT_SCOPE_REQUIRED');
 
     const scopedTenant = adminAccountScope(tenantId);
@@ -116,13 +127,8 @@ const resolveReportScope = async ({ mainCategory, subId, subType = 'all', tenant
             joinDate: user.createdAt,
             status: 'عميل فردي مباشر'
         });
-        const identifiers = [String(user._id), user.phone, user.webUsername].filter(Boolean);
-        baseQuery.$or = [
-            { userId: { $in: identifiers } },
-            { employeeName: user.name, companyName: { $regex: /عميل فردي/ } }
-        ];
-        baseQuery.companyId = null;
-        baseQuery.isSubAccountTx = { $ne: true };
+        const identifiers = accountKeys(user);
+        Object.assign(baseQuery, directClientReportScope(user));
         auditScope.identifiers = identifiers;
     } else if (mainCategory === 'company') {
         const company = await ClientCompany.findOne({ _id: subId, ...scopedTenant }).lean();
@@ -136,7 +142,15 @@ const resolveReportScope = async ({ mainCategory, subId, subType = 'all', tenant
             joinDate: company.createdAt,
             status: 'شركة'
         });
-        if (subType && subType !== 'all') {
+        if (actorId) {
+            // Client portal passes the signed-in employee id. The name remains
+            // a label for the PDF header and is not used to select rows.
+            baseQuery.clientActorId = String(actorId);
+            if (actorLabel) {
+                entityInfo.name = String(actorLabel);
+                entityInfo.status = `موظف شركة (${company.name || '---'})`;
+            }
+        } else if (subType && subType !== 'all') {
             baseQuery.employeeName = subType;
             entityInfo.name = subType;
             entityInfo.status = `موظف شركة (${company.name || '---'})`;
@@ -145,20 +159,40 @@ const resolveReportScope = async ({ mainCategory, subId, subType = 'all', tenant
         const master = await User.findOne({ _id: subId, ...scopedTenant }).lean()
             || await ClientCompany.findOne({ _id: subId, ...scopedTenant }).lean();
         if (!master) throw new Error('REPORT_ENTITY_NOT_FOUND');
-        if (subType && subType !== 'all') throw new Error('REPORT_ENTITY_NOT_FOUND');
-        const identifiers = [String(master._id), master.phone, master.webUsername].filter(Boolean);
-        baseQuery.$or = [
-            { userId: { $in: identifiers }, isSubAccountTx: { $ne: true } },
-            { companyId: subId, isSubAccountTx: { $ne: true } }
-        ];
-        Object.assign(entityInfo, {
-            name: master.name || '---',
-            phone: master.phone || '---',
-            username: master.webUsername || '---',
-            joinDate: master.createdAt,
-            status: 'وكالة'
-        });
-        auditScope.identifiers = identifiers;
+        if (actorSubAccountId) {
+            const child = await SubAccount.findOne({
+                _id: actorSubAccountId,
+                masterId: master._id,
+                ...scopedTenant
+            }).select('name phone webUsername createdAt').lean();
+            if (!child) throw new Error('REPORT_ENTITY_NOT_FOUND');
+            baseQuery.subAccountId = child._id;
+            baseQuery.isSubAccountTx = true;
+            Object.assign(entityInfo, {
+                name: child.name || '---',
+                phone: child.phone || '---',
+                username: child.webUsername || '---',
+                joinDate: child.createdAt,
+                status: 'نقطة بيع'
+            });
+            auditScope.subType = String(child._id);
+            auditScope.identifiers = [String(child._id)];
+        } else {
+            if (subType && subType !== 'all') throw new Error('REPORT_ENTITY_NOT_FOUND');
+            const identifiers = [String(master._id), master.phone, master.webUsername].filter(Boolean);
+            baseQuery.$or = [
+                { userId: { $in: identifiers }, isSubAccountTx: { $ne: true } },
+                { companyId: subId, isSubAccountTx: { $ne: true } }
+            ];
+            Object.assign(entityInfo, {
+                name: master.name || '---',
+                phone: master.phone || '---',
+                username: master.webUsername || '---',
+                joinDate: master.createdAt,
+                status: 'وكالة'
+            });
+            auditScope.identifiers = identifiers;
+        }
     } else if (mainCategory === 'executor' || mainCategory === 'api_executor') {
         const group = await ExecutorGroup.findOne({ _id: subId, ...scopedTenant }).lean();
         if (!group) throw new Error('REPORT_ENTITY_NOT_FOUND');
@@ -320,16 +354,27 @@ const loadAuditLogs = async ({ transactions, auditScope, start, end, settlements
     });
 };
 
+const loadClosedSettlements = (start, end) => Settlement.find({
+    type: 'daily',
+    entityType: 'system',
+    'period.start': { $gte: start, $lte: end }
+}).sort({ 'period.start': 1 }).lean();
+
 const loadAdminReport = async (input = {}) => {
     const range = getDateRange(input.dateType, input.dateValue, input.dateFrom, input.dateTo);
     const scope = await resolveReportScope(input);
     const previousQuery = { ...scope.baseQuery, createdAt: { $lt: range.start } };
     const currentQuery = { ...scope.baseQuery, createdAt: { $gte: range.start, $lte: range.end } };
+    // Client portal copies must not close a day or insert a settlement while
+    // rendering a statement. Administration still materialises missing closes.
+    const settlementsPromise = input.readOnly
+        ? loadClosedSettlements(range.start, range.end)
+        : ensureDailySettlements(range.start, range.end);
 
     const [previousTransactions, currentTransactions, settlements] = await Promise.all([
         findReportTransactions(previousQuery, { select: 'status amount costLYD' }),
         findReportTransactions(currentQuery, { sort: { createdAt: -1 } }),
-        ensureDailySettlements(range.start, range.end)
+        settlementsPromise
     ]);
 
     const calculated = buildReportSummary({

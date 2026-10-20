@@ -22,6 +22,7 @@ const { buildPendingRateAlertForClient } = require('./rateAlerts/rateAlertAudien
 const { buildArtifact: buildCentralReportArtifact } = require('./centralReportService');
 const { findReportTransactions, getUnifiedReportStatus } = require('./unifiedReportService');
 const { loadAdminReport } = require('./adminReportService');
+const { clientActorReportScope } = require('../utils/clientReportOwnership');
 const { presentClientPortalTransaction } = require('./clientReceiptService');
 const {
     sanitizeStatementMovement,
@@ -504,18 +505,11 @@ const ownershipFilter = async (workspace) => {
     if (workspace.isCompany) {
         const companyScope = { companyId: workspace.entity._id };
         if (!workspace.permissions.employee) return companyScope;
-        // السجلات الجديدة تعتمد معرّف الموظف وليس الاسم. نُبقي توافقاً محدوداً
-        // مع السجلات القديمة التي لا تحمل المعرّف حتى تُستكمل هجرتها.
+        // Rows written before clientActorId existed have no reliable employee
+        // owner. Matching them by display name would expose a colleague's
+        // transfers, so a restricted employee does not receive those rows.
         return {
-            $and: [
-                companyScope,
-                {
-                    $or: [
-                        { clientActorId: String(workspace.actor._id) },
-                        { clientActorId: { $exists: false }, employeeName: workspace.actor.name }
-                    ]
-                }
-            ]
+            $and: [companyScope, clientActorReportScope(workspace.actor._id)]
         };
     }
 
@@ -534,15 +528,7 @@ const ownershipFilter = async (workspace) => {
     };
     if (!workspace.permissions.employee) return agentScope;
     return {
-        $and: [
-            agentScope,
-            {
-                $or: [
-                    { clientActorId: String(workspace.actor._id) },
-                    { clientActorId: { $exists: false }, employeeName: workspace.actor.name }
-                ]
-            }
-        ]
+        $and: [agentScope, clientActorReportScope(workspace.actor._id)]
     };
 };
 
@@ -1151,7 +1137,7 @@ const centralCompanyReportInput = (workspace, query = {}) => {
 
 const loadCentralCompanyReport = async (workspace, query = {}) => {
     const input = centralCompanyReportInput(workspace, query);
-    return { input, report: await loadAdminReport(input) };
+    return { input, report: await loadAdminReport({ ...input, readOnly: true }) };
 };
 
 const loadReports = async (workspace, query = {}) => {
@@ -1183,7 +1169,7 @@ const loadReports = async (workspace, query = {}) => {
             .lean()
             .catch(() => []),
         workspace.isCompany
-            ? loadAdminReport(companyCentralInput).then((report) => ({ input: companyCentralInput, report })).catch((error) => ({ error: error.message }))
+            ? loadAdminReport({ ...companyCentralInput, readOnly: true }).then((report) => ({ input: companyCentralInput, report })).catch((error) => ({ error: error.message }))
             : Promise.resolve(null)
     ]);
     const reportSummary = summarizeTransactions(transactions);
