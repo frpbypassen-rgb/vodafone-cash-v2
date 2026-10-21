@@ -18,7 +18,7 @@
     <button class="bw-sidebar-overlay" type="button" data-sidebar-close aria-label="إغلاق القائمة"></button>
 
     <div class="bw-frame">
-        <%- include('partials/workspace_topbar') %>
+        <%- include(workspace.isCompany ? 'partials/company_modern_header' : 'partials/workspace_topbar') %>
         <main class="bw-main cp-main" id="mainContent">
             <% if (!workspace.isCompany) { %>
             <header class="bw-page-header">
@@ -54,9 +54,11 @@
             <%- include('partials/workspace_feedback') %>
 
             <% if (page === 'overview') { %>
+                <% if (workspace.isCompany) { %><%- include('partials/company_modern_home') %><details class="cm-analytics"><summary>تفاصيل الأداء والفريق <i class="fa-solid fa-chevron-down"></i></summary><% } %>
                 <%- include('pages/workspace_overview') %>
+                <% if (workspace.isCompany) { %></details><% } %>
             <% } else if (page === 'services' && workspace.isCompany) { %>
-                <%- include('pages/workspace_service_gallery') %>
+                <%- include('partials/company_modern_home') %>
             <% } else if (page === 'services') { %>
                 <%- include('pages/workspace_services') %>
             <% } else if (page === 'service_workbench') { %>
@@ -340,10 +342,11 @@
             }
         })();
     </script>
-    <script src="/js/client-workspace.js?v=20260920-cp-m1" defer></script>
+    <script src="/js/client-workspace.js?v=20261022-smart" defer></script>
     <% if (workspace.isCompany) { %>
     <% if (page === 'overview') { %><script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script><% } %>
     <script src="/js/company-portal.js?v=20260920-cp-m1" defer></script>
+    <script src="/js/company-internal.js?v=20261022-2" defer></script>
     <% } else { %>
     <script src="/js/client-portal.js?v=20260920-cl-m2" defer></script>
     <% } %>

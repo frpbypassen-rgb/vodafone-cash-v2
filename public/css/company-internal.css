@@ -1,0 +1,431 @@
+/* Selected company layouts: transfers A, operations/team A, deposits/finance/reports/settings B. */
+html[data-portal="company"] .bw-main { max-width: 1440px; width: 100%; margin-inline: auto; }
+html[data-portal="company"] .cp-page-hero { background: transparent; border: 0; box-shadow: none; padding: 10px 0 22px; margin: 0; min-height: 0; }
+html[data-portal="company"] .cp-page-hero h2 { font-size: clamp(22px, 2.2vw, 29px); margin: 7px 0; line-height: 1.5; }
+html[data-portal="company"] .cp-page-hero p { color: var(--cp-muted); font-size: 14px; max-width: 680px; line-height: 1.9; }
+html[data-portal="company"] :is(.bw-section,.bw-transfer-workbench,.bw-settings-panel,.bw-support-chat,.bw-support-summary) { background: var(--cp-surface); border: 1px solid var(--cp-line); border-radius: 18px; box-shadow: var(--cp-shadow); color: var(--cp-ink); padding: 24px; min-width: 0; }
+html[data-portal="company"] :is(.bw-section-head,.bw-settings-panel-head) { margin-bottom: 22px; }
+html[data-portal="company"] :is(.bw-section-head h2,.bw-settings-panel-head h2) { font-size: 19px; line-height: 1.6; }
+html[data-portal="company"] .bw-section-kicker { color: var(--cp-icon); font-size: 12px; letter-spacing: 0; }
+html[data-portal="company"] :is(input,select,textarea) { max-width: 100%; }
+html[data-portal="company"] :is(.bw-field input:not([type="checkbox"]),.bw-field select,.bw-field textarea,.bw-filter-form input,.bw-filter-form select) { background: var(--cp-surface); color: var(--cp-ink); border: 1px solid var(--cp-line-strong); border-radius: 10px; font-family: inherit; font-size: 15px; min-height: 46px; box-shadow: none; }
+html[data-portal="company"] :is(input,select,textarea):focus-visible { outline: 3px solid color-mix(in srgb,var(--cp-icon) 25%,transparent); outline-offset: 2px; border-color: var(--cp-icon); }
+html[data-portal="company"] .bw-field > span { color: var(--cp-ink); font-size: 14px; font-weight: 600; }
+html[data-portal="company"] .bw-field small { color: var(--cp-muted); font-size: 12px; line-height: 1.8; }
+html[data-portal="company"] .bw-button { min-height: 44px; border-radius: 10px; font-size: 14px; padding: 11px 17px; white-space: normal; }
+html[data-portal="company"] .bw-button.primary { background: #1765e8; color: #fff; border-color: #1765e8; box-shadow: 0 4px 12px #1765e818; }
+html[data-portal="company"] .bw-button.primary:hover { background: #0e53ca; }
+html[data-portal="company"] .bw-button:disabled { opacity: .5; cursor: not-allowed; }
+html[data-portal="company"] .bw-button:is(.ghost,.secondary) { background: var(--cp-surface-soft); color: var(--cp-icon); border-color: var(--cp-line); }
+html[data-portal="company"] .bw-form-grid { gap: 18px; }
+html[data-portal="company"] .bw-form-section-title { display: flex; align-items: center; gap: 12px; padding: 8px 0 10px; border-bottom: 1px solid var(--cp-line); }
+html[data-portal="company"] .bw-form-section-title > span { display: grid; place-items: center; flex: 0 0 30px; height: 30px; }
+html[data-portal="company"] .bw-form-section-title :is(strong,small) { display: block; }
+html[data-portal="company"] .bw-form-section-title > span { background: var(--cp-surface-strong); color: var(--cp-icon); border-radius: 9px; }
+html[data-portal="company"] .bw-form-section-title strong { font-size: 16px; }
+html[data-portal="company"] .bw-form-section-title small { color: var(--cp-muted); }
+html[data-portal="company"] .bw-mono { font-family: "IBM Plex Sans Arabic",sans-serif; font-variant-numeric: tabular-nums; letter-spacing: .15px; }
+html[data-portal="company"] [hidden] { display: none !important; }
+.cm-muted,.cm-summary-note { color: var(--cp-muted); font-size: 13px; line-height: 1.8; }
+.cm-panel-icon { display: inline-grid; place-items: center; width: 42px; height: 42px; border-radius: 12px; background: var(--cp-surface-strong); color: var(--cp-icon); font-size: 20px; }
+html[data-portal="company"] .cp-workbench { display: block; }
+html[data-portal="company"] #businessTransferForm { display: grid; grid-template-columns: minmax(0,1.6fr) minmax(290px,1fr); gap: 32px; align-items: start; }
+html[data-portal="company"] #businessTransferForm > .bw-form-grid { min-width: 0; }
+html[data-portal="company"] .bw-currency-pair { grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 14px; }
+html[data-portal="company"] .bw-currency-pair .bw-fx-bridge { grid-column: 1/-1; grid-row: 2; border: 0; padding: 10px; border-radius: 10px; background: var(--cp-surface-soft); min-height: 0; }
+html[data-portal="company"] .bw-fx-bridge small { display: none; }
+html[data-portal="company"] .bw-currency-input { border: 1px solid var(--cp-line-strong); background: var(--cp-surface); border-radius: 10px; min-width: 0; }
+html[data-portal="company"] .bw-field .bw-currency-input input:not([type="checkbox"]) { border: 0; background: transparent; min-width: 0; width: 100%; padding-inline: 8px; }
+html[data-portal="company"] .bw-currency-flag { display: none; }
+html[data-portal="company"] .bw-currency-input b { font-size: 12px; color: var(--cp-muted); }
+html[data-portal="company"] .cm-transfer-summary { background: var(--cp-surface-soft); border: 1px solid var(--cp-line); border-radius: 16px; padding: 24px; position: sticky; top: 98px; }
+.cm-transfer-summary > header { display: flex; align-items: center; gap: 12px; }
+.cm-transfer-summary h3 { margin: 0; font-size: 18px; }
+.cm-transfer-recipient { display: flex; justify-content: space-between; gap: 15px; padding: 13px 0; border-bottom: 1px solid var(--cp-line); font-size: 13px; overflow-wrap: anywhere; }
+.cm-transfer-recipient > span { color: var(--cp-muted); }
+html[data-portal="company"] .cm-transfer-summary .bw-cost-preview { display: grid; grid-template-columns: 1fr; padding: 0; background: transparent; border: 0; margin: 12px 0 20px; gap: 0; }
+html[data-portal="company"] .cm-transfer-summary .bw-cost-preview > div { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 0; border: 0; background: transparent; }
+html[data-portal="company"] .cm-transfer-summary .bw-cost-preview > div:last-child { padding: 18px 12px; border-radius: 12px; background: var(--cp-surface-strong); }
+html[data-portal="company"] .cm-transfer-summary #costEstimate { color: var(--cp-icon); font-size: 23px; }
+.cm-summary-note { margin-bottom: 0; text-align: center; font-size: 12px; }
+html[data-portal="company"] .bw-live-mini-feed { margin-top: 28px; }
+html[data-portal="company"] .bw-live-mini-feed > div { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 10px; }
+html[data-portal="company"] .bw-live-mini-feed button { border: 1px solid var(--cp-line); background: var(--cp-surface-soft); color: var(--cp-ink); border-radius: 12px; min-width: 0; }
+html[data-portal="company"] .bw-live-mini-feed button strong { overflow-wrap: anywhere; }
+html[data-portal="company"] [data-identity-field] { padding: 18px; border: 1px dashed var(--cp-line-strong); border-radius: 12px; background: var(--cp-surface-soft); }
+html[data-portal="company"] [data-identity-field] input { padding: 8px; font-size: 13px; }
+.cm-mode-options { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+.cm-mode-options button { flex: 1 1 90px; min-height: 46px; padding: 10px; border: 1px solid var(--cp-line); border-radius: 10px; background: var(--cp-surface); color: var(--cp-muted); font: inherit; cursor: pointer; }
+.cm-mode-options button[aria-pressed="true"] { border-color: var(--cp-icon); background: var(--cp-surface-strong); color: var(--cp-icon); font-weight: 700; }
+html[data-portal="company"] [data-subtype-field] { grid-column: 1/-1; order: -1; }
+.cm-smart-columns { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 28px; align-items: start; }
+html[data-portal="company"] .cm-smart-columns .bw-smart-transfer-input { display: block; margin: 0; padding: 20px; border: 1px solid var(--cp-line); border-radius: 14px; }
+html[data-portal="company"] .cm-smart-columns .bw-smart-transfer-input > .bw-field { display: grid; width: 100%; }
+html[data-portal="company"] .cm-smart-columns .bw-smart-transfer-command { margin-top: 14px; }
+html[data-portal="company"] .cp-page-hero::before,html[data-portal="company"] .cp-page-hero::after { display: none; }
+html[data-portal="company"] .cm-smart-columns .bw-smart-transfer-preview { margin: 0; border: 0; padding: 0; }
+html[data-portal="company"] .cm-smart-columns textarea { min-height: 240px; }
+.cm-smart-empty { padding: 45px 25px; background: var(--cp-surface-soft); border: 1px dashed var(--cp-line-strong); border-radius: 14px; text-align: center; }
+.cm-smart-empty p { color: var(--cp-muted); line-height: 1.9; font-size: 14px; }
+.cm-smart-empty > span:last-child { color: var(--cp-icon); font-size: 12px; }
+html[data-portal="company"] #balanceTransferForm { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 20px; }
+.cm-account-pair { grid-column: 1/-1; display: grid; grid-template-columns: minmax(0,1fr) 42px minmax(0,1fr); gap: 18px; align-items: center; }
+.cm-account-card { padding: 24px; border: 1px solid var(--cp-line); border-radius: 15px; background: var(--cp-surface-soft); min-width: 0; align-self: stretch; }
+.cm-account-card h3 { font-size: 18px; }.cm-account-card > span,.cm-account-card > strong,.cm-account-card > small { display: block; margin-bottom: 9px; }
+.cm-account-card > .cm-panel-icon { display: grid; }.cm-account-card > small { color: var(--cp-muted); font-size: 12px; }
+.cm-account-arrow { color: var(--cp-icon); text-align: center; font-size: 24px; }
+html[data-portal="company"] .bw-filter-band,html[data-portal="company"] .bw-staff-filter-band { padding: 18px; border: 1px solid var(--cp-line); border-radius: 14px; background: var(--cp-surface); margin-bottom: 20px; }
+html[data-portal="company"] .bw-filter-form { display: flex; flex-wrap: wrap; align-items: end; gap: 12px; }
+html[data-portal="company"] .bw-filter-form > label { flex: 1 1 145px; min-width: 0; }
+html[data-portal="company"] .bw-filter-form .bw-search-field { flex: 2 1 230px; }
+html[data-portal="company"] .bw-filter-form input,html[data-portal="company"] .bw-filter-form select { width: 100%; }
+html[data-portal="company"] .bw-mini-metrics { display: grid; grid-template-columns: repeat(auto-fit,minmax(155px,1fr)); gap: 14px; margin: 20px 0; }
+html[data-portal="company"] .bw-mini-metrics article { padding: 18px; border: 1px solid var(--cp-line); border-radius: 14px; background: var(--cp-surface); min-width: 0; }
+html[data-portal="company"] .bw-mini-metrics article strong { font-size: 25px; overflow-wrap: anywhere; }
+html[data-portal="company"] .bw-table-wrap { max-width: 100%; overflow-x: auto; border: 1px solid var(--cp-line); border-radius: 12px; }
+html[data-portal="company"] .bw-table { width: 100%; border-collapse: collapse; color: var(--cp-ink); font-size: 13px; }
+html[data-portal="company"] .bw-table th { padding: 15px 12px; background: var(--cp-surface-soft); color: var(--cp-muted); white-space: nowrap; }
+html[data-portal="company"] .bw-table td { padding: 17px 12px; border-bottom: 1px solid var(--cp-line); background: var(--cp-surface); }
+html[data-portal="company"] .bw-table td small { color: var(--cp-muted); display: block; margin-top: 6px; }
+html[data-portal="company"] .bw-table .bw-id-button { color: var(--cp-icon); }
+html[data-portal="company"] .bw-row-actions { display: flex; gap: 7px; align-items: center; }
+html[data-portal="company"] .bw-team-role-guide { margin: 20px 0; }
+html[data-portal="company"] #transactionDetailsDialog[open] { margin: 0 0 0 auto; width: min(560px,100%); max-width: 100%; height: 100dvh; max-height: 100dvh; border-radius: 18px 0 0 18px; }
+html[data-portal="company"] .cp-deposit-layout { display: flex; flex-direction: column; gap: 20px; }
+.cm-deposit-request > summary { display: flex; align-items: center; justify-content: space-between; gap: 14px; cursor: pointer; color: var(--cp-icon); font-weight: 700; list-style: none; min-height: 44px; }
+.cm-deposit-request > summary small { color: var(--cp-muted); font-size: 12px; font-weight: 400; }
+.cm-deposit-request[open] > summary { margin-bottom: 24px; border-bottom: 1px solid var(--cp-line); padding-bottom: 16px; }
+html[data-portal="company"] .cm-deposit-history .cp-work-list { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 16px; }
+html[data-portal="company"] .cm-deposit-card { display: block; padding: 20px; background: var(--cp-surface); border: 1px solid var(--cp-line); border-radius: 14px; }
+html[data-portal="company"] .cm-deposit-card .cp-work-main { display: flex; flex-wrap: wrap; gap: 12px; }
+.cm-deposit-card .cp-work-main > div { flex: 1; min-width: 150px; }
+.cm-deposit-card .cp-work-main b { font-size: 22px; }.cm-deposit-card .cp-work-main small { overflow-wrap: anywhere; }
+.cm-deposit-track { display: flex; padding: 18px 0 0; list-style: none; border-top: 1px solid var(--cp-line); margin: 18px 0 0; gap: 10px; }
+.cm-deposit-track li { flex: 1; display: grid; gap: 8px; text-align: center; color: var(--cp-muted); font-size: 12px; }
+.cm-deposit-track i { display: grid; place-items: center; width: 30px; height: 30px; margin: auto; border-radius: 50%; background: var(--cp-surface-strong); }
+.cm-deposit-track .done { color: var(--cp-success); }.cm-deposit-track .current { color: var(--cp-warning); }
+.cm-finance-layout { display: grid; grid-template-columns: minmax(250px,.8fr) minmax(0,2fr); gap: 24px; align-items: start; }
+html[data-portal="company"] .cm-finance-layout .cp-finance-metrics { display: grid; grid-template-columns: 1fr; margin: 0; gap: 14px; }
+html[data-portal="company"] .cm-finance-layout .bw-metric-card { padding: 22px; background: var(--cp-surface); border: 1px solid var(--cp-line); color: var(--cp-ink); border-radius: 16px; min-width: 0; }
+html[data-portal="company"] .cm-finance-layout .bw-metric-card:first-child { background: #1765e8; color: #fff; }
+html[data-portal="company"] .cm-finance-layout .bw-metric-card:first-child :is(span,strong,small,i) { color: #fff; }
+html[data-portal="company"] .cm-ledger-timeline .cp-work-card { padding: 18px 0; border: 0; border-bottom: 1px solid var(--cp-line); border-radius: 0; background: transparent; }
+html[data-portal="company"] .cm-ledger-timeline .cp-work-main { display: grid; grid-template-columns: 40px minmax(0,1fr) auto; gap: 13px; }
+.cm-ledger-timeline .cp-work-main > div { min-width: 0; }.cm-ledger-timeline small { overflow-wrap: anywhere; }
+.cm-ledger-timeline .cp-work-cost { grid-column: 2; }.cm-ledger-timeline .cp-work-cost small { font: 12px "IBM Plex Sans Arabic",sans-serif; display: block; color: var(--cp-muted); }
+html[data-portal="company"] .bw-report-intelligence { grid-template-columns: minmax(0,2fr) minmax(240px,1fr); gap: 20px; }
+html[data-portal="company"] .bw-report-grid { grid-template-columns: minmax(0,2fr) minmax(240px,1fr); gap: 20px; }
+html[data-portal="company"] .cm-performance-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 16px; }
+html[data-portal="company"] .cm-performance-grid .cm-performance-card { background: var(--cp-surface-soft); border: 1px solid var(--cp-line); border-radius: 14px; padding: 20px; }
+html[data-portal="company"] .cm-performance-grid .cp-work-main { display: grid; grid-template-columns: 36px minmax(0,1fr); gap: 12px; }
+.cm-performance-grid .cp-work-main > b,.cm-performance-grid .cp-work-cost,.cm-performance-grid .bw-status,.cm-performance-meter { grid-column: 1/-1; }
+.cm-performance-grid .cp-work-main > b { font-size: 24px; }
+.cm-performance-meter > span { display: flex; justify-content: space-between; font-size: 12px; color: var(--cp-muted); margin-bottom: 9px; }
+.cm-performance-meter progress { display: block; width: 100%; height: 7px; accent-color: var(--cp-success); }
+html[data-portal="company"] .bw-central-downloads { margin: 20px 0; }
+.cm-settings-categories,.cm-security-cards { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 16px; margin: 24px 0; }
+.cm-security-cards { grid-template-columns: repeat(3,minmax(0,1fr)); }
+.cm-settings-categories a,.cm-security-cards a { display: flex; flex-direction: column; align-items: start; gap: 12px; padding: 24px; background: var(--cp-surface); border: 1px solid var(--cp-line); border-radius: 16px; color: var(--cp-ink); text-decoration: none; }
+.cm-settings-categories a:hover,.cm-security-cards a:hover { border-color: var(--cp-icon); }
+.cm-settings-categories i,.cm-security-cards i { display: grid; place-items: center; width: 44px; height: 44px; background: var(--cp-surface-strong); color: var(--cp-icon); border-radius: 12px; font-size: 20px; }
+.cm-settings-categories span,.cm-security-cards span { color: var(--cp-muted); font-size: 13px; }
+html[data-portal="company"] .bw-settings-stack { display: grid; gap: 22px; }
+html[data-portal="company"] .bw-settings-panel { scroll-margin-top: 100px; }
+.cm-security-banner { display: flex; gap: 20px; align-items: center; padding: 25px; background: var(--cp-hero-wash); border: 1px solid var(--cp-line); border-radius: 16px; }
+.cm-security-banner > i { font-size: 44px; color: var(--cp-icon); }.cm-security-banner h2 { font-size: 22px; margin: 0; }.cm-security-banner p { color: var(--cp-muted); font-size: 14px; }
+html[data-portal="company"] .bw-settings-security-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 24px; }
+#companyPassword,#companyMfa { scroll-margin-top: 100px; min-width: 0; }
+html[data-portal="company"] .bw-support-layout { display: grid; grid-template-columns: minmax(240px,.75fr) minmax(0,2fr); gap: 22px; }
+html[data-portal="company"] .bw-support-chat { display: flex; flex-direction: column; min-height: 550px; padding: 0; overflow: hidden; }
+html[data-portal="company"] .bw-support-chat > .bw-section-head { padding: 20px 24px; margin: 0; border-bottom: 1px solid var(--cp-line); }
+html[data-portal="company"] .bw-chat-messages { flex: 1; min-height: 280px; max-height: 60vh; padding: 24px; background: var(--cp-surface-soft); }
+html[data-portal="company"] .bw-chat-composer { padding: 16px; background: var(--cp-surface); border-top: 1px solid var(--cp-line); }
+html[data-portal="company"] .bw-chat-composer textarea { font-size: 16px; color: var(--cp-ink); background: var(--cp-surface-soft); border-radius: 12px; }
+@media(min-width:1100px) {
+ html[data-portal="company"] .cm-finance-layout .cp-finance-metrics { position: sticky; top: 100px; }
+}
+@media(max-width:1000px) {
+ html[data-portal="company"] #businessTransferForm { grid-template-columns: minmax(0,1.3fr) minmax(260px,1fr); gap: 20px; }
+ html[data-portal="company"] .cm-transfer-summary { padding: 18px; }
+ .cm-finance-layout { grid-template-columns: minmax(220px,.8fr) minmax(0,1.5fr); }
+ html[data-portal="company"] .bw-report-grid,html[data-portal="company"] .bw-report-intelligence { grid-template-columns: 1fr; }
+ .cm-settings-categories { grid-template-columns: repeat(2,minmax(0,1fr)); }
+}
+@media(max-width:760px) {
+ html[data-portal="company"] .bw-main { padding: 18px 14px 110px; }
+ html[data-portal="company"] .cp-page-hero { flex-direction: column; align-items: stretch; padding-bottom: 18px; }
+ html[data-portal="company"] .cp-page-hero h2 { font-size: 23px; }.cp-page-hero-actions { flex-wrap: wrap; }
+ html[data-portal="company"] :is(.bw-section,.bw-transfer-workbench,.bw-settings-panel,.bw-support-summary) { padding: 18px; border-radius: 14px; }
+ html[data-portal="company"] #businessTransferForm,.cm-smart-columns,.cm-finance-layout,html[data-portal="company"] .bw-settings-security-grid,html[data-portal="company"] .bw-support-layout { grid-template-columns: minmax(0,1fr); }
+ html[data-portal="company"] .cm-transfer-summary { position: static; margin-top: 4px; }
+ html[data-portal="company"] .bw-live-mini-feed > div { grid-template-columns: 1fr; }
+ html[data-portal="company"] .bw-mini-metrics { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px; }
+ html[data-portal="company"] .bw-mini-metrics article { padding: 14px; }.cm-account-pair { gap: 12px; grid-template-columns: 1fr; }
+ .cm-account-arrow { transform: rotate(-90deg); }.cm-account-card { padding: 18px; }
+ html[data-portal="company"] .bw-filter-form > label { flex-basis: calc(50% - 12px); }
+ html[data-portal="company"] .bw-filter-form .bw-search-field { flex-basis: 100%; }
+ html[data-portal="company"] .bw-table-wrap { border: 0; overflow: visible; }
+ html[data-portal="company"] .bw-table,html[data-portal="company"] .bw-table tbody { display: block; width: 100%; min-width: 0; }
+ html[data-portal="company"] .bw-table thead { display: none; }
+ html[data-portal="company"] .bw-table tr { display: block; border: 1px solid var(--cp-line); border-radius: 12px; margin-bottom: 14px; padding: 10px 14px; background: var(--cp-surface); }
+ html[data-portal="company"] .bw-table td { display: flex; justify-content: space-between; align-items: center; gap: 14px; flex-wrap: wrap; width: 100%; min-width: 0; padding: 11px 0; font-size: 13px; white-space: normal; overflow-wrap: anywhere; }
+ html[data-portal="company"] .bw-table td[data-label]::before { content: attr(data-label); color: var(--cp-muted); font-size: 12px; margin-inline-end: auto; }
+ html[data-portal="company"] .bw-table td small { margin: 0; }
+ html[data-portal="company"] .bw-table td:last-child { border: 0; }.bw-row-actions { justify-content: end; width: 100%; }
+ html[data-portal="company"] .cm-deposit-history .cp-work-list,html[data-portal="company"] .cm-performance-grid { grid-template-columns: 1fr; }
+ html[data-portal="company"] .cm-finance-layout .cp-finance-metrics { grid-template-columns: repeat(2,minmax(0,1fr)); }
+ html[data-portal="company"] .cm-finance-layout .bw-metric-card { padding: 15px; }.cm-finance-layout .bw-metric-card strong { font-size: 24px; }
+ html[data-portal="company"] .cm-ledger-timeline .cp-work-main { grid-template-columns: 32px minmax(0,1fr); }
+ .cm-ledger-timeline .cp-work-main > b,.cm-ledger-timeline .bw-status { grid-column: 2; justify-self: start; }
+ .cm-settings-categories,.cm-security-cards { gap: 10px; grid-template-columns: repeat(2,minmax(0,1fr)); }
+ .cm-settings-categories a,.cm-security-cards a { padding: 16px; gap: 9px; }.cm-security-cards a:last-child { grid-column: 1/-1; }
+ html[data-portal="company"] .bw-support-summary { order: 2; }.cm-security-banner { padding: 18px; gap: 14px; }
+ html[data-portal="company"] .bw-support-chat { min-height: 470px; }.cm-deposit-request > summary { flex-wrap: wrap; }
+ html[data-portal="company"] .bw-section-head { gap: 12px; flex-wrap: wrap; }
+ html[data-portal="company"] :is(.bw-field input:not([type="checkbox"]),.bw-field select,.bw-field textarea,.bw-filter-form input,.bw-filter-form select) { font-size: 16px; }
+ html[data-portal="company"] #transactionDetailsDialog[open] { border-radius: 0; }
+}
+@media(max-width:400px) {
+ html[data-portal="company"] .bw-main { padding-inline: 10px; }
+ html[data-portal="company"] :is(.bw-section,.bw-transfer-workbench,.bw-settings-panel) { padding: 14px; }
+ html[data-portal="company"] .bw-currency-pair,html[data-portal="company"] #balanceTransferForm { grid-template-columns: 1fr; }
+ html[data-portal="company"] .bw-currency-pair .bw-fx-bridge { grid-row: auto; }
+ html[data-portal="company"] .bw-mini-metrics article strong { font-size: 22px; }
+ .cm-transfer-summary h3 { font-size: 17px; }.cm-deposit-track { gap: 5px; }
+}
+@media(prefers-reduced-motion:reduce) { html[data-portal="company"] * { scroll-behavior: auto !important; } }
+@media print {
+ html[data-portal="company"] .cm-finance-layout { display: block; }
+ html[data-portal="company"] .cm-transfer-summary { position: static; }
+ html[data-portal="company"] .bw-table,html[data-portal="company"] .bw-table tbody { display: table; }
+ html[data-portal="company"] .bw-table thead { display: table-header-group; }
+ html[data-portal="company"] .bw-table tr { display: table-row; }html[data-portal="company"] .bw-table td { display: table-cell; }
+ html[data-portal="company"] .bw-table td::before { display: none; }
+}
+
+/* Final hierarchy and consistent text contrast. */
+html[data-portal="company"] .cp-page-hero { flex-direction: row; align-items: center; }
+html[data-portal="company"] .cp-page-hero > div:first-child { flex: 1; }
+html[data-portal="company"] .cp-page-hero-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
+html[data-portal="company"] .bw-support-summary :is(dt,p,small),html[data-portal="company"] .bw-definition-list dt { color: var(--cp-muted); }
+html[data-portal="company"] .bw-support-summary :is(dd,h2,strong),html[data-portal="company"] .bw-definition-list dd { color: var(--cp-ink); }
+html[data-portal="company"] .bw-definition-list > div { border-color: var(--cp-line); }
+html[data-portal="company"] .bw-support-phone { background: var(--cp-surface-strong); border: 1px solid var(--cp-line); color: var(--cp-icon); }
+html[data-portal="company"] .bw-support-phone strong { color: var(--cp-icon); }
+html[data-portal="company"] .bw-report-cover,html[data-portal="company"] .bw-central-report-banner { background: var(--cp-surface-soft); border: 1px solid var(--cp-line); color: var(--cp-ink); border-radius: 12px; }
+html[data-portal="company"] :is(.bw-report-cover,.bw-central-report-banner) :is(p,dt,small) { color: var(--cp-muted); }
+html[data-portal="company"] :is(.bw-report-cover,.bw-central-report-banner) :is(strong,dd) { color: var(--cp-ink); }
+.cm-report-audit { margin: 24px 0; border: 1px solid var(--cp-line); border-radius: 14px; padding: 18px; }
+.cm-report-audit > summary { color: var(--cp-icon); cursor: pointer; min-height: 35px; }
+html[data-portal="company"] .bw-amount-shortcuts button { min-height: 40px; min-width: 50px; }
+html[data-portal="company"] .bw-transfer-tools { align-items: center; }
+html[data-portal="company"] [data-service-key="bank_account"] .bw-form-grid > .bw-form-section-title:first-child { order: -4; }
+html[data-portal="company"] [data-service-key="bank_account"] [data-bank-method-field] { order: -3; }
+html[data-portal="company"] [data-service-key="bank_account"] [data-bank-field] { order: -2; }
+html[data-portal="company"] #createStaffDialog[open],html[data-portal="company"] #staffPasswordDialog[open] { margin: 0 0 0 auto; width: min(560px,100%); max-width: 100%; height: 100dvh; max-height: 100dvh; border-radius: 18px 0 0 18px; }
+@media(max-width:760px) {
+ html[data-portal="company"] .cp-page-hero { display: block; padding: 0 0 16px; }
+ html[data-portal="company"] .cp-page-hero-actions { margin-top: 14px; }
+ html[data-portal="company"] .cp-page-hero-actions .bw-button { width: auto; flex: 1 1 auto; min-width: 0; padding: 10px 12px; font-size: 13px; }
+ html[data-portal="company"] .bw-amount-shortcuts button,html[data-portal="company"] .bw-icon-button { min-height: 44px; min-width: 44px; }
+ html[data-portal="company"] .bw-support-chat { min-height: 440px; }
+ html[data-portal="company"] .bw-chat-messages { max-height: 50dvh; min-height: 220px; }
+}
+
+/* Reference layouts: independent panels, compact form, service-specific placement. */
+html[data-portal="company"] body.cp-app .bw-main { max-width: 1280px; padding: 24px 36px 48px; }
+html[data-portal="company"] .cm-header { min-height: 70px; padding: 10px 30px; gap: 20px; flex-direction: row-reverse; }
+html[data-portal="company"] .cm-brand img { width: 35px; height: 35px; }
+html[data-portal="company"] .cm-brand strong { font-size: 18px; }
+html[data-portal="company"] .cm-navigation { gap: 22px; }
+html[data-portal="company"] .cp-page-hero { padding: 0 0 20px; }
+html[data-portal="company"] .cp-page-hero h2 { font-size: 25px; margin: 0 0 4px; }
+html[data-portal="company"] .cp-page-hero p { margin: 0; font-size: 13px; }
+html[data-portal="company"] .cp-page-hero .bw-section-kicker { display: none; }
+.cm-breadcrumb { display: flex; gap: 12px; align-items: center; color: var(--cp-muted); font-size: 12px; }
+.cm-breadcrumb a { color: var(--cp-muted); text-decoration: none; }.cm-breadcrumb i { font-size: 9px; }
+html[data-portal="company"] .cm-service-hero .cp-page-hero-actions { display: none; }
+.cm-visually-hidden { position: absolute; width: 1px; height: 1px; clip-path: inset(50%); overflow: hidden; }
+html[data-portal="company"] .cm-reference-transfer { padding: 0; border: 0; border-radius: 0; box-shadow: none; background: transparent; }
+html[data-portal="company"] #businessTransferForm.cm-reference-form { grid-template-columns: minmax(0,1.55fr) minmax(280px,1fr); gap: 0 20px; align-items: stretch; }
+.cm-transfer-entry { grid-area: 1 / 1; min-width: 0; padding: 24px; background: var(--cp-surface); border: 1px solid var(--cp-line); border-bottom: 0; border-radius: 16px 16px 0 0; }
+.cm-transfer-entry > h3 { font-size: 18px; margin: 0 0 22px; }
+html[data-portal="company"] .cm-transfer-entry .bw-form-grid { gap: 17px; }
+html[data-portal="company"] .cm-transfer-entry .bw-field { gap: 7px; margin: 0; }
+html[data-portal="company"] .cm-transfer-entry .bw-field > span { font-size: 13px; font-weight: 500; }
+html[data-portal="company"] .cm-transfer-entry .bw-field input:not([type="checkbox"]),html[data-portal="company"] .cm-transfer-entry .bw-field select { min-height: 44px; padding: 9px 12px; }
+html[data-portal="company"] .cm-transfer-entry textarea { min-height: 64px; padding: 10px 12px; }
+html[data-portal="company"] .cm-transfer-entry .bw-field em { color: var(--cp-muted); font-style: normal; font-size: 11px; }
+html[data-portal="company"] .cm-reference-form #destinationFieldHint { display: none; }
+html[data-portal="company"] .cm-reference-form .bw-currency-pair { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 14px; }
+html[data-portal="company"] .cm-reference-form .bw-fx-bridge { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 14px; grid-column: 1/-1; grid-row: 2; padding: 10px 12px; background: var(--cp-surface-soft); border: 1px solid var(--cp-line); border-radius: 10px; }
+html[data-portal="company"] .cm-reference-form .bw-fx-bridge > span { color: var(--cp-muted); font-size: 12px; }
+html[data-portal="company"] .cm-reference-form .bw-fx-bridge > strong { color: var(--cp-icon); font-size: 14px; white-space: normal; overflow-wrap: anywhere; }
+html[data-portal="company"] .cm-reference-form .bw-currency-input { min-height: 44px; padding-inline: 0 12px; }
+html[data-portal="company"] .cm-reference-form .bw-currency-input b { padding-inline: 9px; border-inline-start: 1px solid var(--cp-line); }
+.cm-inline-cost { display: flex; align-items: center; justify-content: space-between; gap: 15px; padding: 14px 16px; border: 1px solid var(--cp-line); border-radius: 10px; background: var(--cp-surface-strong); color: var(--cp-icon); font-size: 13px; }
+.cm-inline-cost strong { font-size: 20px; }
+html[data-portal="company"] .cm-reference-form .cm-transfer-summary { grid-area: 1 / 2 / 3 / 3; position: static; padding: 22px; background: var(--cp-surface); border-radius: 16px; align-self: start; }
+html[data-portal="company"] .cm-reference-form .cm-transfer-summary > header { flex-direction: row-reverse; justify-content: start; padding: 14px; background: var(--cp-surface-strong); border-radius: 10px 10px 0 0; gap: 10px; }
+html[data-portal="company"] .cm-reference-form .cm-transfer-summary h3 { font-size: 17px; }
+html[data-portal="company"] .cm-reference-form .cm-transfer-summary header i { color: var(--cp-icon); }
+html[data-portal="company"] .cm-reference-form .cm-transfer-recipient { padding: 15px 12px; background: var(--cp-surface-soft); }
+html[data-portal="company"] .cm-reference-form .bw-cost-preview { margin: 0; padding: 0 12px; background: var(--cp-surface-soft); }
+html[data-portal="company"] .cm-reference-form .bw-cost-preview > div { padding: 15px 0; font-size: 12px; }
+html[data-portal="company"] .cm-reference-form .bw-cost-preview > div:last-child { background: transparent; border-top: 1px solid var(--cp-line); border-radius: 0; padding: 18px 0; }
+html[data-portal="company"] .cm-reference-form #costEstimate { font-size: 21px; }
+html[data-portal="company"] .cm-reference-form .cm-summary-note { border-radius: 0 0 10px 10px; padding: 16px; margin: 0; background: var(--cp-surface-strong); text-align: start; line-height: 1.8; }
+.cm-transfer-action { grid-area: 2 / 1; background: var(--cp-surface); border: 1px solid var(--cp-line); border-top: 0; border-radius: 0 0 16px 16px; padding: 0 24px 24px; }
+html[data-portal="company"] .cm-transfer-action .bw-button { min-height: 48px; display: flex; align-items: center; justify-content: center; gap: 16px; }
+.cm-transfer-options { grid-column: 1/-1; margin-top: 18px; border: 1px solid var(--cp-line); border-radius: 12px; background: var(--cp-surface); }
+.cm-transfer-options > summary,.cm-recent-disclosure > summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 20px; cursor: pointer; color: var(--cp-muted); font-size: 13px; list-style: none; }
+.cm-transfer-options > .bw-form-grid { padding: 0 20px 20px; }
+.cm-recent-disclosure { margin-top: 12px; }.cm-recent-disclosure > summary { padding-inline: 4px; }
+html[data-portal="company"] .cm-recent-disclosure .bw-live-mini-feed { margin-top: 0; }
+html[data-portal="company"] .cm-reference-form .cm-mode-options { margin: 0; gap: 6px; }
+html[data-portal="company"] .cm-reference-form .cm-mode-options button { padding: 8px; min-height: 42px; flex: 1 1 70px; font-size: 12px; }
+html[data-portal="company"] .cm-reference-form [data-bank-field] { order: -4; }
+html[data-portal="company"] .cm-reference-form [data-bank-method-field] { order: -3; }
+html[data-portal="company"] .cm-reference-form [data-beneficiary-field] { order: -2; }
+html[data-portal="company"] .cm-reference-form [data-national-id-field] { grid-column: 1/-1; }
+html[data-portal="company"] .cm-reference-form [data-subtype-field] { order: -5; }
+html[data-portal="company"] [data-service-key="sefa_niger"] .cm-mode-options button { min-height: 62px; font-size: 16px; font-weight: 700; }
+html[data-portal="company"] [data-service-key="post_card"] [data-identity-field] { order: -1; }
+@media(min-width:761px) {
+ html[data-portal="company"] [data-service-key="vodafone"] #businessTransferForm.cm-reference-form,html[data-portal="company"] [data-service-key="post_card"] #businessTransferForm.cm-reference-form { grid-template-columns: minmax(280px,1fr) minmax(0,1.55fr); }
+ html[data-portal="company"] :is([data-service-key="vodafone"],[data-service-key="post_card"]) .cm-transfer-entry { grid-area: 1 / 2 / 3 / 3; border-bottom: 1px solid var(--cp-line); border-radius: 16px; }
+ html[data-portal="company"] :is([data-service-key="vodafone"],[data-service-key="post_card"]) .cm-reference-form .cm-transfer-summary { grid-area: 1 / 1; align-self: stretch; border-radius: 16px 16px 0 0; border-bottom: 0; padding-bottom: 18px; }
+ html[data-portal="company"] :is([data-service-key="vodafone"],[data-service-key="post_card"]) .cm-transfer-action { grid-area: 2 / 1; }
+ html[data-portal="company"] [data-service-key="bankak_sudan"] #businessTransferForm.cm-reference-form { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 20px; }
+ html[data-portal="company"] [data-service-key="bankak_sudan"] .cm-transfer-entry { grid-area: 1/1; border: 1px solid var(--cp-line); border-radius: 16px; }
+ html[data-portal="company"] [data-service-key="bankak_sudan"] .cm-bankak-amount { grid-area: 1/2; }
+ html[data-portal="company"] [data-service-key="bankak_sudan"] .cm-reference-form .cm-transfer-summary { grid-area: 2/1/3/3; display: none; }
+ html[data-portal="company"] [data-service-key="bankak_sudan"] .cm-transfer-action { grid-area: 2/1/3/3; padding: 0; background: transparent; border: 0; }
+}
+@media(max-width:760px) {
+ html[data-portal="company"] body.cp-app .bw-main { padding: 16px 12px 100px; }
+ html[data-portal="company"] .cm-header { min-height: 60px; padding: 8px 12px; gap: 10px; flex-direction: row; }
+ html[data-portal="company"] .cm-brand img { width: 30px; height: 30px; }
+ html[data-portal="company"] .cm-brand strong { font-size: 14px; }
+ html[data-portal="company"] .cm-brand small { display: none; }
+ html[data-portal="company"] .cp-page-hero h2 { font-size: 21px; }
+ html[data-portal="company"] .cp-page-hero { padding-bottom: 16px; }
+ html[data-portal="company"] #businessTransferForm.cm-reference-form { display: flex; flex-direction: column; gap: 0; }
+ html[data-portal="company"] .cm-reference-transfer { padding: 0; }
+ .cm-transfer-entry { padding: 18px 16px 14px; }.cm-transfer-entry > h3 { font-size: 17px; margin-bottom: 18px; }
+ html[data-portal="company"] .cm-transfer-entry .bw-form-grid { gap: 14px; }
+ html[data-portal="company"] .cm-reference-form .cm-transfer-summary { display: none; }
+ .cm-transfer-action { padding: 0 16px 18px; }.cm-inline-cost { padding: 12px; }.cm-inline-cost strong { font-size: 18px; }
+ html[data-portal="company"] .cm-reference-form .bw-currency-pair { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px; }
+ html[data-portal="company"] .cm-reference-form .bw-currency-input input { padding: 10px 6px; width: 100%; font-size: 16px; }
+ html[data-portal="company"] .cm-reference-form .bw-currency-input b { padding-inline: 5px; font-size: 10px; }
+ html[data-portal="company"] .cm-transfer-entry .bw-field > span { font-size: 12px; }
+ html[data-portal="company"] .cm-reference-form .bw-currency-input { padding-inline: 0 4px; }
+ html[data-portal="company"] [data-service-key="bankak_sudan"] .cm-bankak-amount { border-radius: 0; padding-top: 0; }
+}
+/* Match the selected card and timeline compositions on secondary pages. */
+html[data-portal="company"] .cm-reference-form .bw-cost-preview > .cm-summary-service { display: none; }
+html[data-portal="company"] .cp-page-hero { box-shadow: none !important; border-radius: 0; }
+html[data-portal="company"] .cp-page-hero h2 { line-height: 1.4; }
+html[data-portal="company"] .bw-smart-transfer { padding: 0; border: 0; background: transparent; margin-top: 0; }
+html[data-portal="company"] .bw-smart-transfer-head { display: none; }
+html[data-portal="company"] .cm-smart-columns { gap: 20px; grid-template-columns: repeat(2,minmax(0,1fr)); }
+html[data-portal="company"] .cm-smart-columns .bw-smart-transfer-input { grid-column: 2; grid-row: 1; padding: 24px; margin: 0; background: var(--cp-surface); border-radius: 14px; }
+html[data-portal="company"] .cm-smart-columns :is(.cm-smart-empty,.bw-smart-transfer-preview) { grid-column: 1; grid-row: 1; padding: 24px; background: var(--cp-surface); border: 1px solid var(--cp-line); border-radius: 14px; min-height: 360px; }
+html[data-portal="company"] .cm-smart-columns .bw-smart-preview-grid { grid-template-columns: 1fr; gap: 8px; }
+html[data-portal="company"] .cm-smart-columns .bw-smart-preview-grid > div { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; gap: 14px; }
+html[data-portal="company"] .cm-smart-columns .bw-smart-preview-grid strong { font-size: 16px; }
+html[data-portal="company"] .cm-smart-columns .bw-smart-preview-grid span { font-size: 12px; color: var(--cp-muted); }
+html[data-portal="company"] .cm-smart-columns .bw-smart-preview-actions { flex-direction: column; align-items: stretch; gap: 14px; }
+html[data-portal="company"] .cm-smart-columns .bw-smart-preview-actions .bw-button { width: 100%; }
+html[data-portal="company"] #balanceTransferForm { grid-template-columns: 1fr; }
+html[data-portal="company"] #balanceTransferForm > .bw-field { grid-column: 1/-1; }
+.cm-account-pair { direction: ltr; }.cm-account-card { direction: rtl; background: var(--cp-surface-soft); padding: 20px; }
+.cm-account-card h3 { margin-top: 0; }.cm-account-arrow { transform: rotate(180deg); border-radius: 50%; background: var(--cp-surface-strong); width: 40px; height: 40px; display: grid; place-items: center; }
+.cm-deposit-balance { display: inline-flex; align-items: center; gap: 14px; margin: 0 0 20px; padding: 16px 22px; background: var(--cp-surface); border: 1px solid var(--cp-line); border-radius: 12px; }
+.cm-deposit-balance > i { font-size: 22px; color: var(--cp-icon); }.cm-deposit-balance > span { font-size: 12px; color: var(--cp-muted); }.cm-deposit-balance strong { display: block; color: var(--cp-ink); font-size: 21px; }
+html[data-portal="company"] .cm-deposit-request { padding: 0; background: transparent; border: 0; box-shadow: none; }
+.cm-deposit-request > summary { justify-content: center; width: fit-content; background: #1765e8; color: #fff; border-radius: 9px; padding: 11px 20px; min-height: 44px; font-size: 14px; }
+.cm-deposit-request > summary small { display: none; }
+html[data-portal="company"] .cm-deposit-request[open] { padding: 20px; border: 1px solid var(--cp-line); background: var(--cp-surface); }
+html[data-portal="company"] .cm-deposit-history .cp-work-list { grid-template-columns: 1fr; }
+html[data-portal="company"] .cm-deposit-card { display: grid; grid-template-columns: minmax(200px,.6fr) minmax(0,1fr); gap: 24px; align-items: center; }
+html[data-portal="company"] .cm-deposit-card .cp-work-main { grid-column: 2; grid-row: 1; }
+.cm-deposit-track { grid-column: 1; grid-row: 1; display: flex; flex-direction: column; padding: 0; margin: 0; border: 0; gap: 0; }
+.cm-deposit-track li { position: relative; display: flex; align-items: center; gap: 12px; padding: 9px 0; text-align: start; }
+.cm-deposit-track li:not(:last-child)::after { content: ''; position: absolute; top: 37px; right: 14px; height: 20px; width: 2px; background: var(--cp-line-strong); }
+.cm-deposit-track i { margin: 0; flex: 0 0 30px; }.cm-deposit-track .done i { background: var(--cp-success); color: var(--cp-surface); }
+.cm-deposit-filters { display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }
+.cm-deposit-filters button { font: inherit; font-size: 13px; padding: 10px 16px; border: 1px solid var(--cp-line); border-radius: 8px; color: var(--cp-muted); background: var(--cp-surface); cursor: pointer; min-height: 44px; }
+.cm-deposit-filters button[aria-pressed="true"] { background: var(--cp-surface-strong); border-color: var(--cp-icon); color: var(--cp-icon); }
+.cm-finance-layout { direction: ltr; }.cm-finance-layout > * { direction: rtl; }
+html[data-portal="company"] .cm-finance-layout .cp-finance-metrics { background: var(--cp-surface); padding: 18px; border: 1px solid var(--cp-line); border-radius: 16px; gap: 0; }
+html[data-portal="company"] .cm-finance-layout .bw-metric-card { box-shadow: none; border: 0; border-bottom: 1px solid var(--cp-line); border-radius: 0; padding: 18px 8px; }
+html[data-portal="company"] .cm-finance-layout .bw-metric-card:first-child { color: var(--cp-ink); background: transparent; padding-bottom: 30px; }
+html[data-portal="company"] .cm-finance-layout .bw-metric-card:first-child :is(span,strong,small) { color: var(--cp-ink); }
+html[data-portal="company"] .cm-finance-layout .bw-metric-card:first-child i { color: var(--cp-icon); }
+html[data-portal="company"] .cm-finance-layout .bw-metric-card:first-child strong { font-size: 32px; }
+html[data-portal="company"] .cm-ledger-timeline .cp-work-icon { border-radius: 50%; width: 32px; height: 32px; }
+html[data-portal="company"] .cm-ledger-timeline .cp-work-card { position: relative; }
+html[data-portal="company"] .cm-ledger-timeline .cp-work-card:not(:last-child)::after { content: ''; position: absolute; right: 16px; top: 56px; bottom: -18px; width: 1px; background: var(--cp-line); }
+html[data-portal="company"] .cm-settings-account-info { display: none; }
+.cm-settings-categories a,.cm-security-cards a { text-align: center; align-items: center; padding: 28px 18px; min-height: 220px; }
+.cm-settings-categories i,.cm-security-cards i { border-radius: 50%; width: 60px; height: 60px; font-size: 25px; }
+.cm-settings-categories a::after,.cm-security-cards a::after { content: 'إدارة الإعدادات  ‹'; display: block; margin-top: auto; padding: 9px 12px; border-radius: 7px; width: 100%; background: var(--cp-surface-soft); color: var(--cp-icon); font-size: 12px; }
+.cm-settings-back { margin-bottom: 18px; }
+html[data-portal="company"] .bw-settings-security-grid { grid-template-columns: 1fr; }
+html[data-portal="company"] .cm-security-banner { background: var(--cp-surface-strong); padding: 28px; }
+html[data-portal="company"] .cm-security-banner > i { background: #1765e8; color: #fff; border-radius: 18px; padding: 18px; font-size: 32px; }
+html[data-portal="company"] .bw-report-grid { grid-template-columns: minmax(0,3fr) minmax(220px,1fr); }
+html[data-portal="company"] .cm-performance-grid { grid-template-columns: repeat(3,minmax(0,1fr)); }
+html[data-portal="company"] .bw-report-grid:has(.cm-performance-grid) { display: block; }
+html[data-portal="company"] .bw-report-grid:has(.cm-performance-grid) .bw-service-analysis { margin-top: 20px; }
+@media(max-width:900px) {
+ html[data-portal="company"] .cm-performance-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
+ html[data-portal="company"] .bw-report-grid { grid-template-columns: 1fr; }
+}
+@media(max-width:760px) {
+ html[data-portal="company"] .cm-smart-columns { display: flex; flex-direction: column; }
+ html[data-portal="company"] .cm-smart-columns > * { width: 100%; }
+ html[data-portal="company"] .cm-smart-columns .bw-smart-transfer-input,html[data-portal="company"] .cm-smart-columns :is(.cm-smart-empty,.bw-smart-transfer-preview) { padding: 16px; min-height: 0; }
+ html[data-portal="company"] .cm-smart-columns textarea { min-height: 150px; }
+ html[data-portal="company"] .cm-deposit-card { grid-template-columns: minmax(0,1fr); gap: 18px; padding: 16px; }
+ html[data-portal="company"] .cm-deposit-card .cp-work-main { grid-column: 1; grid-row: 1; }
+ .cm-deposit-track { grid-column: 1; grid-row: 2; }
+ .cm-deposit-balance { display: flex; width: 100%; }.cm-deposit-request > summary { width: 100%; }
+ .cm-deposit-filters { gap: 6px; }.cm-deposit-filters button { flex: 1; padding: 8px; font-size: 12px; }
+ .cm-account-arrow { transform: rotate(90deg); margin: auto; }
+ .cm-settings-categories,.cm-security-cards { grid-template-columns: 1fr; }
+ .cm-settings-categories a,.cm-security-cards a { min-height: 0; display: grid; grid-template-columns: 44px minmax(0,1fr) 18px; gap: 5px 12px; padding: 18px; text-align: start; }
+ .cm-settings-categories i,.cm-security-cards i { grid-row: 1/3; width: 44px; height: 44px; font-size: 20px; }
+ .cm-settings-categories strong,.cm-security-cards strong { grid-column: 2; }
+ .cm-settings-categories span,.cm-security-cards span { grid-column: 2; font-size: 12px; }
+ .cm-settings-categories a::after,.cm-security-cards a::after { content: '‹'; grid-column: 3; grid-row: 1/3; padding: 0; background: transparent; font-size: 25px; align-self: center; }
+ html[data-portal="company"] .cm-performance-grid { grid-template-columns: 1fr; }
+ html[data-portal="company"] .cm-security-banner { padding: 18px; }.cm-security-banner h2 { font-size: 18px; }
+ html[data-portal="company"] .cm-security-banner > i { padding: 12px; font-size: 26px; }
+ html[data-portal="company"] .cm-finance-layout .cp-finance-metrics { grid-template-columns: repeat(2,minmax(0,1fr)); padding: 12px; }
+}
+html[data-portal="company"] .cm-mode-validation { color: #d33d4e; }
+html[data-portal="company"] .cm-reference-form .bw-sefa-disclaimer { padding: 12px; border-radius: 10px; order: 20; font-size: 12px; }
+html[data-portal="company"] .cm-reference-form .bw-sefa-disclaimer p { font-size: 12px; margin: 4px 0; line-height: 1.7; }
+html[data-portal="company"] .cm-reference-form .bw-sefa-disclaimer-icon { display: none; }
+html[data-portal="company"] .cm-reference-form .bw-sefa-acknowledgement { font-size: 12px; }
+html[data-portal="company"] .bw-internal-transfer > .bw-section-head { display: none; }
+html[data-portal="company"] #balanceTransferForm > .bw-button { background: #1765e8; color: #fff; border-color: #1765e8; }
+html[data-portal="company"] .cp-page-hero { padding: 0 0 20px !important; margin: 0 !important; }
+@media(max-width:760px) {
+ html[data-portal="company"] .cp-page-hero { padding: 0 0 16px !important; }
+ html[data-portal="company"] .cm-service-hero .cm-breadcrumb { display: none; }
+ html[data-portal="company"] .cm-transfer-entry textarea { min-height: 54px; height: 54px; }
+}
+html[data-portal="company"] .cp-deposit-layout { align-items: stretch; }
+html[data-portal="company"] .cp-deposit-layout > * { width: 100%; min-width: 0; margin: 0 !important; }
+html[data-portal="company"] .cp-deposit-layout .cm-deposit-request { align-self: stretch; }
+html[data-portal="company"] .cm-reference-form [data-national-id-field] { order: -2; }
+html[data-portal="company"] .cm-reference-form [data-identity-field] { order: -1; }
+html[data-portal="company"] .cm-reference-transfer .cm-recent-disclosure { width: 100%; }
+@media(max-width:760px) {
+ html[data-portal="company"] .cm-deposit-request > summary { width: 100%; }
+ html[data-portal="company"] .cm-deposit-history .bw-section-kicker { display: none; }
+}

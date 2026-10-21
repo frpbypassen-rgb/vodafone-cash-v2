@@ -1,0 +1,60 @@
+<%
+const home = typeof companyHome !== 'undefined' ? companyHome : { cash: { count: 0, amount: 0 }, bank: { count: 0, amount: 0 }, deposits: 0, pending: 0, recent: [] };
+const money = value => Number(value || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const orderedServices = [...serviceCatalog.filter(service => ['vodafone', 'bank_account'].includes(service.key)), ...serviceCatalog.filter(service => !['vodafone', 'bank_account'].includes(service.key))];
+%>
+<div class="cm-greeting"><div><span>مساحة عمل الشركة</span><h1>مرحباً، <%= workspace.actor.name %></h1><p>كل ما تحتاجه لإدارة معاملات <%= workspace.entity.name %></p></div><span class="cm-availability"><i class="bw-live-dot <%= systemOpen ? '' : 'is-closed' %>"></i><%= systemOpen ? 'الخدمات متاحة' : 'الخدمات متوقفة مؤقتاً' %></span></div>
+<% if (workspace.permissions.canTransfer) { %>
+<a class="cm-smart-entry" href="/client/smart-transfer">
+    <span class="cm-smart-entry-icon" aria-hidden="true"><i class="fa-solid fa-wand-magic-sparkles"></i></span>
+    <span class="cm-smart-entry-copy"><span class="cm-smart-kicker">التحويل الذكي للشركات</span><strong>الصق الرسالة وجهّز التحويل</strong><span>استخرج رقم المحفظة والمبلغ، راجع التكلفة بالدينار، وتحقق من احتمال التكرار قبل الإرسال.</span></span>
+    <span class="cm-smart-entry-action">ابدأ التحويل الذكي <i class="fa-solid fa-arrow-left" aria-hidden="true"></i></span>
+</a>
+<% } %>
+<div class="cm-home-grid">
+    <section class="cm-wallet-area" aria-label="ملخص حساب الشركة">
+        <% if (workspace.permissions.canViewBalance) { %>
+        <div class="cm-wallet">
+            <div class="cm-wallet-label"><span>الرصيد المتاح</span><button type="button" class="cm-privacy" data-privacy-toggle aria-label="إخفاء البيانات الحساسة"><i class="fa-regular fa-eye"></i></button><span class="cm-wallet-symbol"><i class="fa-solid fa-wallet"></i></span></div>
+            <strong class="cm-wallet-amount"><bdi><%= money(workspace.entity.balance) %></bdi> <small>د.ل</small></strong>
+            <p><%= workspace.entity.name %></p>
+            <div class="cm-wallet-actions">
+                <% if (workspace.permissions.canTransfer) { %><a href="#companyServices"><i class="fa-solid fa-plus"></i> تحويل جديد</a><% } %>
+                <% if (workspace.permissions.canViewReports) { %><a href="/client/reports" class="secondary"><i class="fa-solid fa-file-invoice"></i> كشف الحساب</a><% } %>
+            </div>
+        </div>
+        <% } else { %>
+        <div class="cm-wallet"><span>مساحة التنفيذ</span><h2>ابدأ تحويلك بخطوات بسيطة</h2><p>اختر الخدمة وراجع بيانات المستلم قبل الإرسال.</p><div class="cm-wallet-actions"><a href="#companyServices">اختيار خدمة <i class="fa-solid fa-arrow-left"></i></a></div></div>
+        <% } %>
+        <div class="cm-stats" aria-label="إحصائيات اليوم">
+            <% if (workspace.permissions.canViewBalance) { %><article class="cm-stat deposit"><i class="fa-solid fa-wallet"></i><span>إيداعات اليوم</span><strong><bdi><%= money(home.deposits) %></bdi> <small>د.ل</small></strong><small>إيداعات معتمدة</small></article><% } %>
+            <article class="cm-stat cash"><i class="fa-solid fa-money-bill-transfer"></i><span>الكاش اليوم</span><strong><bdi><%= money(home.cash.amount) %></bdi> <small>ج.م</small></strong><small><%= home.cash.count %> عملية مكتملة</small></article>
+            <article class="cm-stat bank"><i class="fa-solid fa-building-columns"></i><span>البنكي اليوم</span><strong><bdi><%= money(home.bank.amount) %></bdi> <small>ج.م</small></strong><small><%= home.bank.count %> عملية مكتملة</small></article>
+        </div>
+    </section>
+    <% if (workspace.permissions.canTransfer) { %>
+    <section class="cm-services" id="companyServices" aria-labelledby="companyServicesTitle">
+        <div class="cm-section-head"><h2 id="companyServicesTitle">الخدمات</h2><a href="/client/smart-transfer">تحويل من رسالة <i class="fa-solid fa-arrow-left"></i></a></div>
+        <div class="cm-service-grid">
+            <% orderedServices.forEach(service => { %>
+            <a class="cm-service tone-<%= service.tone %>" href="/client/services/<%= service.slug || service.key %>">
+                <span class="cm-service-icon"><i class="fa-solid <%= service.icon || 'fa-wallet' %>"></i></span><strong><%= service.label %></strong><small><%= service.description %></small><span class="cm-service-arrow" aria-hidden="true"><i class="fa-solid fa-arrow-left"></i></span>
+            </a>
+            <% }) %>
+        </div>
+    </section>
+    <% } else { %>
+    <section class="cm-services"><div class="cm-section-head"><h2>المتابعة المالية</h2></div><div class="cm-service-grid"><a class="cm-service" href="/client/reports"><i class="fa-solid fa-file-invoice"></i><strong>كشف الحساب</strong><small>راجع حركات الشركة وأرصدتها</small></a><a class="cm-service" href="/client/finance"><i class="fa-solid fa-scale-balanced"></i><strong>الحركات المالية</strong><small>الإيداعات والخصومات</small></a></div></section>
+    <% } %>
+</div>
+<section class="cm-recent" aria-labelledby="companyRecentTitle">
+    <div class="cm-section-head"><div><h2 id="companyRecentTitle"><%= workspace.forceToday ? 'آخر عملياتي اليوم' : 'آخر العمليات' %></h2><p>تابع حالة التحويل وتفاصيله</p></div><a href="/client/transactions">عرض الكل <i class="fa-solid fa-arrow-left"></i></a></div>
+    <div class="cm-recent-tools"><form action="/client/transactions" method="GET"><i class="fa-solid fa-magnifying-glass"></i><input name="search" type="search" placeholder="ابحث برقم العملية أو المستلم" aria-label="البحث في العمليات"><button type="submit" aria-label="بحث"><i class="fa-solid fa-arrow-left"></i></button></form><div><a href="/client/transactions?service=vodafone">محافظ كاش</a><a href="/client/transactions?service=bank_account">تحويل بنكي</a><a href="/client/transactions?status=pending"><i class="fa-regular fa-clock"></i> قيد الانتظار</a></div></div>
+    <% if (!home.recent.length) { %><div class="cm-empty"><i class="fa-regular fa-folder-open"></i><h3>لا توجد عمليات بعد</h3><p>ستظهر التحويلات هنا عند تسجيلها.</p></div><% } else { %>
+    <div class="cm-transaction-list">
+        <div class="cm-transaction-heading" aria-hidden="true"><span>العملية / المستلم</span><span>التاريخ والوقت</span><span>المبلغ المحوّل</span><span>الحالة</span><span>التفاصيل</span></div>
+        <% home.recent.forEach(tx => { const service = serviceCatalog.find(item => item.key === tx.transferType); const status = statusMeta[tx.status] || { label: tx.status, tone: 'neutral' }; %>
+        <article class="cm-transaction"><div class="cm-transaction-person"><span class="cm-transaction-icon"><i class="fa-solid <%= service?.icon || 'fa-money-bill-transfer' %>"></i></span><div><strong><bdi><%= tx.vodafoneNumber || tx.accountNumber || tx.accountName || tx.customId %></bdi></strong><small><%= service?.label || tx.transferType %> · <bdi><%= tx.customId %></bdi></small></div></div><time datetime="<%= new Date(tx.createdAt).toISOString() %>"><%= new Date(tx.createdAt).toLocaleDateString('en-GB', { timeZone: 'Africa/Tripoli' }) %><small><%= new Date(tx.createdAt).toLocaleTimeString('ar-LY', { timeZone: 'Africa/Tripoli', hour: '2-digit', minute: '2-digit' }) %></small></time><strong class="cm-transaction-amount"><bdi><%= money(tx.amount) %></bdi> <small><%= service?.amountCurrencyLabel || 'EGP' %></small></strong><span class="bw-status <%= status.tone %>"><%= status.label %></span><button class="bw-icon-button" type="button" data-transaction-id="<%= tx._id %>" aria-label="تفاصيل العملية <%= tx.customId %>"><i class="fa-solid fa-ellipsis"></i></button></article>
+        <% }) %>
+    </div><% } %>
+</section>

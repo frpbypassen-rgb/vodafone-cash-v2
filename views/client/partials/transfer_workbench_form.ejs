@@ -110,6 +110,7 @@
             </label>
         </div>
 
+        <% if (workspace.isCompany) { %><aside class="cm-transfer-summary" aria-label="ملخص التحويل"><header><span class="cm-panel-icon"><i class="fa-solid fa-calculator"></i></span><h3>ملخص التكلفة</h3></header><p class="cm-muted">راجع بيانات التحويل قبل التأكيد.</p><div class="cm-transfer-recipient"><span>المستلم</span><strong dir="ltr" data-cm-recipient>—</strong></div><div class="cm-transfer-recipient"><span>المبلغ المرسل</span><strong dir="ltr" data-cm-amount>—</strong></div><% } %>
         <div class="bw-cost-preview">
             <div><span>الخدمة</span><strong id="costServiceLabel">محافظ كاش</strong></div>
             <div><span>سعر الصرف</span><strong class="bw-mono" id="costRate">1 LYD = 0.00 EGP</strong></div>
@@ -119,6 +120,7 @@
         <button type="submit" class="bw-button primary wide" id="transferSubmitButton">
             <i class="fa-solid fa-lock"></i><span><%= typeof workspace !== 'undefined' && workspace.isCompany ? 'مراجعة العملية' : 'مراجعة وإرسال العملية' %></span>
         </button>
+        <% if (workspace.isCompany) { %><p class="cm-summary-note"><i class="fa-solid fa-shield-halved"></i>ستراجع البيانات مرة أخرى قبل إرسال العملية.</p></aside><% } %>
     </form>
     <section class="bw-live-mini-feed" data-transfer-live-feed>
         <header><div><span class="bw-live-dot"></span><strong>آخر العمليات</strong></div><a href="/client/transactions">عرض الكل</a></header>

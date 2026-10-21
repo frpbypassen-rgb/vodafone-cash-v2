@@ -2602,7 +2602,7 @@ a {
 }
 
 .bw-dialog {
-    display: flex;
+    display: none;
     flex-direction: column;
     width: min(620px, calc(100% - 24px));
     max-height: min(86vh, 760px);
@@ -2630,6 +2630,7 @@ a {
 }
 
 .bw-dialog[open] {
+    display: flex;
     animation: bwDialogEnter 0.2s ease both;
 }
 

@@ -6,17 +6,22 @@
         </div>
         <span class="bw-private-chip"><i class="fa-solid fa-shield-halved"></i>معالجة آمنة</span>
     </header>
+    <% if (workspace.isCompany) { %><div class="cm-smart-columns"><% } %>
     <div class="bw-smart-transfer-input">
         <label class="bw-field">
             <span>رسالة التحويل</span>
-            <textarea id="smartTransferMessage" rows="4" maxlength="2000" placeholder="01012345678 | 1,600 جنيه | ملاحظة: دفعة أحمد"></textarea>
+            <textarea id="smartTransferMessage" rows="4" maxlength="2000" aria-describedby="smartTransferHelp" placeholder="حوّل 1600 جنيه على 01012345678&#10;ملاحظة: دفعة أحمد"></textarea>
+            <small id="smartTransferHelp">رسالة لعملية واحدة. لتصحيح البيانات عدّل الرسالة وأعد تحليلها. التحليل لا يرسل أي تحويل.</small>
         </label>
         <div class="bw-smart-transfer-command">
             <button type="button" class="bw-button secondary" id="smartTransferAnalyzeButton"><i class="fa-solid fa-bolt"></i>تحليل الرسالة</button>
             <div class="bw-smart-transfer-status" id="smartTransferStatus" aria-live="polite" hidden></div>
         </div>
     </div>
+    <% if (workspace.isCompany) { %><div class="cm-smart-empty" data-cm-smart-empty><span class="cm-panel-icon"><i class="fa-solid fa-file-circle-check"></i></span><h3>معاينة بيانات التحويل</h3><p>ألصق رسالة لعملية واحدة ثم اضغط «تحليل الرسالة» لعرض المستلم والمبلغ والتكلفة هنا.</p><span>01 الرسالة · 02 المراجعة · 03 التأكيد</span></div><% } %>
     <div class="bw-smart-transfer-preview" id="smartTransferPreview" hidden>
+        <div class="cm-smart-duplicate" id="smartTransferDuplicate" role="status" hidden></div>
+        <p class="cm-smart-review-hint">راجع البيانات المستخرجة. التكلفة تقديرية وفق سعر الصرف الحالي، ولن تُرسل العملية إلا بعد تأكيدك.</p>
         <div class="bw-smart-preview-grid">
             <div><span>رقم الهاتف</span><strong class="bw-mono" id="smartPreviewPhone">---</strong></div>
             <div><span>القيمة بالجنيه</span><strong class="bw-mono" id="smartPreviewAmount">---</strong></div>
@@ -30,4 +35,5 @@
             <button type="button" class="bw-button primary" id="smartTransferSendButton" disabled><i class="fa-solid fa-eye"></i><%= typeof smartTransferActionLabel !== 'undefined' ? smartTransferActionLabel : 'معاينة التحويل' %></button>
         </div>
     </div>
+    <% if (workspace.isCompany) { %></div><% } %>
 </section>

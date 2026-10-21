@@ -759,6 +759,29 @@ const loadTransferHub = async (workspace, serviceKey = '') => {
     };
 };
 
+const loadCompanyHome = async (workspace) => {
+    const ownership = await ownershipFilter(workspace);
+    const now = new Date();
+    const today = { createdAt: { $gte: startOfDay(now), $lte: endOfDay(now) } };
+    const [groups, recent] = await Promise.all([
+        Transaction.aggregate([
+            { $match: { $and: [ownership, today] } },
+            { $group: { _id: { service: '$transferType', status: '$status' }, count: { $sum: 1 }, amount: { $sum: '$amount' } } }
+        ]),
+        Transaction.find({ $and: [ownership, ...(workspace.forceToday ? [today] : []), { transferType: { $in: SERVICE_CATALOG.map((item) => item.key) }, status: { $nin: ['deposit', 'deposit_pending', 'deduction'] } }] })
+            .sort({ createdAt: -1 }).limit(6).lean()
+    ]);
+    const home = { cash: { count: 0, amount: 0 }, bank: { count: 0, amount: 0 }, deposits: 0, pending: 0, recent: recent.map(presentClientPortalTransaction) };
+    groups.forEach((row) => {
+        if (row._id.status === 'deposit') home.deposits += safeNumber(row.amount);
+        if (['pending', 'accepted', 'processing'].includes(row._id.status)) home.pending += row.count;
+        if (row._id.status !== 'completed') return;
+        const key = row._id.service === 'vodafone' ? 'cash' : row._id.service === 'bank_account' ? 'bank' : null;
+        if (key) { home[key].count += row.count; home[key].amount += safeNumber(row.amount); }
+    });
+    return home;
+};
+
 const loadTransactions = async (workspace, query = {}) => {
     const page = Math.max(1, Number.parseInt(query.page, 10) || 1);
     const limit = 25;
@@ -1456,6 +1479,7 @@ const loadPageContext = async (req, page) => {
         }
     }
     if (page === 'overview') Object.assign(context, await loadOverview(workspace));
+    if (workspace.isCompany && ['overview', 'services'].includes(page)) context.companyHome = await loadCompanyHome(workspace);
     if (page === 'services') {
         context.servicePage = {
             mode: workspace.isCompany ? 'gallery' : 'combined',
@@ -1547,6 +1571,7 @@ module.exports = {
     buildReportGroups,
     buildReportAnalytics,
     loadPageContext,
+    loadCompanyHome,
     loadReports,
     loadCentralCompanyReport,
     safeNumber,

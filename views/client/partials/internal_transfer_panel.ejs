@@ -4,10 +4,17 @@
         <span class="bw-meta-chip">يولد إيصالاً مستقلاً</span>
     </header>
     <form id="balanceTransferForm" class="bw-inline-form">
+        <% if (workspace.isCompany) { %>
+        <div class="cm-account-pair">
+            <article class="cm-account-card"><span class="cm-panel-icon"><i class="fa-solid fa-building"></i></span><span class="cm-muted">من حسابك</span><h3><%= workspace.entity.name %></h3><p dir="ltr"><%= workspace.entity.accountCode || '—' %></p><% if (workspace.permissions.canViewBalance) { %><strong dir="ltr"><%= Number(workspace.entity.balance || 0).toLocaleString('en-US', { minimumFractionDigits: 3 }) %> LYD</strong><small>الرصيد الحالي</small><% } %></article>
+            <span class="cm-account-arrow" aria-hidden="true"><i class="fa-solid fa-arrow-left"></i></span>
+            <article class="cm-account-card"><span class="cm-panel-icon"><i class="fa-solid fa-user-check"></i></span><h3>إلى حساب المستلم</h3>
+        <% } %>
         <label class="bw-field"><span>رقم حساب المستلم</span><input type="text" name="targetAccountCode" class="bw-input bw-mono" inputmode="numeric" minlength="4" maxlength="6" required></label>
+        <% if (workspace.isCompany) { %><small>سيظهر اسم صاحب الحساب عند المراجعة قبل التأكيد.</small></article></div><% } %>
         <label class="bw-field"><span>المبلغ بالدينار</span><input type="number" name="amount" min="0.01" step="0.01" required></label>
         <label class="bw-field grow"><span>ملاحظة التحويل</span><input type="text" name="notes" maxlength="300"></label>
-        <button type="submit" class="bw-button secondary"><i class="fa-solid fa-right-left"></i>تحويل الرصيد</button>
+        <button type="submit" class="bw-button secondary"><i class="fa-solid fa-right-left"></i><%= workspace.isCompany ? 'التحقق ومراجعة التحويل' : 'تحويل الرصيد' %></button>
     </form>
     <div class="bw-form-result" id="balanceTransferResult" hidden></div>
 </section>

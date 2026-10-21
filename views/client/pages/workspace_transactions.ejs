@@ -49,29 +49,6 @@
         <span class="bw-meta-chip"><%= total %> نتيجة</span>
     </header>
     <% const showCost = workspace.permissions.canViewBalance; %>
-    <% if (workspace.isCompany) { %>
-        <div class="cp-work-list">
-            <% if (!transactions.length) { %><div class="bw-empty"><span class="cp-mark" aria-hidden="true"><svg class="cp-icon"><use href="#cp-icon-ankh"></use></svg></span><strong>لا توجد نتائج مطابقة</strong><span>غيّر خيارات البحث أو الفترة الزمنية.</span></div><% } %>
-            <% transactions.forEach(tx => { const status = statusMeta[tx.status] || { label: tx.status, tone: 'neutral' }; const service = serviceCatalog.find(item => item.key === tx.transferType); %>
-                <article class="cp-work-card">
-                    <button type="button" class="cp-work-main" data-transaction-id="<%= tx._id %>">
-                        <span class="cp-work-icon"><i class="fa-solid <%= service?.icon || 'fa-money-bill-transfer' %>"></i></span>
-                        <div>
-                            <strong class="bw-mono"><%= tx.customId %></strong>
-                            <small><%= service?.shortLabel || tx.transferType %> · <%= tx.vodafoneNumber || tx.accountNumber || '---' %><%= workspace.forceToday ? '' : ` · ${tx.employeeName || '---'}` %> · <%= new Date(tx.createdAt).toLocaleTimeString('ar-LY', { timeZone: 'Africa/Tripoli', hour: '2-digit', minute: '2-digit' }) %></small>
-                        </div>
-                        <b class="bw-mono"><%= Number(tx.amount || 0).toLocaleString('en-US', { maximumFractionDigits: 0 }) %> <em><%= service?.amountCurrencyLabel || 'EGP' %></em></b>
-                        <% if (showCost) { %><span class="cp-work-cost bw-mono"><%= Number(tx.costLYD || 0).toFixed(3) %> LYD</span><% } %>
-                        <span class="bw-status <%= status.tone %>"><%= status.label %></span>
-                    </button>
-                    <div class="cp-work-actions">
-                        <%- include('../partials/company_proof_thumb', { tx }) %>
-                        <button type="button" class="bw-icon-button compact" data-transaction-id="<%= tx._id %>" title="التفاصيل" aria-label="عرض تفاصيل العملية <%= tx.customId %>"><i class="fa-solid fa-eye"></i></button>
-                    </div>
-                </article>
-            <% }) %>
-        </div>
-    <% } else { %>
     <div class="bw-table-wrap">
         <table class="bw-table bw-transactions-table">
             <thead><tr><th>العملية</th><th>الخدمة والمستلم</th><th>العميل / الموظف</th><th>المبلغ</th><% if (showCost) { %><th>التكلفة</th><% } %><th>الحالة</th><th>التاريخ</th><th></th></tr></thead>
@@ -95,7 +72,7 @@
             </tbody>
         </table>
     </div>
-    <% } %>
+
     <% if (pagination.pages > 1) { %>
         <nav class="bw-pagination" aria-label="صفحات النتائج">
             <% for (let pageNumber = 1; pageNumber <= pagination.pages; pageNumber += 1) { const params = new URLSearchParams({ ...query, page: String(pageNumber) }); %>

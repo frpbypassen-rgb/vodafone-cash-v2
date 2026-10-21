@@ -1,5 +1,75 @@
 'use strict';
 
+describe('selected company internal layouts', () => {
+    test.each(['vodafone', 'bank_account', 'post_account', 'post_card', 'sefa_niger', 'bankak_sudan'])('renders %s with one transfer form and live cost summary', async (service) => {
+        const html = await renderWorkspacePage('service_workbench', {
+            servicePage: { selectedService: service, isolated: true }
+        });
+        expect((html.match(/id="businessTransferForm"/g) || []).length).toBe(1);
+        expect((html.match(/id="transferSubmitButton"/g) || []).length).toBe(1);
+        expect(html).toContain('cm-transfer-summary');
+        expect(html).toContain('id="costEstimate"');
+        expect(html).toContain('id="transferAmountLyd"');
+        // Each isolated page must pass its service into the included form,
+        // otherwise bank and international transfers silently use the cash layout.
+        if (service === 'bank_account') expect(html).toContain('<h3>بيانات التحويل</h3>');
+        if (service === 'bankak_sudan') expect(html).toContain('cm-bankak-amount');
+        for (const id of ['transferDestination', 'transferBankMethod', 'transferSubtype', 'transferIdentityImage', 'transferSefaAcknowledgement']) {
+            expect((html.match(new RegExp('id="' + id + '"', 'g')) || []).length).toBe(1);
+        }
+    });
+
+    test('deposit tracking only marks a ledger deposit as approved', async () => {
+        const pending = await renderWorkspacePage('deposits', {
+            pendingDepositCount: 1,
+            depositRequests: [{ customId: 'PENDING', source: 'support', status: 'deposit_pending', amount: 125, note: '<script>alert(1)</script>' }]
+        });
+        expect(pending).toContain('بانتظار اعتماد الرصيد');
+        expect(pending).not.toContain('تم اعتماد الإيداع');
+        expect(pending).toContain('&lt;script&gt;');
+        const approved = await renderWorkspacePage('deposits', {
+            pendingDepositCount: 0,
+            depositRequests: [{ customId: 'APPROVED', status: 'deposit', amount: 125 }]
+        });
+        expect(approved).toContain('تم اعتماد الإيداع');
+        expect(approved).toContain('LYD');
+    });
+
+    test('operation table preserves per-service currency and hides cost without permission', async () => {
+        const html = await renderWorkspacePage('transactions', {
+            workspace: { ...managerWorkspace, permissions: { ...managerWorkspace.permissions, canViewBalance: false } },
+            transactions: [{ _id: 'test', customId: 'TEST-SEFA', transferType: 'sefa_niger', amount: 1000, costLYD: 987.123, status: 'pending', createdAt: new Date() }]
+        });
+        expect(html).toContain('bw-transactions-table');
+        expect(html).toContain('XOF');
+        expect(html).not.toContain('987.123');
+        expect(html).not.toContain('data-label="التكلفة"');
+    });
+
+    test.each(['organization', 'staff'])('renders %s report with its selected analysis layout', async (scope) => {
+        const html = await renderWorkspacePage('reports', {
+            reportScope: scope, reportScopes: {}, reportScopeLabel: 'تقرير اختبار',
+            centralAdminReport: null, centralAdminReportInput: {}, companyReportEmployees: [],
+            centralDownloads: [], centralReport: { reportId: 'R-1', checksum: 'test', issuedAt: new Date() },
+            centralSync: { status: 'ready' },
+            reportSummary: { totalCount: 4, completedCount: 3, pendingCount: 1, cancelledCount: 0, totalEGP: 1000, totalLYD: 157.48 },
+            reportAnalytics: { liquiditySeries: [], totalIncoming: 0, totalOutgoing: 0 },
+            reportRows: [{ key: 'موظف تجريبي', totalCount: 4, completedCount: 3, pendingCount: 1, cancelledCount: 0, totalEGP: 1000, totalLYD: 157.48 }],
+            serviceBreakdown: [], reportTransactions: []
+        });
+        expect(html).toContain('موظف تجريبي');
+        expect(html).toContain('157.48');
+        if (scope === 'staff') {
+            expect(html).toContain('cm-performance-meter');
+            expect(html).toContain('75%');
+            expect(html).not.toContain('id="liquidityChart"');
+        } else {
+            expect(html).toContain('id="liquidityChart"');
+        }
+    });
+});
+
+
 const path = require('path');
 const fs = require('fs');
 const ejs = require('ejs');
@@ -180,14 +250,27 @@ describe('canonical company portal pages', () => {
         });
     });
 
+    test('modern employee home hides company balance and deposits', async () => {
+        const html = await renderWorkspacePage('services', {
+            workspace: { ...managerWorkspace, persona: 'employee', forceToday: true,
+                permissions: { employee: true, canTransfer: true, canViewBalance: false, canViewReports: false } }
+        });
+        expect(html).not.toContain('class="cm-wallet-amount"');
+        expect(html).not.toContain('class="cm-stat deposit"');
+        expect(html).not.toContain('href="/client/staff"');
+        expect(html).toContain('آخر عملياتي اليوم');
+        expect(html).toContain('href="/client/services/cash"');
+    });
+
     test('shares one themed shell with switcher, bell, sidebar, and mobile dock', async () => {
         const html = await renderWorkspacePage('services');
         expect(html).toContain('data-company-shell');
         expect(html).toContain('cp-app');
         expect(html).toContain('cp-sidebar');
-        expect(html).toContain('cp-page-hero');
-        expect(html).toContain('cp-service-grid');
-        expect(html).toContain('cp-service-card');
+        expect(html).toContain('cm-header');
+        expect(html).toContain('cm-service-grid');
+        expect(html).toContain('cm-service');
+        expect(html).toContain('/css/company-modern.css');
         expect(html).toContain('cp-theme-rail');
         expect(html).toContain('/css/company-portal.tokens.css');
         expect(html).toContain('/css/company-portal-layout.css');
@@ -218,7 +301,7 @@ describe('canonical company portal pages', () => {
         expect(html).toContain('الرصيد');
     });
 
-    test('team page uses the new work cards instead of company-os chrome', async () => {
+    test('team page uses the selected table layout instead of company-os chrome', async () => {
         const html = await renderWorkspacePage('staff', {
             staffSummary: { total: 3, active: 2, managers: 1, accountants: 1, monthOperations: 12 },
             staffFilters: { search: '', role: '', status: '' },
@@ -226,7 +309,7 @@ describe('canonical company portal pages', () => {
         });
         expect(html).toContain('cp-page-hero');
         expect(html).toContain('فريق الشركة');
-        expect(html).toContain('cp-work-list');
+        expect(html).toContain('<table class="bw-table">');
         expect(html).not.toContain('cos-ledger-office');
         expect(html).not.toContain('cos-ops-card');
     });

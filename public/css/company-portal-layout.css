@@ -1401,7 +1401,6 @@ html[data-portal="company"] .cp-work-main {
     html[data-portal="company"] .bw-mobile-dock,
     .bw-company-os .bw-mobile-dock { display: none !important; }
     html[data-portal="company"] .bw-transaction-dialog {
-        display: flex;
         flex-direction: column;
         width: min(520px, 44vw);
         max-height: calc(100vh - var(--cp-topbar-height) - 24px);

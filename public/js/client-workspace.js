@@ -277,6 +277,8 @@
     const smartTransferStatus = document.getElementById('smartTransferStatus');
     const smartTransferPreview = document.getElementById('smartTransferPreview');
     const smartTransferSendButton = document.getElementById('smartTransferSendButton');
+    const smartTransferDuplicate = document.getElementById('smartTransferDuplicate');
+    const smartAnalyzeLabel = smartTransferAnalyzeButton?.innerHTML;
     const smartPreviewPhone = document.getElementById('smartPreviewPhone');
     const smartPreviewAmount = document.getElementById('smartPreviewAmount');
     const smartPreviewRate = document.getElementById('smartPreviewRate');
@@ -336,6 +338,7 @@
     const smartTransferDirectIssue = (service = resolveSmartTransferService()) => {
         if (!service) return 'تعذر تحديد خدمة التحويل.';
         if (service.key !== 'vodafone') return `تتطلب خدمة ${service.label} بيانات إضافية ولا يمكن إرسالها من التحويل الذكي.`;
+        if (!(Number(service.rate) > 0)) return 'سعر الصرف غير متاح الآن. انتظر تحديث الأسعار قبل المتابعة.';
         const phone = String(smartParsedData?.phone || '').trim();
         const amount = Number(smartParsedData?.amountEGP || 0);
         if (!phone || (service.destinationPattern && !new RegExp(service.destinationPattern).test(phone))) {
@@ -347,12 +350,24 @@
         return '';
     };
 
+    const smartDuplicateMessage = () => {
+        const check = smartParsedData?.duplicateCheck;
+        if (!check?.detected) return '';
+        const states = [check.pending ? 'قيد الانتظار أو التنفيذ' : '', check.completed ? 'ناجحة' : ''].filter(Boolean).join(' و');
+        return `تنبيه تكرار: توجد عملية للشركة بنفس المحفظة والمبلغ خلال آخر 24 ساعة (${states}). راجع سجل العمليات قبل إرسال تحويل آخر.`;
+    };
+
     const renderSmartPreview = () => {
         if (!smartTransferPreview || !smartParsedData) return;
         const rate = Number(activeService?.rate || 0);
         const amount = Number(smartParsedData.amountEGP || 0);
         const amountLyd = calculateCostLyd(amount, rate, activeService);
         smartTransferPreview.hidden = false;
+        if (smartTransferDuplicate) {
+            const warning = smartDuplicateMessage();
+            smartTransferDuplicate.hidden = !warning;
+            smartTransferDuplicate.textContent = warning;
+        }
         if (smartPreviewPhone) smartPreviewPhone.textContent = smartParsedData.phone || 'غير متوفر';
         if (smartPreviewAmount) smartPreviewAmount.textContent = amount > 0 ? `${formatNumber(amount, Number.isInteger(amount) ? 0 : 2)} ${sourceCurrencyLabel(activeService)}` : 'غير متوفر';
         if (smartPreviewRate) smartPreviewRate.textContent = rate > 0 ? formatExchangeRate(rate) : 'غير متوفر';
@@ -381,6 +396,7 @@
         smartParsedData = null;
         if (smartTransferPreview) smartTransferPreview.hidden = true;
         if (smartTransferSendButton) smartTransferSendButton.disabled = true;
+        if (smartTransferDuplicate) smartTransferDuplicate.hidden = true;
         if (clearMessage && smartTransferMessage) smartTransferMessage.value = '';
         setSmartStatus('');
     };
@@ -659,9 +675,9 @@
         }
 
         if (smartParseController) smartParseController.abort();
+        resetSmartTransfer(false);
         const controller = new AbortController();
         smartParseController = controller;
-        const originalHtml = smartTransferAnalyzeButton?.innerHTML;
         if (smartTransferAnalyzeButton) {
             smartTransferAnalyzeButton.disabled = true;
             smartTransferAnalyzeButton.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i>جارٍ التحليل';
@@ -680,10 +696,12 @@
                 signal: controller.signal
             });
             const payload = await parseJsonResponse(response);
+            if (controller.signal.aborted || smartParseController !== controller || smartTransferMessage.value.trim() !== message) return false;
             if (!response.ok || !payload.success) throw new Error(payload.error || 'تعذر تحليل الرسالة.');
             applySmartTransferData(payload.parsed || {});
+            return true;
         } catch (error) {
-            if (error.name !== 'AbortError') {
+            if (error.name !== 'AbortError' && smartParseController === controller) {
                 resetSmartTransfer(false);
                 setSmartStatus(error.message || 'تعذر تحليل الرسالة.', 'danger');
             }
@@ -692,7 +710,7 @@
                 smartParseController = null;
                 if (smartTransferAnalyzeButton) {
                     smartTransferAnalyzeButton.disabled = false;
-                    smartTransferAnalyzeButton.innerHTML = originalHtml;
+                    smartTransferAnalyzeButton.innerHTML = smartAnalyzeLabel;
                 }
             }
         }
@@ -702,14 +720,17 @@
     smartTransferMessage?.addEventListener('input', () => {
         window.clearTimeout(smartParseTimer);
         if (smartParseController) smartParseController.abort();
+        resetSmartTransfer(false);
         if (smartTransferMessage.value.trim().length < 3) {
             resetSmartTransfer(false);
             return;
         }
         smartParseTimer = window.setTimeout(analyzeSmartTransfer, 550);
     });
-    smartTransferSendButton?.addEventListener('click', () => {
+    smartTransferSendButton?.addEventListener('click', async () => {
         if (!smartParsedData?.ready) return;
+        // Recheck recent operations immediately before showing the final review.
+        if (!await analyzeSmartTransfer() || !smartParsedData?.ready) return;
         const directIssue = smartTransferDirectIssue();
         if (directIssue) {
             setSmartStatus(directIssue, 'danger');
@@ -1130,7 +1151,10 @@
         pendingTransferConfirm = onConfirm;
         if (transferConfirmTitle) transferConfirmTitle.textContent = title || 'تأكيد العملية';
         transferConfirmBody.innerHTML = html;
-        if (transferConfirmSubmit) transferConfirmSubmit.innerHTML = confirmHtml || defaultTransferConfirmSubmitHtml;
+        if (transferConfirmSubmit) {
+            transferConfirmSubmit.innerHTML = confirmHtml || defaultTransferConfirmSubmitHtml;
+            transferConfirmSubmit.disabled = false;
+        }
         openDialog(transferConfirmDialog);
     };
 
@@ -1192,9 +1216,11 @@
                     <div><span>الخدمة</span><strong>${escapeHtml(service.label)}</strong></div>
                     <div><span>رقم المستلم</span><strong class="bw-mono">${escapeHtml(destination)}</strong></div>
                     <div><span>المبلغ</span><strong class="bw-mono">${escapeHtml(formatNumber(amount, Number.isInteger(amount) ? 0 : 2))} ${escapeHtml(sourceCurrencyLabel(service))}</strong></div>
+                    <div><span>سعر الصرف</span><strong class="bw-mono">${escapeHtml(formatExchangeRate(rate, service))}</strong></div>
                     <div><span>التكلفة التقديرية</span><strong class="bw-mono">${escapeHtml(formatNumber(cost, 3))} LYD</strong></div>
                     ${smartParsedData?.note ? `<div><span>الملاحظة</span><strong>${escapeHtml(smartParsedData.note)}</strong></div>` : ''}
                 </div>
+                ${smartDuplicateMessage() ? `<div class="cm-smart-duplicate" role="alert">${escapeHtml(smartDuplicateMessage())}</div><label class="cm-smart-ack"><input type="checkbox" id="smartDuplicateAcknowledged"><span>راجعت احتمال التكرار وأريد إنشاء تحويل جديد.</span></label>` : ''}
                 <label class="bw-field">
                     <span>رقم واتساب العميل <em>اختياري</em></span>
                     <input type="text" id="smartPreviewClientPhone" class="bw-mono" dir="ltr" inputmode="tel" autocomplete="tel" maxlength="30" placeholder="رقم لاستلام الإيصال عبر واتساب">
@@ -1202,6 +1228,13 @@
                 </label>`,
             onConfirm: executeSmartTransfer
         });
+        const acknowledgement = document.getElementById('smartDuplicateAcknowledged');
+        if (acknowledgement && transferConfirmSubmit) {
+            transferConfirmSubmit.disabled = true;
+            acknowledgement.addEventListener('change', () => {
+                transferConfirmSubmit.disabled = !acknowledgement.checked;
+            });
+        }
     };
 
     const openTransferConfirm = () => {
@@ -1240,6 +1273,8 @@
         openTransferConfirm();
     });
     transferConfirmSubmit?.addEventListener('click', () => {
+        const acknowledgement = document.getElementById('smartDuplicateAcknowledged');
+        if (acknowledgement && !acknowledgement.checked) return;
         const next = pendingTransferConfirm;
         pendingTransferConfirm = null;
         transferConfirmDialog?.close();

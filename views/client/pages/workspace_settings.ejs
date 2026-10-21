@@ -4,7 +4,7 @@
 <section class="cp-page-hero">
     <div>
         <span class="bw-section-kicker">ملف الشركة</span>
-        <h2>بيانات المنشأة</h2>
+        <h2>بيانات الشركة</h2>
         <p>التواصل والمدينة والسجل في هذه الصفحة. كلمة المرور والأجهزة في أمان الحساب.</p>
     </div>
     <div class="cp-page-hero-actions">
@@ -21,7 +21,7 @@
 </section>
 <% } %>
 
-<section class="bw-settings-health-grid" aria-label="ملخص الحساب">
+<section class="bw-settings-health-grid cm-settings-account-info" aria-label="ملخص الحساب">
     <article><span class="tone-blue"><i class="fa-solid fa-id-card"></i></span><div><small>رقم الحساب</small><strong class="bw-mono"><%= accountCode %></strong></div></article>
     <article><span class="tone-green"><i class="fa-solid fa-user-shield"></i></span><div><small>دورك الحالي</small><strong><%= workspace.roleLabel %></strong></div></article>
     <% if (workspace.permissions.canViewBalance) { %>
@@ -30,6 +30,13 @@
     <article><span class="tone-violet"><i class="fa-solid fa-building-shield"></i></span><div><small>اسم الدخول</small><strong dir="ltr"><%= workspace.actor.webUsername || workspace.actor.phone %></strong></div></article>
 </section>
 
+<% if (workspace.isCompany) { %>
+<nav class="cm-settings-categories" aria-label="أقسام الإعدادات">
+<a href="#identity"><i class="fa-solid fa-building"></i><strong>بيانات الشركة</strong><span>التواصل والعنوان والسجل</span></a>
+<a href="#preferences"><i class="fa-solid fa-palette"></i><strong>المظهر</strong><span>الوضع النهاري والليلي</span></a>
+<a href="#notifications"><i class="fa-solid fa-bell"></i><strong>الإشعارات</strong><span>تفضيلات التنبيهات</span></a>
+<a href="#integrations"><i class="fa-solid fa-plug"></i><strong>التكاملات</strong><span>الربط مع أنظمة شركتك</span></a>
+</nav><button type="button" class="bw-button ghost cm-settings-back" data-settings-back hidden><i class="fa-solid fa-arrow-right"></i> جميع الإعدادات</button><% } %>
 <div class="bw-settings-stack">
     <section class="bw-settings-panel active" id="identity">
         <header class="bw-settings-panel-head"><span class="bw-settings-panel-icon tone-blue"><i class="fa-solid fa-address-card"></i></span><div><span>الحساب والملف الشخصي</span><h2>بيانات <%= workspace.entityLabel %></h2><p>معلومات التواصل المستخدمة داخل المنظومة.</p></div></header>
@@ -44,7 +51,7 @@
     </section>
 
     <section class="bw-settings-panel" id="preferences">
-        <header class="bw-settings-panel-head"><span class="bw-settings-panel-icon tone-violet"><i class="fa-solid fa-palette"></i></span><div><span>المظهر والتجربة</span><h2><%= workspace.isCompany ? 'مظهر الحساب' : 'مظهر بوابة العملاء' %></h2><p><%= workspace.isCompany ? 'يُحفظ على الحساب في preferences.companyTheme ويتبعك بعد إعادة الدخول وعلى الهاتف.' : 'يُحفظ على الحساب في preferences.clientTheme ويتبعك بعد إعادة الدخول وعلى الهاتف.' %></p></div></header>
+        <header class="bw-settings-panel-head"><span class="bw-settings-panel-icon tone-violet"><i class="fa-solid fa-palette"></i></span><div><span>المظهر والتجربة</span><h2><%= workspace.isCompany ? 'مظهر الحساب' : 'مظهر بوابة العملاء' %></h2><p><%= workspace.isCompany ? 'يُحفظ اختيارك على الحساب ويظهر عند الدخول من الهاتف أو الكمبيوتر.' : 'يُحفظ على الحساب في preferences.clientTheme ويتبعك بعد إعادة الدخول وعلى الهاتف.' %></p></div></header>
         <div class="bw-settings-choice-grid">
             <% if (workspace.isCompany) { %>
             <label class="bw-field"><span>مظهر بوابة الشركات</span><select id="workspaceThemeSelect" data-preference="company-theme"><option value="day">نهاري</option><option value="night">ليلي</option><option value="pharaonic">فرعوني</option></select></label>
@@ -55,7 +62,7 @@
             <label class="bw-field"><span>كثافة الجداول</span><select id="workspaceDensitySelect" data-preference="density"><option value="comfortable">مريحة</option><option value="compact">مضغوطة</option></select></label>
             <% } %>
         </div>
-        <div class="bw-setting-note"><i class="fa-solid fa-display"></i><span><strong>تفضيل الحساب</strong><small>localStorage للرسم الفوري فقط. بعد تسجيل الدخول قيمة الخادم هي المصدر.</small></span></div>
+        <div class="bw-setting-note"><i class="fa-solid fa-display"></i><span><strong>تفضيل الحساب</strong><small>يُطبّق مظهر حسابك عند تسجيل الدخول، ويمكنك تغييره في أي وقت.</small></span></div>
     </section>
 
     <section class="bw-settings-panel" id="notifications">

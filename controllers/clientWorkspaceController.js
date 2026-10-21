@@ -44,6 +44,7 @@ const { logAction } = require('../services/auditService');
 const { customerNoteFromTransaction } = require('../utils/transactionNotes');
 const { sanitizeStatementText } = require('../utils/accountStatementPrivacy');
 const { parseTransferMessage } = require('../utils/smartTransferParser');
+const { findCompanyDuplicate } = require('../services/smartTransferReviewService');
 const businessPortalAssistantService = require('../services/businessPortalAssistantService');
 const { buildMarginStorage } = require('../utils/agencyPricing');
 const { SERVICE_RATE_KEYS } = require('../utils/rateHelper');
@@ -778,7 +779,9 @@ exports.parseSmartTransferMessage = async (req, res) => {
             return res.status(400).json({ success: false, error: 'أدخل رسالة التحويل أولاً.' });
         }
 
-        return res.json({ success: true, parsed: parseTransferMessage(message) });
+        const parsed = parseTransferMessage(message);
+        parsed.duplicateCheck = await findCompanyDuplicate(workspace, parsed);
+        return res.json({ success: true, parsed });
     } catch (error) {
         const statusCode = error.statusCode === 401 ? 401 : 500;
         console.error('[Business Portal] smart transfer parse failed:', error.message);

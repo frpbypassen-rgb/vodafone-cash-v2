@@ -1,0 +1,19 @@
+<% const primaryKeys = ['overview', 'services', 'transactions', 'deposits', 'staff', 'reports'];
+const navLabels = { overview: 'الرئيسية', services: 'الخدمات', transactions: 'العمليات', deposits: 'الإيداعات', staff: 'الموظفون', reports: 'التقارير' }; %>
+<header class="cm-header">
+    <a class="cm-brand" href="<%= portalHomeHref %>" aria-label="الأهرام — الرئيسية">
+        <img src="/images/logo.jpeg" alt="شعار الأهرام" onerror="this.onerror=null;this.src='/images/logo.jpg'">
+        <span><strong>AL-AHRAM <b>Pay</b></strong><small><%= workspace.entity.name %></small></span>
+    </a>
+    <nav class="cm-navigation" aria-label="أقسام الشركة">
+        <% primaryKeys.forEach(key => { const item = navigation.find(link => link.key === key); if (!item) return; %>
+            <a href="<%= item.href %>" class="<%= item.active ? 'active' : '' %>" <%- item.active ? 'aria-current="page"' : '' %>><%= navLabels[key] %></a>
+        <% }) %>
+    </nav>
+    <div class="cm-header-actions">
+        <%- include('company_notifications') %>
+        <%- include('company_theme_switcher') %>
+        <button type="button" class="bw-icon-button" data-sidebar-toggle aria-controls="businessSidebar" aria-expanded="false" aria-label="المزيد من أقسام الشركة"><i class="fa-solid fa-bars"></i></button>
+        <a class="cm-profile" href="/client/settings" aria-label="حساب <%= workspace.actor.name %>"><span class="bw-avatar"><%= String(workspace.actor.name || 'م').trim().charAt(0) %></span><span><strong><%= workspace.actor.name %></strong><small><%= workspace.roleLabel %></small></span></a>
+    </div>
+</header>
