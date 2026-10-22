@@ -194,7 +194,7 @@
             const select = document.querySelector('[data-preference="company-theme"]');
             if (select) select.value = next;
             if (!persist) return;
-            localStorage.setItem('ahram_company_theme', next);
+            try { localStorage.setItem('ahram_company_theme', next); } catch (_) { /* Optional browser storage. */ }
             fetch('/client/api/theme', {
                 method: 'POST',
                 headers: jsonHeaders,
@@ -203,7 +203,8 @@
         };
 
         const serverTheme = THEMES.includes(root.getAttribute('data-theme')) ? root.getAttribute('data-theme') : '';
-        const stored = localStorage.getItem('ahram_company_theme');
+        let stored = null;
+        try { stored = localStorage.getItem('ahram_company_theme'); } catch (_) { /* Use the server preference. */ }
         const current = serverTheme || (THEMES.includes(stored) ? stored : 'day');
         applyTheme(current, false);
         if (serverTheme) {

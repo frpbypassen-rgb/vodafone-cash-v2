@@ -3,6 +3,7 @@
 const fs = require('fs');
 const path = require('path');
 const ejs = require('ejs');
+const vm = require('vm');
 const {
     resolveAccountCompanyTheme,
     resolveCompanyTheme,
@@ -14,6 +15,28 @@ const WORKSPACE_HEAD = path.join(__dirname, '..', 'views', 'client', 'partials',
 const WORKSPACE_VIEW = path.join(__dirname, '..', 'views', 'client', 'workspace.ejs');
 
 describe('company theme SSR and preferences', () => {
+    test.each(['day', 'night'])('keeps the %s portal usable when browser storage is blocked', async (theme) => {
+        const head = await ejs.renderFile(WORKSPACE_HEAD, {
+            pageMeta: { title: 'التحويل الذكي' },
+            workspace: { isCompany: true },
+            companyTheme: theme
+        });
+        const attributes = {};
+        const context = {
+            localStorage: {
+                getItem() { throw new Error('Storage blocked'); },
+                setItem() { throw new Error('Storage blocked'); }
+            },
+            window: { matchMedia: () => ({ matches: false }) },
+            document: {
+                documentElement: { dataset: {}, setAttribute: (key, value) => { attributes[key] = value; } },
+                querySelector: () => null
+            }
+        };
+        expect(() => vm.runInNewContext(head.match(/<script>([\s\S]*?)<\/script>/)[1], context)).not.toThrow();
+        expect(attributes['data-theme']).toBe(theme);
+        expect(attributes['data-portal']).toBe('company');
+    });
     test('reads preferences.companyTheme and aliases legacy uiTheme', () => {
         expect(readStoredCompanyTheme({ preferences: { companyTheme: 'night' }, uiTheme: 'day' })).toBe('night');
         expect(readStoredCompanyTheme({ uiTheme: 'pharaonic' })).toBe('pharaonic');

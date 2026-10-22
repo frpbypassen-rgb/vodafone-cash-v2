@@ -5,12 +5,15 @@
     <title><%= pageMeta.title %> | Power Pay AL-Ahram</title>
     <script>
         (() => {
+            const readPreference = (key) => {
+                try { return localStorage.getItem(key); } catch (_) { return null; }
+            };
             const isCompany = <%- JSON.stringify(typeof workspace !== 'undefined' && Boolean(workspace.isCompany)) %>;
-            const density = localStorage.getItem('powerpay-business-density') || 'comfortable';
+            const density = readPreference('powerpay-business-density') || 'comfortable';
             document.documentElement.dataset.density = density;
             if (isCompany) {
                 const valid = ['day', 'night', 'pharaonic'];
-                const stored = localStorage.getItem('ahram_company_theme');
+                const stored = readPreference('ahram_company_theme');
                 const server = <%- JSON.stringify(typeof companyTheme !== 'undefined' ? companyTheme : '') %>;
                 const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
                 // After login the server preference wins. localStorage is only a
@@ -27,7 +30,7 @@
                 return;
             }
             const valid = ['day', 'night', 'pharaonic'];
-            const stored = localStorage.getItem('ahram_client_theme');
+            const stored = readPreference('ahram_client_theme');
             const server = <%- JSON.stringify(typeof clientTheme !== 'undefined' ? clientTheme : '') %>;
             const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
             const theme = valid.includes(server) ? server : (valid.includes(stored) ? stored : (prefersDark ? 'night' : 'day'));
@@ -54,7 +57,7 @@
         <link rel="stylesheet" href="/css/company-portal-theme-pharaonic.css?v=20260920-cp-m1" data-company-shell-css>
         <link rel="stylesheet" href="/css/company-portal.css?v=20260920-cp-m1" data-company-shell-css>
         <link rel="stylesheet" href="/css/company-modern.css?v=20261022-smart" data-company-shell-css>
-        <link rel="stylesheet" href="/css/company-internal.css?v=20261022-3" data-company-shell-css>
+        <link rel="stylesheet" href="/css/company-internal.css?v=20261022-mobile-review" data-company-shell-css>
     <% } else { %>
         <link rel="stylesheet" href="/css/client-portal-2027.css?v=20260920-cl-m2">
         <%- include('customer_portal_styles') %>

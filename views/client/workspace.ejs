@@ -175,8 +175,10 @@
     <dialog class="bw-dialog<%= workspace.isCompany ? ' cp-dialog' : '' %>" id="transferConfirmDialog" aria-labelledby="transferConfirmTitle">
         <% if (workspace.isCompany) { %>
         <div class="cp-dialog-body">
+            <header class="cp-transfer-review-head" tabindex="-1" autofocus>
             <span class="bw-section-kicker">مراجعة قبل الإرسال</span>
             <h2 id="transferConfirmTitle">تأكيد العملية</h2>
+            </header>
             <div class="bw-dialog-body" id="transferConfirmBody"></div>
             <div class="bw-dialog-actions">
                 <button type="button" class="bw-button secondary" data-dialog-close>تعديل</button>
@@ -343,10 +345,10 @@
             }
         })();
     </script>
-    <script src="/js/client-workspace.js?v=20261022-notifications" defer></script>
+    <script src="/js/client-workspace.js?v=20261022-mobile-review" defer></script>
     <% if (workspace.isCompany) { %>
     <% if (page === 'overview') { %><script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script><% } %>
-    <script src="/js/company-portal.js?v=20260920-cp-m1" defer></script>
+    <script src="/js/company-portal.js?v=20261022-browser-compat" defer></script>
     <script src="/js/company-internal.js?v=20261022-2" defer></script>
     <% } else { %>
     <script src="/js/client-portal.js?v=20260920-cl-m2" defer></script>

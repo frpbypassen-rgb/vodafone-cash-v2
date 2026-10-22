@@ -429,3 +429,88 @@ html[data-portal="company"] .cm-reference-transfer .cm-recent-disclosure { width
  html[data-portal="company"] .cm-deposit-request > summary { width: 100%; }
  html[data-portal="company"] .cm-deposit-history .bw-section-kicker { display: none; }
 }
+/* Keep transfer actions outside the scrolling details on every viewport. */
+html[data-portal="company"] #transferConfirmDialog {
+    box-sizing: border-box;
+    width: calc(100% - 24px);
+    max-width: 620px;
+    max-height: calc(100vh - 24px);
+    max-height: min(760px, calc(var(--cp-review-height, 100vh) - 24px));
+    padding: 0;
+    overflow: hidden;
+}
+html[data-portal="company"] #transferConfirmDialog > .cp-dialog-body {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    flex: 1 1 auto;
+    min-height: 0;
+    max-height: inherit;
+    padding: 0;
+    gap: 0;
+    overflow: hidden;
+}
+html[data-portal="company"] #transferConfirmDialog .cp-transfer-review-head {
+    flex: 0 0 auto;
+    padding: 16px 20px 12px;
+    border-bottom: 1px solid var(--cp-line);
+}
+html[data-portal="company"] #transferConfirmTitle { margin: 4px 0 0; font-size: 20px; }
+html[data-portal="company"] #transferConfirmBody {
+    flex: 1 1 auto;
+    min-height: 0;
+    max-height: none;
+    margin: 0;
+    padding: 16px 20px;
+    overflow-y: auto;
+    overscroll-behavior-y: contain;
+    -webkit-overflow-scrolling: touch;
+    text-align: start;
+    overflow-wrap: anywhere;
+}
+html[data-portal="company"] #transferConfirmDialog .bw-dialog-actions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+    flex: 0 0 auto;
+    gap: 10px;
+    margin: 0;
+    min-height: 0;
+    padding: 12px 16px;
+    padding-bottom: max(12px, env(safe-area-inset-bottom, 0px));
+    background: var(--cp-surface);
+    border-top: 1px solid var(--cp-line);
+}
+html[data-portal="company"] #transferConfirmDialog .bw-dialog-actions .bw-button {
+    width: 100%;
+    min-width: 0;
+    min-height: 44px;
+    padding: 10px 8px;
+    font-size: 14px;
+    white-space: normal;
+    justify-content: center;
+}
+@media (max-width: 760px), (max-height: 500px) {
+    html[data-portal="company"] #transferConfirmDialog[open] {
+        position: fixed;
+        top: var(--cp-review-top, 0px);
+        bottom: auto;
+        margin: 12px auto;
+        border-radius: 16px;
+        animation: none;
+    }
+    html[data-portal="company"] #transferConfirmDialog .cp-transfer-review-head { padding: 12px 14px 8px; }
+    html[data-portal="company"] #transferConfirmTitle { font-size: 18px; }
+    html[data-portal="company"] #transferConfirmBody { padding: 12px 14px; }
+    html[data-portal="company"] #transferConfirmBody input { font-size: 16px; }
+    html[data-portal="company"] #transferConfirmBody .bw-cost-preview > div { padding: 10px; }
+}
+/* Baseline styles remain usable when decorative modern features are unavailable. */
+@supports not (height: 100dvh) {
+    html[data-portal="company"] #transactionDetailsDialog[open],
+    html[data-portal="company"] #createStaffDialog[open],
+    html[data-portal="company"] #staffPasswordDialog[open] { height: 100vh; max-height: 100vh; }
+}
+@supports not (background: color-mix(in srgb, white, black)) {
+    html[data-portal="company"] :is(input, select, textarea):focus-visible { outline: 2px solid var(--cp-icon); }
+    html[data-portal="company"] .bw-dialog { background: var(--cp-surface); border-color: var(--cp-line); }
+}

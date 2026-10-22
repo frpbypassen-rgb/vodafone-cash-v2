@@ -4,6 +4,12 @@
     const config = window.businessPortal || {};
     const root = document.documentElement;
     const body = document.body;
+    const readPreference = (key) => {
+        try { return localStorage.getItem(key); } catch (_) { return null; }
+    };
+    const savePreference = (key, value) => {
+        try { localStorage.setItem(key, value); } catch (_) { /* Preferences must not block transfers. */ }
+    };
 
     const escapeHtml = (value) => String(value ?? '')
         .replace(/&/g, '&amp;')
@@ -91,7 +97,7 @@
     };
 
     const applyTheme = (preference) => {
-        localStorage.setItem('powerpay-business-theme', preference);
+        savePreference('powerpay-business-theme', preference);
         root.dataset.theme = resolveTheme(preference);
         body.dataset.theme = root.dataset.theme;
         const icon = document.querySelector('[data-theme-toggle] i');
@@ -100,7 +106,7 @@
         if (select) select.value = preference;
     };
 
-    const savedTheme = localStorage.getItem('powerpay-business-theme') || 'light';
+    const savedTheme = readPreference('powerpay-business-theme') || 'light';
     const isCustomerPortal = root.getAttribute('data-portal') === 'customer' || body.classList.contains('cl-app');
     if (config.workspaceType !== 'company' && !body.hasAttribute('data-company-shell') && !isCustomerPortal) {
         applyTheme(savedTheme);
@@ -113,18 +119,18 @@
 
     const densitySelect = document.querySelector('[data-preference="density"]');
     if (densitySelect) {
-        densitySelect.value = localStorage.getItem('powerpay-business-density') || 'comfortable';
+        densitySelect.value = readPreference('powerpay-business-density') || 'comfortable';
         densitySelect.addEventListener('change', () => {
-            localStorage.setItem('powerpay-business-density', densitySelect.value);
+            savePreference('powerpay-business-density', densitySelect.value);
             root.dataset.density = densitySelect.value;
         });
     }
 
     document.querySelectorAll('[data-notification-preference]').forEach((input) => {
         const key = `powerpay-notification-${input.dataset.notificationPreference}`;
-        const stored = localStorage.getItem(key);
+        const stored = readPreference(key);
         if (stored !== null) input.checked = stored === 'true';
-        input.addEventListener('change', () => localStorage.setItem(key, String(input.checked)));
+        input.addEventListener('change', () => savePreference(key, String(input.checked)));
     });
 
     const settingsShell = document.querySelector('[data-settings-shell]');
@@ -972,6 +978,24 @@
     const transferConfirmDialog = document.getElementById('transferConfirmDialog');
     const transferConfirmBody = document.getElementById('transferConfirmBody');
     const transferConfirmTitle = document.getElementById('transferConfirmTitle');
+    const updateReviewViewport = () => {
+        if (!transferConfirmDialog || config.workspaceType !== 'company') return;
+        const viewport = window.visualViewport;
+        // Older engines use innerHeight; mobile keyboards resize the visual viewport.
+        transferConfirmDialog.style.setProperty('--cp-review-height', `${viewport?.height || window.innerHeight}px`);
+        transferConfirmDialog.style.setProperty('--cp-review-top', `${viewport?.offsetTop || 0}px`);
+    };
+    const trackReviewViewport = () => {
+        updateReviewViewport();
+        window.addEventListener('resize', updateReviewViewport);
+        window.visualViewport?.addEventListener('resize', updateReviewViewport);
+        window.visualViewport?.addEventListener('scroll', updateReviewViewport);
+    };
+    transferConfirmDialog?.addEventListener('close', () => {
+        window.removeEventListener('resize', updateReviewViewport);
+        window.visualViewport?.removeEventListener('resize', updateReviewViewport);
+        window.visualViewport?.removeEventListener('scroll', updateReviewViewport);
+    });
     const transferSuccessDialog = document.getElementById('transferSuccessDialog');
     const transferSuccessCopy = document.getElementById('transferSuccessCopy');
     const transferSuccessRef = document.getElementById('transferSuccessRef');
@@ -1155,7 +1179,10 @@
             transferConfirmSubmit.innerHTML = confirmHtml || defaultTransferConfirmSubmitHtml;
             transferConfirmSubmit.disabled = false;
         }
+        trackReviewViewport();
         openDialog(transferConfirmDialog);
+        transferConfirmBody.scrollTop = 0;
+        transferConfirmDialog.querySelector('.cp-transfer-review-head')?.focus({ preventScroll: true });
     };
 
     const executeSmartTransfer = async () => {
