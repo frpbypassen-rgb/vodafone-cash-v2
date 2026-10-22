@@ -1652,6 +1652,29 @@
     const companyMessageTitle = document.getElementById('companyMessageTitle');
     const companyMessageCopy = document.getElementById('companyMessageCopy');
     const companyLowBalanceDialog = document.getElementById('companyLowBalanceDialog');
+    const companyAlertKey = (name) => `company-os-alert:${config.notificationScope || 'local'}:${name}`;
+    const alertMemory = new Map();
+    const readCompanyAlert = (name) => {
+        const key = companyAlertKey(name);
+        for (const storageName of ['localStorage', 'sessionStorage']) {
+            try {
+                const value = window[storageName].getItem(key);
+                if (value) return value;
+            } catch (_) { /* Try the next available storage. */ }
+        }
+        return alertMemory.get(key);
+    };
+    const saveCompanyAlert = (name, value) => {
+        const key = companyAlertKey(name);
+        if (value) alertMemory.set(key, value);
+        else alertMemory.delete(key);
+        for (const storageName of ['localStorage', 'sessionStorage']) {
+            try {
+                if (value) window[storageName].setItem(key, value);
+                else window[storageName].removeItem(key);
+            } catch (_) { /* Storage is optional in private browsers. */ }
+        }
+    };
     const clearLegacyRateMessageMarkers = () => {
         try {
             Object.keys(localStorage)
@@ -1709,19 +1732,21 @@
     };
     const showLowBalanceAlert = () => {
         const alert = config.lowBalanceAlert;
-        if (config.workspaceType !== 'company' || !companyLowBalanceDialog || !alert) return false;
-        let alreadySeen = false;
-        try {
-            alreadySeen = Boolean(sessionStorage.getItem('company-os-low-balance'));
-            if (!alreadySeen) sessionStorage.setItem('company-os-low-balance', '1');
-        } catch (_) { /* optional */ }
-        if (alreadySeen) return false;
+        if (config.workspaceType !== 'company' || !companyLowBalanceDialog) return false;
+        if (!alert) {
+            // Re-arm only after the balance has recovered, not on every amount change.
+            if (config.canViewBalance) saveCompanyAlert('low-balance', null);
+            return false;
+        }
+        const alertState = `${alert.tone || 'warning'}:${alert.title || ''}`;
+        if (readCompanyAlert('low-balance') === alertState) return false;
         const title = document.getElementById('companyLowBalanceTitle');
         const copy = document.getElementById('companyLowBalanceCopy');
         if (title) title.textContent = alert.title;
         if (copy) copy.textContent = alert.copy;
         companyLowBalanceDialog.dataset.tone = alert.tone || 'warning';
         openDialog(companyLowBalanceDialog);
+        if (companyLowBalanceDialog.open) saveCompanyAlert('low-balance', alertState);
         return true;
     };
     const afterCompanyWelcome = () => {
@@ -1738,17 +1763,17 @@
             afterCompanyWelcome();
             return;
         }
-        let alreadySeen = false;
-        try {
-            alreadySeen = Boolean(sessionStorage.getItem('company-os-welcome'));
-            if (!alreadySeen) sessionStorage.setItem('company-os-welcome', '1');
-        } catch (_) { /* optional */ }
+        let alreadySeen = Boolean(readCompanyAlert('welcome'));
+        // Preserve the current tab's acknowledgement when upgrading the portal.
+        try { alreadySeen ||= Boolean(sessionStorage.getItem('company-os-welcome')); } catch (_) { /* optional */ }
         if (alreadySeen) {
+            saveCompanyAlert('welcome', '1');
             afterCompanyWelcome();
             return;
         }
         companyWelcomeDialog.addEventListener('close', afterCompanyWelcome, { once: true });
         openDialog(companyWelcomeDialog);
+        if (companyWelcomeDialog.open) saveCompanyAlert('welcome', '1');
     };
     showCompanyWelcome();
 
