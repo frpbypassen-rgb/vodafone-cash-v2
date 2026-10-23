@@ -175,13 +175,13 @@ const invokeJson = (handler, req) => new Promise((resolve) => {
     });
 });
 
-const adminApp = () => {
+const adminApp = (actor = null) => {
     const app = express();
     app.use(express.json());
     app.use((req, _res, next) => {
         req.session = {
             isLoggedIn: true,
-            adminId: 'admin-resolver',
+            adminId: actor ? String(actor._id) : 'admin-resolver',
             adminName: 'مراجع المزود',
             adminRole: 'admin',
             adminPermissions: ['transactions.resolve_provider']
@@ -341,6 +341,65 @@ describe('manual provider resolution', () => {
         note,
         confirm: false,
         actor: { id: admin._id, name: admin.name, role: admin.role, permissions: admin.permissions }
+    });
+
+    test.each(['legacy_id', 'dispatch_marker', 'waiting_completion'])('resolves %s once without a second provider payment', async (kind) => {
+        const { tx, executor } = await createHeldTransfer();
+        tx.apiResultData = kind === 'legacy_id' ? { providerTransactionId: '6103691' }
+            : kind === 'dispatch_marker' ? { providerDispatchStartedAt: new Date(Date.now() - 600000) }
+                : { providerTransactionId: '6103691', providerDispatchResult: 'accepted', waitingApiAutoCompletion: true, referenceNumber: '0121****429' };
+        tx.markModified('apiResultData');
+        await tx.save();
+        const admin = await resolver(['transactions.resolve_provider']);
+        const first = await confirmResolution(tx, admin, 'provider_paid', tx.updatedAt);
+        const second = await confirmResolution(tx, admin, 'provider_paid', tx.updatedAt);
+        const stored = await Transaction.findById(tx._id);
+        expect(first.applied).toBe(true);
+        expect(second.idempotent).toBe(true);
+        expect(stored.status).toBe('completed');
+        expect(stored.apiResultData.waitingApiAutoCompletion).toBe(false);
+        if (kind !== 'dispatch_marker') expect(stored.apiResultData.providerTransactionId).toBe('6103691');
+        expect(await moneySnapshot(executor._id)).toEqual({ debits: 1, refunds: 0, paymentCalls: 0 });
+    });
+
+    test('never reopens a cancelled operation with stale unresolved flags', async () => {
+        const { tx } = await createHeldTransfer({ status: 'cancelled_by_admin' });
+        const admin = await resolver(['transactions.resolve_provider']);
+        const result = await confirmResolution(tx, admin, 'provider_paid', tx.updatedAt);
+        expect(result.success).toBe(false);
+        expect((await Transaction.findById(tx._id)).status).toBe('cancelled_by_admin');
+        expect(await Ledger.countDocuments()).toBe(0);
+    });
+
+    test.each(['matched', 'mismatch', 'returned', 'changed'])('provider status check handles %s safely without Payment', async (scenario) => {
+        const { tx, executor } = await createHeldTransfer();
+        tx.apiResultData = { providerTransactionId: '6103691' };
+        tx.markModified('apiResultData');
+        await tx.save();
+        const admin = await resolver(['transactions.resolve_provider']);
+        axios.post.mockImplementationOnce(async (url, body) => {
+            expect(url).toContain('/Transactions/Print');
+            expect(body).toEqual({ TransactionNumber: '6103691' });
+            if (scenario === 'changed') await Transaction.updateOne({ _id: tx._id }, { $set: { status: 'cancelled_by_admin' } });
+            return { data: { Code: 200, Data: {
+                TransactionId: '6103691', RefNumber: '0121****429',
+                PhoneNumber: tx.vodafoneNumber, Amount: scenario === 'mismatch' ? 101 : AMOUNT,
+                TransactionStatus: scenario === 'returned' ? 'ملغية' : 'عمليه ناجحه'
+            } } };
+        });
+        const response = await request(adminApp(admin)).post(`/transaction/${tx._id}/provider-status-check`).set('Accept', 'application/json');
+        const stored = await Transaction.findById(tx._id);
+        if (scenario === 'matched') {
+            expect(response.status).toBe(200);
+            expect(response.body.action).toBe('completed_from_provider_check');
+            expect(stored.status).toBe('completed');
+            expect(stored.apiResultData.providerTransactionId).toBe('6103691');
+            expect(await moneySnapshot(executor._id)).toEqual({ debits: 1, refunds: 0, paymentCalls: 0 });
+        } else {
+            expect(response.body.code).toBe({ mismatch: 'PROVIDER_DETAILS_MISMATCH', returned: 'PROVIDER_RETURNED', changed: 'ROW_CHANGED' }[scenario]);
+            expect(stored.status).toBe(scenario === 'changed' ? 'cancelled_by_admin' : 'processing');
+            expect(await moneySnapshot(executor._id)).toEqual({ debits: 0, refunds: 0, paymentCalls: 0 });
+        }
     });
 
     test('refuses missing evidence and missing permission without writing', async () => {

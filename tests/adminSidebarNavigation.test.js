@@ -92,9 +92,10 @@ describe('admin sidebar navigation', () => {
         const menuStart = html.indexOf('class="sidebar-menu');
         const monitoringBlock = html.slice(menuStart, html.indexOf('إدارة الحسابات'));
         const anchors = [...monitoringBlock.matchAll(/<a\b[^>]*href="([^"]+)"[^>]*>/g)].map((match) => match[1]);
-        expect(anchors.slice(0, 6)).toEqual([
+        expect(anchors.slice(0, 7)).toEqual([
             '/',
             '/transactions/operations',
+            '/transactions/operations?providerReview=1',
             '/financial-movements',
             '/transactions/deposits?party=company',
             '/transactions/deposits?party=executor',

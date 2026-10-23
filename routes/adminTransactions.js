@@ -63,6 +63,8 @@ const {
     isMaskedProviderReference
 } = require('../services/externalApiService');
 const { resolveProviderResult } = require('../services/providerResolutionService');
+const { canReviewProviderOperation, providerTransactionIdOf, providerOperationMatches, pendingProviderQuery } = require('../utils/providerPendingOperation');
+const { stateLabels: providerMonitorLabels, monitorEnabled: pendingMonitorEnabled } = require('../services/apiPendingMonitorService');
 
 const providerOperationView = (operation = {}) => ({
     success: Boolean(operation.success),
@@ -332,6 +334,7 @@ const renderTransactions = async (req, res, operationsWorkspace = false) => {
         if (redirectDepositLedger(req, res)) return;
         const page = Math.max(1, parseInt(req.query.page, 10) || 1);
         const limit = 100;
+        const providerReviewMode = operationsWorkspace && req.query.providerReview === '1';
         const search = req.query.search || '';
         const statusFilter = req.query.status || '';
         const executorId = /^[a-f\d]{24}$/i.test(String(req.query.executorId || ''))
@@ -392,7 +395,19 @@ const renderTransactions = async (req, res, operationsWorkspace = false) => {
             query.status = { $in: ['cancelled_by_admin', 'rejected'] };
         }
 
+        if (providerReviewMode) {
+            query.$and.push(pendingProviderQuery());
+            if (Object.prototype.hasOwnProperty.call(providerMonitorLabels, req.query.providerState || '')) {
+                query.$and.push(req.query.providerState === 'awaiting'
+                    ? { 'apiResultData.providerMonitorState': { $exists: false } }
+                    : { 'apiResultData.providerMonitorState': req.query.providerState });
+            }
+        }
         const totalTxs = await Transaction.countDocuments(query);
+        const providerReviewCounts = providerReviewMode ? await Transaction.aggregate([
+            { $match: query },
+            { $group: { _id: '$apiResultData.providerMonitorState', count: { $sum: 1 } } }
+        ]) : [];
         const totalPages = Math.ceil(totalTxs / limit);
         // Operations keeps cancelled rows in the completed timeline. The
         // central ledger still groups failed/cancelled after successes.
@@ -422,7 +437,7 @@ const renderTransactions = async (req, res, operationsWorkspace = false) => {
                 ? Promise.resolve(null)
                 : loadCentralLedgerOverview({ Transaction, ClientCompany, ExecutorGroup, source: req }),
             ExecutorGroup.find({ ...adminAccountScope(req), status: 'active', isManagerBot: { $ne: true } }),
-            operationsWorkspace
+            operationsWorkspace && !providerReviewMode
                 ? loadOperationsSummaryStrip({ Transaction, ClientCompany, ExecutorGroup, source: req })
                 : Promise.resolve(null)
         ]);
@@ -444,6 +459,11 @@ const renderTransactions = async (req, res, operationsWorkspace = false) => {
         });
         const executorDisplayByTransaction = {};
         transactions.forEach((tx) => {
+            tx.providerReviewAvailable = canReviewProviderOperation(tx);
+            if (tx.providerReviewAvailable) {
+                const data = tx.apiResultData || {};
+                tx.providerMonitorLabel = providerMonitorLabels[data.providerMonitorState] || providerMonitorLabels.awaiting;
+            }
             const executorGroupId = tx.executorGroupId ? String(tx.executorGroupId) : '';
             const managerGroupId = tx.managerGroupId ? String(tx.managerGroupId) : '';
             const executorGroup = executorGroupId
@@ -484,6 +504,9 @@ const renderTransactions = async (req, res, operationsWorkspace = false) => {
             executorBalanceGroups,
             executorId,
             operationWorkspace: operationsWorkspace,
+            providerReviewMode,
+            providerReviewCounts,
+            providerMonitorEnabled: pendingMonitorEnabled(),
             operationsSummary,
             query: req.query
         });
@@ -1000,9 +1023,7 @@ router.post('/transaction/:id/provider-status-check', requirePermission(PROVIDER
         if (!transaction) return respondTransactionAction(req, res, 404, { success: false, code: 'NOT_FOUND', message: 'العملية غير موجودة.' });
 
         const data = transaction.apiResultData || {};
-        const isHeld = data.providerResultUnresolved === true
-            || data.providerDispatchResult === 'pending_reference'
-            || data.referenceMasked === false;
+        const isHeld = canReviewProviderOperation(transaction);
         if (!isHeld) {
             return respondTransactionAction(req, res, 409, {
                 success: false,
@@ -1011,12 +1032,7 @@ router.post('/transaction/:id/provider-status-check', requirePermission(PROVIDER
             });
         }
 
-        const providerTransactionId = String(
-            data.externalTransactionId
-            || data.providerTransactionId
-            || data.transactionNumber
-            || ''
-        ).trim();
+        const providerTransactionId = providerTransactionIdOf(transaction);
         if (!providerTransactionId) {
             return respondTransactionAction(req, res, 409, {
                 success: false,
@@ -1036,8 +1052,7 @@ router.post('/transaction/:id/provider-status-check', requirePermission(PROVIDER
 
         const operation = await getApiProviderTransaction(executorGroup, providerTransactionId);
         const checkedAt = new Date();
-        transaction.apiResultData = {
-            ...data,
+        const checkData = {
             providerLastCheckedAt: checkedAt,
             providerStatusCheckSucceeded: Boolean(operation.success),
             providerReportedStatus: operation.providerStatus || '',
@@ -1046,12 +1061,22 @@ router.post('/transaction/:id/provider-status-check', requirePermission(PROVIDER
             providerReportedAmount: operation.amount,
             providerReturnDetectedAt: operation.isReturned ? checkedAt : data.providerReturnDetectedAt || null
         };
-        if (operation.rawData) transaction.apiResultData.providerLastCheckedRaw = operation.rawData;
-        transaction.markModified('apiResultData');
-        await transaction.save();
+        if (operation.rawData) checkData.providerLastCheckedRaw = operation.rawData;
+        const checkUpdate = Object.fromEntries(Object.entries(checkData).map(([key, value]) => [`apiResultData.${key}`, value]));
+        const latest = await Transaction.findOneAndUpdate({
+            _id: transaction._id, updatedAt: transaction.updatedAt,
+            status: transaction.status, executorGroupId: transaction.executorGroupId
+        }, { $set: checkUpdate }, { returnDocument: 'after' });
+        if (!latest) return respondTransactionAction(req, res, 409, {
+            success: false, code: 'ROW_CHANGED', message: 'تغيّرت العملية أثناء الاستعلام. حدّث الصفحة قبل اتخاذ قرار.'
+        });
 
-        if (operation.success && operation.referenceNumber && isMaskedProviderReference(operation.referenceNumber)) {
-            const latest = await Transaction.findById(transaction._id);
+        if (operation.success && !operation.isReturned && operation.referenceNumber && isMaskedProviderReference(operation.referenceNumber)) {
+            if (!providerOperationMatches(latest, operation)) return respondTransactionAction(req, res, 409, {
+                success: false, code: 'PROVIDER_DETAILS_MISMATCH',
+                message: 'رد المزود يحمل مرجع نجاح، لكن رقم العملية أو المستلم أو المبلغ لا يطابق البيانات أو غير مكتمل. يلزم مراجعة يدوية؛ لم تتغير الحالة أو الأرصدة.',
+                providerOperation: providerOperationView(operation)
+            });
             const resolved = await resolveProviderResult({
                 transactionId: transaction._id,
                 outcome: 'provider_paid',
@@ -1076,7 +1101,7 @@ router.post('/transaction/:id/provider-status-check', requirePermission(PROVIDER
 
         return respondTransactionAction(req, res, 200, {
             success: Boolean(operation.success),
-            code: operation.isReturned ? 'PROVIDER_RETURNED' : 'PROVIDER_STILL_PENDING',
+            code: operation.isReturned ? 'PROVIDER_RETURNED' : (operation.success ? 'PROVIDER_STILL_PENDING' : 'PROVIDER_CHECK_FAILED'),
             message: operation.isReturned
                 ? 'المزود أفاد بإلغاء أو استرجاع العملية. يمكنك الآن تنفيذ إلغاء ورد الرصيد بعد مراجعة الإثبات.'
                 : (operation.success ? 'العملية ما زالت معلقة لدى المزود.' : (operation.message || 'تعذر الحصول على نتيجة جديدة من المزود.')),

@@ -2,8 +2,8 @@
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>سجل العمليات | الأهرام</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><%= typeof providerReviewMode !== 'undefined' && providerReviewMode ? 'مراجعة عمليات API' : 'سجل العمليات' %> | الأهرام</title>
     
     <script>
         const savedTheme = localStorage.getItem('ahram_theme') || 'light';
@@ -723,6 +723,8 @@
     const ledgerCompanies = Array.isArray(typeof activeClientCompanies !== 'undefined' ? activeClientCompanies : null) ? activeClientCompanies : [];
     const ledgerExecutors = Array.isArray(typeof fundedExecutorCompanies !== 'undefined' ? fundedExecutorCompanies : null) ? fundedExecutorCompanies : [];
     const opsWorkspace = typeof operationWorkspace !== 'undefined' && Boolean(operationWorkspace);
+    const providerReviewView = typeof providerReviewMode !== 'undefined' && providerReviewMode;
+    const reviewCounts = Object.fromEntries((typeof providerReviewCounts !== 'undefined' ? providerReviewCounts : []).map((item) => [item._id || 'awaiting', item.count]));
     const opsSummary = opsWorkspace
         ? ((typeof operationsSummary !== 'undefined' && operationsSummary) ? operationsSummary : { today: { egyptianEGP: 0, libyanLYD: 0, cashEGP: 0, bankEGP: 0, totalLYD: 0 }, todayDepositsTotal: 0, todayExecutorDepositsTotal: 0, activeExecutors: [], companies: [] })
         : null;
@@ -748,6 +750,22 @@
 
 <div class="main-content">
     <div class="container-fluid">
+        <% if (providerReviewView) { %>
+        <section class="data-card p-3 mb-3" id="providerReviewSummary" aria-label="متابعة عمليات API المتأخرة">
+            <div class="d-flex flex-wrap justify-content-between gap-2 align-items-center">
+                <h3 class="fw-bold m-0">عمليات API تحتاج مراجعة</h3>
+                <span class="badge <%= providerMonitorEnabled ? 'bg-success' : 'bg-secondary' %>"><%= providerMonitorEnabled ? 'المتابعة الدورية مفعّلة' : 'المتابعة الدورية متوقفة في إعدادات السيرفر' %></span>
+            </div>
+            <p class="small text-muted mt-2">العمليات غير المكتملة منذ 5 دقائق أو أكثر. الفحص الدوري يقرأ رد المزود فقط، ولا يعيد الدفع أو يغيّر الأرصدة. تُحدّث القائمة كل 30 ثانية.</p>
+            <div class="row g-2">
+                <div class="col-6 col-md-3"><div class="border rounded p-3"><span class="d-block small">إجمالي المعروض</span><strong class="fs-4"><%= totalTxs %></strong></div></div>
+                <div class="col-6 col-md-3"><div class="border rounded p-3 text-success"><span class="d-block small">نجاح لدى المزود</span><strong class="fs-4"><%= reviewCounts.paid || 0 %></strong></div></div>
+                <div class="col-6 col-md-3"><div class="border rounded p-3 text-warning"><span class="d-block small">بانتظار نتيجة</span><strong class="fs-4"><%= (reviewCounts.pending || 0) + (reviewCounts.awaiting || 0) %></strong></div></div>
+                <div class="col-6 col-md-3"><div class="border rounded p-3 text-danger"><span class="d-block small">تحتاج تدخلاً</span><strong class="fs-4"><%= ['returned','mismatch','failed','missing_reference','missing_executor','exhausted'].reduce((sum, key) => sum + (reviewCounts[key] || 0), 0) %></strong></div></div>
+            </div>
+            <p class="small text-muted mt-3 mb-0">حتى 10 عمليات في الدورة، وبحد أقصى 8 محاولات لكل عملية. يتوقف الفحص عند اكتشاف نجاح أو إلغاء أو بيانات غير مطابقة؛ القرار يبقى للإدارة.</p>
+        </section>
+        <% } %>
         
         <% if (!operationWorkspace) { %>
         <div class="d-flex justify-content-between align-items-center mb-4 tx-page-title">
@@ -859,7 +877,7 @@
         </div>
         <% } %>
 
-        <% if (opsSummary) { %>
+        <% if (opsSummary && !providerReviewView) { %>
         <section class="ops-summary-strip" data-ops-summary-strip="operations" aria-label="ملخص العمليات">
             <div class="ops-summary-layout">
                 <div class="ops-summary-companies">
@@ -948,6 +966,17 @@
 
         <% if (opsWorkspace) { %>
         <form method="GET" action="/transactions/operations" class="d-flex flex-wrap align-items-end gap-2 mb-3" aria-label="فترة العمليات">
+            <% if (providerReviewView) { %>
+            <input type="hidden" name="providerReview" value="1">
+            <div><label class="form-label small fw-bold mb-1" for="providerSearch">رقم العملية أو المستلم</label><input class="form-control form-control-sm" id="providerSearch" name="search" value="<%= search %>"></div>
+            <div><label class="form-label small fw-bold mb-1" for="providerState">نتيجة المتابعة</label>
+                <select class="form-select form-select-sm" id="providerState" name="providerState">
+                    <% for (const [value, label] of Object.entries({ '': 'كل النتائج', awaiting: 'بانتظار الفحص', pending: 'بانتظار المزود', paid: 'نجاح لدى المزود', returned: 'إلغاء لدى المزود', mismatch: 'اختلاف البيانات', failed: 'تعذر الفحص', missing_reference: 'رقم المزود مفقود', missing_executor: 'إعدادات المنفذ', exhausted: 'انتهت المحاولات' })) { %>
+                    <option value="<%= value %>" <%= (query.providerState || '') === value ? 'selected' : '' %>><%= label %></option>
+                    <% } %>
+                </select>
+            </div>
+            <% } %>
             <div>
                 <label for="operationsFromDate" class="form-label small fw-bold mb-1">من</label>
                 <input id="operationsFromDate" name="fromDate" type="date" class="form-control form-control-sm" value="<%= fromDate %>">
@@ -958,6 +987,7 @@
             </div>
             <button type="submit" class="btn btn-sm btn-primary">عرض الفترة</button>
             <a href="/transactions/operations" class="btn btn-sm btn-outline-secondary">كل العمليات</a>
+            <% if (!providerReviewView) { %><a href="/transactions/operations?providerReview=1" class="btn btn-sm btn-outline-warning">مراجعة عمليات API المتأخرة</a><% } %>
             <span class="small text-muted ms-auto" aria-live="polite"><%= Number(totalTxs) || 0 %> عملية</span>
         </form>
         <% } %>
@@ -990,17 +1020,7 @@
                             const executorDisplay = (executorDisplayByTransaction || {})[String(tx._id)] || {};
                             const directClientName = tx.employeeName || tx.accountName || 'غير معروف';
                             const operationAge = operationAgeFor(tx);
-                            const providerData = tx.apiResultData || {};
-                            const providerReference = String(providerData.referenceNumber || providerData.providerReportedReference || tx.executorSenderPhone || '');
-                            const providerReferenceIsMasked = providerData.referenceMasked === true || /[*＊×•·]/u.test(providerReference);
-                            const providerSettledSuccess = tx.status === 'completed'
-                                && providerReferenceIsMasked
-                                && providerData.providerResolutionOutcome !== 'provider_not_paid';
-                            const providerResolutionPending = !providerSettledSuccess
-                                && tx.transferType !== 'balance_transfer'
-                                && (providerData.providerResultUnresolved === true
-                                    || providerData.providerDispatchResult === 'pending_reference'
-                                    || (providerData.referenceMasked === false && (providerData.referenceNumber || providerData.providerTransactionId || providerData.externalTransactionId)));
+                            const providerResolutionPending = tx.providerReviewAvailable === true;
                         %>
                             <tr style="<%= tx.status === 'deposit_pending' ? 'background: rgba(245, 158, 11, 0.05);' : (tx.status === 'deposit' ? 'background: rgba(16, 185, 129, 0.05);' : (tx.status === 'deduction' ? 'background: rgba(239, 68, 68, 0.05);' : '')) %>">
                             
@@ -1087,6 +1107,7 @@
                                 <% } else if(tx.status === 'deduction') { %> <span class="badge-st" style="background: rgba(108,117,125,0.1); color:#6c757d;"><i class="fa-solid fa-arrow-up"></i> خصم</span>
                                 <% } else { %> <span class="badge-st st-fail"><i class="fa-solid fa-ban"></i> ملغاة</span> <% } %>
                                 <% if (operationWorkspace) { %><span class="operation-age <%= operationAge.isLate ? 'is-late' : '' %>"><i class="fa-regular fa-clock ms-1"></i><%= operationAge.label %></span><% } %>
+                                <% if (providerReviewView) { %><%- include('partials/provider_review_status', { tx }) %><% } %>
                             </td>
 
                             <td>
@@ -1201,17 +1222,7 @@
                     const mobileEligibleExecutorBots = (executorBots || []).filter((bot) => (bot.supportedTransferTypes || ['vodafone']).includes(tx.transferType || 'vodafone'));
                     const mobileExecutorDisplay = (executorDisplayByTransaction || {})[String(tx._id)] || {};
                     const mobileDirectClientName = tx.employeeName || tx.accountName || 'غير معروف';
-                    const mobileProviderData = tx.apiResultData || {};
-                    const mobileProviderReference = String(mobileProviderData.referenceNumber || mobileProviderData.providerReportedReference || tx.executorSenderPhone || '');
-                    const mobileProviderReferenceIsMasked = mobileProviderData.referenceMasked === true || /[*＊×•·]/u.test(mobileProviderReference);
-                    const mobileProviderSettledSuccess = tx.status === 'completed'
-                        && mobileProviderReferenceIsMasked
-                        && mobileProviderData.providerResolutionOutcome !== 'provider_not_paid';
-                    const mobileProviderResolutionPending = !mobileProviderSettledSuccess
-                        && tx.transferType !== 'balance_transfer'
-                        && (mobileProviderData.providerResultUnresolved === true
-                            || mobileProviderData.providerDispatchResult === 'pending_reference'
-                            || (mobileProviderData.referenceMasked === false && (mobileProviderData.referenceNumber || mobileProviderData.providerTransactionId || mobileProviderData.externalTransactionId)));
+                    const mobileProviderResolutionPending = tx.providerReviewAvailable === true;
                 %>
                     <div class="data-card mb-3 p-3 mobile-tx-card <%= displayClass %>" 
                           data-status="<%= tx.status %>"
@@ -1264,6 +1275,7 @@
                                 <% if (mobileBankLabel) { %><div class="small text-muted"><%= mobileBankLabel %></div><% } %>
                             </div>
                         </div>
+                        <% if (providerReviewView) { %><%- include('partials/provider_review_status', { tx }) %><% } %>
                         <% if (mobileNoteView.customerText) { %>
                             <div class="small fw-bold mt-2 pt-2" style="border-top: 1px dashed var(--border-glass); white-space: pre-line; color: var(--text-muted);">
                                 <i class="fa-regular fa-comment-dots me-1"></i><%= mobileNoteView.customerText %>
@@ -1351,15 +1363,15 @@
                 <nav class="mt-4 pt-3 pb-3">
                     <ul class="pagination justify-content-center mb-0">
                         <li class="page-item <%= currentPage === 1 ? 'disabled' : '' %>">
-                            <a class="page-link shadow-sm" href="?page=<%= currentPage - 1 %>&search=<%= search %>&status=<%= statusFilter %>&fromDate=<%= fromDate %>&toDate=<%= toDate %>&filterType=<%= typeof filterType !== 'undefined' ? filterType : '' %>"><i class="fa-solid fa-angle-right"></i></a>
+                            <a class="page-link shadow-sm" href="?page=<%= currentPage - 1 %>&search=<%= encodeURIComponent(search) %>&status=<%= statusFilter %>&fromDate=<%= fromDate %>&toDate=<%= toDate %>&filterType=<%= typeof filterType !== 'undefined' ? filterType : '' %><%= providerReviewView ? '&providerReview=1&providerState=' + encodeURIComponent(query.providerState || '') : '' %>"><i class="fa-solid fa-angle-right"></i></a>
                         </li>
                         <% let startPage = Math.max(1, currentPage - 2); let endPage = Math.min(totalPages, currentPage + 2); for(let i = startPage; i <= endPage; i++) { %>
                             <li class="page-item <%= currentPage === i ? 'active' : '' %>">
-                                <a class="page-link shadow-sm" href="?page=<%= i %>&search=<%= search %>&status=<%= statusFilter %>&fromDate=<%= fromDate %>&toDate=<%= toDate %>&filterType=<%= typeof filterType !== 'undefined' ? filterType : '' %>"><%= i %></a>
+                                <a class="page-link shadow-sm" href="?page=<%= i %>&search=<%= encodeURIComponent(search) %>&status=<%= statusFilter %>&fromDate=<%= fromDate %>&toDate=<%= toDate %>&filterType=<%= typeof filterType !== 'undefined' ? filterType : '' %><%= providerReviewView ? '&providerReview=1&providerState=' + encodeURIComponent(query.providerState || '') : '' %>"><%= i %></a>
                             </li>
                         <% } %>
                         <li class="page-item <%= currentPage === totalPages ? 'disabled' : '' %>">
-                            <a class="page-link shadow-sm" href="?page=<%= currentPage + 1 %>&search=<%= search %>&status=<%= statusFilter %>&fromDate=<%= fromDate %>&toDate=<%= toDate %>&filterType=<%= typeof filterType !== 'undefined' ? filterType : '' %>"><i class="fa-solid fa-angle-left"></i></a>
+                            <a class="page-link shadow-sm" href="?page=<%= currentPage + 1 %>&search=<%= encodeURIComponent(search) %>&status=<%= statusFilter %>&fromDate=<%= fromDate %>&toDate=<%= toDate %>&filterType=<%= typeof filterType !== 'undefined' ? filterType : '' %><%= providerReviewView ? '&providerReview=1&providerState=' + encodeURIComponent(query.providerState || '') : '' %>"><i class="fa-solid fa-angle-left"></i></a>
                         </li>
                     </ul>
                 </nav>
@@ -1508,7 +1520,7 @@
 </script>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-<script src="/js/admin-operation-details.js?v=20261019-provider-resolution"></script>
+<script src="/js/admin-operation-details.js?v=20261023-provider-review"></script>
 <script>
     function toggleSidebar() { document.querySelector('.sidebar').classList.toggle('active'); document.querySelector('.sidebar-overlay').classList.toggle('active'); }
 
@@ -2287,6 +2299,9 @@
             }
             
             const newPagination = doc.querySelector('.pagination'); const currentPagination = document.querySelector('.pagination'); if (newPagination && currentPagination) currentPagination.innerHTML = newPagination.innerHTML;
+            const newReviewSummary = doc.querySelector('#providerReviewSummary');
+            const currentReviewSummary = document.querySelector('#providerReviewSummary');
+            if (newReviewSummary && currentReviewSummary) currentReviewSummary.innerHTML = newReviewSummary.innerHTML;
         } catch (error) {
         } finally {
             transactionsAutoRefreshInFlight = false;

@@ -45,6 +45,43 @@ const renderTransactions = (overrides = {}) => ejs.render(
 );
 
 describe('central ledger page layout', () => {
+    test('monitor page shows last receipt, capped attempts and preserves review filters across pages', () => {
+        const tx = {
+            _id: '507f1f77bcf86cd799439011', customId: 'ATT-REVIEW', status: 'processing',
+            amount: 100, createdAt: new Date(), updatedAt: new Date(), transferType: 'vodafone',
+            providerReviewAvailable: true, providerMonitorLabel: 'المزود يؤكد النجاح',
+            apiResultData: { providerMonitorState: 'paid', providerMonitorAttempts: 2, providerMonitorStopped: true,
+                providerReportedStatus: '<script>unsafe</script>', providerReportedReference: '0121****429', providerLastCheckedAt: new Date() }
+        };
+        const html = renderTransactions({
+            transactions: [tx], operationWorkspace: true, providerReviewMode: true,
+            providerReviewCounts: [{ _id: 'paid', count: 101 }], providerMonitorEnabled: true,
+            totalTxs: 101, totalPages: 2, query: { providerReview: '1', providerState: 'paid' }
+        });
+        expect(html).toContain('عمليات API تحتاج مراجعة');
+        expect(html).toContain('آخر استعلام:');
+        expect(html).toContain('2 / 8');
+        expect(html).toContain('providerReview=1&amp;providerState=paid');
+        expect(html).toContain('&lt;script&gt;unsafe&lt;/script&gt;');
+        const statusMarkup = html.match(/data-provider-monitor-status>[\s\S]*?<\/div>/g).join('');
+        expect(statusMarkup).not.toContain('<script>unsafe</script>');
+        expect(html).not.toContain('data-ops-summary-strip="operations"');
+        expect((html.match(/data-provider-monitor-status/g) || []).length).toBe(2);
+    });
+    test.each(['processing', 'completed'])('provider controls are consistent on desktop and mobile for %s', (status) => {
+        const { canReviewProviderOperation } = require('../utils/providerPendingOperation');
+        const tx = {
+            _id: '507f1f77bcf86cd799439011', customId: 'ATT-API-TEST', status,
+            amount: 100, costLYD: 20, transferType: 'vodafone', vodafoneNumber: '01000000000',
+            createdAt: new Date(), updatedAt: new Date(), apiResultData: { providerTransactionId: '6103691' }
+        };
+        tx.providerReviewAvailable = canReviewProviderOperation(tx);
+        const html = renderTransactions({ transactions: [tx], operationWorkspace: true });
+        for (const action of ['check', 'paid', 'cancel']) {
+            expect((html.match(new RegExp(`data-provider-row-action="${action}"`, 'g')) || []).length)
+                .toBe(status === 'processing' ? 2 : 0);
+        }
+    });
     test('operations offers the full history and an optional date range', () => {
         const html = renderTransactions({
             operationWorkspace: true,
@@ -412,7 +449,7 @@ describe('central ledger page layout', () => {
         const appSource = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8');
 
         expect(routeSource).toMatch(/const listSortMode = operationsWorkspace \? 'operations' : 'ledger'/);
-        expect(routeSource).toMatch(/operationsWorkspace\s*\?\s*loadOperationsSummaryStrip\(\{ Transaction, ClientCompany, ExecutorGroup, source: req \}\)/);
+        expect(routeSource).toMatch(/operationsWorkspace && !providerReviewMode\s*\?\s*loadOperationsSummaryStrip\(\{ Transaction, ClientCompany, ExecutorGroup, source: req \}\)/);
         expect(routeSource).toMatch(/operationsWorkspace\s*\?\s*Promise\.resolve\(null\)\s*:\s*loadCentralLedgerOverview/);
         expect(routeSource).toMatch(/const transactionLedgerBaseQuery = \(source = null\) => applyAdminTxPrivacy\(\{[\s\S]*\.\.\.adminAccountScope\(source\),/);
         expect(routeSource).not.toMatch(/isSubAccountTx: \{ \$ne: true \}/);

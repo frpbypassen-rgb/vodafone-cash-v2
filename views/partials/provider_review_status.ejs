@@ -1,0 +1,13 @@
+<%
+    const reviewData = tx.apiResultData || {};
+    const reviewDate = (value) => value && Number.isFinite(new Date(value).getTime())
+        ? new Date(value).toLocaleString('ar-LY', { timeZone: 'Africa/Tripoli' }) : 'لم يتم الفحص بعد';
+%>
+<div class="provider-monitor-status mt-2 p-2 rounded border small" data-provider-monitor-status>
+    <strong class="d-block"><%= tx.providerMonitorLabel || 'بانتظار الفحص' %></strong>
+    <span class="d-block">رد المزود: <%= reviewData.providerReportedStatus || 'لا يوجد رد مسجل' %></span>
+    <% if (reviewData.providerReportedReference) { %><span class="d-block">المرجع: <b dir="ltr"><%= reviewData.providerReportedReference %></b></span><% } %>
+    <span class="d-block">آخر استعلام: <%= reviewDate(reviewData.providerLastCheckedAt || reviewData.providerMonitorCheckedAt) %></span>
+    <span class="d-block">الفحوص الدورية: <%= Number(reviewData.providerMonitorAttempts || 0) %> / 8</span>
+    <span class="d-block"><%= reviewData.providerMonitorStopped ? 'الفحص الدوري متوقف — القرار للإدارة' : (reviewData.providerMonitorNextCheckAt ? 'الموعد التالي: ' + reviewDate(reviewData.providerMonitorNextCheckAt) : 'تُفحص تلقائيًا عند حلول دورها إذا كانت المتابعة مفعلة') %></span>
+</div>

@@ -9,7 +9,6 @@ const queueService = require('./queueService');
 const { completeApiTransactionWithReference } = require('./apiExecutionLifecycleService');
 const {
     UNRESOLVED_CODE,
-    providerMoneyHold,
     clearClaimOnDoc
 } = require('./providerDispatchClaimService');
 
@@ -17,6 +16,7 @@ const PROVIDER_RESOLUTION_PERMISSION = 'transactions.resolve_provider';
 const EXECUTOR_DEBIT_DESCRIPTION = 'تنفيذ API آلي';
 const NOT_PAID_CONFLICT_CODE = 'NOT_PAID_CONFLICTS_WITH_EVIDENCE';
 const OUTCOMES = new Set(['provider_paid', 'provider_not_paid']);
+const { canReviewProviderOperation, providerTransactionIdOf } = require('../utils/providerPendingOperation');
 
 const actorCanResolve = (actor) => {
     if (!actor) return false;
@@ -76,6 +76,7 @@ const notPaidEvidenceConflict = async (tx) => {
     if (!tx) return null;
     const data = tx.apiResultData || {};
     if (data.providerResolutionEffectStartedAt) return 'providerResolutionEffectStartedAt';
+    if ([data.referenceNumber, data.providerReportedReference].some((value) => /[*＊×•·]/u.test(clean(value)))) return 'provider_reference';
     const dispatchResult = clean(data.providerDispatchResult);
     if (dispatchResult === 'accepted') return dispatchResult;
     if (dispatchResult === 'pending_reference' && data.referenceMasked !== false) return dispatchResult;
@@ -205,7 +206,7 @@ const resolveProviderResult = async (input = {}) => {
         if (conflict) return notPaidConflictResponse(tx, conflict);
     }
 
-    if (!providerMoneyHold(tx) || resolutionOutcomeOf(tx)) {
+    if (!canReviewProviderOperation(tx) || resolutionOutcomeOf(tx)) {
         return {
             success: false,
             statusCode: 409,
@@ -259,10 +260,8 @@ const resolveProviderResult = async (input = {}) => {
             updatedAt: tx.updatedAt,
             status: tx.status,
             'apiResultData.providerResolutionOutcome': { $exists: false },
-            $or: [
-                { 'apiResultData.providerResultUnresolved': true },
-                { 'apiResultData.providerDispatchResult': 'pending_reference' }
-            ]
+            // The eligibility check above and this version/status compare form
+            // one claim, including legacy rows without unresolved flags.
         },
         {
             $set: {
@@ -271,6 +270,7 @@ const resolveProviderResult = async (input = {}) => {
                 'apiResultData.providerResolutionNote': note,
                 'apiResultData.providerResolutionActorId': String(input.actor.id || ''),
                 'apiResultData.providerResolutionClaimedAt': new Date(),
+                'apiResultData.waitingApiAutoCompletion': false,
                 updatedAt: new Date()
             }
         },
@@ -330,8 +330,9 @@ const resolveProviderResult = async (input = {}) => {
             executorGroup,
             apiResult: {
                 reference_number: evidenceReference,
-                external_transaction_id: evidenceReference,
-                provider_transaction_id: evidenceReference
+                external_transaction_id: providerTransactionIdOf(current) || evidenceReference,
+                provider_transaction_id: providerTransactionIdOf(current) || evidenceReference,
+                reference_masked: /[*＊×•·]/u.test(evidenceReference)
             },
             receiptProof: null,
             detailedLog: null

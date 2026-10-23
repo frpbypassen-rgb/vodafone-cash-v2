@@ -604,10 +604,11 @@
     function renderProviderResolution(model) {
         const tx = model && model.tx;
         const data = tx && tx.apiResultData ? tx.apiResultData : {};
-        const held = data.providerResultUnresolved === true
+        const held = tx?.providerReviewAvailable === true || data.providerResultUnresolved === true
             || data.providerDispatchResult === 'pending_reference'
             || data.referenceMasked === false;
-        if (!held || !tx || !tx._id) return '';
+        if (!held || !tx || !tx._id || !['pending', 'processing', 'accepted'].includes(tx.status)
+            || data.providerResolutionOutcome) return '';
         const reference = data.referenceNumber || data.providerReportedReference || '';
         const reportedStatus = data.providerReportedStatus || 'لم يتم الاستعلام بعد';
         const lastChecked = data.providerLastCheckedAt ? model.formatDate(data.providerLastCheckedAt) : 'لم يتم الاستعلام بعد';
@@ -944,7 +945,11 @@
 
         try {
             if (action === 'check') {
-                await post(`/transaction/${encodeURIComponent(transactionId)}/provider-status-check`);
+                const result = await post(`/transaction/${encodeURIComponent(transactionId)}/provider-status-check`);
+                await window.Swal?.fire({
+                    icon: result.code === 'PROVIDER_STILL_PENDING' || result.code === 'PROVIDER_RETURNED' ? 'info' : 'success',
+                    title: 'نتيجة فحص المزود', text: result.message || 'تم تحديث نتيجة المزود.', confirmButtonText: 'حسناً'
+                });
             } else {
                 const expectedUpdatedAt = root.dataset.providerUpdatedAt || '';
                 await post(`/transaction/${encodeURIComponent(transactionId)}/resolve-provider-result`, {

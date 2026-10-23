@@ -80,6 +80,7 @@ const {
     startApiProviderReturnMonitor
 } = require('./services/apiProviderReconciliationService');
 const { ensurePerformanceIndexes } = require('./services/performanceIndexService');
+const { startApiPendingMonitor } = require('./services/apiPendingMonitorService');
 const { ensureSecurityDeviceIndexes } = require('./services/securityControlService');
 const { closeEligibleDailySettlement } = require('./services/settlementService');
 const systemMonitor = require('./services/systemMonitorService');
@@ -520,6 +521,7 @@ Promise.all([connectDB(), initRedis()]).then(async () => {
         startRateChangeActivationMonitor({ app });
         startApiCompletionMonitor();
         startApiProviderReturnMonitor();
+        startApiPendingMonitor();
         closeEligibleDailySettlement().catch((error) => {
             logger.error('Initial financial day close failed', { error: error.message });
         });

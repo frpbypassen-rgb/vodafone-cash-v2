@@ -779,6 +779,11 @@
             </span>
             <i class="fa-solid fa-angle-left menu-chevron"></i>
         </a>
+        <% if (canSeeAdminHref('/transactions/operations')) { %>
+        <a href="/transactions/operations?providerReview=1">
+            <span class="menu-link-content"><i class="fa-solid fa-clock-rotate-left"></i> <span class="menu-link-text">مراجعة عمليات API</span></span>
+        </a>
+        <% } %>
         <a href="/financial-movements" class="<%= typeof activePage !== 'undefined' && activePage === 'financial_movements' ? 'active' : '' %>">
             <span class="menu-link-content">
                 <i class="fa-solid fa-scale-balanced"></i> <span class="menu-link-text">المركز المالي</span>
