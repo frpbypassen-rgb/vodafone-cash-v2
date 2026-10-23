@@ -1,10 +1,10 @@
 /* Company portal shell — bank-grade layout independent of legacy company-os chrome.
    Visual values come from theme files via --cp-* / --bw-*. */
-html[data-portal="company"] {
+html:is([data-portal="company"], [data-portal="agent"]) {
     overflow-x: hidden;
 }
 
-html[data-portal="company"] body.cp-app,
+html:is([data-portal="company"], [data-portal="agent"]) body.cp-app,
 .bw-company-os.cp-app {
     --bw-sidebar-width: var(--cp-sidebar-width);
     --bw-topbar-height: var(--cp-topbar-height);
@@ -17,29 +17,29 @@ html[data-portal="company"] body.cp-app,
     -webkit-text-size-adjust: 100%;
 }
 
-html[data-portal="company"] body.cp-app,
-html[data-portal="company"] body.cp-app *:not(.bw-mono):not(.mono-num) {
+html:is([data-portal="company"], [data-portal="agent"]) body.cp-app,
+html:is([data-portal="company"], [data-portal="agent"]) body.cp-app *:not(.bw-mono):not(.mono-num) {
     letter-spacing: 0 !important;
 }
 
-html[data-portal="company"] body.cp-app .bw-main,
-html[data-portal="company"] body.cp-app .bw-section,
-html[data-portal="company"] body.cp-app .bw-section-head h2,
-html[data-portal="company"] body.cp-app .cp-page-hero h1,
-html[data-portal="company"] body.cp-app .cp-page-hero h2,
-html[data-portal="company"] body.cp-app .bw-table,
-html[data-portal="company"] body.cp-app .bw-report-cover,
-html[data-portal="company"] body.cp-app .bw-filter-band {
+html:is([data-portal="company"], [data-portal="agent"]) body.cp-app .bw-main,
+html:is([data-portal="company"], [data-portal="agent"]) body.cp-app .bw-section,
+html:is([data-portal="company"], [data-portal="agent"]) body.cp-app .bw-section-head h2,
+html:is([data-portal="company"], [data-portal="agent"]) body.cp-app .cp-page-hero h1,
+html:is([data-portal="company"], [data-portal="agent"]) body.cp-app .cp-page-hero h2,
+html:is([data-portal="company"], [data-portal="agent"]) body.cp-app .bw-table,
+html:is([data-portal="company"], [data-portal="agent"]) body.cp-app .bw-report-cover,
+html:is([data-portal="company"], [data-portal="agent"]) body.cp-app .bw-filter-band {
     color: var(--cp-ink);
 }
 
-html[data-portal="company"] body.cp-app .bw-offline-banner,
-html[data-portal="company"] body.cp-app .bw-privacy-shield {
+html:is([data-portal="company"], [data-portal="agent"]) body.cp-app .bw-offline-banner,
+html:is([data-portal="company"], [data-portal="agent"]) body.cp-app .bw-privacy-shield {
     border-radius: 0;
 }
 
 /* ---- Sidebar ---- */
-html[data-portal="company"] .cp-sidebar,
+html:is([data-portal="company"], [data-portal="agent"]) .cp-sidebar,
 .bw-company-os .bw-sidebar {
     background: var(--cp-sidebar);
     color: var(--cp-sidebar-text);
@@ -47,7 +47,7 @@ html[data-portal="company"] .cp-sidebar,
     box-shadow: none;
 }
 
-html[data-portal="company"] .cp-sidebar .bw-brand,
+html:is([data-portal="company"], [data-portal="agent"]) .cp-sidebar .bw-brand,
 .bw-company-os .bw-brand {
     min-height: var(--cp-topbar-height);
     padding: 16px 18px 14px;
@@ -56,7 +56,7 @@ html[data-portal="company"] .cp-sidebar .bw-brand,
     color: var(--cp-sidebar-text);
 }
 
-html[data-portal="company"] .cp-sidebar .bw-brand img,
+html:is([data-portal="company"], [data-portal="agent"]) .cp-sidebar .bw-brand img,
 .bw-company-os .bw-brand img {
     width: 40px;
     height: 40px;
@@ -67,7 +67,7 @@ html[data-portal="company"] .cp-sidebar .bw-brand img,
     background: var(--cp-surface);
 }
 
-html[data-portal="company"] .cp-sidebar .bw-brand strong,
+html:is([data-portal="company"], [data-portal="agent"]) .cp-sidebar .bw-brand strong,
 .bw-company-os .bw-brand strong {
     color: var(--cp-sidebar-text);
     font-size: 0.98rem;
@@ -75,16 +75,16 @@ html[data-portal="company"] .cp-sidebar .bw-brand strong,
     letter-spacing: 0.04em;
 }
 
-html[data-portal="company"] .cp-sidebar .bw-brand small,
+html:is([data-portal="company"], [data-portal="agent"]) .cp-sidebar .bw-brand small,
 .bw-company-os .bw-brand small,
-html[data-portal="company"] .cp-sidebar .bw-nav-group h2,
+html:is([data-portal="company"], [data-portal="agent"]) .cp-sidebar .bw-nav-group h2,
 .bw-company-os .bw-nav-group h2,
-html[data-portal="company"] .cp-sidebar .bw-sidebar-muted,
+html:is([data-portal="company"], [data-portal="agent"]) .cp-sidebar .bw-sidebar-muted,
 .bw-company-os .bw-sidebar-muted {
     color: var(--cp-sidebar-muted);
 }
 
-html[data-portal="company"] .cp-sidebar .bw-entity-card,
+html:is([data-portal="company"], [data-portal="agent"]) .cp-sidebar .bw-entity-card,
 .bw-company-os .bw-entity-card {
     margin: 14px 14px 10px;
     padding: 12px 14px;
@@ -94,12 +94,12 @@ html[data-portal="company"] .cp-sidebar .bw-entity-card,
     box-shadow: none;
 }
 
-html[data-portal="company"] .cp-sidebar .bw-company-navigation-note,
+html:is([data-portal="company"], [data-portal="agent"]) .cp-sidebar .bw-company-navigation-note,
 .bw-company-os .bw-company-navigation-note {
     display: none;
 }
 
-html[data-portal="company"] .cp-sidebar .bw-entity-icon,
+html:is([data-portal="company"], [data-portal="agent"]) .cp-sidebar .bw-entity-icon,
 .bw-company-os .bw-entity-icon {
     color: var(--cp-icon);
     background: color-mix(in srgb, var(--cp-icon) 14%, transparent);
@@ -107,38 +107,38 @@ html[data-portal="company"] .cp-sidebar .bw-entity-icon,
     border-radius: 10px;
 }
 
-html[data-portal="company"] .cp-sidebar .bw-entity-copy strong,
+html:is([data-portal="company"], [data-portal="agent"]) .cp-sidebar .bw-entity-copy strong,
 .bw-company-os .bw-entity-copy strong {
     color: var(--cp-sidebar-text);
 }
 
-html[data-portal="company"] .cp-sidebar .bw-entity-copy span,
-html[data-portal="company"] .cp-sidebar .bw-entity-copy small,
+html:is([data-portal="company"], [data-portal="agent"]) .cp-sidebar .bw-entity-copy span,
+html:is([data-portal="company"], [data-portal="agent"]) .cp-sidebar .bw-entity-copy small,
 .bw-company-os .bw-entity-copy span,
 .bw-company-os .bw-entity-copy small {
     color: var(--cp-sidebar-muted);
 }
 
-html[data-portal="company"] .cp-sidebar .bw-side-balance,
+html:is([data-portal="company"], [data-portal="agent"]) .cp-sidebar .bw-side-balance,
 .bw-company-os .bw-side-balance,
-html[data-portal="company"] .cp-sidebar .bw-side-role,
+html:is([data-portal="company"], [data-portal="agent"]) .cp-sidebar .bw-side-role,
 .bw-company-os .bw-side-role {
     border-top-color: var(--cp-line);
 }
 
-html[data-portal="company"] .cp-sidebar .bw-side-balance strong,
+html:is([data-portal="company"], [data-portal="agent"]) .cp-sidebar .bw-side-balance strong,
 .bw-company-os .bw-side-balance strong {
     color: var(--cp-sidebar-text);
     font-family: var(--cp-mono);
     font-variant-numeric: tabular-nums;
 }
 
-html[data-portal="company"] .cp-sidebar .bw-side-balance small,
+html:is([data-portal="company"], [data-portal="agent"]) .cp-sidebar .bw-side-balance small,
 .bw-company-os .bw-side-balance small {
     color: var(--cp-sidebar-muted);
 }
 
-html[data-portal="company"] .cp-sidebar .bw-nav-group h2,
+html:is([data-portal="company"], [data-portal="agent"]) .cp-sidebar .bw-nav-group h2,
 .bw-company-os .bw-nav-group h2 {
     margin: 16px 14px 6px;
     font-size: 0.68rem;
@@ -147,7 +147,7 @@ html[data-portal="company"] .cp-sidebar .bw-nav-group h2,
     text-transform: none;
 }
 
-html[data-portal="company"] .cp-sidebar .bw-nav-link,
+html:is([data-portal="company"], [data-portal="agent"]) .cp-sidebar .bw-nav-link,
 .bw-company-os .bw-nav-link {
     min-height: var(--cp-touch);
     min-width: var(--cp-touch);
@@ -161,14 +161,14 @@ html[data-portal="company"] .cp-sidebar .bw-nav-link,
     transform: none;
 }
 
-html[data-portal="company"] .cp-sidebar .bw-nav-link:hover,
+html:is([data-portal="company"], [data-portal="agent"]) .cp-sidebar .bw-nav-link:hover,
 .bw-company-os .bw-nav-link:hover {
     color: var(--cp-sidebar-text);
     background: color-mix(in srgb, var(--cp-icon) 10%, transparent);
     transform: none;
 }
 
-html[data-portal="company"] .cp-sidebar .bw-nav-link.active,
+html:is([data-portal="company"], [data-portal="agent"]) .cp-sidebar .bw-nav-link.active,
 .bw-company-os .bw-nav-link.active {
     position: relative;
     color: var(--cp-sidebar-text);
@@ -177,7 +177,7 @@ html[data-portal="company"] .cp-sidebar .bw-nav-link.active,
     border: 0;
 }
 
-html[data-portal="company"] .cp-sidebar .bw-nav-link.active::before,
+html:is([data-portal="company"], [data-portal="agent"]) .cp-sidebar .bw-nav-link.active::before,
 .bw-company-os .bw-nav-link.active::before {
     content: "";
     position: absolute;
@@ -188,7 +188,7 @@ html[data-portal="company"] .cp-sidebar .bw-nav-link.active::before,
     background: var(--cp-icon);
 }
 
-html[data-portal="company"] .cp-sidebar .bw-nav-icon,
+html:is([data-portal="company"], [data-portal="agent"]) .cp-sidebar .bw-nav-icon,
 .bw-company-os .bw-nav-icon {
     width: 32px;
     height: 32px;
@@ -197,37 +197,37 @@ html[data-portal="company"] .cp-sidebar .bw-nav-icon,
     background: color-mix(in srgb, var(--cp-icon) 12%, transparent);
 }
 
-html[data-portal="company"] .cp-sidebar .bw-nav-link.active .bw-nav-icon,
+html:is([data-portal="company"], [data-portal="agent"]) .cp-sidebar .bw-nav-link.active .bw-nav-icon,
 .bw-company-os .bw-nav-link.active .bw-nav-icon {
     color: var(--cp-on-accent);
     background: var(--cp-icon);
 }
 
-html[data-portal="company"] .cp-sidebar .bw-nav-arrow,
+html:is([data-portal="company"], [data-portal="agent"]) .cp-sidebar .bw-nav-arrow,
 .bw-company-os .bw-nav-arrow {
     opacity: 0.35;
     color: var(--cp-sidebar-muted);
 }
 
-html[data-portal="company"] .cp-sidebar .bw-sidebar-footer,
+html:is([data-portal="company"], [data-portal="agent"]) .cp-sidebar .bw-sidebar-footer,
 .bw-company-os .bw-sidebar-footer {
     border-top: 1px solid var(--cp-line);
     color: var(--cp-sidebar-muted);
     background: transparent;
 }
 
-html[data-portal="company"] .cp-sidebar .bw-sidebar-footer span i,
+html:is([data-portal="company"], [data-portal="agent"]) .cp-sidebar .bw-sidebar-footer span i,
 .bw-company-os .bw-sidebar-footer span i {
     color: var(--cp-success);
 }
 
-html[data-portal="company"] .cp-sidebar .bw-sidebar-footer a,
+html:is([data-portal="company"], [data-portal="agent"]) .cp-sidebar .bw-sidebar-footer a,
 .bw-company-os .bw-sidebar-footer a {
     color: var(--cp-danger);
 }
 
 /* ---- Topbar ---- */
-html[data-portal="company"] .cp-topbar,
+html:is([data-portal="company"], [data-portal="agent"]) .cp-topbar,
 .bw-company-os .bw-topbar {
     min-height: var(--cp-topbar-height);
     padding-top: env(safe-area-inset-top);
@@ -237,14 +237,14 @@ html[data-portal="company"] .cp-topbar,
     backdrop-filter: blur(16px);
 }
 
-html[data-portal="company"] .cp-topbar::before,
+html:is([data-portal="company"], [data-portal="agent"]) .cp-topbar::before,
 .bw-company-os .bw-topbar::before,
-html[data-portal="company"] .cp-topbar::after,
+html:is([data-portal="company"], [data-portal="agent"]) .cp-topbar::after,
 .bw-company-os .bw-topbar::after {
     display: none;
 }
 
-html[data-portal="company"] .cp-company-name,
+html:is([data-portal="company"], [data-portal="agent"]) .cp-company-name,
 .bw-company-os .cp-company-name {
     display: none;
     min-width: 0;
@@ -257,18 +257,18 @@ html[data-portal="company"] .cp-company-name,
     white-space: nowrap;
 }
 
-html[data-portal="company"] .cp-topbar .bw-breadcrumbs,
+html:is([data-portal="company"], [data-portal="agent"]) .cp-topbar .bw-breadcrumbs,
 .bw-company-os .bw-breadcrumbs {
     color: var(--cp-muted);
     font-weight: 600;
 }
 
-html[data-portal="company"] .cp-topbar .bw-breadcrumbs strong,
+html:is([data-portal="company"], [data-portal="agent"]) .cp-topbar .bw-breadcrumbs strong,
 .bw-company-os .bw-breadcrumbs strong {
     color: var(--cp-ink);
 }
 
-html[data-portal="company"] .cp-topbar .bw-balance-chip,
+html:is([data-portal="company"], [data-portal="agent"]) .cp-topbar .bw-balance-chip,
 .bw-company-os .bw-balance-chip {
     min-height: 40px;
     padding: 6px 12px;
@@ -279,31 +279,31 @@ html[data-portal="company"] .cp-topbar .bw-balance-chip,
     color: var(--cp-ink);
 }
 
-html[data-portal="company"] .cp-topbar .bw-balance-chip strong,
+html:is([data-portal="company"], [data-portal="agent"]) .cp-topbar .bw-balance-chip strong,
 .bw-company-os .bw-balance-chip strong {
     font-family: var(--cp-mono);
     font-variant-numeric: tabular-nums;
     font-weight: 700;
 }
 
-html[data-portal="company"] .cp-topbar .bw-balance-chip strong.is-positive,
+html:is([data-portal="company"], [data-portal="agent"]) .cp-topbar .bw-balance-chip strong.is-positive,
 .bw-company-os .bw-balance-chip strong.is-positive { color: var(--cp-success); }
-html[data-portal="company"] .cp-topbar .bw-balance-chip strong.is-negative,
+html:is([data-portal="company"], [data-portal="agent"]) .cp-topbar .bw-balance-chip strong.is-negative,
 .bw-company-os .bw-balance-chip strong.is-negative { color: var(--cp-danger); }
 
-html[data-portal="company"] .cp-topbar .bw-icon-button,
+html:is([data-portal="company"], [data-portal="agent"]) .cp-topbar .bw-icon-button,
 .bw-company-os .bw-icon-button,
-html[data-portal="company"] .cp-theme-option,
+html:is([data-portal="company"], [data-portal="agent"]) .cp-theme-option,
 .bw-company-os .cp-theme-option,
-html[data-portal="company"] .cp-bell-button,
+html:is([data-portal="company"], [data-portal="agent"]) .cp-bell-button,
 .bw-company-os .cp-bell-button,
-html[data-portal="company"] .bw-menu-button,
+html:is([data-portal="company"], [data-portal="agent"]) .bw-menu-button,
 .bw-company-os .bw-menu-button {
     min-width: var(--cp-touch);
     min-height: var(--cp-touch);
 }
 
-html[data-portal="company"] .cp-topbar .bw-icon-button,
+html:is([data-portal="company"], [data-portal="agent"]) .cp-topbar .bw-icon-button,
 .bw-company-os .bw-icon-button {
     border: 1px solid var(--cp-line);
     border-radius: 12px;
@@ -312,7 +312,7 @@ html[data-portal="company"] .cp-topbar .bw-icon-button,
     box-shadow: none;
 }
 
-html[data-portal="company"] .cp-topbar .bw-assistant-launcher {
+html:is([data-portal="company"], [data-portal="agent"]) .cp-topbar .bw-assistant-launcher {
     width: 40px;
     height: 40px;
     border-radius: 12px;
@@ -322,28 +322,28 @@ html[data-portal="company"] .cp-topbar .bw-assistant-launcher {
     box-shadow: none;
 }
 
-html[data-portal="company"] .cp-topbar .bw-assistant-launcher-spark,
-html[data-portal="company"] .cp-topbar .bw-assistant-launcher-core {
+html:is([data-portal="company"], [data-portal="agent"]) .cp-topbar .bw-assistant-launcher-spark,
+html:is([data-portal="company"], [data-portal="agent"]) .cp-topbar .bw-assistant-launcher-core {
     animation: none;
     background: transparent;
     box-shadow: none;
 }
 
-html[data-portal="company"] .cp-topbar .bw-page-status {
+html:is([data-portal="company"], [data-portal="agent"]) .cp-topbar .bw-page-status {
     border: 1px solid var(--cp-line);
     border-radius: 999px;
     background: var(--cp-surface);
     color: var(--cp-muted);
 }
 
-html[data-portal="company"] .cp-topbar .bw-user-menu {
+html:is([data-portal="company"], [data-portal="agent"]) .cp-topbar .bw-user-menu {
     padding: 4px 8px 4px 4px;
     border: 1px solid var(--cp-line);
     border-radius: 999px;
     background: var(--cp-surface);
 }
 
-html[data-portal="company"] .cp-topbar .bw-avatar,
+html:is([data-portal="company"], [data-portal="agent"]) .cp-topbar .bw-avatar,
 .bw-company-os .bw-avatar {
     background: var(--cp-icon);
     color: var(--cp-on-accent);
@@ -559,7 +559,7 @@ html[data-portal="company"] .cp-topbar .bw-avatar,
 .cp-push-status { font-weight: 700; color: var(--cp-turquoise); }
 
 /* ---- Main canvas ---- */
-html[data-portal="company"] .cp-main,
+html:is([data-portal="company"], [data-portal="agent"]) .cp-main,
 .bw-company-os .bw-main {
     padding: 24px clamp(16px, 3vw, 36px) 40px;
     max-width: 1280px;
@@ -638,7 +638,7 @@ html[data-portal="company"] .cp-main,
 }
 
 /* ---- Buttons ---- */
-html[data-portal="company"] .bw-button,
+html:is([data-portal="company"], [data-portal="agent"]) .bw-button,
 .bw-company-os .bw-button {
     min-height: var(--cp-touch);
     min-width: var(--cp-touch);
@@ -647,7 +647,7 @@ html[data-portal="company"] .bw-button,
     box-shadow: none;
 }
 
-html[data-portal="company"] .bw-button.primary,
+html:is([data-portal="company"], [data-portal="agent"]) .bw-button.primary,
 .bw-company-os .bw-button.primary {
     background: var(--cp-icon);
     color: var(--cp-on-accent);
@@ -655,14 +655,14 @@ html[data-portal="company"] .bw-button.primary,
     box-shadow: 0 8px 18px color-mix(in srgb, var(--cp-icon) 22%, transparent);
 }
 
-html[data-portal="company"] .bw-button.primary:hover,
+html:is([data-portal="company"], [data-portal="agent"]) .bw-button.primary:hover,
 .bw-company-os .bw-button.primary:hover {
     filter: brightness(1.05);
     box-shadow: var(--cp-shadow);
 }
 
-html[data-portal="company"] .bw-button.secondary,
-html[data-portal="company"] .bw-button.ghost,
+html:is([data-portal="company"], [data-portal="agent"]) .bw-button.secondary,
+html:is([data-portal="company"], [data-portal="agent"]) .bw-button.ghost,
 .bw-company-os .bw-button.secondary,
 .bw-company-os .bw-button.ghost {
     color: var(--cp-ink);
@@ -745,12 +745,12 @@ html[data-portal="company"] .bw-button.ghost,
     font-size: 0.75rem;
 }
 
-html[data-portal="company"] .cp-service-card[class*="tone-"] {
+html:is([data-portal="company"], [data-portal="agent"]) .cp-service-card[class*="tone-"] {
     position: relative;
     color: var(--cp-ink);
 }
 
-html[data-portal="company"] .cp-service-card[class*="tone-"]::before {
+html:is([data-portal="company"], [data-portal="agent"]) .cp-service-card[class*="tone-"]::before {
     content: "";
     position: absolute;
     inset-block: 12px;
@@ -760,20 +760,20 @@ html[data-portal="company"] .cp-service-card[class*="tone-"]::before {
     background: var(--tone, var(--cp-icon));
 }
 
-html[data-portal="company"] .cp-service-card.tone-green { --tone: var(--cp-success); }
-html[data-portal="company"] .cp-service-card.tone-blue { --tone: var(--cp-info); }
-html[data-portal="company"] .cp-service-card.tone-amber { --tone: var(--cp-warning); }
-html[data-portal="company"] .cp-service-card.tone-navy { --tone: var(--cp-indigo, var(--cp-info)); }
-html[data-portal="company"] .cp-service-card.tone-cyan { --tone: var(--cp-turquoise); }
-html[data-portal="company"] .cp-service-card.tone-red { --tone: var(--cp-danger); }
+html:is([data-portal="company"], [data-portal="agent"]) .cp-service-card.tone-green { --tone: var(--cp-success); }
+html:is([data-portal="company"], [data-portal="agent"]) .cp-service-card.tone-blue { --tone: var(--cp-info); }
+html:is([data-portal="company"], [data-portal="agent"]) .cp-service-card.tone-amber { --tone: var(--cp-warning); }
+html:is([data-portal="company"], [data-portal="agent"]) .cp-service-card.tone-navy { --tone: var(--cp-indigo, var(--cp-info)); }
+html:is([data-portal="company"], [data-portal="agent"]) .cp-service-card.tone-cyan { --tone: var(--cp-turquoise); }
+html:is([data-portal="company"], [data-portal="agent"]) .cp-service-card.tone-red { --tone: var(--cp-danger); }
 
-html[data-portal="company"] .cp-service-card[class*="tone-"] .cp-service-icon {
+html:is([data-portal="company"], [data-portal="agent"]) .cp-service-card[class*="tone-"] .cp-service-icon {
     color: var(--tone, var(--cp-icon));
     background: color-mix(in srgb, var(--tone, var(--cp-icon)) 16%, var(--cp-surface));
 }
 
-html[data-portal="company"] .cp-finance-metrics,
-html[data-portal="company"] .cp-overview-grid {
+html:is([data-portal="company"], [data-portal="agent"]) .cp-finance-metrics,
+html:is([data-portal="company"], [data-portal="agent"]) .cp-overview-grid {
     gap: 16px;
 }
 
@@ -1005,7 +1005,7 @@ html[data-portal="company"] .cp-overview-grid {
     gap: 6px;
 }
 
-html[data-portal="company"] .cp-proof-thumb,
+html:is([data-portal="company"], [data-portal="agent"]) .cp-proof-thumb,
 .bw-company-os .cp-proof-thumb {
     width: 88px;
     height: 88px;
@@ -1016,31 +1016,31 @@ html[data-portal="company"] .cp-proof-thumb,
     background: var(--cp-surface);
 }
 
-html[data-portal="company"] .bw-proof-thumb,
+html:is([data-portal="company"], [data-portal="agent"]) .bw-proof-thumb,
 .bw-company-os .bw-proof-thumb {
     border-color: var(--cp-line);
     background: var(--cp-surface);
 }
 
-html[data-portal="company"] .bw-receipt-preview,
+html:is([data-portal="company"], [data-portal="agent"]) .bw-receipt-preview,
 .bw-company-os .bw-receipt-preview {
     aspect-ratio: 4 / 3;
     max-height: 240px;
     background: var(--cp-surface);
 }
 
-html[data-portal="company"] .bw-receipt-section,
+html:is([data-portal="company"], [data-portal="agent"]) .bw-receipt-section,
 .bw-company-os .bw-receipt-section,
-html[data-portal="company"] .bw-receipt-empty,
+html:is([data-portal="company"], [data-portal="agent"]) .bw-receipt-empty,
 .bw-company-os .bw-receipt-empty,
-html[data-portal="company"] .bw-receipt-figure,
+html:is([data-portal="company"], [data-portal="agent"]) .bw-receipt-figure,
 .bw-company-os .bw-receipt-figure {
     color: var(--cp-ink);
     border-color: var(--cp-line);
     background: var(--cp-surface-soft);
 }
 
-html[data-portal="company"] .bw-receipt-figure figcaption,
+html:is([data-portal="company"], [data-portal="agent"]) .bw-receipt-figure figcaption,
 .bw-company-os .bw-receipt-figure figcaption {
     color: var(--cp-ink);
     background: var(--cp-surface);
@@ -1064,11 +1064,11 @@ html[data-portal="company"] .bw-receipt-figure figcaption,
 }
 
 /* ---- Cards, tables, forms ---- */
-html[data-portal="company"] .bw-section,
-html[data-portal="company"] .bw-metric-card,
-html[data-portal="company"] .bw-filter-band,
-html[data-portal="company"] .bw-settings-panel,
-html[data-portal="company"] .cp-push-card,
+html:is([data-portal="company"], [data-portal="agent"]) .bw-section,
+html:is([data-portal="company"], [data-portal="agent"]) .bw-metric-card,
+html:is([data-portal="company"], [data-portal="agent"]) .bw-filter-band,
+html:is([data-portal="company"], [data-portal="agent"]) .bw-settings-panel,
+html:is([data-portal="company"], [data-portal="agent"]) .cp-push-card,
 .bw-company-os .bw-section,
 .bw-company-os .bw-metric-card,
 .bw-company-os .bw-filter-band,
@@ -1082,17 +1082,17 @@ html[data-portal="company"] .cp-push-card,
     animation: none;
 }
 
-html[data-portal="company"] .bw-metric-card.accent-dark {
+html:is([data-portal="company"], [data-portal="agent"]) .bw-metric-card.accent-dark {
     --metric-accent: var(--cp-icon);
 }
 
-html[data-portal="company"] .bw-metric-icon {
+html:is([data-portal="company"], [data-portal="agent"]) .bw-metric-icon {
     color: var(--metric-accent, var(--cp-icon));
     background: color-mix(in srgb, var(--metric-accent, var(--cp-icon)) 14%, var(--cp-surface));
     border-color: color-mix(in srgb, var(--metric-accent, var(--cp-icon)) 24%, var(--cp-line));
 }
 
-html[data-portal="company"] .bw-mini-metrics,
+html:is([data-portal="company"], [data-portal="agent"]) .bw-mini-metrics,
 .bw-company-os .bw-mini-metrics {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
@@ -1100,7 +1100,7 @@ html[data-portal="company"] .bw-mini-metrics,
     margin: 0 0 16px;
 }
 
-html[data-portal="company"] .bw-mini-metrics article,
+html:is([data-portal="company"], [data-portal="agent"]) .bw-mini-metrics article,
 .bw-company-os .bw-mini-metrics article {
     position: relative;
     overflow: hidden;
@@ -1112,7 +1112,7 @@ html[data-portal="company"] .bw-mini-metrics article,
     box-shadow: var(--cp-shadow);
 }
 
-html[data-portal="company"] .bw-mini-metrics article::before,
+html:is([data-portal="company"], [data-portal="agent"]) .bw-mini-metrics article::before,
 .bw-company-os .bw-mini-metrics article::before {
     content: "";
     position: absolute;
@@ -1122,18 +1122,18 @@ html[data-portal="company"] .bw-mini-metrics article::before,
     background: var(--cp-icon);
 }
 
-html[data-portal="company"] .bw-mini-metrics article.success::before { background: var(--cp-success); }
-html[data-portal="company"] .bw-mini-metrics article.blue::before { background: var(--cp-info); }
-html[data-portal="company"] .bw-mini-metrics article.warning::before { background: var(--cp-warning); }
+html:is([data-portal="company"], [data-portal="agent"]) .bw-mini-metrics article.success::before { background: var(--cp-success); }
+html:is([data-portal="company"], [data-portal="agent"]) .bw-mini-metrics article.blue::before { background: var(--cp-info); }
+html:is([data-portal="company"], [data-portal="agent"]) .bw-mini-metrics article.warning::before { background: var(--cp-warning); }
 
-html[data-portal="company"] .bw-mini-metrics span,
+html:is([data-portal="company"], [data-portal="agent"]) .bw-mini-metrics span,
 .bw-company-os .bw-mini-metrics span {
     color: var(--cp-muted);
     font-size: 0.75rem;
     font-weight: 700;
 }
 
-html[data-portal="company"] .bw-mini-metrics strong,
+html:is([data-portal="company"], [data-portal="agent"]) .bw-mini-metrics strong,
 .bw-company-os .bw-mini-metrics strong {
     display: block;
     margin-top: 8px;
@@ -1143,23 +1143,23 @@ html[data-portal="company"] .bw-mini-metrics strong,
     font-variant-numeric: tabular-nums;
 }
 
-html[data-portal="company"] .bw-table th,
+html:is([data-portal="company"], [data-portal="agent"]) .bw-table th,
 .bw-company-os .bw-table th {
     background: var(--cp-surface-soft);
     color: var(--cp-muted);
 }
 
-html[data-portal="company"] .bw-table tbody tr:hover,
+html:is([data-portal="company"], [data-portal="agent"]) .bw-table tbody tr:hover,
 .bw-company-os .bw-table tbody tr:hover {
     background: var(--cp-surface-soft);
 }
 
-html[data-portal="company"] .bw-field input,
-html[data-portal="company"] .bw-field textarea,
-html[data-portal="company"] .bw-field select,
-html[data-portal="company"] .bw-input,
-html[data-portal="company"] .bw-search-field input,
-html[data-portal="company"] .bw-chat-input textarea,
+html:is([data-portal="company"], [data-portal="agent"]) .bw-field input,
+html:is([data-portal="company"], [data-portal="agent"]) .bw-field textarea,
+html:is([data-portal="company"], [data-portal="agent"]) .bw-field select,
+html:is([data-portal="company"], [data-portal="agent"]) .bw-input,
+html:is([data-portal="company"], [data-portal="agent"]) .bw-search-field input,
+html:is([data-portal="company"], [data-portal="agent"]) .bw-chat-input textarea,
 .bw-company-os .bw-field input,
 .bw-company-os .bw-field textarea,
 .bw-company-os .bw-field select,
@@ -1174,10 +1174,10 @@ html[data-portal="company"] .bw-chat-input textarea,
     caret-color: var(--cp-icon);
 }
 
-html[data-portal="company"] .bw-field input:focus,
-html[data-portal="company"] .bw-field textarea:focus,
-html[data-portal="company"] .bw-field select:focus,
-html[data-portal="company"] .bw-search-field input:focus,
+html:is([data-portal="company"], [data-portal="agent"]) .bw-field input:focus,
+html:is([data-portal="company"], [data-portal="agent"]) .bw-field textarea:focus,
+html:is([data-portal="company"], [data-portal="agent"]) .bw-field select:focus,
+html:is([data-portal="company"], [data-portal="agent"]) .bw-search-field input:focus,
 .bw-company-os .bw-field input:focus,
 .bw-company-os .bw-field textarea:focus,
 .bw-company-os .bw-field select:focus,
@@ -1187,49 +1187,49 @@ html[data-portal="company"] .bw-search-field input:focus,
     box-shadow: var(--cp-focus, 0 0 0 3px color-mix(in srgb, var(--cp-icon) 32%, transparent));
 }
 
-html[data-portal="company"] .bw-empty i,
-html[data-portal="company"] .bw-empty .cp-icon,
+html:is([data-portal="company"], [data-portal="agent"]) .bw-empty i,
+html:is([data-portal="company"], [data-portal="agent"]) .bw-empty .cp-icon,
 .bw-company-os .bw-empty i,
 .bw-company-os .bw-empty .cp-icon { color: var(--cp-icon); }
 
-html[data-portal="company"] .bw-status,
+html:is([data-portal="company"], [data-portal="agent"]) .bw-status,
 .bw-company-os .bw-status,
-html[data-portal="company"] .bw-role-badge,
+html:is([data-portal="company"], [data-portal="agent"]) .bw-role-badge,
 .bw-company-os .bw-role-badge {
     border-radius: 999px;
     font-weight: 800;
 }
 
-html[data-portal="company"] .bw-status.success,
+html:is([data-portal="company"], [data-portal="agent"]) .bw-status.success,
 .bw-company-os .bw-status.success {
     color: var(--cp-success);
     background: color-mix(in srgb, var(--cp-success) 16%, var(--cp-surface));
     border-color: color-mix(in srgb, var(--cp-success) 32%, var(--cp-line));
 }
-html[data-portal="company"] .bw-status.danger,
+html:is([data-portal="company"], [data-portal="agent"]) .bw-status.danger,
 .bw-company-os .bw-status.danger {
     color: var(--cp-danger);
     background: color-mix(in srgb, var(--cp-danger) 14%, var(--cp-surface));
     border-color: color-mix(in srgb, var(--cp-danger) 32%, var(--cp-line));
 }
-html[data-portal="company"] .bw-status.warning,
+html:is([data-portal="company"], [data-portal="agent"]) .bw-status.warning,
 .bw-company-os .bw-status.warning {
     color: var(--cp-warning);
     background: color-mix(in srgb, var(--cp-warning) 16%, var(--cp-surface));
     border-color: color-mix(in srgb, var(--cp-warning) 32%, var(--cp-line));
 }
-html[data-portal="company"] .bw-status.info,
+html:is([data-portal="company"], [data-portal="agent"]) .bw-status.info,
 .bw-company-os .bw-status.info {
     color: var(--cp-info);
     background: color-mix(in srgb, var(--cp-info) 16%, var(--cp-surface));
     border-color: color-mix(in srgb, var(--cp-info) 32%, var(--cp-line));
 }
 
-html[data-portal="company"] .bw-team-role-guide,
-html[data-portal="company"] .bw-staff-filter-band,
-html[data-portal="company"] .bw-central-report-banner,
-html[data-portal="company"] .bw-team-spotlight-list article,
-html[data-portal="company"] .bw-central-download-list article,
+html:is([data-portal="company"], [data-portal="agent"]) .bw-team-role-guide,
+html:is([data-portal="company"], [data-portal="agent"]) .bw-staff-filter-band,
+html:is([data-portal="company"], [data-portal="agent"]) .bw-central-report-banner,
+html:is([data-portal="company"], [data-portal="agent"]) .bw-team-spotlight-list article,
+html:is([data-portal="company"], [data-portal="agent"]) .bw-central-download-list article,
 .bw-company-os .bw-team-role-guide,
 .bw-company-os .bw-staff-filter-band,
 .bw-company-os .bw-central-report-banner,
@@ -1241,31 +1241,31 @@ html[data-portal="company"] .bw-central-download-list article,
     box-shadow: none;
 }
 
-html[data-portal="company"] .bw-history-scope {
+html:is([data-portal="company"], [data-portal="agent"]) .bw-history-scope {
     border-color: var(--cp-line);
     background: var(--cp-surface-soft);
     color: var(--cp-ink);
 }
 
-html[data-portal="company"] .bw-smart-preview-grid {
+html:is([data-portal="company"], [data-portal="agent"]) .bw-smart-preview-grid {
     background: var(--cp-sidebar);
     color: var(--cp-sidebar-text);
 }
 
-html[data-portal="company"] .bw-central-report-seal {
+html:is([data-portal="company"], [data-portal="agent"]) .bw-central-report-seal {
     background: var(--cp-icon);
     color: var(--cp-on-accent);
 }
 
-html[data-portal="company"] .bw-mono,
+html:is([data-portal="company"], [data-portal="agent"]) .bw-mono,
 .bw-company-os .bw-mono {
     font-family: var(--cp-mono);
     font-variant-numeric: tabular-nums;
 }
 
 /* ---- Dialogs ---- */
-html[data-portal="company"] .bw-dialog,
-html[data-portal="company"] .cp-dialog,
+html:is([data-portal="company"], [data-portal="agent"]) .bw-dialog,
+html:is([data-portal="company"], [data-portal="agent"]) .cp-dialog,
 .bw-company-os .bw-dialog,
 .bw-company-os .cos-seal-dialog {
     border: 1px solid var(--cp-line);
@@ -1383,88 +1383,88 @@ html[data-portal="company"] .cp-dialog,
     pointer-events: none;
 }
 
-html[data-portal="company"] .bw-button,
-html[data-portal="company"] .bw-icon-button,
-html[data-portal="company"] .bw-nav-link,
-html[data-portal="company"] .bw-mobile-dock a,
-html[data-portal="company"] .cp-theme-option,
-html[data-portal="company"] .cp-theme-toggle,
-html[data-portal="company"] .cp-service-card,
-html[data-portal="company"] .cp-work-main {
+html:is([data-portal="company"], [data-portal="agent"]) .bw-button,
+html:is([data-portal="company"], [data-portal="agent"]) .bw-icon-button,
+html:is([data-portal="company"], [data-portal="agent"]) .bw-nav-link,
+html:is([data-portal="company"], [data-portal="agent"]) .bw-mobile-dock a,
+html:is([data-portal="company"], [data-portal="agent"]) .cp-theme-option,
+html:is([data-portal="company"], [data-portal="agent"]) .cp-theme-toggle,
+html:is([data-portal="company"], [data-portal="agent"]) .cp-service-card,
+html:is([data-portal="company"], [data-portal="agent"]) .cp-work-main {
     min-height: var(--cp-touch);
 }
 
 /* ---- Desktop ---- */
 @media (min-width: 1051px) {
-    html[data-portal="company"] .cp-company-name { display: block; }
-    html[data-portal="company"] .bw-menu-button { display: none; }
-    html[data-portal="company"] .bw-mobile-dock,
+    html:is([data-portal="company"], [data-portal="agent"]) .cp-company-name { display: block; }
+    html:is([data-portal="company"], [data-portal="agent"]) .bw-menu-button { display: none; }
+    html:is([data-portal="company"], [data-portal="agent"]) .bw-mobile-dock,
     .bw-company-os .bw-mobile-dock { display: none !important; }
-    html[data-portal="company"] .bw-transaction-dialog {
+    html:is([data-portal="company"], [data-portal="agent"]) .bw-transaction-dialog {
         flex-direction: column;
         width: min(520px, 44vw);
         max-height: calc(100vh - var(--cp-topbar-height) - 24px);
         margin: calc(var(--cp-topbar-height) + 12px) 12px 12px auto;
         border-radius: 18px 0 0 18px;
     }
-    html[data-portal="company"] .bw-transaction-dialog .bw-dialog-body {
+    html:is([data-portal="company"], [data-portal="agent"]) .bw-transaction-dialog .bw-dialog-body {
         flex: 1 1 auto;
         min-height: 0;
         overflow-y: auto;
     }
-    html[data-portal="company"] .bw-table { font-size: .86rem; }
-    html[data-portal="company"] .bw-table th,
-    html[data-portal="company"] .bw-table td { padding: 10px 12px; }
+    html:is([data-portal="company"], [data-portal="agent"]) .bw-table { font-size: .86rem; }
+    html:is([data-portal="company"], [data-portal="agent"]) .bw-table th,
+    html:is([data-portal="company"], [data-portal="agent"]) .bw-table td { padding: 10px 12px; }
 }
 
 /* ---- Phone: native-app shell ---- */
 @media (max-width: 1050px) {
-    html[data-portal="company"] body.cp-app,
+    html:is([data-portal="company"], [data-portal="agent"]) body.cp-app,
     .bw-company-os.cp-app {
         --cp-topbar-height: 56px;
         padding-bottom: calc(var(--cp-dock-height) + env(safe-area-inset-bottom));
     }
 
-    html[data-portal="company"] .bw-frame { min-height: 100dvh; }
+    html:is([data-portal="company"], [data-portal="agent"]) .bw-frame { min-height: 100dvh; }
 
-    html[data-portal="company"] .cp-main,
+    html:is([data-portal="company"], [data-portal="agent"]) .cp-main,
     .bw-company-os .bw-main {
         padding: 12px 14px calc(12px + env(safe-area-inset-bottom));
     }
 
-    html[data-portal="company"] .bw-workspace-shortcut,
-    html[data-portal="company"] .bw-topbar-date,
-    html[data-portal="company"] .bw-rate-freshness,
-    html[data-portal="company"] .bw-page-status,
-    html[data-portal="company"] .bw-user-menu,
-    html[data-portal="company"] .bw-assistant-launcher,
-    html[data-portal="company"] .bw-topbar-link,
-    html[data-portal="company"] [data-privacy-toggle],
-    html[data-portal="company"] .bw-breadcrumbs > span,
-    html[data-portal="company"] .bw-breadcrumbs > i {
+    html:is([data-portal="company"], [data-portal="agent"]) .bw-workspace-shortcut,
+    html:is([data-portal="company"], [data-portal="agent"]) .bw-topbar-date,
+    html:is([data-portal="company"], [data-portal="agent"]) .bw-rate-freshness,
+    html:is([data-portal="company"], [data-portal="agent"]) .bw-page-status,
+    html:is([data-portal="company"], [data-portal="agent"]) .bw-user-menu,
+    html:is([data-portal="company"], [data-portal="agent"]) .bw-assistant-launcher,
+    html:is([data-portal="company"], [data-portal="agent"]) .bw-topbar-link,
+    html:is([data-portal="company"], [data-portal="agent"]) [data-privacy-toggle],
+    html:is([data-portal="company"], [data-portal="agent"]) .bw-breadcrumbs > span,
+    html:is([data-portal="company"], [data-portal="agent"]) .bw-breadcrumbs > i {
         display: none !important;
     }
 
-    html[data-portal="company"] .cp-theme-rail {
+    html:is([data-portal="company"], [data-portal="agent"]) .cp-theme-rail {
         display: none !important;
     }
 
-    html[data-portal="company"] .cp-theme-toggle {
+    html:is([data-portal="company"], [data-portal="agent"]) .cp-theme-toggle {
         display: grid !important;
         place-items: center;
     }
 
-    html[data-portal="company"] .cp-topbar,
+    html:is([data-portal="company"], [data-portal="agent"]) .cp-topbar,
     .bw-company-os .bw-topbar {
         min-height: var(--cp-topbar-height);
         padding-inline: 10px;
         gap: 8px;
     }
 
-    html[data-portal="company"] .bw-topbar-actions { gap: 6px; }
+    html:is([data-portal="company"], [data-portal="agent"]) .bw-topbar-actions { gap: 6px; }
 
-    html[data-portal="company"] .bw-balance-chip span,
-    html[data-portal="company"] .bw-balance-chip small { display: none; }
+    html:is([data-portal="company"], [data-portal="agent"]) .bw-balance-chip span,
+    html:is([data-portal="company"], [data-portal="agent"]) .bw-balance-chip small { display: none; }
 
     .cp-page-hero {
         flex-direction: column;
@@ -1494,7 +1494,7 @@ html[data-portal="company"] .cp-work-main {
         font-size: .82rem;
     }
 
-    html[data-portal="company"] .bw-mobile-dock,
+    html:is([data-portal="company"], [data-portal="agent"]) .bw-mobile-dock,
     .bw-company-os .bw-mobile-dock {
         position: fixed;
         inset: auto 10px max(10px, env(safe-area-inset-bottom)) 10px;
@@ -1514,7 +1514,7 @@ html[data-portal="company"] .cp-work-main {
         color: var(--cp-ink);
     }
 
-    html[data-portal="company"] .bw-mobile-dock a,
+    html:is([data-portal="company"], [data-portal="agent"]) .bw-mobile-dock a,
     .bw-company-os .bw-mobile-dock a {
         display: flex;
         flex-direction: column;
@@ -1533,7 +1533,7 @@ html[data-portal="company"] .cp-work-main {
         letter-spacing: 0 !important;
     }
 
-    html[data-portal="company"] .bw-mobile-dock a span,
+    html:is([data-portal="company"], [data-portal="agent"]) .bw-mobile-dock a span,
     .bw-company-os .bw-mobile-dock a span {
         display: block;
         max-width: 100%;
@@ -1544,7 +1544,7 @@ html[data-portal="company"] .cp-work-main {
         letter-spacing: 0 !important;
     }
 
-    html[data-portal="company"] .bw-mobile-dock a i,
+    html:is([data-portal="company"], [data-portal="agent"]) .bw-mobile-dock a i,
     .bw-company-os .bw-mobile-dock a i {
         display: block;
         font-size: 1.05rem;
@@ -1552,25 +1552,25 @@ html[data-portal="company"] .cp-work-main {
         color: inherit;
     }
 
-    html[data-portal="company"] .bw-mobile-dock a.active,
+    html:is([data-portal="company"], [data-portal="agent"]) .bw-mobile-dock a.active,
     .bw-company-os .bw-mobile-dock a.active {
         color: var(--cp-icon);
         background: color-mix(in srgb, var(--cp-icon) 12%, transparent);
     }
 
-    html[data-portal="company"] .bw-report-toolbar,
-    html[data-portal="company"] .bw-report-cover,
-    html[data-portal="company"] .bw-central-downloads,
-    html[data-portal="company"] .bw-filter-band,
-    html[data-portal="company"] .bw-table-wrap,
-    html[data-portal="company"] [data-page="reports"] .bw-main {
+    html:is([data-portal="company"], [data-portal="agent"]) .bw-report-toolbar,
+    html:is([data-portal="company"], [data-portal="agent"]) .bw-report-cover,
+    html:is([data-portal="company"], [data-portal="agent"]) .bw-central-downloads,
+    html:is([data-portal="company"], [data-portal="agent"]) .bw-filter-band,
+    html:is([data-portal="company"], [data-portal="agent"]) .bw-table-wrap,
+    html:is([data-portal="company"], [data-portal="agent"]) [data-page="reports"] .bw-main {
         display: block;
         visibility: visible;
         color: var(--cp-ink);
     }
 
-    html[data-portal="company"] .bw-assistant-dialog,
-    html[data-portal="company"] .bw-assistant-launcher {
+    html:is([data-portal="company"], [data-portal="agent"]) .bw-assistant-dialog,
+    html:is([data-portal="company"], [data-portal="agent"]) .bw-assistant-launcher {
         display: none !important;
     }
 
@@ -1598,19 +1598,19 @@ html[data-portal="company"] .cp-work-main {
         -webkit-box-orient: vertical;
     }
 
-    html[data-portal="company"] .bw-table-wrap {
+    html:is([data-portal="company"], [data-portal="agent"]) .bw-table-wrap {
         overflow: auto;
         border: 1px solid var(--cp-line);
         border-radius: var(--cp-radius-sm);
     }
 
-    html[data-portal="company"] .bw-filter-form {
+    html:is([data-portal="company"], [data-portal="agent"]) .bw-filter-form {
         display: grid;
         grid-template-columns: 1fr;
         gap: 8px;
     }
 
-    html[data-portal="company"] .bw-mini-metrics {
+    html:is([data-portal="company"], [data-portal="agent"]) .bw-mini-metrics {
         grid-template-columns: repeat(2, minmax(0, 1fr));
         gap: 8px;
     }
@@ -1665,9 +1665,9 @@ html[data-portal="company"] .cp-work-main {
 }
 
 @media (prefers-reduced-motion: reduce) {
-    html[data-portal="company"] *,
-    html[data-portal="company"] *::before,
-    html[data-portal="company"] *::after {
+    html:is([data-portal="company"], [data-portal="agent"]) *,
+    html:is([data-portal="company"], [data-portal="agent"]) *::before,
+    html:is([data-portal="company"], [data-portal="agent"]) *::after {
         animation: none !important;
         transition: none !important;
     }

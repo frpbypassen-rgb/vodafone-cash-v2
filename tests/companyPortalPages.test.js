@@ -79,6 +79,7 @@ const {
     PAGE_META,
     buildNavigation,
     buildCompanyMobileNav,
+    buildAgentMobileNav,
     resolvePortalHomeHref
 } = require('../services/businessPortalService');
 
@@ -172,7 +173,7 @@ const renderWorkspacePage = (page, extra = {}) => {
         ...extra,
         workspace,
         navigation,
-        companyMobileNav: extra.companyMobileNav || buildCompanyMobileNav(workspace, navigation)
+        companyMobileNav: extra.companyMobileNav || (workspace.isAgent ? buildAgentMobileNav(navigation, page).dock : buildCompanyMobileNav(workspace, navigation))
     }, { filename: WORKSPACE_VIEW });
 };
 
@@ -277,7 +278,7 @@ describe('canonical company portal pages', () => {
         expect(html).toContain('/css/company-portal-theme-day.css');
         expect(html).toContain('/css/company-portal-theme-night.css');
         expect(html).toContain('/css/company-portal-theme-pharaonic.css');
-        expect(html).toContain('20260920-cp-m1');
+        expect(html).toContain('/css/company-portal.tokens.css?v=');
         expect(html).not.toContain('client-portal-2027.css');
         expect(html).not.toContain('client-company-os.css');
         expect(html).not.toContain('client-portal.tokens.css');
@@ -477,7 +478,7 @@ describe('canonical company portal pages', () => {
         expect(html).toContain('id="receiptLightbox"');
         expect(html).toContain('OP-1001');
         expect(html).toContain('الإثبات');
-        expect(html).toContain('20260920-cp-m1');
+        expect(html).toContain('/css/company-portal.tokens.css?v=');
         expect(html).not.toContain('href="/corporate"');
         expect(html).not.toContain('proofs/official.svg');
     });
@@ -516,5 +517,38 @@ describe('canonical company portal pages', () => {
             const source = fs.readFileSync(path.join(pagesDir, name), 'utf8');
             expect(source).not.toMatch(/style="[^"]*(?:color|background)\s*:\s*#/);
         });
+    });
+});
+
+
+describe('agent portal shared modern design', () => {
+    const agentWorkspace = { ...managerWorkspace, type: 'agent', isCompany: false, isAgent: true,
+        portalLabel: 'بوابة الوكلاء', entityLabel: 'الوكيل', roleLabel: 'مدير الوكيل',
+        permissions: { ...managerWorkspace.permissions, canRequestDeposit: false, canManageCustomers: true, canManageStaff: true } };
+    test.each(['services', 'service_workbench', 'smart_transfer', 'transactions', 'finance', 'settings', 'security', 'support', 'customers', 'staff'])('renders %s with agent identity and permission-scoped navigation', async page => {
+        const html = await renderWorkspacePage(page, { workspace: agentWorkspace, companyTheme: 'night',
+            servicePage: { selectedService: 'vodafone', isolated: true },
+            customers: [], pendingRequests: [], customerSummary: { total: 0, active: 0, positiveBalances: 0, totalDebt: 0 },
+            staffSummary: { total: 0, active: 0, managers: 0, accountants: 0, monthOperations: 0 }, staffFilters: { search: '', role: '', status: '' } });
+        expect(html).toContain('data-portal="agent"');
+        expect(html).toContain('data-theme="night"');
+        expect(html).toContain('class="cm-header"');
+        expect(html).toContain('/css/company-modern.css');
+        expect(html).toContain('/client/finance/customer-debts');
+        expect(html).not.toContain('href="/client/company/deposits"');
+        expect(html).toContain('data-company-bell');
+        if (page === 'service_workbench') {
+            expect(html).toContain('cm-transfer-summary');
+            expect((html.match(/id="businessTransferForm"/g) || []).length).toBe(1);
+        }
+        if (page === 'staff') expect(html).toContain('action="/client/agent/staff/add"');
+    });
+    test('employee presentation does not expose balances or customer administration', async () => {
+        const workspace = { ...agentWorkspace, persona: 'employee', forceToday: true, permissions: { employee: true, canTransfer: true } };
+        const html = await renderWorkspacePage('services', { workspace });
+        expect(html).toContain('cm-service-grid');
+        expect(html).not.toContain('cm-wallet-amount');
+        expect(html).not.toContain('href="/client/customers"');
+        expect(html).not.toContain('href="/client/finance/customer-debts"');
     });
 });

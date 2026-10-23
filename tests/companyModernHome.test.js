@@ -49,3 +49,22 @@ test('scopes summary and recent rows to the company and restricts employees to t
     expect(summaryScope[1].createdAt.$gte.getHours()).toBe(0);
     expect(summaryScope[1].createdAt.$lte.getHours()).toBe(23);
 });
+
+
+test('agent modern summary keeps agent/customer ownership and staff restrictions', async () => {
+    const SubAccount = require('../models/SubAccount');
+    const distinct = jest.fn().mockResolvedValue(['customer-owned']);
+    const customers = jest.spyOn(SubAccount, 'find').mockReturnValue({ distinct });
+    const { aggregate, find } = mockTransactions();
+    await loadCompanyHome({ ...workspace, isCompany: false, isAgent: true, forceToday: true,
+        entity: { _id: 'agent-one', phone: '218000000000', webUsername: 'agent-one' }, permissions: { employee: true } });
+    expect(customers).toHaveBeenCalledWith({ masterType: 'user', masterId: 'agent-one', status: { $ne: 'deleted' } });
+    const scope = aggregate.mock.calls[0][0][0].$match.$and[0];
+    expect(scope.$and[0].$or).toEqual([
+        { userId: '218000000000', companyId: null, subAccountId: null },
+        { userId: 'agent-one', companyId: null, subAccountId: null },
+        { subAccountId: { $in: ['customer-owned'] } }
+    ]);
+    expect(scope.$and[1].$or[0]).toEqual({ clientActorId: 'employee-one' });
+    expect(find.mock.calls[0][0].$and[0]).toEqual(scope);
+});

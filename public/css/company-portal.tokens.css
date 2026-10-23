@@ -18,8 +18,8 @@
     --cp-focus: 0 0 0 3px color-mix(in srgb, var(--cp-icon) 32%, transparent);
 }
 
-html[data-portal="company"],
-html[data-portal="company"] body.cp-app,
+html:is([data-portal="company"], [data-portal="agent"]),
+html:is([data-portal="company"], [data-portal="agent"]) body.cp-app,
 .bw-company-os,
 .bw-company-os[data-theme="day"],
 .bw-company-os[data-theme="night"],
@@ -29,11 +29,11 @@ html[data-portal="company"] body.cp-app,
     font-family: var(--cp-font);
 }
 
-html[data-portal="company"] body.cp-app,
-html[data-portal="company"] body.cp-app button,
-html[data-portal="company"] body.cp-app input,
-html[data-portal="company"] body.cp-app select,
-html[data-portal="company"] body.cp-app textarea,
+html:is([data-portal="company"], [data-portal="agent"]) body.cp-app,
+html:is([data-portal="company"], [data-portal="agent"]) body.cp-app button,
+html:is([data-portal="company"], [data-portal="agent"]) body.cp-app input,
+html:is([data-portal="company"], [data-portal="agent"]) body.cp-app select,
+html:is([data-portal="company"], [data-portal="agent"]) body.cp-app textarea,
 .bw-company-os,
 .bw-company-os button,
 .bw-company-os input,

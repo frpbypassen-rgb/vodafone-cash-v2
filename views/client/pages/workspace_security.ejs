@@ -2,7 +2,7 @@
     <div>
         <span class="bw-section-kicker">أمان الحساب</span>
         <h2>أمان الحساب</h2>
-        <p>كلمة المرور وAuthenticator والأجهزة في صفحة مستقلة. بيانات المنشأة تبقى في ملف الشركة.</p>
+        <p>كلمة المرور وAuthenticator والأجهزة في صفحة مستقلة. بيانات المنشأة تبقى في ملف المنشأة.</p>
     </div>
     <div class="cp-page-hero-actions">
         <a href="/client/settings" class="bw-button ghost"><i class="fa-solid fa-address-card"></i>بيانات المنشأة</a>
@@ -10,8 +10,8 @@
     </div>
 </section>
 
-<% if (workspace.isCompany) { %>
-<div class="cm-security-banner"><i class="fa-solid fa-shield-halved"></i><div><h2>مركز أمان الحساب</h2><p>راجع كلمة المرور والتحقق الثنائي والجلسات لحماية حساب شركتك.</p></div></div>
+<% if (workspace.isCompany || workspace.isAgent) { %>
+<div class="cm-security-banner"><i class="fa-solid fa-shield-halved"></i><div><h2>مركز أمان الحساب</h2><p>راجع كلمة المرور والتحقق الثنائي والجلسات لحماية حسابك.</p></div></div>
 <nav class="cm-security-cards" aria-label="خيارات الأمان">
 <a href="#companyPassword"><i class="fa-solid fa-key"></i><strong>كلمة المرور</strong><span>تحديث كلمة مرور الدخول</span></a>
 <a href="#companyMfa"><i class="fa-solid fa-shield-halved"></i><strong>التحقق الثنائي</strong><span>مراجعة حماية Authenticator</span></a>

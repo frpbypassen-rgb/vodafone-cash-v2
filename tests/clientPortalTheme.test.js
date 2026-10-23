@@ -76,7 +76,7 @@ describe('customer portal theme SSR and preferences', () => {
         })).toBe('pharaonic');
     });
 
-    test('agent workspace head loads customer CSS and not company chrome', async () => {
+    test('retail workspace head retains customer CSS', async () => {
         const head = await ejs.renderFile(WORKSPACE_HEAD, {
             pageMeta: { title: 'الرئيسية' },
             workspace: { isCompany: false, persona: 'manager' },
@@ -96,7 +96,7 @@ describe('customer portal theme SSR and preferences', () => {
         expect(head).toContain('valid.includes(server) ? server');
     });
 
-    test('agent workspace paints cl-app and server theme before scripts', async () => {
+    test('agent workspace shares modern company design while preserving agent identity and saved client theme', async () => {
         const html = await ejs.renderFile(WORKSPACE_VIEW, {
             page: 'overview',
             pageMeta: { ...PAGE_META.overview, title: 'الرئيسية', eyebrow: 'عمل اليوم' },
@@ -129,18 +129,18 @@ describe('customer portal theme SSR and preferences', () => {
             formatInputDate: () => ''
         }, { filename: WORKSPACE_VIEW });
 
-        expect(html).toContain('data-customer-shell');
-        expect(html).toContain('cl-app');
-        expect(html).toContain('cl-sidebar');
-        expect(html).toContain('data-portal="customer"');
+        expect(html).toContain('data-company-shell');
+        expect(html).toContain('cp-app');
+        expect(html).toContain('cp-sidebar');
+        expect(html).toContain('data-portal="agent"');
         expect(html).toContain('data-theme="night"');
-        expect(html).toContain('data-client-theme-switcher');
-        expect(html).toContain('/js/client-portal.js?v=20260920-cl-m2');
-        expect(html).toContain('data-customer-bell');
-        expect(html).toContain('data-customer-dock');
-        expect(html).toContain('data-cl-more-open');
-        expect(html).not.toContain('data-company-shell');
-        expect(html).not.toContain('company-portal.js');
+        expect(html).toContain('data-company-theme-switcher');
+        expect(html).toContain('/js/company-portal.js?v=');
+        expect(html).toContain('data-company-bell');
+        expect(html).toContain('data-company-dock');
+        expect(html).toContain('cm-agent-more');
+        expect(html).not.toContain('data-customer-shell');
+        expect(html).not.toContain('/js/client-portal.js');
         expect(html).not.toContain('href="/corporate"');
     });
 

@@ -3,16 +3,17 @@ const home = typeof companyHome !== 'undefined' ? companyHome : { cash: { count:
 const money = value => Number(value || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const orderedServices = [...serviceCatalog.filter(service => ['vodafone', 'bank_account'].includes(service.key)), ...serviceCatalog.filter(service => !['vodafone', 'bank_account'].includes(service.key))];
 %>
-<div class="cm-greeting"><div><span>مساحة عمل الشركة</span><h1>مرحباً، <%= workspace.actor.name %></h1><p>كل ما تحتاجه لإدارة معاملات <%= workspace.entity.name %></p></div><span class="cm-availability"><i class="bw-live-dot <%= systemOpen ? '' : 'is-closed' %>"></i><%= systemOpen ? 'الخدمات متاحة' : 'الخدمات متوقفة مؤقتاً' %></span></div>
+<div class="cm-greeting"><div><span>مساحة عمل <%= workspace.entityLabel %></span><h1>مرحباً، <%= workspace.actor.name %></h1><p>كل ما تحتاجه لإدارة معاملات <%= workspace.entity.name %></p></div><span class="cm-availability"><i class="bw-live-dot <%= systemOpen ? '' : 'is-closed' %>"></i><%= systemOpen ? 'الخدمات متاحة' : 'الخدمات متوقفة مؤقتاً' %></span></div>
 <% if (workspace.permissions.canTransfer) { %>
 <a class="cm-smart-entry" href="/client/smart-transfer">
     <span class="cm-smart-entry-icon" aria-hidden="true"><i class="fa-solid fa-wand-magic-sparkles"></i></span>
-    <span class="cm-smart-entry-copy"><span class="cm-smart-kicker">التحويل الذكي للشركات</span><strong>الصق الرسالة وجهّز التحويل</strong><span>استخرج رقم المحفظة والمبلغ، راجع التكلفة بالدينار، وتحقق من احتمال التكرار قبل الإرسال.</span></span>
+    <span class="cm-smart-entry-copy"><span class="cm-smart-kicker">التحويل الذكي</span><strong>الصق الرسالة وجهّز التحويل</strong><span>استخرج رقم المحفظة والمبلغ، راجع التكلفة بالدينار، وتحقق من احتمال التكرار قبل الإرسال.</span></span>
     <span class="cm-smart-entry-action">ابدأ التحويل الذكي <i class="fa-solid fa-arrow-left" aria-hidden="true"></i></span>
 </a>
 <% } %>
+<% if (workspace.isAgent) { %><nav class="cm-agent-shortcuts" aria-label="إدارة الوكالة"><% navigation.filter(item => ['customers', 'agency_debts', 'agency_profits', 'staff'].includes(item.key)).forEach(item => { %><a href="<%= item.href %>"><i class="fa-solid <%= item.icon %>"></i><span><%= item.label %></span><i class="fa-solid fa-arrow-left"></i></a><% }) %></nav><% } %>
 <div class="cm-home-grid">
-    <section class="cm-wallet-area" aria-label="ملخص حساب الشركة">
+    <section class="cm-wallet-area" aria-label="ملخص حساب <%= workspace.entityLabel %>">
         <% if (workspace.permissions.canViewBalance) { %>
         <div class="cm-wallet">
             <div class="cm-wallet-label"><span>الرصيد المتاح</span><button type="button" class="cm-privacy" data-privacy-toggle aria-label="إخفاء البيانات الحساسة"><i class="fa-regular fa-eye"></i></button><span class="cm-wallet-symbol"><i class="fa-solid fa-wallet"></i></span></div>
@@ -44,7 +45,7 @@ const orderedServices = [...serviceCatalog.filter(service => ['vodafone', 'bank_
         </div>
     </section>
     <% } else { %>
-    <section class="cm-services"><div class="cm-section-head"><h2>المتابعة المالية</h2></div><div class="cm-service-grid"><a class="cm-service" href="/client/reports"><i class="fa-solid fa-file-invoice"></i><strong>كشف الحساب</strong><small>راجع حركات الشركة وأرصدتها</small></a><a class="cm-service" href="/client/finance"><i class="fa-solid fa-scale-balanced"></i><strong>الحركات المالية</strong><small>الإيداعات والخصومات</small></a></div></section>
+    <section class="cm-services"><div class="cm-section-head"><h2>المتابعة المالية</h2></div><div class="cm-service-grid"><a class="cm-service" href="/client/reports"><i class="fa-solid fa-file-invoice"></i><strong>كشف الحساب</strong><small>راجع حركات الحساب وأرصدته</small></a><a class="cm-service" href="/client/finance"><i class="fa-solid fa-scale-balanced"></i><strong>الحركات المالية</strong><small>الإيداعات والخصومات</small></a></div></section>
     <% } %>
 </div>
 <section class="cm-recent" aria-labelledby="companyRecentTitle">

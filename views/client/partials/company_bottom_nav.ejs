@@ -8,4 +8,5 @@
             <span><%= item.dockLabel || item.label %></span>
         </a>
     <% }) %>
+    <% if (workspace.isAgent) { %><button class="cm-agent-more" type="button" data-sidebar-toggle aria-controls="businessSidebar" aria-expanded="false"><i class="fa-solid fa-bars" aria-hidden="true"></i><span>المزيد</span></button><% } %>
 </nav>

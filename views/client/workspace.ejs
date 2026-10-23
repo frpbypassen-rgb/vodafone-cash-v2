@@ -1,8 +1,10 @@
+<% const modernBusiness = workspace.isCompany || workspace.isAgent;
+const businessTheme = workspace.isAgent && typeof clientTheme !== 'undefined' && clientTheme ? clientTheme : (typeof companyTheme !== 'undefined' && companyTheme ? companyTheme : 'day'); %>
 <!DOCTYPE html>
-<html lang="ar" dir="rtl"<% if (workspace.isCompany) { %> data-portal="company" data-company-role="<%= workspace.canonicalRole || (workspace.permissions && workspace.permissions.canonicalRole) || (workspace.persona === 'accountant' ? 'accountant' : (workspace.permissions && workspace.permissions.owner ? 'owner' : 'employee')) %>" data-theme="<%= typeof companyTheme !== 'undefined' && companyTheme ? companyTheme : 'day' %>"<% } else { %> data-portal="customer" data-theme="<%= typeof clientTheme !== 'undefined' && clientTheme ? clientTheme : 'day' %>"<% } %>>
+<html lang="ar" dir="rtl"<% if (modernBusiness) { %> data-portal="<%= workspace.isAgent ? 'agent' : 'company' %>" data-company-role="<%= workspace.canonicalRole || (workspace.permissions && workspace.permissions.canonicalRole) || (workspace.persona === 'accountant' ? 'accountant' : (workspace.permissions && workspace.permissions.owner ? 'owner' : 'employee')) %>" data-theme="<%= businessTheme %>"<% } else { %> data-portal="customer" data-theme="<%= typeof clientTheme !== 'undefined' && clientTheme ? clientTheme : 'day' %>"<% } %>>
 <%- include('partials/workspace_head') %>
-<body class="bw-body<%= workspace.isCompany ? ' bw-company-os cp-shell cp-app' : ' cl-app cl-shell' %>" data-page="<%= page %>" data-persona="<%= workspace.persona %>" data-portal="<%= workspace.type %>"<% if (workspace.isCompany) { %> data-company-shell data-company-role="<%= workspace.canonicalRole || (workspace.permissions && workspace.permissions.canonicalRole) || 'employee' %>" data-theme="<%= typeof companyTheme !== 'undefined' && companyTheme ? companyTheme : 'day' %>"<% } else { %> data-customer-shell data-theme="<%= typeof clientTheme !== 'undefined' && clientTheme ? clientTheme : 'day' %>"<% } %>>
-    <% if (workspace.isCompany) { %>
+<body class="bw-body<%= modernBusiness ? ' bw-company-os cp-shell cp-app' : ' cl-app cl-shell' %>" data-page="<%= page %>" data-persona="<%= workspace.persona %>" data-portal="<%= workspace.type %>"<% if (modernBusiness) { %> data-company-shell data-company-role="<%= workspace.canonicalRole || (workspace.permissions && workspace.permissions.canonicalRole) || 'employee' %>" data-theme="<%= businessTheme %>"<% } else { %> data-customer-shell data-theme="<%= typeof clientTheme !== 'undefined' && clientTheme ? clientTheme : 'day' %>"<% } %>>
+    <% if (modernBusiness) { %>
         <%- include('partials/company_icons') %>
         <span class="cp-sand-dust" aria-hidden="true"></span>
         <span class="cp-pyramid-art" aria-hidden="true"></span>
@@ -18,9 +20,9 @@
     <button class="bw-sidebar-overlay" type="button" data-sidebar-close aria-label="إغلاق القائمة"></button>
 
     <div class="bw-frame">
-        <%- include(workspace.isCompany ? 'partials/company_modern_header' : 'partials/workspace_topbar') %>
+        <%- include(modernBusiness ? 'partials/company_modern_header' : 'partials/workspace_topbar') %>
         <main class="bw-main cp-main" id="mainContent">
-            <% if (!workspace.isCompany) { %>
+            <% if (!modernBusiness || (workspace.isAgent && ['customers', 'customer_profile', 'agency_balances', 'agency_debts', 'agency_account', 'agency_position', 'agency_profits', 'finance'].includes(page))) { %>
             <header class="bw-page-header">
                 <div>
                     <span class="bw-eyebrow"><i class="fa-solid <%= pageMeta.icon || 'fa-grid-2' %>"></i><%= pageMeta.eyebrow %></span>
@@ -54,10 +56,10 @@
             <%- include('partials/workspace_feedback') %>
 
             <% if (page === 'overview') { %>
-                <% if (workspace.isCompany) { %><%- include('partials/company_modern_home') %><details class="cm-analytics"><summary>تفاصيل الأداء والفريق <i class="fa-solid fa-chevron-down"></i></summary><% } %>
+                <% if (modernBusiness) { %><%- include('partials/company_modern_home') %><details class="cm-analytics"><summary>تفاصيل الأداء والفريق <i class="fa-solid fa-chevron-down"></i></summary><% } %>
                 <%- include('pages/workspace_overview') %>
-                <% if (workspace.isCompany) { %></details><% } %>
-            <% } else if (page === 'services' && workspace.isCompany) { %>
+                <% if (modernBusiness) { %></details><% } %>
+            <% } else if (page === 'services' && modernBusiness) { %>
                 <%- include('partials/company_modern_home') %>
             <% } else if (page === 'services') { %>
                 <%- include('pages/workspace_services') %>
@@ -92,7 +94,7 @@
             <% } %>
         </main>
 
-        <% if (workspace.isCompany) { %>
+        <% if (modernBusiness) { %>
             <%- include('partials/company_bottom_nav') %>
         <% } else { %>
             <%- include('partials/customer_mobile_dock') %>
@@ -172,8 +174,8 @@
         </div>
     </dialog>
 
-    <dialog class="bw-dialog<%= workspace.isCompany ? ' cp-dialog' : '' %>" id="transferConfirmDialog" aria-labelledby="transferConfirmTitle">
-        <% if (workspace.isCompany) { %>
+    <dialog class="bw-dialog<%= modernBusiness ? ' cp-dialog' : '' %>" id="transferConfirmDialog" aria-labelledby="transferConfirmTitle">
+        <% if (modernBusiness) { %>
         <div class="cp-dialog-body">
             <header class="cp-transfer-review-head" tabindex="-1" autofocus>
             <span class="bw-section-kicker">مراجعة قبل الإرسال</span>
@@ -203,7 +205,7 @@
 
     <dialog class="bw-dialog cp-dialog" id="transferSuccessDialog" aria-labelledby="transferSuccessTitle">
         <div class="cp-dialog-body">
-            <% if (workspace.isCompany) { %>
+            <% if (modernBusiness) { %>
             <span class="cp-mark" aria-hidden="true"><svg class="cp-icon"><use href="#cp-icon-horus"></use></svg></span>
             <% } else { %>
             <span class="cp-dialog-mark" aria-hidden="true"><img src="/images/logo.jpeg" alt="" onerror="this.onerror=null;this.src='/images/logo.jpg'"></span>
@@ -213,7 +215,7 @@
             <p class="bw-mono" id="transferSuccessRef" hidden></p>
             <div class="bw-dialog-actions">
                 <a href="/client/transactions" class="bw-button secondary" id="transferSuccessOps">غرفة العمليات</a>
-                <a href="#" class="bw-button <%= workspace.isCompany ? 'primary' : 'ghost' %>" id="transferSuccessWhatsapp" hidden target="_blank" rel="noopener">واتساب العميل</a>
+                <a href="#" class="bw-button <%= modernBusiness ? 'primary' : 'ghost' %>" id="transferSuccessWhatsapp" hidden target="_blank" rel="noopener">واتساب العميل</a>
             </div>
             <button type="button" class="bw-button primary wide" data-dialog-close>متابعة يوم العمل</button>
         </div>
@@ -345,11 +347,11 @@
             }
         })();
     </script>
-    <script src="/js/client-workspace.js?v=20261022-mobile-review" defer></script>
-    <% if (workspace.isCompany) { %>
+    <script src="/js/client-workspace.js?v=20261023-agent-design" defer></script>
+    <% if (modernBusiness) { %>
     <% if (page === 'overview') { %><script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script><% } %>
-    <script src="/js/company-portal.js?v=20261022-browser-compat" defer></script>
-    <script src="/js/company-internal.js?v=20261022-2" defer></script>
+    <script src="/js/company-portal.js?v=20261023-agent-design" defer></script>
+    <script src="/js/company-internal.js?v=20261023-agent-design" defer></script>
     <% } else { %>
     <script src="/js/client-portal.js?v=20260920-cl-m2" defer></script>
     <% } %>

@@ -1,5 +1,5 @@
 <% const isolatedService = serviceCatalog.find(item => item.key === servicePage.selectedService) || serviceCatalog[0]; %>
-<% if (workspace.isCompany) { %>
+<% if ((workspace.isCompany || workspace.isAgent)) { %>
 <section class="cp-page-hero cm-service-hero">
     <div>
 
@@ -13,6 +13,6 @@
 <% } %>
 <section class="cp-workbench" data-service-key="<%= servicePage.selectedService %>">
     <div>
-        <%- include(workspace.isCompany ? '../partials/company_transfer_form' : '../partials/transfer_workbench_form', { isolatedService }) %>
+        <%- include((workspace.isCompany || workspace.isAgent) ? '../partials/company_transfer_form' : '../partials/transfer_workbench_form', { isolatedService }) %>
     </div>
 </section>

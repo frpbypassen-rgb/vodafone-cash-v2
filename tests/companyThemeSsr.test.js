@@ -15,10 +15,10 @@ const WORKSPACE_HEAD = path.join(__dirname, '..', 'views', 'client', 'partials',
 const WORKSPACE_VIEW = path.join(__dirname, '..', 'views', 'client', 'workspace.ejs');
 
 describe('company theme SSR and preferences', () => {
-    test.each(['day', 'night'])('keeps the %s portal usable when browser storage is blocked', async (theme) => {
+    test.each([['day', 'company'], ['night', 'company'], ['day', 'agent'], ['night', 'agent']])('keeps the %s %s portal usable when browser storage is blocked', async (theme, type) => {
         const head = await ejs.renderFile(WORKSPACE_HEAD, {
             pageMeta: { title: 'التحويل الذكي' },
-            workspace: { isCompany: true },
+            workspace: { type, isCompany: type === 'company', isAgent: type === 'agent' },
             companyTheme: theme
         });
         const attributes = {};
@@ -35,7 +35,7 @@ describe('company theme SSR and preferences', () => {
         };
         expect(() => vm.runInNewContext(head.match(/<script>([\s\S]*?)<\/script>/)[1], context)).not.toThrow();
         expect(attributes['data-theme']).toBe(theme);
-        expect(attributes['data-portal']).toBe('company');
+        expect(attributes['data-portal']).toBe(type);
     });
     test('reads preferences.companyTheme and aliases legacy uiTheme', () => {
         expect(readStoredCompanyTheme({ preferences: { companyTheme: 'night' }, uiTheme: 'day' })).toBe('night');
@@ -78,7 +78,7 @@ describe('company theme SSR and preferences', () => {
     test('workspace document paints the server theme and role before scripts', async () => {
         const html = fs.readFileSync(WORKSPACE_VIEW, 'utf8');
         expect(html).toContain('data-company-role=');
-        expect(html).toContain('data-theme="<%= typeof companyTheme !== \'undefined\' && companyTheme ? companyTheme : \'day\' %>"');
+        expect(html).toContain('data-theme="<%= businessTheme %>"');
         expect(html).toContain('data-company-shell');
     });
 

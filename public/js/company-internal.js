@@ -1,6 +1,6 @@
 (() => {
     'use strict';
-    if (document.documentElement.dataset.portal !== 'company') return;
+    if (!['company', 'agent'].includes(document.documentElement.dataset.portal)) return;
     const form = document.getElementById('businessTransferForm');
     if (form) {
         const recipient = document.getElementById('transferDestination');

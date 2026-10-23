@@ -1337,7 +1337,7 @@ const buildBaseContext = async (req, page, workspace) => {
         workspace,
         portalHomeHref: resolvePortalHomeHref(workspace),
         navigation,
-        companyMobileNav: workspace.isCompany ? buildCompanyMobileNav(workspace, navigation) : [],
+        companyMobileNav: workspace.isCompany ? buildCompanyMobileNav(workspace, navigation) : buildAgentMobileNav(navigation, page).dock,
         customerMobileNav: workspace.isCompany ? null : buildAgentMobileNav(navigation, page),
         statusMeta: STATUS_META,
         serviceCatalog: rates.services,
@@ -1352,10 +1352,10 @@ const buildBaseContext = async (req, page, workspace) => {
         now: new Date(),
         companyTheme: workspace.isCompany
             ? resolveAccountCompanyTheme(workspace.actor, req.session.companyTheme)
-            : null,
+            : resolveAccountClientTheme(workspace.actor, req.session.clientTheme),
         companyThemeMeta: workspace.isCompany
             ? COMPANY_PORTAL_THEME_META[resolveAccountCompanyTheme(workspace.actor, req.session.companyTheme)]
-            : null,
+            : COMPANY_PORTAL_THEME_META[resolveAccountClientTheme(workspace.actor, req.session.clientTheme)],
         clientTheme: workspace.isCompany
             ? null
             : resolveAccountClientTheme(workspace.actor, req.session.clientTheme),
@@ -1479,7 +1479,7 @@ const loadPageContext = async (req, page) => {
         }
     }
     if (page === 'overview') Object.assign(context, await loadOverview(workspace));
-    if (workspace.isCompany && ['overview', 'services'].includes(page)) context.companyHome = await loadCompanyHome(workspace);
+    if ((workspace.isCompany || workspace.isAgent) && ['overview', 'services'].includes(page)) context.companyHome = await loadCompanyHome(workspace);
     if (page === 'services') {
         context.servicePage = {
             mode: workspace.isCompany ? 'gallery' : 'combined',

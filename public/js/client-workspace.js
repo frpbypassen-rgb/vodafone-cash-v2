@@ -979,7 +979,7 @@
     const transferConfirmBody = document.getElementById('transferConfirmBody');
     const transferConfirmTitle = document.getElementById('transferConfirmTitle');
     const updateReviewViewport = () => {
-        if (!transferConfirmDialog || config.workspaceType !== 'company') return;
+        if (!transferConfirmDialog || !body.hasAttribute('data-company-shell')) return;
         const viewport = window.visualViewport;
         // Older engines use innerHeight; mobile keyboards resize the visual viewport.
         transferConfirmDialog.style.setProperty('--cp-review-height', `${viewport?.height || window.innerHeight}px`);
@@ -1152,7 +1152,7 @@
                 const reference = payload.customId ? ` الرقم المرجعي ${payload.customId}.` : '';
                 showFormResult(transferResult, `${payload.message || 'تم تسجيل العملية.'}${reference} يمكنك متابعتها من سجل المعاملات.`, true);
                 fillTransferSuccess(payload, context.phoneHint);
-                if (config.workspaceType === 'company') openDialog(transferSuccessDialog);
+                if (body.hasAttribute('data-company-shell')) openDialog(transferSuccessDialog);
                 clearTransferValues();
                 resetSmartTransfer(true);
                 updateCostEstimate();
@@ -1168,7 +1168,7 @@
     const defaultTransferConfirmSubmitHtml = transferConfirmSubmit?.innerHTML || '<i class="fa-solid fa-check"></i>تأكيد وختم';
 
     const openSealConfirm = ({ html, title, onConfirm, confirmHtml, forceDialog = false }) => {
-        if (!transferConfirmDialog || !transferConfirmBody || (!forceDialog && config.workspaceType !== 'company')) {
+        if (!transferConfirmDialog || !transferConfirmBody || (!forceDialog && !body.hasAttribute('data-company-shell'))) {
             onConfirm();
             return;
         }
@@ -1215,7 +1215,7 @@
             onSuccess: (payload, context) => {
                 const reference = payload.customId ? ` الرقم المرجعي ${payload.customId}.` : '';
                 fillTransferSuccess(payload, context.phoneHint);
-                if (config.workspaceType === 'company') openDialog(transferSuccessDialog);
+                if (body.hasAttribute('data-company-shell')) openDialog(transferSuccessDialog);
                 resetSmartTransfer(true);
                 setSmartStatus(`${payload.message || 'تم تسجيل العملية.'}${reference} يمكنك متابعتها من سجل المعاملات.`, 'success');
             },
@@ -1351,7 +1351,7 @@
                 message: transfer.message,
                 successCopy: transfer.message || 'تم تحويل الرصيد الداخلي.'
             }, '');
-            if (config.workspaceType === 'company') openDialog(transferSuccessDialog);
+            if (body.hasAttribute('data-company-shell')) openDialog(transferSuccessDialog);
             balanceTransferForm.reset();
         } catch (error) {
             showFormResult(balanceTransferResult, error.message || 'تعذر تحويل الرصيد.', false);

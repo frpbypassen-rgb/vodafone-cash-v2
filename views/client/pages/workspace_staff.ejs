@@ -1,13 +1,13 @@
-<% if (workspace.isCompany) { %>
+<% if (workspace.isCompany || workspace.isAgent) { %>
 <section class="cp-page-hero">
     <div>
-        <span class="bw-section-kicker">فريق الشركة</span>
-        <h2>فريق الشركة</h2>
+        <span class="bw-section-kicker">فريق <%= workspace.entityLabel %></span>
+        <h2>فريق <%= workspace.entityLabel %></h2>
         <p>المدير والمحاسب يراجعان الفريق من هنا. إنشاء التحويل يبقى في معرض الخدمات، والكشوف في مكتب المحاسبة.</p>
     </div>
     <div class="cp-page-hero-actions">
         <% if (workspace.permissions.canViewReports) { %>
-            <a href="/client/reports/staff" class="bw-button ghost"><i class="fa-solid fa-chart-column"></i>أداء الموظفين</a>
+            <a href="<%= workspace.isAgent ? '/client/reports?scope=staff' : '/client/reports/staff' %>" class="bw-button ghost"><i class="fa-solid fa-chart-column"></i>أداء الموظفين</a>
         <% } %>
         <% if (workspace.permissions.canManageStaff) { %>
             <button type="button" class="bw-button primary" data-dialog-open="createStaffDialog"><i class="fa-solid fa-user-plus"></i>موظف جديد</button>
@@ -43,7 +43,7 @@
 <section class="bw-section">
     <header class="bw-section-head">
         <div><span class="bw-section-kicker">الفريق والصلاحيات</span><h2>حسابات الموظفين</h2></div>
-        <% if (!workspace.isCompany && workspace.permissions.canManageStaff) { %><button type="button" class="bw-button primary" data-dialog-open="createStaffDialog"><i class="fa-solid fa-user-plus"></i>موظف جديد</button><% } %>
+        <% if (!workspace.isCompany && !workspace.isAgent && workspace.permissions.canManageStaff) { %><button type="button" class="bw-button primary" data-dialog-open="createStaffDialog"><i class="fa-solid fa-user-plus"></i>موظف جديد</button><% } %>
     </header>
     <div class="bw-table-wrap">
         <table class="bw-table">

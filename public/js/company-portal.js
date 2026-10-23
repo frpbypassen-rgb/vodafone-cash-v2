@@ -2,7 +2,8 @@
 
 (() => {
     const config = window.businessPortal || {};
-    if (config.workspaceType !== 'company') return;
+    if (!['company', 'agent'].includes(config.workspaceType)) return;
+    const themeStorageKey = config.workspaceType === 'agent' ? 'ahram_client_theme' : 'ahram_company_theme';
 
     const csrf = config.csrfToken || '';
     const jsonHeaders = {
@@ -194,7 +195,7 @@
             const select = document.querySelector('[data-preference="company-theme"]');
             if (select) select.value = next;
             if (!persist) return;
-            try { localStorage.setItem('ahram_company_theme', next); } catch (_) { /* Optional browser storage. */ }
+            try { localStorage.setItem(themeStorageKey, next); } catch (_) { /* Optional browser storage. */ }
             fetch('/client/api/theme', {
                 method: 'POST',
                 headers: jsonHeaders,
@@ -204,11 +205,11 @@
 
         const serverTheme = THEMES.includes(root.getAttribute('data-theme')) ? root.getAttribute('data-theme') : '';
         let stored = null;
-        try { stored = localStorage.getItem('ahram_company_theme'); } catch (_) { /* Use the server preference. */ }
+        try { stored = localStorage.getItem(themeStorageKey); } catch (_) { /* Use the server preference. */ }
         const current = serverTheme || (THEMES.includes(stored) ? stored : 'day');
         applyTheme(current, false);
         if (serverTheme) {
-            try { localStorage.setItem('ahram_company_theme', serverTheme); } catch (_error) { /* private mode */ }
+            try { localStorage.setItem(themeStorageKey, serverTheme); } catch (_error) { /* private mode */ }
         }
 
         const enableArt = () => {
@@ -336,9 +337,10 @@
         });
     };
 
-    registerWorker();
     setupTheme();
     setupBell();
+    if (config.workspaceType !== 'company') return;
+    registerWorker();
     setupPush();
     setupCommandChart();
 })();

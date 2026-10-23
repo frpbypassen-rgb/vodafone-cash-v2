@@ -1,14 +1,14 @@
-<% if (workspace.isCompany) { %>
+<% if (workspace.isCompany || workspace.isAgent) { %>
 <section class="cp-page-hero">
     <div>
         <span class="bw-section-kicker"><%= reportScope === 'staff' ? 'أداء الموظفين' : 'كشف الحساب' %></span>
         <h2><%= reportScope === 'staff' ? 'أداء الموظفين' : 'كشف الحساب' %></h2>
-        <p><%= reportScope === 'staff' ? 'هذه الصفحة للكشف وليس لإدارة الحسابات. تعديل الموظفين يبقى في فريق الشركة.' : 'نزّل كشف الحساب من هنا عند إغلاق اليوم. إنشاء التحويل يبقى في معرض الخدمات.' %></p>
+        <p><%= reportScope === 'staff' ? 'هذه الصفحة للكشف وليس لإدارة الحسابات. تعديل الموظفين يبقى في فريق المنشأة.' : 'نزّل كشف الحساب من هنا عند إغلاق اليوم. إنشاء التحويل يبقى في معرض الخدمات.' %></p>
     </div>
     <div class="cp-page-hero-actions"><button type="button" class="bw-button primary" data-report-export-open><i class="fa-solid fa-file-arrow-down"></i>تصدير التقرير</button>
         <% if (reportScope === 'staff') { %>
             <a href="/client/reports" class="bw-button ghost"><i class="fa-solid fa-file-invoice"></i>كشف الحساب</a>
-            <a href="/client/staff" class="bw-button ghost"><i class="fa-solid fa-user-group"></i>فريق الشركة</a>
+            <a href="/client/staff" class="bw-button ghost"><i class="fa-solid fa-user-group"></i>فريق المنشأة</a>
         <% } else { %>
             <a href="/client/finance" class="bw-button ghost"><i class="fa-solid fa-scale-balanced"></i>مكتب المحاسبة</a>
             <% if (workspace.permissions.manager || workspace.permissions.accountant) { %>
