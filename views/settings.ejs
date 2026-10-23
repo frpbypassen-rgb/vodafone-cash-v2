@@ -67,6 +67,7 @@
             .routing-strategy-grid { grid-template-columns: 1fr; }
         }
     </style>
+<%- include('partials/admin_modern_head') %>
 </head>
 <body>
 
@@ -75,10 +76,10 @@
 
 <%- include('partials/sidebar', { activePage: 'settings' }) %>
 
-<div class="main-content">
+<div class="main-content am-settings-page">
     <div class="container-fluid">
         <div class="admin-nav mb-4">
-            <h3 class="fw-bold text-dark m-0"><i class="fa-solid fa-gears text-primary me-2"></i> لوحة تحكم الإعدادات الشاملة</h3>
+            <h1 class="fw-bold text-dark m-0"><i class="fa-solid fa-gears text-primary me-2"></i> الأسعار وإعدادات المنظومة</h1>
         </div>
 
         <ul class="nav nav-pills settings-nav d-flex flex-nowrap hide-scrollbar">

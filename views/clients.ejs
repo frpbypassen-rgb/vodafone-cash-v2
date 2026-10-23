@@ -446,6 +446,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Al-Ahram">
     <!-- End PWA Setup -->
+<%- include('partials/admin_modern_head') %>
 </head>
 <body>
 
@@ -467,13 +468,13 @@
     };
 %>
 
-<div class="main-content">
+<div class="main-content am-directory-page">
     <div class="container-fluid clients-page">
         <div class="admin-nav mb-4 d-flex flex-column gap-3">
             <div class="clients-header">
                 <div class="clients-title">
-                    <div class="clients-title-icon"><i class="fa-solid fa-users"></i></div>
-                    <h3 class="fw-bold text-dark">دليل الحسابات</h3>
+
+                    <div><span class="am-eyebrow">الحسابات والتنفيذ</span><h1 class="fw-bold text-dark">دليل الحسابات</h1><p class="am-description">العملاء والشركات والوكلاء وأرصدة حساباتهم</p></div>
                 </div>
                 <div class="clients-total-pill">
                     <i class="fa-solid fa-database text-primary"></i>
@@ -554,7 +555,7 @@
                     <% } %>
 
                     <% users.forEach(u => { %>
-                        <div class="col-xl-3 col-lg-4 col-md-6 client-card-item" data-name="<%= u.name %>" data-phone="<%= u.phone || '' %>" data-username="<%= u.webUsername || '' %>" data-code="<%= u.accountCode || '' %>" data-master="">
+                        <div class="col-xl-4 col-lg-6 col-md-6 client-card-item" data-name="<%= u.name %>" data-phone="<%= u.phone || '' %>" data-username="<%= u.webUsername || '' %>" data-code="<%= u.accountCode || '' %>" data-master="">
                             <div class="card-3d-wrapper">
                                 <div class="client-card-3d" style="border-top: 5px solid #3b82f6;">
                                     <div>
@@ -626,7 +627,7 @@
                     <% } %>
 
                     <% companies.forEach(c => { %>
-                        <div class="col-xl-3 col-lg-4 col-md-6 client-card-item" data-name="<%= c.name %>" data-phone="<%= c.phone || '' %>" data-username="<%= c.webUsername || '' %>" data-code="<%= c.accountCode || '' %>" data-master="">
+                        <div class="col-xl-4 col-lg-6 col-md-6 client-card-item" data-name="<%= c.name %>" data-phone="<%= c.phone || '' %>" data-username="<%= c.webUsername || '' %>" data-code="<%= c.accountCode || '' %>" data-master="">
                             <div class="card-3d-wrapper">
                                 <div class="client-card-3d" style="border-top: 5px solid #8b5cf6;">
                                     <div>
@@ -705,7 +706,7 @@
                     <% } %>
 
                     <% agents.forEach(agent => { %>
-                        <div class="col-xl-3 col-lg-4 col-md-6 client-card-item" data-name="<%= agent.name %>" data-phone="<%= agent.phone || '' %>" data-username="<%= agent.webUsername || '' %>" data-code="<%= agent.accountCode || '' %>" data-master="">
+                        <div class="col-xl-4 col-lg-6 col-md-6 client-card-item" data-name="<%= agent.name %>" data-phone="<%= agent.phone || '' %>" data-username="<%= agent.webUsername || '' %>" data-code="<%= agent.accountCode || '' %>" data-master="">
                             <div class="card-3d-wrapper">
                                 <div class="client-card-3d" style="border-top: 5px solid #f59e0b;">
                                     <div>

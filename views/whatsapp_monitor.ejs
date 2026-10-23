@@ -57,6 +57,7 @@
         @media (max-width: 1100px) { .delivery-main { grid-template-columns: repeat(2, minmax(0,1fr)); } .details-toggle { justify-self: end; } }
         @media (max-width: 576px) { .monitor-header { align-items: flex-start; } .monitor-header h3 { font-size: 1.15rem; } .monitor-subtitle { font-size: .8rem; } .delivery-main { grid-template-columns: 1fr; gap: 10px; } .details-toggle { position: absolute; left: 14px; top: 14px; } .delivery-card { position: relative; } .trail-step { width: 100%; } }
     </style>
+<%- include('partials/admin_modern_head') %>
 </head>
 <body>
 <%
@@ -88,7 +89,7 @@
             <div class="d-flex align-items-center gap-3">
                 <span class="monitor-icon"><i class="fa-brands fa-whatsapp"></i></span>
                 <div>
-                    <h3 class="fw-bold m-0" style="color:var(--text-main)">مراقبة رسائل واتساب</h3>
+                    <h1 class="fw-bold m-0" style="color:var(--text-main)">مراقبة رسائل واتساب</h1>
                     <p class="monitor-subtitle">تتبع إيصالات العمليات وإشعارات تغيير السعر وتحديد المرحلة المتوقفة وسببها.</p>
                 </div>
             </div>

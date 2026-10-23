@@ -1,0 +1,13 @@
+<nav class="am-sections no-print" aria-label="أقسام الإدارة">
+    <% [
+        ['overview', '/', 'نظرة عامة'],
+        ['operations', '/transactions/operations', 'العمليات'],
+        ['finance', '/financial-movements', 'المال والتقارير'],
+        ['accounts', '/clients', 'الحسابات والتنفيذ'],
+        ['communication', canSeeAdminHref('/support') ? '/support' : '/telegram-monitor', 'التواصل والمراقبة'],
+        ['system', '/settings', 'الأمان والنظام']
+    ].forEach(([group, href, label]) => { if (canSeeAdminHref(href)) { %>
+    <a href="<%= href %>" data-am-section="<%= group %>"><%= label %></a>
+    <% } }); %>
+</nav>
+<a class="am-skip" href="#am-main">انتقل إلى محتوى الصفحة</a>

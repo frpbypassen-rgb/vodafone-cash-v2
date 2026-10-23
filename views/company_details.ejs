@@ -156,6 +156,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Al-Ahram">
     <!-- End PWA Setup -->
+<%- include('partials/admin_modern_head') %>
 </head>
 <body>
 
@@ -166,7 +167,7 @@
 <div class="main-content">
     <div class="container-fluid">
         <div class="d-flex justify-content-between align-items-center mb-4 client-detail-title">
-            <h3 class="fw-bold m-0" style="color: var(--text-main);"><i class="fa-solid fa-building text-primary me-2"></i> بيانات الشركة (الوكيل)</h3>
+            <h1 class="fw-bold m-0" style="color: var(--text-main);"><i class="fa-solid fa-building text-primary me-2"></i> بيانات الشركة (الوكيل)</h1>
             <div class="d-flex flex-wrap gap-2">
                 <% if (typeof isMaster !== 'undefined' && isMaster) { %>
                     <a href="/admin/accounts/company/<%= company._id %>/edit#owner-email-otp" class="btn btn-success fw-bold rounded-3 shadow-sm px-3 btn-3d-hover"><i class="fa-solid fa-pen-to-square me-1"></i> تعديل البيانات</a>

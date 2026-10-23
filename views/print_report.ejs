@@ -39,8 +39,9 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Al-Ahram">
     <!-- End PWA Setup -->
+<%- include('partials/admin_modern_print') %>
 </head>
-<body>
+<body >
     <div class="header">
         <h2>شركة الأهرام للخدمات الرقمية</h2>
         <p>كشف الحساب المالي المعتمد للجهة: <%= (typeof transactions !== 'undefined' && transactions.length > 0) ? ((transactions[0].companyName && transactions[0].companyName !== 'عميل فردي') ? transactions[0].companyName : (transactions[0].employeeName || targetName)) : targetName %></p>

@@ -35,7 +35,7 @@ const REQUIRED_ADMIN_HREFS = [
     '/settings/clients-web',
     '/settings/executors-web',
     '/admin/security',
-    '/security/sessions'
+    '/admin/security?tab=devices'
 ];
 
 const REMOVED_ADMIN_HREFS = [

@@ -262,13 +262,18 @@
     </style>
     <link rel="stylesheet" href="/css/brand-ui.css?v=20260804-brand1">
     <link rel="stylesheet" href="/css/auth-verification-control-room.css?v=20261017-control-room3">
+    <% if (typeof adminPortal !== 'undefined' && adminPortal) { %><%- include('partials/admin_modern_head') %><% } %>
 </head>
 <body class="client-os-auth-page unified-login-page <%= ((typeof executorMfaChallenge !== 'undefined' && executorMfaChallenge) || (typeof accountMfaChallenge !== 'undefined' && accountMfaChallenge)) ? 'auth-verification-page' : '' %>">
 
+    <% if (typeof adminPortal !== 'undefined' && adminPortal) { %><button type="button" class="am-auth-theme" data-am-theme aria-label="تغيير المظهر">◐ المظهر</button><% } %>
     <div class="bg-glow"></div>
 
     <div class="login-wrapper">
         <div class="login-card">
+            <% if (typeof adminPortal !== 'undefined' && adminPortal) { %>
+            <div class="am-login-heading"><span class="am-login-symbol"><i class="fa-solid fa-shield-halved"></i></span><h1>تسجيل الدخول</h1><p>بوابة الإدارة المركزية · الأهرام للدفع</p></div>
+            <% } else { %>
             <div class="logo-box">
                 <div class="login-seal-3d" aria-hidden="true">
                     <span class="login-seal-rings"></span>
@@ -278,13 +283,16 @@
                     <span>Ahram</span><span class="brand-pay">Pay</span>
                 </a>
                 <div class="brand-accent"></div>
-                <% if (typeof clientPortal !== 'undefined' && clientPortal) { %>
+                <% if (typeof adminPortal !== 'undefined' && adminPortal) { %>
+                <p>بوابة الإدارة المركزية الآمنة</p>
+                <% } else if (typeof clientPortal !== 'undefined' && clientPortal) { %>
                 <p><i class="fa-solid fa-wallet text-warning me-1"></i> بوابة العملاء — محفظة وتحويلات آمنة</p>
                 <% } else { %>
                 <p><i class="fa-solid fa-building-shield text-warning me-1"></i> بوابة الشركات والوكلاء والعملاء</p>
                 <% } %>
             </div>
 
+            <% } %>
             <% if (typeof error !== 'undefined' && error && !((typeof executorMfaChallenge !== 'undefined' && executorMfaChallenge) || (typeof accountMfaChallenge !== 'undefined' && accountMfaChallenge))) { %>
                 <div class="alert custom-alert" role="alert">
                     <i class="fa-solid fa-triangle-exclamation fs-5 text-danger"></i>
@@ -293,6 +301,7 @@
             <% } %>
 
             <form action="/login" method="POST" id="loginForm" data-auth-verification-form>
+                <% if (typeof adminPortal !== 'undefined' && adminPortal) { %><input type="hidden" name="portal" value="admin"><% } %>
                 <input type="hidden" name="_csrf" value="<%= typeof csrfToken !== 'undefined' ? csrfToken : '' %>">
                 <% if (typeof clientPortal !== 'undefined' && clientPortal) { %>
                 <input type="hidden" name="portal" value="client">

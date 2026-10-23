@@ -47,8 +47,9 @@
         .notice { margin-bottom: 7px; padding: 7px 9px; color: #8f2430; border: 1px solid #e2adb3; background: #fff5f5; }
         .footer { margin-top: 10px; padding-top: 7px; border-top: 1px solid #d8e1ea; color: #68788a; font-size: 8px; }
     </style>
+<%- include('partials/admin_modern_print') %>
 </head>
-<body>
+<body >
 <%
     const period = report.reportPeriod || {};
     const company = report.company || {};

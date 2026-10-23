@@ -371,8 +371,8 @@ router.post('/clients-web/toggle', requireMaster, async (req, res) => {
 // =========================================================
 router.get('/executors-web', async (req, res) => {
     try {
-        const employees = await Employee.find({ status: 'active' }).populate('botId');
-        const webExecutors = await Employee.find({ webUsername: { $exists: true, $nin: [null, ""] } }).populate('botId');
+        const employees = await Employee.find({ status: 'active' }).populate('groupId');
+        const webExecutors = await Employee.find({ webUsername: { $exists: true, $nin: [null, ""] } }).populate('groupId');
         res.render('settings_executors_web', { employees, webExecutors, query: req.query });
     } catch (e) {
         console.error('[settings/executors-web] خطأ:', e.message);

@@ -127,6 +127,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Al-Ahram">
     <!-- End PWA Setup -->
+<%- include('partials/admin_modern_head') %>
 </head>
 <body>
 
@@ -137,7 +138,7 @@
 
         <!-- Header -->
         <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-4">
-            <h3 class="fw-bold m-0" style="color: var(--text-main);"><i class="fa-solid fa-user-plus text-primary me-2"></i> طلبات التسجيل الجديدة</h3>
+            <h1 class="fw-bold m-0" style="color: var(--text-main);"><i class="fa-solid fa-user-plus text-primary me-2"></i> طلبات التسجيل الجديدة</h1>
             <div class="d-flex align-items-center gap-2">
                 <a href="/registration-requests?status=pending" class="btn btn-sm <%= status === 'pending' ? 'btn-warning' : 'btn-outline-secondary' %> rounded-pill fw-bold px-3">
                     <i class="fa-solid fa-clock me-1"></i> قيد الانتظار <span class="badge bg-dark rounded-pill ms-1"><%= counts.pending %></span>

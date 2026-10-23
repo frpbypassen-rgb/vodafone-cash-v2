@@ -115,6 +115,7 @@ const renderLogin = (res, error = null, data = {}) => {
         submittedUsername: '',
         ...data,
         clientPortal,
+        adminPortal: req?.query?.portal === 'admin' || req?.body?.portal === 'admin',
         passwordResetEmailEnabled: isPasswordResetEmailEnabled(),
         passwordResetSupportPhone: getBrandContact().phoneDisplay,
         passwordResetSupportEmail: getBrandContact().supportEmail

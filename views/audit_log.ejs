@@ -208,6 +208,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Al-Ahram">
+<%- include('partials/admin_modern_head') %>
 </head>
 <body>
 
@@ -218,11 +219,11 @@
     <!-- ── ترويسة الصفحة ── -->
     <div class="page-header fade-in">
         <div>
-            <h2>
+            <h1>
                 <i class="fa-solid fa-user-shield me-2" style="color: var(--brand-gold);"></i>
                 سجل التدفق والتدقيق الأمني
                 <small>مراقبة وحماية العمليات والتحويلات اليومية في الزمن الفعلي</small>
-            </h2>
+            </h1>
         </div>
         <div class="d-flex gap-2 flex-wrap">
             <button class="btn btn-sm btn-outline-secondary" onclick="exportLogs()">

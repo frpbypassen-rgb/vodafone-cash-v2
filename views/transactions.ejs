@@ -649,6 +649,7 @@
         }
     </style>
     <link rel="stylesheet" href="/css/admin-operation-details.css?v=20261019-provider-resolution">
+<%- include('partials/admin_modern_head') %>
 </head>
 <body>
 <%
@@ -748,8 +749,8 @@
 
 <%- include('partials/sidebar', { activePage: typeof operationWorkspace !== 'undefined' && operationWorkspace ? 'transactions' : 'transactions_central' }) %>
 
-<div class="main-content">
-    <div class="container-fluid">
+<div class="main-content am-operations-page">
+    <div class="container-fluid"><% if (opsWorkspace) { %><header class="am-page-heading"><span>إدارة العمليات</span><h1><%= providerReviewView ? 'مراجعة عمليات API' : 'سجل العمليات' %></h1><p>متابعة التنفيذ والنتائج والتكاليف من مكان واحد</p></header><% } %>
         <% if (providerReviewView) { %>
         <section class="data-card p-3 mb-3" id="providerReviewSummary" aria-label="متابعة عمليات API المتأخرة">
             <div class="d-flex flex-wrap justify-content-between gap-2 align-items-center">
@@ -878,7 +879,13 @@
         <% } %>
 
         <% if (opsSummary && !providerReviewView) { %>
-        <section class="ops-summary-strip" data-ops-summary-strip="operations" aria-label="ملخص العمليات">
+        <section class="am-kpis" aria-label="ملخص العمليات والفترة">
+<article class="am-kpi featured"><div class="am-kpi-label"><span>إجمالي العمليات</span><i class="fa-solid fa-list-check"></i></div><div class="am-kpi-value"><%= formatCount(totalTxs) %> <small>عملية</small></div><div class="am-kpi-foot">ضمن مرشحات العرض الحالية</div></article>
+<article class="am-kpi"><div class="am-kpi-label"><span>الكاش اليوم</span><i class="fa-solid fa-money-bill-transfer"></i></div><div class="am-kpi-value"><%= formatMoney(opsToday.cashEGP) %> <small>EGP</small></div><div class="am-kpi-foot">مبلغ التنفيذ بالجنيه المصري</div></article>
+<article class="am-kpi"><div class="am-kpi-label"><span>التحويل البنكي اليوم</span><i class="fa-solid fa-building-columns"></i></div><div class="am-kpi-value"><%= formatMoney(opsToday.bankEGP) %> <small>EGP</small></div><div class="am-kpi-foot">مبلغ التنفيذ بالجنيه المصري</div></article>
+<article class="am-kpi"><div class="am-kpi-label"><span>تكلفة عمليات اليوم</span><i class="fa-solid fa-coins"></i></div><div class="am-kpi-value"><%= formatMoney(opsToday.totalLYD) %> <small>LYD</small></div><div class="am-kpi-foot">تكلفة الحسابات بالدينار الليبي</div></article>
+</section>
+<details class="am-balances"><summary>أرصدة الشركات والمنفذين وإيداعات اليوم</summary><section class="ops-summary-strip" data-ops-summary-strip="operations" aria-label="ملخص العمليات">
             <div class="ops-summary-layout">
                 <div class="ops-summary-companies">
                     <div class="ops-company-row">
@@ -961,11 +968,11 @@
                         </article>
                     </div>
             </div>
-        </section>
+        </section></details>
         <% } %>
 
         <% if (opsWorkspace) { %>
-        <form method="GET" action="/transactions/operations" class="d-flex flex-wrap align-items-end gap-2 mb-3" aria-label="فترة العمليات">
+        <form method="GET" action="/transactions/operations" class="am-operation-filters d-flex flex-wrap align-items-end gap-2 mb-3" aria-label="فترة العمليات">
             <% if (providerReviewView) { %>
             <input type="hidden" name="providerReview" value="1">
             <div><label class="form-label small fw-bold mb-1" for="providerSearch">رقم العملية أو المستلم</label><input class="form-control form-control-sm" id="providerSearch" name="search" value="<%= search %>"></div>
@@ -976,6 +983,10 @@
                     <% } %>
                 </select>
             </div>
+            <% } %>
+            <% if (!providerReviewView) { %>
+            <div class="am-wide-field"><label for="operationSearch" class="form-label">رقم العملية أو المستلم</label><input id="operationSearch" class="form-control" name="search" value="<%= search %>" placeholder="رقم العملية، الهاتف، اسم العميل"></div>
+            <div><label for="operationStatus" class="form-label">الحالة</label><select id="operationStatus" name="status" class="form-select"><% [['','كل الحالات'],['pending','معلقة'],['processing','قيد التنفيذ'],['accepted','مقبولة'],['completed','مكتملة'],['rejected','مرفوضة'],['cancelled_by_admin','ملغية']].forEach(([value,label])=>{ %><option value="<%= value %>" <%= statusFilter===value?'selected':'' %>><%= label %></option><% }); %></select></div>
             <% } %>
             <div>
                 <label for="operationsFromDate" class="form-label small fw-bold mb-1">من</label>

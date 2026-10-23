@@ -135,8 +135,9 @@
         .cancelled-notice span { font-size: 8px; }
         .report-end { margin-top: 10px; padding-top: 7px; border-top: 1px solid #d9dde2; color: #68727d; font-size: 8px; }
     </style>
+<%- include('partials/admin_modern_print') %>
 </head>
-<body>
+<body >
 <%
     const info = report.entityInfo || {};
     const stats = report.stats || {};

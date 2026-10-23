@@ -8,6 +8,7 @@
     <style>
         body { font-family:Tajawal,sans-serif; } .main-content { margin-right:var(--sidebar-width); padding:30px; } .surface { background:var(--card-bg); border:1px solid var(--border-glass); border-radius:18px; box-shadow:var(--shadow-soft); } .form-label { font-size:.8rem; font-weight:800; color:var(--text-muted); } .form-control,.form-select { background:var(--input-bg); color:var(--text-main); border-color:var(--border-glass); min-height:44px; } .mono { font-family:'JetBrains Mono',monospace; direction:ltr; unicode-bidi:plaintext; } .table-wrap { overflow:auto; } .result-table { min-width:1120px; } .result-table th { color:var(--text-muted); font-size:.77rem; white-space:nowrap; } .result-table td { vertical-align:middle; font-size:.86rem; } .status { border-radius:999px; padding:5px 9px; font-weight:800; font-size:.72rem; white-space:nowrap; background:rgba(59,130,246,.12); color:#3b82f6; } .status.completed,.status.deposit { color:#10b981; background:rgba(16,185,129,.12); } .status.deduction,.status.rejected,.status.cancelled_by_admin { color:#ef4444; background:rgba(239,68,68,.12); } .status.pending { color:#d97706; background:rgba(245,158,11,.12); } @media(max-width:991px){.main-content{margin-right:0;padding:86px 14px 86px;}}
     </style>
+<%- include('partials/admin_modern_head') %>
 </head>
 <body>
 <%- include('partials/sidebar', { activePage }) %>

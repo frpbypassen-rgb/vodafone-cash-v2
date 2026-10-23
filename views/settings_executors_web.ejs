@@ -23,6 +23,7 @@
         .mono-num { font-family: 'JetBrains Mono', monospace; font-size: 0.95rem;}
         .btn-action-sm { width: 35px; height: 35px; display: inline-flex; align-items: center; justify-content: center; border-radius: 10px; transition: 0.2s; border: none; }
     </style>
+<%- include('partials/admin_modern_head') %>
 </head>
 <body>
 
@@ -34,7 +35,7 @@
 <div class="main-content">
     <div class="container-fluid">
         <div class="admin-nav mb-4">
-            <h3 class="fw-bold text-dark m-0"><i class="fa-solid fa-gears text-primary me-2"></i> لوحة الإعدادات الشاملة</h3>
+            <h1 class="fw-bold text-dark m-0"><i class="fa-solid fa-gears text-primary me-2"></i> لوحة الإعدادات الشاملة</h1>
         </div>
 
         <ul class="nav nav-pills settings-nav d-flex flex-nowrap hide-scrollbar">
@@ -61,7 +62,7 @@
                             <select name="employeeId" class="form-select fw-bold" required>
                                 <option value="" disabled selected>يرجى اختيار الموظف...</option>
                                 <% employees.forEach(emp => { %>
-                                    <option value="<%= emp._id %>"><%= emp.name %> (<%= emp.botId ? emp.botId.name : 'بدون بوت' %>)</option>
+                                    <option value="<%= emp._id %>"><%= emp.name %> (<%= emp.groupId ? emp.groupId.name : 'بدون بوت' %>)</option>
                                 <% }) %>
                             </select>
                         </div>
@@ -102,7 +103,7 @@
                                 <% webExecutors.forEach(e => { %>
                                     <tr>
                                         <td><div class="fw-bold text-danger"><i class="fa-solid fa-user-astronaut me-1 opacity-50 small"></i> <%= e.name %></div></td>
-                                        <td><span class="badge bg-secondary px-3 py-1 rounded-pill"><%= e.botId ? e.botId.name : '---' %></span></td>
+                                        <td><span class="badge bg-secondary px-3 py-1 rounded-pill"><%= e.groupId ? e.groupId.name : '---' %></span></td>
                                         <td dir="ltr" style="font-size: 0.85rem;" class="mono-num text-start ps-4">
                                             <span class="text-muted small">U:</span> <b class="text-info"><%= e.webUsername %></b><br>
                                             <span class="text-muted small">P:</span> <code class="text-danger"><%= e.webPassword %></code>

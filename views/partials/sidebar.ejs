@@ -1,7 +1,7 @@
 <script>
     // تفعيل الوضع المحفوظ فوراً لمنع الوميض الأبيض عند تحديث الصفحة
     (function() {
-        const savedTheme = localStorage.getItem('ahram_theme') || 'dark';
+        const savedTheme = localStorage.getItem('ahram_theme') || 'light';
         document.documentElement.setAttribute('data-theme', savedTheme);
         document.documentElement.setAttribute('data-bs-theme', savedTheme);
     })();
@@ -672,18 +672,9 @@
 <div class="sidebar-overlay no-print" id="sidebarOverlay" data-sidebar-close onclick="toggleSidebar()"></div>
 
 <div class="top-nav-admin-mobile no-print">
-    <div class="d-flex align-items-center">
-        <button class="mobile-menu-trigger" type="button" data-sidebar-toggle onclick="toggleSidebar()" aria-label="فتح القائمة" aria-controls="sidebarMenu" aria-expanded="false">
-            <i class="fa-solid fa-bars-staggered"></i>
-            <span id="mobileMenuBadge" class="position-absolute bg-danger rounded-circle" style="display: none; top: 12px; right: 14px; width: 9px; height: 9px; border: 2px solid var(--card-bg);"></span>
-        </button>
-        <div class="avatar-sm me-2"><i class="fa-solid fa-user-shield"></i></div>
-        <div class="d-flex flex-column">
-            <span class="fw-bold" style="font-size: 0.85rem; color: var(--text-main);"><%= typeof adminName !== 'undefined' ? adminName : 'مدير النظام' %></span>
-            <span style="font-size: 0.65rem; color: var(--brand-gold);">القيادة المركزية</span>
-        </div>
-    </div>
+    <a class="am-header-brand" href="/"><span class="am-mark">PP</span><span>الأهرام للدفع<small>POWER PAY AL-AHRAM</small></span></a>
     <div class="d-flex align-items-center gap-2">
+        <form action="/transactions/search" method="get" class="am-header-search"><input name="q" aria-label="البحث في العمليات" placeholder="البحث في العمليات والحسابات"><button type="submit" aria-label="بحث"><i class="fa-solid fa-magnifying-glass"></i></button></form>
         <div class="dropdown">
             <button class="btn-theme-mobile position-relative" type="button" id="notifDropdownMobile" data-bs-toggle="dropdown" style="background: transparent; border: none; padding: 0;">
                 <i class="fa-solid fa-bell" style="color: var(--text-main); font-size: 1.2rem;"></i>
@@ -699,49 +690,24 @@
                 </div>
             </ul>
         </div>
-        <button class="btn-theme-mobile" onclick="toggleGlobalTheme()" title="تغيير المظهر">
+        <button class="btn-theme-mobile" onclick="toggleGlobalTheme()" title="تغيير المظهر" aria-label="تغيير المظهر">
             <i id="mobileTopThemeIcon" class="fa-solid fa-moon"></i>
         </button>
         <a href="/logout" class="btn-logout-mobile" title="تسجيل الخروج">
             <i class="fa-solid fa-power-off"></i>
         </a>
+        <span class="am-admin-avatar" title="<%= typeof adminName !== 'undefined' ? adminName : 'مدير النظام' %>"><%= String(typeof adminName !== 'undefined' ? adminName : 'مدير').trim().charAt(0) %></span>
     </div>
 </div>
 
 <% const canSeeAdminHref = (href) => typeof adminHrefVisible !== 'function' || adminHrefVisible(href); %>
-<div class="bottom-nav-admin-mobile no-print">
-    <a href="/" class="bottom-nav-item <%= typeof activePage !== 'undefined' && activePage === 'dashboard' ? 'active' : '' %>">
-        <i class="fa-solid fa-chart-pie"></i>
-        <span>الرئيسية</span>
-    </a>
-    <a href="/transactions" class="bottom-nav-item position-relative <%= typeof activePage !== 'undefined' && (activePage === 'transactions' || activePage === 'transactions_central') ? 'active' : '' %>">
-        <i class="fa-solid fa-list-check"></i>
-        <span class="badge bg-danger text-white rounded-pill position-absolute" id="mobileTransactionsBadge" style="display: none; top: 6px; right: 25%; font-size: 0.65rem; padding: 2px 5px;">0</span>
-        <span>العمليات</span>
-    </a>
-    <% if (canSeeAdminHref('/reports') && !canSeeAdminHref('/settings')) { %>
-    <a href="/reports" class="bottom-nav-item <%= typeof activePage !== 'undefined' && activePage === 'reports' ? 'active' : '' %>">
-        <i class="fa-solid fa-chart-line"></i>
-        <span>التقارير</span>
-    </a>
-    <% } %>
-    <% if (canSeeAdminHref('/complaints')) { %>
-    <a href="/complaints" class="bottom-nav-item <%= typeof activePage !== 'undefined' && activePage === 'complaints' ? 'active' : '' %>">
-        <i class="fa-solid fa-flag"></i>
-        <span class="badge bg-warning text-dark rounded-pill position-absolute" id="mobileComplaintsBadge" style="display: none; top: 6px; right: 15%; font-size: 0.65rem; padding: 2px 5px;">0</span>
-        <span>الشكاوى</span>
-    </a>
-    <% } %>
-    <a href="/clients" class="bottom-nav-item <%= typeof activePage !== 'undefined' && activePage === 'clients' ? 'active' : '' %>">
-        <i class="fa-solid fa-users"></i>
-        <span>العملاء</span>
-    </a>
-    <% if (canSeeAdminHref('/settings')) { %>
-    <a href="/settings" class="bottom-nav-item <%= typeof activePage !== 'undefined' && String(activePage).startsWith('settings') ? 'active' : '' %>">
-        <i class="fa-solid fa-gear"></i>
-        <span>الإعدادات</span>
-    </a>
-    <% } %>
+<%- include('admin_modern_nav', { canSeeAdminHref }) %>
+<div class="bottom-nav-admin-mobile no-print" aria-label="التنقل السريع">
+<a href="/" class="bottom-nav-item"><i class="fa-solid fa-chart-pie"></i><span>الرئيسية</span></a>
+<a href="/transactions/operations" class="bottom-nav-item position-relative"><i class="fa-solid fa-list-check"></i><span id="mobileTransactionsBadge" class="badge bg-danger position-absolute" style="display:none;top:4px;right:15%">0</span><span>العمليات</span></a>
+<% if (canSeeAdminHref('/financial-movements')) { %><a href="/financial-movements" class="bottom-nav-item"><i class="fa-solid fa-chart-line"></i><span>المالية</span></a><% } %>
+<a href="/clients" class="bottom-nav-item"><i class="fa-solid fa-users"></i><span>الحسابات</span></a>
+<button type="button" class="bottom-nav-item position-relative" data-sidebar-toggle onclick="toggleSidebar()" aria-label="كل أقسام الإدارة" aria-controls="sidebarMenu" aria-expanded="false"><i class="fa-solid fa-bars"></i><span>الكل</span><span id="mobileMenuBadge" style="display:none"></span><span id="mobileComplaintsBadge" class="badge bg-warning position-absolute" style="display:none;top:4px;right:15%">0</span></button>
 </div>
 
 <div class="sidebar" id="sidebarMenu">
@@ -959,7 +925,7 @@
             </span>
             <i class="fa-solid fa-angle-left menu-chevron"></i>
         </a>
-        <a href="/security/sessions" class="<%= typeof activePage !== 'undefined' && activePage === 'security_sessions' ? 'active' : '' %>">
+        <a href="/admin/security?tab=devices" class="<%= typeof activePage !== 'undefined' && activePage === 'security_sessions' ? 'active' : '' %>">
             <span class="menu-link-content">
                 <i class="fa-solid fa-laptop-mobile"></i> <span class="menu-link-text">الأجهزة والجلسات</span>
             </span>
@@ -1032,6 +998,7 @@
         const currentTheme = html.getAttribute('data-theme');
         const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
         html.setAttribute('data-theme', newTheme);
+        html.setAttribute('data-bs-theme', newTheme);
         localStorage.setItem('ahram_theme', newTheme);
         updateSidebarThemeIcon(newTheme);
 

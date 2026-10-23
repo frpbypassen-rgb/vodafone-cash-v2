@@ -63,8 +63,9 @@
         .btn-verify:hover { background: #0f3460; color: #fff; }
     </style>
     <link rel="stylesheet" href="/css/brand-ui.css?v=20260804-brand1">
+<%- include('../partials/admin_modern_head') %>
 </head>
-<body>
+<body class="am-auth"><button type="button" class="am-auth-theme" data-am-theme aria-label="تغيير المظهر">◐ المظهر</button>
     <div class="verify-card">
         <div class="icon-box">
             <i class="fa-solid <%= channel === 'email' ? 'fa-envelope-circle-check' : 'fa-brands fa-whatsapp' %>"></i>
