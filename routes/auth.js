@@ -1516,6 +1516,10 @@ router.post('/api/password-reset/submit', passwordResetLimiter, async (req, res)
 });
 
 router.get('/logout', async (req, res) => {
+    if (req.session?.adminId && req.sessionID) {
+        await require('../services/adminOperationAlertService').disableSessionDevices(String(req.session.adminId), req.sessionID)
+            .catch(() => {});
+    }
     try {
         let userId = null;
         let performedByModel = 'System';

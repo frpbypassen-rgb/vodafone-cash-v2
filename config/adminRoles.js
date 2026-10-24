@@ -61,6 +61,7 @@ const ACCOUNTANT_BLOCKED_PATHS = [
 ];
 
 const ACCOUNTANT_WRITE_ALLOWLIST = [
+    /^\/api\/admin-operation-alerts\/(?:subscribe|unsubscribe|test|acknowledge\/[a-f0-9]{24})\/?$/,
     /^\/logout\/?$/
 ];
 

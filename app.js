@@ -454,6 +454,7 @@ app.use('/', require('./routes/auth'));
 app.use('/', require('./routes/adminAliases'));
 app.use('/admin/security', require('./routes/securityAdmin'));
 app.use(enforceAdminPermissions);
+app.use('/api/admin-operation-alerts', require('./routes/adminOperationAlerts'));
 app.use('/', require('./routes/dashboard'));
 app.use('/', require('./routes/liveOperations'));
 app.use('/', require('./routes/adminDeposits'));
@@ -533,6 +534,7 @@ Promise.all([connectDB(), initRedis()]).then(async () => {
     } else {
         await warnProviderPaidAwaitingCompletion(logger);
     }
+    void require('./services/adminOperationAlertService').initializeAdminOperationAlerts();
     merchantWebhookService.startMerchantWebhookWorker();
     await startExecutorPushNotificationWorker().catch((error) => {
         logger.error('Executor push notification worker failed to start', { error: error.message });
