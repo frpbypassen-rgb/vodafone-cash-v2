@@ -1160,10 +1160,10 @@
         const savedTheme = localStorage.getItem('ahram_theme') || 'light';
         updateSidebarThemeIcon(savedTheme);
         updateSidebarStats();
-        setInterval(updateSidebarStats, 15000);
+        setInterval(updateSidebarStats, 30000);
         
         fetchNotifications();
-        setInterval(fetchNotifications, 10000);
+        setInterval(fetchNotifications, 15000);
         document.addEventListener('visibilitychange', () => {
             if (!document.hidden) {
                 updateSidebarStats();

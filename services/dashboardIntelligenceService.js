@@ -229,6 +229,18 @@ const buildInsights = ({ metrics, weekly, peakDays, executors, todayStatus, now 
     return insights.slice(0, 5).map((item) => ({ ...item, generatedAt: now }));
 };
 
+// Match stored dates before aggregation so the existing completedAt/createdAt indexes can narrow the scan.
+// Null or absent completion dates keep the legacy createdAt fallback; older operations completed today remain included.
+const completedTodayMatch = (scope, start, end) => ({
+    ...scope,
+    status: SUCCESS_STATUS,
+    createdAt: { $lte: end },
+    $and: [...(scope.$and || []), { $or: [
+        { completedAt: { $gte: start, $lte: end } },
+        { completedAt: null, createdAt: { $gte: start, $lte: end } }
+    ] }]
+});
+
 const loadDashboardIntelligence = async (now = new Date(), { tenantId = null } = {}) => {
     const periods = buildPeriods(now);
     const scopedTenant = applyAdminTxPrivacy(tenantScope(tenantId));
@@ -241,7 +253,7 @@ const loadDashboardIntelligence = async (now = new Date(), { tenantId = null } =
         previousMonth: metricFacet(periods.previousMonthStart, periods.previousMonthEnd)
     };
 
-    const [metricRows, weeklyRows, peakRows, executorRows, statusRows, channelRows, hourlyRows, todayExecutorRows, depositTransactions] = await Promise.all([
+    const [metricRows, weeklyRows, peakRows, executorRows, statusRows, todayDetailRows, depositTransactions] = await Promise.all([
         Transaction.aggregate([{
             $match: {
                 ...scopedTenant,
@@ -283,29 +295,21 @@ const loadDashboardIntelligence = async (now = new Date(), { tenantId = null } =
             { $group: { _id: '$status', count: { $sum: 1 } } }
         ]),
         Transaction.aggregate([
-            { $match: { ...scopedTenant, status: SUCCESS_STATUS, createdAt: { $lte: now } } },
+            { $match: completedTodayMatch(scopedTenant, periods.todayStart, now) },
             { $set: { dashboardCompletedAt: { $ifNull: ['$completedAt', '$createdAt'] }, dashboardChannel: dashboardChannelExpression } },
-            { $match: { dashboardCompletedAt: { $gte: periods.todayStart, $lte: now } } },
-            { $group: { _id: '$dashboardChannel', count: { $sum: 1 }, amountLYD: { $sum: { $ifNull: ['$costLYD', 0] } } } }
-        ]),
-        Transaction.aggregate([
-            { $match: { ...scopedTenant, status: SUCCESS_STATUS, createdAt: { $lte: now } } },
-            { $set: { dashboardCompletedAt: { $ifNull: ['$completedAt', '$createdAt'] }, dashboardChannel: dashboardChannelExpression } },
-            { $match: { dashboardCompletedAt: { $gte: periods.todayStart, $lte: now } } },
-            { $group: { _id: { hour: { $hour: { date: '$dashboardCompletedAt', timezone: SYSTEM_TIME_ZONE } }, channel: '$dashboardChannel' }, count: { $sum: 1 }, amountLYD: { $sum: { $ifNull: ['$costLYD', 0] } } } },
-            { $group: { _id: '$_id.hour', cashCount: { $sum: { $cond: [{ $eq: ['$_id.channel', 'cash'] }, '$count', 0] } }, cashAmountLYD: { $sum: { $cond: [{ $eq: ['$_id.channel', 'cash'] }, '$amountLYD', 0] } }, bankCount: { $sum: { $cond: [{ $eq: ['$_id.channel', 'bank'] }, '$count', 0] } }, bankAmountLYD: { $sum: { $cond: [{ $eq: ['$_id.channel', 'bank'] }, '$amountLYD', 0] } } } }
-        ]),
-        Transaction.aggregate([
-            { $match: { ...scopedTenant, status: SUCCESS_STATUS, executorGroupId: { $ne: null }, createdAt: { $lte: now } } },
-            { $set: { dashboardCompletedAt: { $ifNull: ['$completedAt', '$createdAt'] }, dashboardChannel: dashboardChannelExpression } },
-            { $match: { dashboardCompletedAt: { $gte: periods.todayStart, $lte: now } } },
-            { $group: { _id: { executor: '$executorGroupId', name: '$executorGroupName', channel: '$dashboardChannel' }, count: { $sum: 1 }, amountEGP: { $sum: { $ifNull: ['$amount', 0] } } } },
+            { $facet: {
+                channelRows: [{ $group: { _id: '$dashboardChannel', count: { $sum: 1 }, amountLYD: { $sum: { $ifNull: ['$costLYD', 0] } } } }],
+                hourlyRows: [{ $group: { _id: { hour: { $hour: { date: '$dashboardCompletedAt', timezone: SYSTEM_TIME_ZONE } }, channel: '$dashboardChannel' }, count: { $sum: 1 }, amountLYD: { $sum: { $ifNull: ['$costLYD', 0] } } } },
+            { $group: { _id: '$_id.hour', cashCount: { $sum: { $cond: [{ $eq: ['$_id.channel', 'cash'] }, '$count', 0] } }, cashAmountLYD: { $sum: { $cond: [{ $eq: ['$_id.channel', 'cash'] }, '$amountLYD', 0] } }, bankCount: { $sum: { $cond: [{ $eq: ['$_id.channel', 'bank'] }, '$count', 0] } }, bankAmountLYD: { $sum: { $cond: [{ $eq: ['$_id.channel', 'bank'] }, '$amountLYD', 0] } } } }],
+                todayExecutorRows: [{ $match: { executorGroupId: { $ne: null } } }, { $group: { _id: { executor: '$executorGroupId', name: '$executorGroupName', channel: '$dashboardChannel' }, count: { $sum: 1 }, amountEGP: { $sum: { $ifNull: ['$amount', 0] } } } },
             { $group: { _id: '$_id.executor', name: { $first: '$_id.name' }, totalCount: { $sum: '$count' }, totalAmountEGP: { $sum: '$amountEGP' }, cashCount: { $sum: { $cond: [{ $eq: ['$_id.channel', 'cash'] }, '$count', 0] } }, cashAmountEGP: { $sum: { $cond: [{ $eq: ['$_id.channel', 'cash'] }, '$amountEGP', 0] } }, bankCount: { $sum: { $cond: [{ $eq: ['$_id.channel', 'bank'] }, '$count', 0] } }, bankAmountEGP: { $sum: { $cond: [{ $eq: ['$_id.channel', 'bank'] }, '$amountEGP', 0] } } } },
-            { $sort: { totalAmountEGP: -1 } }, { $limit: 20 }
+            { $sort: { totalAmountEGP: -1 } }, { $limit: 20 }]
+            } }
         ]),
         Transaction.find({ ...scopedTenant, status: { $in: ['deposit', 'deduction'] }, createdAt: { $gte: periods.todayStart, $lte: now } }).select('amount status companyId executorGroupId userId').lean()
     ]);
 
+    const { channelRows = [], hourlyRows = [], todayExecutorRows = [] } = todayDetailRows[0] || {};
     const rawMetrics = metricRows[0] || {};
     const metrics = {
         today: normalizeMetric(rawMetrics.today),
@@ -453,6 +457,7 @@ const loadEntityMovementReport = async ({ type, id, days = 30, now = new Date(),
 };
 
 module.exports = {
+    completedTodayMatch,
     buildInsights,
     buildPeriods,
     completedInRange,

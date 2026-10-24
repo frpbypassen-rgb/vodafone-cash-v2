@@ -5,6 +5,7 @@ const path = require('path');
 const ejs = require('ejs');
 
 const VIEW_PATH = path.join(__dirname, '..', 'views', 'transactions.ejs');
+const tableStyles = fs.readFileSync(path.join(__dirname, '..', 'public/css/admin-transactions.css'), 'utf8');
 
 const baseLocals = {
     adminName: 'مدير الاختبار',
@@ -278,23 +279,23 @@ describe('central ledger page layout', () => {
         expect(html).toContain('إيداع اليوم');
         expect(html).toContain('data-ops-company-deposit="1234567.89"');
         expect(html).toContain('1,234,567.89');
-        expect(html).toMatch(/\.ops-summary-layout\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)\s*minmax\(240px,\s*340px\)/);
-        expect(html).toMatch(/\.ops-summary-layout\s*\{[^}]*grid-template-areas:\s*"companies companies"\s*"executors totals"/);
-        expect(html).toMatch(/\.ops-summary-layout\s*\{[^}]*direction:\s*rtl/);
-        expect(html).not.toMatch(/grid-template-columns:\s*minmax\(0,\s*3fr\)\s*minmax\(0,\s*1fr\)/);
+        expect(tableStyles).toMatch(/\.ops-summary-layout\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)\s*minmax\(240px,\s*340px\)/);
+        expect(tableStyles).toMatch(/\.ops-summary-layout\s*\{[^}]*grid-template-areas:\s*"companies companies"\s*"executors totals"/);
+        expect(tableStyles).toMatch(/\.ops-summary-layout\s*\{[^}]*direction:\s*rtl/);
+        expect(tableStyles).not.toMatch(/grid-template-columns:\s*minmax\(0,\s*3fr\)\s*minmax\(0,\s*1fr\)/);
         expect(html).not.toContain('ops-summary-side');
-        expect(html).toMatch(/\.ops-summary-companies\s*\{[^}]*grid-area:\s*companies/);
-        expect(html).toMatch(/\.ops-summary-executors\s*\{[^}]*grid-area:\s*executors/);
-        expect(html).toMatch(/\.ops-summary-totals\s*\{[^}]*grid-area:\s*totals/);
-        expect(html).toMatch(/\.ops-summary-totals\s*\{[^}]*flex-direction:\s*column/);
-        expect(html).toMatch(/\.ops-exec-row\s*\{[^}]*display:\s*grid/);
-        expect(html).toMatch(/\.ops-company-row\s*\{[^}]*display:\s*grid/);
-        expect(html).toMatch(/\.ops-uniform-card\s*\{[^}]*width:\s*100%[^}]*height:\s*152px/);
-        expect(html).toMatch(/\.ops-exec-card\s*\{[^}]*width:\s*100%[^}]*height:\s*100px/);
-        expect(html).toMatch(/@media \(max-width:\s*991\.98px\)\s*\{[^}]*\.ops-summary-layout\s*\{[^}]*grid-template-columns:\s*1fr;[^}]*"companies"\s*"executors"\s*"totals"/);
-        expect(html).toMatch(/\.ops-micro-stack\s*\{[^}]*flex-direction:\s*column/);
-        expect(html).toMatch(/\.ops-micro\s*\{[^}]*width:\s*100%/);
-        expect(html).toMatch(/\.ops-mini-card\s*\{[^}]*padding:\s*7px 10px/);
+        expect(tableStyles).toMatch(/\.ops-summary-companies\s*\{[^}]*grid-area:\s*companies/);
+        expect(tableStyles).toMatch(/\.ops-summary-executors\s*\{[^}]*grid-area:\s*executors/);
+        expect(tableStyles).toMatch(/\.ops-summary-totals\s*\{[^}]*grid-area:\s*totals/);
+        expect(tableStyles).toMatch(/\.ops-summary-totals\s*\{[^}]*flex-direction:\s*column/);
+        expect(tableStyles).toMatch(/\.ops-exec-row\s*\{[^}]*display:\s*grid/);
+        expect(tableStyles).toMatch(/\.ops-company-row\s*\{[^}]*display:\s*grid/);
+        expect(tableStyles).toMatch(/\.ops-uniform-card\s*\{[^}]*width:\s*100%[^}]*height:\s*152px/);
+        expect(tableStyles).toMatch(/\.ops-exec-card\s*\{[^}]*width:\s*100%[^}]*height:\s*100px/);
+        expect(tableStyles).toMatch(/@media \(max-width:\s*991\.98px\)\s*\{[^}]*\.ops-summary-layout\s*\{[^}]*grid-template-columns:\s*1fr;[^}]*"companies"\s*"executors"\s*"totals"/);
+        expect(tableStyles).toMatch(/\.ops-micro-stack\s*\{[^}]*flex-direction:\s*column/);
+        expect(tableStyles).toMatch(/\.ops-micro\s*\{[^}]*width:\s*100%/);
+        expect(tableStyles).toMatch(/\.ops-mini-card\s*\{[^}]*padding:\s*7px 10px/);
         expect(html).toContain('class="ops-exec-card"');
         expect(html).not.toContain('ops-exec-card ops-uniform-card');
         expect(html).toContain('ops-company-card ops-uniform-card');
@@ -449,8 +450,8 @@ describe('central ledger page layout', () => {
         const appSource = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8');
 
         expect(routeSource).toMatch(/const listSortMode = operationsWorkspace \? 'operations' : 'ledger'/);
-        expect(routeSource).toMatch(/operationsWorkspace && !providerReviewMode\s*\?\s*loadOperationsSummaryStrip\(\{ Transaction, ClientCompany, ExecutorGroup, source: req \}\)/);
-        expect(routeSource).toMatch(/operationsWorkspace\s*\?\s*Promise\.resolve\(null\)\s*:\s*loadCentralLedgerOverview/);
+        expect(routeSource).toMatch(/operationsWorkspace && !providerReviewMode && !listRefresh\s*\?\s*loadOperationsSummaryStrip\(\{ Transaction, ClientCompany, ExecutorGroup, source: req \}\)/);
+        expect(routeSource).toMatch(/\(operationsWorkspace \|\| listRefresh\)\s*\?\s*Promise\.resolve\(null\)\s*:\s*loadCentralLedgerOverview/);
         expect(routeSource).toMatch(/const transactionLedgerBaseQuery = \(source = null\) => applyAdminTxPrivacy\(\{[\s\S]*\.\.\.adminAccountScope\(source\),/);
         expect(routeSource).not.toMatch(/isSubAccountTx: \{ \$ne: true \}/);
         expect(routeSource).toMatch(/adminVisibleTransactionQuery\(adminAccountScope\(req\)/);
@@ -459,5 +460,33 @@ describe('central ledger page layout', () => {
         expect(overviewSource).not.toMatch(/\.\.\.tenantScope\(source\)/);
         expect(appSource.indexOf("require('./routes/liveOperations')"))
             .toBeLessThan(appSource.indexOf("require('./routes/adminTransactions')"));
+    });
+});
+
+
+describe('lightweight transaction refresh', () => {
+    const fragmentPath = path.join(__dirname, '..', 'views/partials/transaction_refresh.ejs');
+    const renderFragment = overrides => ejs.render(fs.readFileSync(fragmentPath, 'utf8'), { ...baseLocals, ...overrides }, { filename: fragmentPath });
+    test.each(['pending', 'processing', 'accepted', 'completed', 'rejected', 'deposit', 'deduction'])('keeps the same table, mobile controls and snapshots for %s', status => {
+        const clock = jest.spyOn(Date, 'now').mockReturnValue(Date.parse('2026-10-24T12:00:00Z'));
+        try {
+            const data = { transactions: [{ _id: '507f1f77bcf86cd799439011', customId: 'ATT-TEST', status, amount: 100, costLYD: 16, transferType: 'vodafone', createdAt: new Date('2026-10-24T11:00:00Z'), balanceAdjustment: { reversible: true }, customerNotes: '</script><script>unsafe</script>' }] };
+            const full = renderTransactions(data), fragment = renderFragment(data);
+            const section = (html, start, end) => html.slice(html.indexOf(start), html.indexOf(end, html.indexOf(start)));
+            expect(section(fragment, '<tbody>', '</tbody>')).toBe(section(full, '<tbody>', '</tbody>'));
+            expect(section(fragment, 'id="mobileTransactionRows"', 'id="transactionPagination"')).toBe(section(full, 'id="mobileTransactionRows"', 'id="transactionPagination"'));
+            expect(fragment).not.toMatch(/<html|<head|<style|src="/);
+            const snapshots = fragment.match(/id="transactionRowsData">([\s\S]*?)<\/script>/)[1];
+            expect(snapshots).not.toContain('<script>');
+            expect(JSON.parse(snapshots)[data.transactions[0]._id].customerNotes).toBe(data.transactions[0].customerNotes);
+        } finally { clock.mockRestore(); }
+    });
+    test('keeps provider resolution controls and review filters in partial responses', () => {
+        const html = renderFragment({ operationWorkspace: true, providerReviewMode: true, providerMonitorEnabled: true, providerReviewCounts: [{ _id: 'paid', count: 1 }], query: { providerState: 'paid' }, totalPages: 2, totalTxs: 101, transactions: [{ _id: '507f1f77bcf86cd799439011', status: 'processing', transferType: 'vodafone', amount: 10, createdAt: new Date(), providerReviewAvailable: true, apiResultData: { providerMonitorState: 'paid' } }] });
+        expect(html).toContain('id="providerReviewSummary"');
+        expect(html).toContain('providerReview=1&amp;providerState=paid');
+        expect(html).toContain('data-provider-row-action="check"');
+        expect(html).toContain('data-provider-row-action="paid"');
+        expect(html).toContain('data-provider-row-action="cancel"');
     });
 });

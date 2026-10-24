@@ -1,0 +1,481 @@
+<%
+    const noteSystemPatterns = [
+        /^سبب الرفض:/,
+        /^\[تم /,
+        /^\[فشل /,
+        /^\[معلقة /,
+        /^\[رقم الإلغاء:/,
+        /^تحويل رصيد صادر إلى/,
+        /^تحويل رصيد وارد من/,
+        /^تمويل نقطة بيع/,
+        /^سحب رصيد من نقطة بيع/,
+        /^\[طلب وارد عبر API/
+    ];
+    const isBankTransferOperation = (tx = {}) => {
+        const type = String(tx.transferType || '').trim().toLowerCase();
+        const canonical = String(tx.canonicalServiceKey || '').trim().toLowerCase();
+        return type === 'bank_account' || type === 'bank_transfer' || canonical === 'bank_account' || canonical === 'bank_transfer';
+    };
+    const splitTxNotesForView = (tx = {}) => {
+        const rawNotes = String(tx.notes || '').trim();
+        const explicitCustomerNotes = String(tx.customerNotes || '').trim();
+        const systemParts = [];
+        let customerSource = rawNotes;
+        const apiIndex = rawNotes.indexOf('--- سجل الـ API');
+        if (apiIndex >= 0) {
+            customerSource = rawNotes.slice(0, apiIndex).trim();
+            systemParts.push(rawNotes.slice(apiIndex).trim());
+        }
+
+        const legacyTransferMatch = customerSource.match(/(?:تحويل رصيد صادر إلى|تحويل رصيد وارد من).*\|\s*(.+)$/s);
+        const customerLines = explicitCustomerNotes
+            ? explicitCustomerNotes.split(/\r?\n/).map(line => line.trim()).filter(Boolean)
+            : legacyTransferMatch
+                ? [legacyTransferMatch[1].trim()]
+                : customerSource.split(/\r?\n/).map(line => line.trim()).filter(Boolean).filter(line => {
+                if (/رقم المرسل|الرقم المرجعي|مرجع|reference|ref/i.test(line)) return true;
+                if (noteSystemPatterns.some(pattern => pattern.test(line))) {
+                    systemParts.push(line);
+                    return false;
+                }
+                return true;
+            });
+
+        if (explicitCustomerNotes) {
+            customerSource.split(/\r?\n/).map(line => line.trim()).filter(Boolean).forEach(line => {
+                if (explicitCustomerNotes.split(/\r?\n/).some(noteLine => noteLine.trim() === line)) return;
+                if (/رقم المرسل|الرقم المرجعي|مرجع|reference|ref/i.test(line)) customerLines.push(line);
+                else systemParts.push(line);
+            });
+        }
+
+        const executionNumberForView = tx.executorExecutionNumber || tx.executorExecutionNumberMasked || tx.executorSenderPhone;
+        if (executionNumberForView && !systemParts.some(line => line.includes(executionNumberForView))) {
+            systemParts.push(`[رقم التنفيذ: ${executionNumberForView}]`);
+        }
+        if (tx.adminNotes) systemParts.push(String(tx.adminNotes).trim());
+
+        return {
+            customerText: customerLines.filter(Boolean).join('\n').trim(),
+            systemText: systemParts.filter(Boolean).join('\n').trim()
+        };
+    };
+    const apiLogForView = (tx = {}) => {
+        const merged = [tx.adminNotes, tx.notes].filter(Boolean).join('\n');
+        return merged.includes('--- سجل الـ API') ? merged : '';
+    };
+    const formatCount = (value) => Number(value || 0).toLocaleString('en-US');
+    const formatMoney = (value) => Number(value || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const ledgerPeriodStats = (typeof periodStats !== 'undefined' && periodStats) ? periodStats : { today: { count: 0, amountEGP: 0 }, week: { count: 0, amountEGP: 0 }, month: { count: 0, amountEGP: 0 } };
+    const ledgerCompanies = Array.isArray(typeof activeClientCompanies !== 'undefined' ? activeClientCompanies : null) ? activeClientCompanies : [];
+    const ledgerExecutors = Array.isArray(typeof fundedExecutorCompanies !== 'undefined' ? fundedExecutorCompanies : null) ? fundedExecutorCompanies : [];
+    const opsWorkspace = typeof operationWorkspace !== 'undefined' && Boolean(operationWorkspace);
+    const providerReviewView = typeof providerReviewMode !== 'undefined' && providerReviewMode;
+    const reviewCounts = Object.fromEntries((typeof providerReviewCounts !== 'undefined' ? providerReviewCounts : []).map((item) => [item._id || 'awaiting', item.count]));
+    const opsSummary = opsWorkspace
+        ? ((typeof operationsSummary !== 'undefined' && operationsSummary) ? operationsSummary : { today: { egyptianEGP: 0, libyanLYD: 0, cashEGP: 0, bankEGP: 0, totalLYD: 0 }, todayDepositsTotal: 0, todayExecutorDepositsTotal: 0, activeExecutors: [], companies: [] })
+        : null;
+    const opsToday = opsSummary && opsSummary.today ? opsSummary.today : { egyptianEGP: 0, libyanLYD: 0, cashEGP: 0, bankEGP: 0, totalLYD: 0 };
+    const opsExecutors = opsSummary && Array.isArray(opsSummary.activeExecutors) ? opsSummary.activeExecutors : [];
+    const opsCompanies = opsSummary && Array.isArray(opsSummary.companies) ? opsSummary.companies : [];
+    const operationAgeFor = (tx = {}) => {
+        const createdAt = new Date(tx.createdAt || Date.now());
+        const minutes = Math.max(0, Math.floor((Date.now() - createdAt.getTime()) / 60000));
+        const label = minutes < 1 ? 'وصلت الآن'
+            : minutes < 60 ? `منذ ${minutes} د`
+            : minutes < 1440 ? `منذ ${Math.floor(minutes / 60)} س`
+            : `منذ ${Math.floor(minutes / 1440)} ي`;
+        const active = ['pending', 'processing', 'accepted'].includes(tx.status);
+        return { label: active ? label : `أُنشئت ${label}`, isLate: active && minutes >= 15 };
+    };
+%>
+        <div class="data-card border-0 p-0 overflow-hidden">
+            <div class="table-responsive border-0 m-0 d-none d-lg-block">
+                <table class="table text-center align-middle m-0" id="transactionsTable">
+                    <thead class="table-light">
+                        <tr>
+                            <th>رقم العملية</th>
+                            <th>الجهة/العميل</th>
+                            <th>المبلغ ج.م</th>
+                            <th>الرقم/الحساب</th>
+                            <th>التكلفة/سعر الصرف</th>
+                            <th>بوت التنفيذ</th>
+                            <th>الملاحظة</th>
+                            <th>الحالة</th>
+                            <th>اجراء</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <% if (transactions.length === 0) { %>
+                            <tr><td colspan="9" class="py-5 text-muted fw-bold border-0 fs-5"><i class="fa-solid fa-folder-open fs-1 d-block mb-3 opacity-25"></i> لا توجد عمليات مطابقة.</td></tr>
+                        <% } %>
+                        <% transactions.forEach(tx => {
+                            const noteView = splitTxNotesForView(tx);
+                            const apiLog = apiLogForView(tx);
+                            const canVoidBalanceAdjustment = ['deposit', 'deduction'].includes(tx.status) && Boolean(tx.balanceAdjustment && tx.balanceAdjustment.reversible);
+                            const eligibleExecutorBots = (executorBots || []).filter((bot) => (bot.supportedTransferTypes || ['vodafone']).includes(tx.transferType || 'vodafone'));
+                            const executorDisplay = (executorDisplayByTransaction || {})[String(tx._id)] || {};
+                            const directClientName = tx.employeeName || tx.accountName || 'غير معروف';
+                            const operationAge = operationAgeFor(tx);
+                            const providerResolutionPending = tx.providerReviewAvailable === true;
+                        %>
+                            <tr style="<%= tx.status === 'deposit_pending' ? 'background: rgba(245, 158, 11, 0.05);' : (tx.status === 'deposit' ? 'background: rgba(16, 185, 129, 0.05);' : (tx.status === 'deduction' ? 'background: rgba(239, 68, 68, 0.05);' : '')) %>">
+
+                            <td>
+                                <a class="clickable-id mono-num fs-6" data-tx='<%- JSON.stringify({ _id: tx._id }).replace(/'/g, "&#39;") %>' onclick="viewTransactionDetails(this)">
+                                    #<%= tx.customId || tx._id.toString().slice(-6) %>
+                                </a>
+                                <% if (tx.cancellationNumber) { %>
+                                    <div class="badge bg-danger-subtle text-danger mono-num mt-1" style="font-size: 0.7rem;"><i class="fa-solid fa-ban me-1"></i><%= tx.cancellationNumber %></div>
+                                <% } %>
+                            </td>
+
+                            <td>
+                                <% if (tx.companyName && tx.companyName !== 'عميل فردي') { %>
+                                    <div class="fw-bold text-dark" title="الطالب: <%= tx.employeeName %>"><i class="fa-solid fa-building text-muted me-1 small"></i> <%= tx.companyName %></div>
+                                    <div class="text-muted small mt-1"><i class="fa-solid fa-user-pen opacity-50 me-1"></i> <%= tx.employeeName || '---' %></div>
+                                <% } else { %>
+                                    <div class="fw-bold text-dark"><i class="fa-solid fa-user text-muted me-1 small"></i> <%= directClientName %></div>
+                                    <div class="text-muted small mt-1"><i class="fa-solid fa-user-check opacity-50 me-1"></i> عميل مباشر</div>
+                                <% } %>
+                            </td>
+
+                            <td class="text-<%= tx.status === 'deduction' ? 'danger' : 'success' %> fw-bold mono-num fs-5"><%= tx.amount.toFixed(2) %></td>
+
+                            <td>
+                                <div class="mono-num text-dark fw-bold fs-6" dir="ltr"><%= tx.vodafoneNumber || tx.accountNumber || '---' %></div>
+                                <div class="mt-1">
+                                    <% let numStr = tx.vodafoneNumber || tx.accountNumber || ''; %>
+                                    <% if (isBankTransferOperation(tx)) { %> <div class="fw-bold small mt-1">تحويل بنكي</div>
+                                    <% const bankLabel = typeof bankLabelForTransaction === 'function' ? bankLabelForTransaction(tx) : ''; %>
+                                    <% if (bankLabel) { %><div class="small text-muted"><%= bankLabel %></div><% } %>
+                                    <% } else if(tx.transferType === 'post_account') { %> <span class="badge bg-warning text-dark opacity-75"><i class="fa-solid fa-envelope"></i> بريد</span>
+                                    <% } else if(tx.transferType === 'post_card') { %> <span class="badge bg-info text-dark opacity-75"><i class="fa-solid fa-id-card"></i> بطاقة</span>
+                                    <% } else if(tx.status === 'deposit' || tx.status === 'deduction') { %> <span class="badge bg-secondary opacity-75"><i class="fa-solid fa-money-bill-wave"></i> تسوية</span>
+                                    <% } else { %>
+                                        <div class="fw-bold small mt-1">
+                                            <% if(numStr.startsWith('010')) { %> <span style="color: #dc3545;">فودافون</span>
+                                            <% } else if(numStr.startsWith('011')) { %> <span style="color: #198754;">اتصالات</span>
+                                            <% } else if(numStr.startsWith('012')) { %> <span style="color: #fd7e14;">اورانج</span>
+                                            <% } else if(numStr.startsWith('015')) { %> <span style="color: #0dcaf0;">وي</span>
+                                            <% } else { %> <span class="badge bg-danger opacity-75"><i class="fa-solid fa-mobile-screen"></i> كاش</span> <% } %>
+                                        </div>
+                                    <% } %>
+                                </div>
+                            </td>
+
+                            <td>
+                                <% if(tx.status === 'deposit' || tx.status === 'deduction') { %>
+                                    <span class="text-muted">---</span>
+                                <% } else { %>
+                                    <div class="text-danger fw-bold mono-num fs-6"><%= tx.costLYD ? tx.costLYD.toFixed(2) + ' LYD' : '---' %></div>
+                                    <div class="text-warning fw-bold mono-num small mt-1" style="color: var(--brand-gold) !important;" title="سعر الصرف"><i class="fa-solid fa-percent opacity-50 me-1"></i><%= tx.exchangeRate ? Number(tx.exchangeRate).toFixed(2) : (tx.costLYD ? (tx.amount / tx.costLYD).toFixed(2) : '---') %></div>
+                                <% } %>
+                            </td>
+
+                            <td>
+                                <% if(tx.status === 'deposit' || tx.status === 'deduction') { %>
+                                    <% if (!tx.performedByAdminName) { %><span class="text-muted">---</span><% } %>
+                                <% } else { %>
+                                    <div class="fw-bold text-primary small"><i class="fa-solid fa-building-shield me-1 opacity-50"></i> <%= executorDisplay.companyName || 'تنفيذ مستقل' %></div>
+                                    <div class="text-muted small mt-1"><i class="fa-solid fa-user-gear me-1 opacity-50"></i> <%= executorDisplay.executorName || 'غير محدد' %></div>
+                                <% } %>
+                                <%- include('admin_actor_lines', { tx }) %>
+                            </td>
+
+                            <td class="small text-wrap" style="max-width: 150px; line-height: 1.4;">
+                                <div class="fw-bold text-dark mb-1">
+                                    <%= noteView.customerText || '---' %>
+                                </div>
+                                <div class="text-muted mono-num" style="font-size: 0.75rem;">
+                                    <i class="fa-regular fa-clock me-1"></i> <%= tx.createdAt.toLocaleTimeString('en-US', {timeZone:'Africa/Tripoli', hour:'2-digit', minute:'2-digit'}) %><br>
+                                    <span class="opacity-75"><%= tx.createdAt.toLocaleDateString('en-GB', {timeZone:'Africa/Tripoli'}) %></span>
+                                </div>
+                            </td>
+
+                            <td>
+                                <% if(tx.transferType === 'balance_transfer') { %> <span class="badge-st st-done"><i class="fa-solid fa-check"></i> مكتمل</span>
+                                <% } else if(tx.status === 'completed') { %> <span class="badge-st st-done"><i class="fa-solid fa-check"></i> مكتمل</span>
+                                <% } else if(tx.status === 'pending') { %> <span class="badge-st st-wait"><i class="fa-solid fa-pause"></i> معلق</span>
+                                <% } else if(tx.status === 'processing') { %> <span class="badge-st st-proc"><i class="fa-solid fa-spinner fa-spin"></i> توجيه</span>
+                                <% } else if(tx.status === 'accepted') { %> <span class="badge-st st-work"><i class="fa-solid fa-user-gear"></i> قيد العمل</span>
+                                <% } else if(tx.status === 'deposit_pending') { %> <span class="badge-st st-wait"><i class="fa-solid fa-hand"></i> طلب إيداع</span>
+                                <% } else if(tx.status === 'deposit') { %> <span class="badge-st st-done"><i class="fa-solid fa-arrow-down"></i> إيداع</span>
+                                <% } else if(tx.status === 'deduction') { %> <span class="badge-st" style="background: rgba(108,117,125,0.1); color:#6c757d;"><i class="fa-solid fa-arrow-up"></i> خصم</span>
+                                <% } else { %> <span class="badge-st st-fail"><i class="fa-solid fa-ban"></i> ملغاة</span> <% } %>
+                                <% if (operationWorkspace) { %><span class="operation-age <%= operationAge.isLate ? 'is-late' : '' %>"><i class="fa-regular fa-clock ms-1"></i><%= operationAge.label %></span><% } %>
+                                <% if (providerReviewView) { %><%- include('provider_review_status', { tx }) %><% } %>
+                            </td>
+
+                            <td>
+                                <div class="d-flex align-items-center justify-content-center gap-2">
+                                    <% if (tx.status === 'deposit_pending') { %>
+                                        <button class="btn btn-sm btn-success fw-bold rounded-3" onclick="showAcceptDepositModal('<%= tx._id %>')"><i class="fa-solid fa-check"></i> قبول</button>
+                                        <form action="/transaction/<%= tx._id %>/reject-deposit-web" method="POST" class="m-0" onsubmit="return promptRejectDeposit(this)">
+                                            <input type="hidden" name="reason" class="reject-reason-input">
+                                            <button type="submit" class="btn btn-sm btn-danger fw-bold rounded-3"><i class="fa-solid fa-xmark"></i> رفض</button>
+                                        </form>
+                                    <% } else { %>
+
+                                        <% if (providerResolutionPending) { %>
+                                            <div class="provider-row-actions" data-provider-row-actions>
+                                                <button type="button" class="btn provider-check" data-provider-row-action="check" data-transaction-id="<%= tx._id %>" data-provider-updated-at="<%= tx.updatedAt ? new Date(tx.updatedAt).toISOString() : '' %>" onclick="runProviderRowAction(this)" title="استعلام عن رد جديد من المزود"><i class="fa-solid fa-rotate"></i> استعلام عن رد جديد</button>
+                                                <button type="button" class="btn provider-paid" data-provider-row-action="paid" data-transaction-id="<%= tx._id %>" data-provider-updated-at="<%= tx.updatedAt ? new Date(tx.updatedAt).toISOString() : '' %>" onclick="runProviderRowAction(this)" title="إنجاح العملية"><i class="fa-solid fa-check"></i> إنجاح</button>
+                                                <button type="button" class="btn provider-cancel" data-provider-row-action="cancel" data-transaction-id="<%= tx._id %>" data-provider-updated-at="<%= tx.updatedAt ? new Date(tx.updatedAt).toISOString() : '' %>" onclick="runProviderRowAction(this)" title="إلغاء ورد الرصيد"><i class="fa-solid fa-rotate-left"></i> إلغاء ورد الرصيد</button>
+                                            </div>
+                                        <% } %>
+
+                                        <% if(tx.status === 'pending') { %>
+                                            <div class="dropdown">
+                                                <button class="btn btn-sm btn-primary fw-bold rounded-3 dropdown-toggle" type="button" data-bs-toggle="dropdown">توجيه</button>
+                                                <ul class="dropdown-menu border-0 shadow-lg" style="border-radius: 12px; min-width: 180px;">
+                                                    <li class="px-3 py-2 text-muted small fw-bold border-bottom mb-1">اختر البوت:</li>
+                                                    <% if(eligibleExecutorBots.length > 0) { %>
+                                                        <% eligibleExecutorBots.forEach(bot => { %>
+                                                            <li>
+                                                                <form action="/transaction/<%= tx._id %>/assign-executor" method="POST" class="m-0 p-0 js-transaction-action">
+                                                                    <input type="hidden" name="executorBotId" value="<%= bot._id %>">
+                                                                    <button type="submit" class="dropdown-item py-2 fw-bold text-dark d-flex align-items-center"><i class="fa-solid fa-robot text-primary me-2"></i> <span><%= bot.name %><small class="d-block text-muted"><%= bot.serviceLabel %></small></span></button>
+                                                                </form>
+                                                            </li>
+                                                        <% }) %>
+                                                    <% } else { %>
+                                                        <li class="px-3 py-2 text-danger small fw-bold">لا يوجد منفذ نشط لهذه الخدمة.</li>
+                                                    <% } %>
+                                                </ul>
+                                            </div>
+                                        <% } else if(tx.status === 'processing' || tx.status === 'accepted') { %>
+                                            <form action="/transaction/<%= tx._id %>/pull-task" method="POST" class="mb-0 js-transaction-action" data-confirm="تأكيد سحب المهمة؟">
+                                                <button class="btn btn-sm btn-warning fw-bold rounded-3 text-dark px-3" title="سحب للإدارة">سحب</button>
+                                            </form>
+                                            <form action="/transaction/<%= tx._id %>/emergency-alert" method="POST" class="mb-0" onsubmit="return confirmEmergencyAlert(this);">
+                                                <input type="hidden" name="alertMessage" class="alert-message-input">
+                                                <button type="submit" class="btn btn-sm btn-danger fw-bold rounded-3 px-3 ms-1" title="إطلاق إنذار أحمر">إنذار</button>
+                                            </form>
+                                        <% } %>
+
+                                        <% if(['pending', 'processing', 'accepted', 'completed', 'deposit', 'deduction', 'rejected'].includes(tx.status)) { %>
+                                            <% if (canVoidBalanceAdjustment) { %>
+                                                <form action="/transaction/<%= tx._id %>/void-balance-adjustment" method="POST" class="m-0" onsubmit="return confirm('هل تريد حذف هذه التسوية؟ سيتم عكس أثرها من الرصيد مع الاحتفاظ بها في السجل المالي.');">
+                                                    <input type="hidden" name="reason" value="حذف التسوية من السجل المركزي">
+                                                    <button type="submit" class="btn-action-sm undo" title="حذف التسوية وعكس الرصيد" aria-label="حذف التسوية وعكس الرصيد"><i class="fa-solid fa-trash-can"></i></button>
+                                                </form>
+                                            <% } %>
+
+                                            <% if (apiLog) { %>
+                                                <button class="btn-action-sm api-log" data-log="<%= encodeURIComponent(apiLog) %>" onclick="showApiLog(this)" title="سجل Terminal للـ API"><i class="fa-solid fa-terminal"></i></button>
+                                            <% } %>
+
+                                            <% if (tx.status === 'completed' && (tx.proofImage || (tx.proofImages && tx.proofImages.length > 0))) { %>
+                                                <form action="/transaction/<%= tx._id %>/resend-proof" method="POST" class="m-0" onsubmit="return confirm('إعادة إرسال الإيصال للعميل؟')">
+                                                    <button type="submit" class="btn-action-sm send" title="إعادة الإرسال"><i class="fa-solid fa-paper-plane"></i></button>
+                                                </form>
+                                            <% } %>
+                                            <button class="btn-action-sm edit" onclick="openEditTxModal('<%= tx._id %>', '<%= tx.amount %>', '<%= tx.createdAt.toISOString() %>')" title="تعديل"><i class="fa-solid fa-pen"></i></button>
+                                            <% if(tx.status !== 'deposit' && tx.status !== 'deduction') { %>
+                                                <button class="btn-action-sm edit" onclick="openEditRateModal('<%= tx._id %>', '<%= tx.exchangeRate ? Number(tx.exchangeRate).toFixed(2) : (tx.costLYD ? (tx.amount / tx.costLYD).toFixed(2) : 0) %>')" title="تعديل الصرف"><i class="fa-solid fa-percent"></i></button>
+                                            <% } %>
+                                        <% } %>
+
+                                        <% if(['pending', 'processing', 'accepted', 'completed'].includes(tx.status) && tx.transferType !== 'balance_transfer' && !providerResolutionPending) { %>
+                                            <form action="/transaction/<%= tx._id %>/global-cancel" method="POST" class="m-0 js-transaction-action">
+                                                <input type="hidden" name="reason" class="cancel-reason-input">
+                                                <button class="btn-action-sm undo" title="تراجع"><i class="fa-solid fa-rotate-left"></i></button>
+                                            </form>
+                                        <% } %>
+                                    <% } %>
+                                </div>
+                            </td>
+                        </tr>
+                        <% }) %>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Mobile Cards -->
+            <div class="d-block d-lg-none p-3" id="mobileCardsContainer">
+                <!-- Mobile Tabs Bar -->
+                <div class="d-flex justify-content-center gap-2 mb-3 mobile-tabs-bar" style="background: var(--card-bg); padding: 8px; border-radius: 14px; border: 1px solid var(--border-glass);">
+                    <button type="button" class="btn btn-sm flex-fill fw-bold rounded-3 py-2 active mobile-tab-btn" onclick="filterMobileCards('all', this)" style="transition: 0.2s;"><i class="fa-solid fa-list-check me-1"></i> الكل</button>
+                    <button type="button" class="btn btn-sm flex-fill fw-bold rounded-3 py-2 mobile-tab-btn" onclick="filterMobileCards('pending', this)" style="transition: 0.2s;"><i class="fa-solid fa-hourglass-half me-1"></i> المعلقة</button>
+                    <button type="button" class="btn btn-sm flex-fill fw-bold rounded-3 py-2 mobile-tab-btn" onclick="filterMobileCards('completed', this)" style="transition: 0.2s;"><i class="fa-solid fa-check-circle me-1"></i> المنتهية</button>
+                    <button type="button" class="btn btn-sm flex-fill fw-bold rounded-3 py-2 mobile-tab-btn" onclick="filterMobileCards('deposit', this)" style="transition: 0.2s;"><i class="fa-solid fa-wallet me-1"></i> التسويات</button>
+                </div>
+
+                <div id="mobileEmptyState" class="text-center py-5 text-muted fw-bold border-0 fs-5 data-card" style="display: none; background: var(--card-bg); border-radius: 16px; border: 1px solid var(--border-glass);">
+                    <i class="fa-solid fa-folder-open fs-1 d-block mb-3 opacity-25"></i> لا توجد عمليات في هذا التبويب.
+                </div>
+
+<div id="mobileTransactionRows">
+                <% if (transactions.length === 0) { %>
+                    <div class="text-center py-5 text-muted fw-bold border-0 fs-5 data-card"><i class="fa-solid fa-folder-open fs-1 d-block mb-3 opacity-25"></i> لا توجد عمليات مطابقة.</div>
+                <% } %>
+
+                <% transactions.forEach(tx => {
+                    let isPendingGroup = ['pending', 'processing', 'accepted', 'deposit_pending'].includes(tx.status);
+                    let displayClass = isPendingGroup ? 'mobile-card-pending' : 'mobile-card-completed';
+                    const mobileNoteView = splitTxNotesForView(tx);
+                    const mobileApiLog = apiLogForView(tx);
+                    const canVoidMobileAdjustment = ['deposit', 'deduction'].includes(tx.status) && Boolean(tx.balanceAdjustment && tx.balanceAdjustment.reversible);
+                    const mobileEligibleExecutorBots = (executorBots || []).filter((bot) => (bot.supportedTransferTypes || ['vodafone']).includes(tx.transferType || 'vodafone'));
+                    const mobileExecutorDisplay = (executorDisplayByTransaction || {})[String(tx._id)] || {};
+                    const mobileDirectClientName = tx.employeeName || tx.accountName || 'غير معروف';
+                    const mobileProviderResolutionPending = tx.providerReviewAvailable === true;
+                %>
+                    <div class="data-card mb-3 p-3 mobile-tx-card <%= displayClass %>"
+                          data-status="<%= tx.status %>"
+                          data-custom-id="<%= tx.customId || '' %>"
+                          data-id="<%= tx._id.toString() %>"
+                          data-number="<%= tx.vodafoneNumber || tx.accountNumber || '' %>"
+                          data-entity="<%= [tx.companyName, tx.employeeName, tx.subAccountName].filter(Boolean).join(' ') %>"
+                          style="position: relative; border-right: 4px solid <%= isPendingGroup ? '#f59e0b' : (tx.status === 'completed' || tx.status === 'deposit' ? '#10b981' : '#ef4444') %>;">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <div>
+                                <a class="clickable-id mono-num fs-6 fw-bold" data-tx='<%- JSON.stringify({ _id: tx._id }).replace(/'/g, "&#39;") %>' onclick="viewTransactionDetails(this)">
+                                    #<%= tx.customId || tx._id.toString().slice(-6) %>
+                                </a>
+                                <% if (tx.cancellationNumber) { %>
+                                    <div class="badge bg-danger-subtle text-danger mono-num mt-1" style="font-size: 0.7rem;"><i class="fa-solid fa-ban me-1"></i><%= tx.cancellationNumber %></div>
+                                <% } %>
+                                <div class="text-muted small mt-1"><i class="fa-regular fa-clock me-1"></i> <%= tx.createdAt.toLocaleTimeString('en-US', {timeZone:'Africa/Tripoli', hour:'2-digit', minute:'2-digit'}) %></div>
+                            </div>
+                            <div class="text-end">
+                                <div class="fs-5 fw-bold mono-num" style="color: <%= isPendingGroup ? '#f59e0b' : (tx.status === 'rejected' || tx.status === 'cancelled_by_admin' || tx.status === 'deduction' ? '#ef4444' : '#10b981') %>;">
+                                    <%= tx.amount.toFixed(2) %> <small class="fs-6" style="color: var(--text-muted);">EGP</small>
+                                </div>
+                                <% if(tx.transferType === 'balance_transfer') { %> <span class="badge bg-success opacity-75 mt-1 rounded-pill"><i class="fa-solid fa-check"></i> مكتمل</span>
+                                <% } else if(tx.status === 'completed') { %> <span class="badge bg-success opacity-75 mt-1 rounded-pill"><i class="fa-solid fa-check"></i> مكتملة</span>
+                                <% } else if(tx.status === 'rejected' || tx.status === 'cancelled_by_admin') { %> <span class="badge bg-danger opacity-75 mt-1 rounded-pill"><i class="fa-solid fa-xmark"></i> ملغاة</span>
+                                <% } else if(tx.status === 'pending') { %> <span class="badge bg-warning text-dark opacity-75 mt-1 rounded-pill"><i class="fa-solid fa-pause"></i> معلقة</span>
+                                <% } else if(tx.status === 'processing') { %> <span class="badge bg-info text-dark opacity-75 mt-1 rounded-pill"><i class="fa-solid fa-spinner fa-spin"></i> توجيه</span>
+                                <% } else if(tx.status === 'accepted') { %> <span class="badge bg-primary opacity-75 mt-1 rounded-pill"><i class="fa-solid fa-user-gear"></i> قيد العمل</span>
+                                <% } else { %> <span class="badge bg-secondary opacity-75 mt-1 rounded-pill"><%= tx.status %></span> <% } %>
+                            </div>
+                        </div>
+                        <hr style="border-color: var(--border-glass); margin: 10px 0;">
+                        <div class="mobile-card-meta align-items-center">
+                            <div class="small fw-bold" style="color: var(--text-main);">
+                                <% if (tx.isSubAccountTx) { %>
+                                    <div><i class="fa-solid fa-briefcase text-muted me-1"></i> <%= tx.companyName %></div>
+                                    <div class="text-muted mt-1" style="font-size: 0.75rem;"><i class="fa-solid fa-user-tag opacity-50 me-1"></i> <%= tx.subAccountName || tx.employeeName %></div>
+                                <% } else if (tx.companyName && tx.companyName !== 'عميل فردي') { %>
+                                    <div><i class="fa-solid fa-building text-muted me-1"></i> <%= tx.companyName %></div>
+                                    <div class="text-muted mt-1" style="font-size: 0.75rem;"><i class="fa-solid fa-user-pen opacity-50 me-1"></i> <%= tx.employeeName %></div>
+                                <% } else { %>
+                                    <div><i class="fa-solid fa-user text-success me-1"></i> <%= mobileDirectClientName %></div>
+                                    <div class="text-muted mt-1" style="font-size: 0.75rem;"><i class="fa-solid fa-user-check opacity-50 me-1"></i> عميل مباشر</div>
+                                <% } %>
+                            </div>
+                            <div class="text-end">
+                                <div class="mono-num small fw-bold" dir="ltr" style="color: var(--brand-primary);"><%= tx.vodafoneNumber || tx.accountNumber || '---' %></div>
+                                <% if (isBankTransferOperation(tx)) { %><div class="fw-bold small">تحويل بنكي</div><% } %>
+                                <% const mobileBankLabel = typeof bankLabelForTransaction === 'function' ? bankLabelForTransaction(tx) : ''; %>
+                                <% if (mobileBankLabel) { %><div class="small text-muted"><%= mobileBankLabel %></div><% } %>
+                            </div>
+                        </div>
+                        <% if (providerReviewView) { %><%- include('provider_review_status', { tx }) %><% } %>
+                        <% if (mobileNoteView.customerText) { %>
+                            <div class="small fw-bold mt-2 pt-2" style="border-top: 1px dashed var(--border-glass); white-space: pre-line; color: var(--text-muted);">
+                                <i class="fa-regular fa-comment-dots me-1"></i><%= mobileNoteView.customerText %>
+                            </div>
+                        <% } %>
+
+                        <% if (!['deposit', 'deduction'].includes(tx.status) && (mobileExecutorDisplay.companyName || mobileExecutorDisplay.executorName)) { %>
+                            <div class="small mt-2 pt-2" style="border-top: 1px dashed var(--border-glass); color: var(--text-muted);">
+                                <div class="fw-bold" style="color: var(--text-main);"><i class="fa-solid fa-building-shield text-primary me-1"></i><%= mobileExecutorDisplay.companyName || 'تنفيذ مستقل' %></div>
+                                <div class="mt-1"><i class="fa-solid fa-user-gear opacity-50 me-1"></i><%= mobileExecutorDisplay.executorName || 'غير محدد' %></div>
+                                <%- include('admin_actor_lines', { tx }) %>
+                            </div>
+                        <% } else { %>
+                            <%- include('admin_actor_lines', { tx }) %>
+                        <% } %>
+
+                        <%
+                        const hasApiLog = Boolean(mobileApiLog);
+                        const isPendingOrProcessing = ['pending', 'processing', 'accepted'].includes(tx.status);
+                        const canGlobalCancel = ['pending', 'processing', 'accepted', 'completed'].includes(tx.status) && tx.transferType !== 'balance_transfer' && !mobileProviderResolutionPending;
+                        if (isPendingOrProcessing || hasApiLog || canGlobalCancel || mobileProviderResolutionPending || canVoidMobileAdjustment) {
+                        %>
+                            <div class="d-flex gap-2 mt-3 pt-2" style="border-top: 1px dashed var(--border-glass);">
+                                <% if(tx.status === 'pending') { %>
+                                    <div class="dropdown flex-fill mobile-executor-routing">
+                                        <button class="btn btn-sm btn-primary fw-bold rounded-3 dropdown-toggle w-100" type="button" data-bs-toggle="dropdown" data-bs-auto-close="outside" data-bs-display="static" aria-expanded="false"><i class="fa-solid fa-paper-plane me-1"></i> توجيه</button>
+                                        <ul class="dropdown-menu mobile-executor-menu border-0 shadow-lg">
+                                            <li class="px-2 py-2 text-muted small fw-bold border-bottom mb-1">اختر المنفذ لتنفيذ العملية:</li>
+                                            <% if(mobileEligibleExecutorBots.length > 0) { %>
+                                                <% mobileEligibleExecutorBots.forEach(bot => { %>
+                                                    <li>
+                                                        <form action="/transaction/<%= tx._id %>/assign-executor" method="POST" class="m-0 p-0 js-transaction-action">
+                                                            <input type="hidden" name="executorBotId" value="<%= bot._id %>">
+                                                            <button type="submit" class="dropdown-item py-2 fw-bold text-dark d-flex align-items-center"><i class="fa-solid fa-user-gear text-primary me-2"></i> <span><%= bot.name %><small class="d-block text-muted"><%= bot.serviceLabel %></small></span></button>
+                                                        </form>
+                                                    </li>
+                                                <% }) %>
+                                            <% } else { %>
+                                                <li class="px-3 py-2 text-danger small fw-bold">لا يوجد منفذ نشط لهذه الخدمة.</li>
+                                            <% } %>
+                                        </ul>
+                                    </div>
+                                <% } else if(tx.status === 'processing' || tx.status === 'accepted') { %>
+                                    <form action="/transaction/<%= tx._id %>/pull-task" method="POST" class="m-0 flex-fill js-transaction-action" data-confirm="تأكيد سحب المهمة؟">
+                                        <button class="btn btn-sm btn-warning fw-bold rounded-3 text-dark w-100"><i class="fa-solid fa-hand me-1"></i> سحب</button>
+                                    </form>
+                                    <form action="/transaction/<%= tx._id %>/emergency-alert" method="POST" class="m-0 flex-fill" onsubmit="return confirmEmergencyAlert(this);">
+                                        <input type="hidden" name="alertMessage" class="alert-message-input">
+                                        <button type="submit" class="btn btn-sm btn-danger fw-bold rounded-3 w-100"><i class="fa-solid fa-bell me-1"></i> إنذار</button>
+                                    </form>
+                                <% } %>
+
+                                <% if (mobileProviderResolutionPending) { %>
+                                    <div class="provider-row-actions" data-provider-row-actions>
+                                        <button type="button" class="btn provider-check" data-provider-row-action="check" data-transaction-id="<%= tx._id %>" data-provider-updated-at="<%= tx.updatedAt ? new Date(tx.updatedAt).toISOString() : '' %>" onclick="runProviderRowAction(this)" title="استعلام عن رد جديد من المزود"><i class="fa-solid fa-rotate"></i> استعلام عن رد جديد</button>
+                                        <button type="button" class="btn provider-paid" data-provider-row-action="paid" data-transaction-id="<%= tx._id %>" data-provider-updated-at="<%= tx.updatedAt ? new Date(tx.updatedAt).toISOString() : '' %>" onclick="runProviderRowAction(this)" title="إنجاح العملية"><i class="fa-solid fa-check"></i> إنجاح</button>
+                                        <button type="button" class="btn provider-cancel" data-provider-row-action="cancel" data-transaction-id="<%= tx._id %>" data-provider-updated-at="<%= tx.updatedAt ? new Date(tx.updatedAt).toISOString() : '' %>" onclick="runProviderRowAction(this)" title="إلغاء ورد الرصيد"><i class="fa-solid fa-rotate-left"></i> إلغاء ورد الرصيد</button>
+                                    </div>
+                                <% } %>
+
+                                <% if(canGlobalCancel) { %>
+                                    <form action="/transaction/<%= tx._id %>/global-cancel" method="POST" class="m-0 js-transaction-action">
+                                        <input type="hidden" name="reason" class="cancel-reason-input">
+                                        <button type="submit" class="btn btn-sm fw-bold rounded-3 px-3" style="background: rgba(239, 68, 68, 0.1); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.2);" title="إلغاء العملية"><i class="fa-solid fa-ban"></i></button>
+                                    </form>
+                                <% } %>
+
+                                <% if (canVoidMobileAdjustment) { %>
+                                    <form action="/transaction/<%= tx._id %>/void-balance-adjustment" method="POST" class="m-0 flex-fill" onsubmit="return confirm('هل تريد حذف هذه التسوية؟ سيتم عكس أثرها من الرصيد مع الاحتفاظ بها في السجل المالي.');">
+                                        <input type="hidden" name="reason" value="حذف التسوية من السجل المركزي">
+                                        <button type="submit" class="btn btn-sm btn-outline-danger fw-bold rounded-3 w-100"><i class="fa-solid fa-trash-can me-1"></i> حذف التسوية</button>
+                                    </form>
+                                <% } %>
+
+                                <% if (hasApiLog) { %>
+                                     <button type="button" class="btn btn-sm fw-bold rounded-3 px-3 <%= !isPendingOrProcessing ? 'w-100' : '' %>" style="background: rgba(16, 185, 129, 0.1); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.2);" data-log="<%= encodeURIComponent(mobileApiLog) %>" onclick="showApiLog(this)" title="سجل Terminal للـ API"><i class="fa-solid fa-terminal text-success <%= !isPendingOrProcessing ? 'me-1' : '' %>"></i><%= !isPendingOrProcessing ? ' سجل الـ API' : '' %></button>
+                                 <% } %>
+                            </div>
+                        <% } %>
+                    </div>
+                <% }); %>
+</div>
+            </div>
+
+            <div id="transactionPagination"><% if (typeof totalPages !== 'undefined' && totalPages > 1) { %>
+                <nav class="mt-4 pt-3 pb-3">
+                    <ul class="pagination justify-content-center mb-0">
+                        <li class="page-item <%= currentPage === 1 ? 'disabled' : '' %>">
+                            <a class="page-link shadow-sm" href="?page=<%= currentPage - 1 %>&search=<%= encodeURIComponent(search) %>&status=<%= statusFilter %>&fromDate=<%= fromDate %>&toDate=<%= toDate %>&filterType=<%= typeof filterType !== 'undefined' ? filterType : '' %><%= providerReviewView ? '&providerReview=1&providerState=' + encodeURIComponent(query.providerState || '') : '' %>"><i class="fa-solid fa-angle-right"></i></a>
+                        </li>
+                        <% let startPage = Math.max(1, currentPage - 2); let endPage = Math.min(totalPages, currentPage + 2); for(let i = startPage; i <= endPage; i++) { %>
+                            <li class="page-item <%= currentPage === i ? 'active' : '' %>">
+                                <a class="page-link shadow-sm" href="?page=<%= i %>&search=<%= encodeURIComponent(search) %>&status=<%= statusFilter %>&fromDate=<%= fromDate %>&toDate=<%= toDate %>&filterType=<%= typeof filterType !== 'undefined' ? filterType : '' %><%= providerReviewView ? '&providerReview=1&providerState=' + encodeURIComponent(query.providerState || '') : '' %>"><%= i %></a>
+                            </li>
+                        <% } %>
+                        <li class="page-item <%= currentPage === totalPages ? 'disabled' : '' %>">
+                            <a class="page-link shadow-sm" href="?page=<%= currentPage + 1 %>&search=<%= encodeURIComponent(search) %>&status=<%= statusFilter %>&fromDate=<%= fromDate %>&toDate=<%= toDate %>&filterType=<%= typeof filterType !== 'undefined' ? filterType : '' %><%= providerReviewView ? '&providerReview=1&providerState=' + encodeURIComponent(query.providerState || '') : '' %>"><i class="fa-solid fa-angle-left"></i></a>
+                        </li>
+                    </ul>
+                </nav>
+            <% } %></div>
+
+        </div>
+
+<script type="application/json" id="transactionRowsData"><%- JSON.stringify(Object.fromEntries(transactions.map(tx => [String(tx._id), tx]))).replace(/</g, "\\u003c") %></script>

@@ -48,7 +48,8 @@
     if (main && skip) skip.href = `#${main.id}`;
     // Labels are added to existing cells, never cloned: mobile keeps the same controls and event listeners.
     function labelTables(container) {
-        container.querySelectorAll('table').forEach(table => {
+        const tables = container.matches?.('table') ? [container] : container.querySelectorAll('table');
+        tables.forEach(table => {
             if (table.closest('.am-keep-table') || table.querySelector('thead [rowspan], thead [colspan]')) return;
             const headers = [...table.querySelectorAll('thead tr:first-child th')].map(th => th.textContent.trim());
             if (!headers.length) return;
@@ -62,10 +63,23 @@
     labelTables(document);
     // Observe only inserted rows; no polling, cloning, or finance mutations.
     let queued = false;
+    const changedTables = new Set();
     const observer = new MutationObserver(changes => {
-        if (queued || !changes.some(change => [...change.addedNodes].some(node => node.nodeType === 1))) return;
+        for (const change of changes) {
+            for (const node of change.addedNodes) {
+                if (node.nodeType !== 1) continue;
+                const table = node.closest('table');
+                if (table) changedTables.add(table);
+                node.querySelectorAll('table').forEach(item => changedTables.add(item));
+            }
+        }
+        if (queued || !changedTables.size) return;
         queued = true;
-        requestAnimationFrame(() => { queued = false; labelTables(document); });
+        requestAnimationFrame(() => {
+            queued = false;
+            changedTables.forEach(table => { if (table.isConnected) labelTables(table); });
+            changedTables.clear();
+        });
     });
     if (main) observer.observe(main, { childList: true, subtree: true });
     document.querySelectorAll('[data-am-theme]').forEach(button => button.addEventListener('click', () => {

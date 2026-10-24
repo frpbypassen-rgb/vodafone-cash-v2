@@ -72,7 +72,10 @@ const periodMetricPipeline = (range) => ([
 const loadSuccessfulOpsPeriodStats = async (Transaction, source, now = new Date()) => {
     const periods = successfulOpsPeriodBounds(now);
     const [facet] = await Transaction.aggregate([
-        { $match: successfulOpsLedgerMatch(source) },
+        { $match: { ...successfulOpsLedgerMatch(source), createdAt: {
+            $gte: new Date(Math.min(periods.week.$gte.getTime(), periods.month.$gte.getTime())),
+            $lte: periods.today.$lte
+        } } },
         {
             $facet: {
                 today: periodMetricPipeline(periods.today),

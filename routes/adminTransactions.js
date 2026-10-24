@@ -2,6 +2,7 @@ const express = require('express');
 const mongoose = require('mongoose');
 const router = express.Router();
 const https = require('https');
+const { createHash } = require('crypto');
 const Transaction = require('../models/Transaction');
 const Ledger = require('../models/Ledger');
 const { createBalanceTransferReceiptProof } = require('../services/balanceTransferReceiptService');
@@ -334,6 +335,7 @@ const renderTransactions = async (req, res, operationsWorkspace = false) => {
         if (redirectDepositLedger(req, res)) return;
         const page = Math.max(1, parseInt(req.query.page, 10) || 1);
         const limit = 100;
+        const listRefresh = req.query.fragment === 'list';
         const providerReviewMode = operationsWorkspace && req.query.providerReview === '1';
         const search = req.query.search || '';
         const statusFilter = req.query.status || '';
@@ -403,26 +405,21 @@ const renderTransactions = async (req, res, operationsWorkspace = false) => {
                     : { 'apiResultData.providerMonitorState': req.query.providerState });
             }
         }
-        const totalTxs = await Transaction.countDocuments(query);
-        const providerReviewCounts = providerReviewMode ? await Transaction.aggregate([
-            { $match: query },
-            { $group: { _id: '$apiResultData.providerMonitorState', count: { $sum: 1 } } }
-        ]) : [];
-        const totalPages = Math.ceil(totalTxs / limit);
-        // Operations keeps cancelled rows in the completed timeline. The
-        // central ledger still groups failed/cancelled after successes.
         const listSortMode = operationsWorkspace ? 'operations' : 'ledger';
-        const transactions = sortTransactionsByStatusQueue(
-            await Transaction.aggregate([
+        // Independent read queries can run together; paging and the original priority order stay unchanged.
+        const [totalTxs, providerReviewCounts, transactionRows] = await Promise.all([
+            Transaction.countDocuments(query),
+            providerReviewMode ? Transaction.aggregate([
                 { $match: query },
-                ...transactionStatusQueuePipelineStages({
-                    skip: (page - 1) * limit,
-                    limit,
-                    mode: listSortMode
-                })
-            ]),
-            listSortMode
-        );
+                { $group: { _id: '$apiResultData.providerMonitorState', count: { $sum: 1 } } }
+            ]) : Promise.resolve([]),
+            Transaction.aggregate([
+                { $match: query },
+                ...transactionStatusQueuePipelineStages({ skip: (page - 1) * limit, limit, mode: listSortMode })
+            ])
+        ]);
+        const totalPages = Math.ceil(totalTxs / limit);
+        const transactions = sortTransactionsByStatusQueue(transactionRows, listSortMode);
 
         // ملخص السجل المركزي مستقل عن فلاتر الجدول. شاشة العمليات لا تحمّله؛
         // تحمّل بدلًا منه شريطًا مضغوطًا (إجمالي اليوم، المنفذون، الشركات).
@@ -432,14 +429,15 @@ const renderTransactions = async (req, res, operationsWorkspace = false) => {
         let fundedExecutorCompanies = [];
         const executorBalanceGroups = [];
 
-        const [ledgerOverview, executorGroups, operationsSummary] = await Promise.all([
-            operationsWorkspace
+        const [ledgerOverview, executorGroups, operationsSummary, allGroups] = await Promise.all([
+            (operationsWorkspace || listRefresh)
                 ? Promise.resolve(null)
                 : loadCentralLedgerOverview({ Transaction, ClientCompany, ExecutorGroup, source: req }),
             ExecutorGroup.find({ ...adminAccountScope(req), status: 'active', isManagerBot: { $ne: true } }),
-            operationsWorkspace && !providerReviewMode
+            operationsWorkspace && !providerReviewMode && !listRefresh
                 ? loadOperationsSummaryStrip({ Transaction, ClientCompany, ExecutorGroup, source: req })
-                : Promise.resolve(null)
+                : Promise.resolve(null),
+            ExecutorGroup.find(adminAccountScope(req)).lean()
         ]);
         if (ledgerOverview) {
             periodStats = ledgerOverview.periodStats;
@@ -452,7 +450,7 @@ const renderTransactions = async (req, res, operationsWorkspace = false) => {
             serviceLabel: getExecutorServiceLabel(group),
             supportedTransferTypes: getExecutorSupportedTransferTypes(group)
         }));
-        const allGroups = await ExecutorGroup.find(adminAccountScope(req)).lean();
+        const groupsById = new Map(allGroups.map(group => [String(group._id), group]));
         const allGroupsMap = {};
         allGroups.forEach((group) => {
             allGroupsMap[group._id.toString()] = group.name;
@@ -467,7 +465,7 @@ const renderTransactions = async (req, res, operationsWorkspace = false) => {
             const executorGroupId = tx.executorGroupId ? String(tx.executorGroupId) : '';
             const managerGroupId = tx.managerGroupId ? String(tx.managerGroupId) : '';
             const executorGroup = executorGroupId
-                ? allGroups.find((group) => String(group._id) === executorGroupId)
+                ? groupsById.get(executorGroupId)
                 : null;
             const parentGroupId = executorGroup
                 ? String(executorGroup.parentGroupId || executorGroup.parentBotId || '')
@@ -482,20 +480,20 @@ const renderTransactions = async (req, res, operationsWorkspace = false) => {
             executorDisplayByTransaction[String(tx._id)] = { companyName, executorName };
         });
 
-        res.render('transactions', { 
-            transactions, 
+        const viewData = {
+            transactions,
             executorGroups: executorGroupsForView,
             executorBots: executorGroupsForView,
-            allGroupsMap, 
-            allBotsMap: allGroupsMap, 
+            allGroupsMap,
+            allBotsMap: allGroupsMap,
             executorDisplayByTransaction,
-            currentPage: page, 
-            totalPages, 
+            currentPage: page,
+            totalPages,
             totalTxs,
-            search, 
-            statusFilter, 
-            fromDate, 
-            toDate, 
+            search,
+            statusFilter,
+            fromDate,
+            toDate,
             filterType,
             dailyTotals,
             periodStats,
@@ -509,7 +507,19 @@ const renderTransactions = async (req, res, operationsWorkspace = false) => {
             providerMonitorEnabled: pendingMonitorEnabled(),
             operationsSummary,
             query: req.query
-        });
+        };
+        if (listRefresh) {
+            return res.render('partials/transaction_refresh', viewData, (error, html) => {
+                if (error) return res.status(500).send('تعذر تحديث العمليات.');
+                const revision = createHash('sha256').update(String(res.locals.csrfToken || '')).update(html).digest('hex');
+                res.set('Cache-Control', 'no-store');
+                res.set('X-Admin-Fragment', 'transactions');
+                res.set('X-Admin-Revision', revision);
+                if (req.get('X-Admin-Revision') === revision) return res.status(204).end();
+                return res.type('html').send(html);
+            });
+        }
+        return res.render('transactions', viewData);
     } catch (e) {
         console.error('[adminTransactions/GET transactions] خطأ:', e.message);
         res.status(500).send('خطأ داخلي');

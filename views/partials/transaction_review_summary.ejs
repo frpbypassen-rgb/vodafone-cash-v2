@@ -1,0 +1,17 @@
+<% const providerReviewView = typeof providerReviewMode !== 'undefined' && providerReviewMode; const reviewCounts = Object.fromEntries((typeof providerReviewCounts !== 'undefined' ? providerReviewCounts : []).map(item => [item._id || 'awaiting', item.count])); %>
+        <% if (providerReviewView) { %>
+        <section class="data-card p-3 mb-3" id="providerReviewSummary" aria-label="متابعة عمليات API المتأخرة">
+            <div class="d-flex flex-wrap justify-content-between gap-2 align-items-center">
+                <h3 class="fw-bold m-0">عمليات API تحتاج مراجعة</h3>
+                <span class="badge <%= providerMonitorEnabled ? 'bg-success' : 'bg-secondary' %>"><%= providerMonitorEnabled ? 'المتابعة الدورية مفعّلة' : 'المتابعة الدورية متوقفة في إعدادات السيرفر' %></span>
+            </div>
+            <p class="small text-muted mt-2">العمليات غير المكتملة منذ 5 دقائق أو أكثر. الفحص الدوري يقرأ رد المزود فقط، ولا يعيد الدفع أو يغيّر الأرصدة. تُحدّث القائمة كل 30 ثانية.</p>
+            <div class="row g-2">
+                <div class="col-6 col-md-3"><div class="border rounded p-3"><span class="d-block small">إجمالي المعروض</span><strong class="fs-4"><%= totalTxs %></strong></div></div>
+                <div class="col-6 col-md-3"><div class="border rounded p-3 text-success"><span class="d-block small">نجاح لدى المزود</span><strong class="fs-4"><%= reviewCounts.paid || 0 %></strong></div></div>
+                <div class="col-6 col-md-3"><div class="border rounded p-3 text-warning"><span class="d-block small">بانتظار نتيجة</span><strong class="fs-4"><%= (reviewCounts.pending || 0) + (reviewCounts.awaiting || 0) %></strong></div></div>
+                <div class="col-6 col-md-3"><div class="border rounded p-3 text-danger"><span class="d-block small">تحتاج تدخلاً</span><strong class="fs-4"><%= ['returned','mismatch','failed','missing_reference','missing_executor','exhausted'].reduce((sum, key) => sum + (reviewCounts[key] || 0), 0) %></strong></div></div>
+            </div>
+            <p class="small text-muted mt-3 mb-0">حتى 10 عمليات في الدورة، وبحد أقصى 8 محاولات لكل عملية. يتوقف الفحص عند اكتشاف نجاح أو إلغاء أو بيانات غير مطابقة؛ القرار يبقى للإدارة.</p>
+        </section>
+        <% } %>
