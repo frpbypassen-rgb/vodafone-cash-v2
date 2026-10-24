@@ -466,9 +466,9 @@
 
                                         <div class="balance-box text-center">
                                             <% const hasLiveApiServiceCredit = bot.isApiBot && bot.liveApiServiceCredit !== null && bot.liveApiServiceCredit !== undefined; %>
-                                            <div class="text-muted small fw-bold mb-2"><i class="fa-solid <%= bot.isApiBot ? 'fa-satellite-dish' : 'fa-wallet' %> me-1 opacity-50"></i> <%= bot.isApiBot ? 'رصيد الخدمة المباشر' : 'الأرصدة حسب الخدمة' %></div>
+                                            <div class="text-muted small fw-bold mb-2"><i class="fa-solid <%= bot.isApiBot ? 'fa-satellite-dish' : 'fa-wallet' %> me-1 opacity-50"></i> <%= bot.isApiBot ? 'آخر رصيد خدمة لدى المزود' : 'الأرصدة حسب الخدمة' %></div>
                                             <% if (bot.isApiBot && !hasLiveApiServiceCredit) { %>
-                                                <div class="small text-danger fw-bold">تعذر الاستعلام عن رصيد المزود</div>
+                                                <div class="small text-muted fw-bold">لا يوجد رصيد محفوظ من المزود</div>
                                             <% } else if (bot.isApiBot) { %>
                                                 <% const displayedBalance = Number(bot.liveApiServiceCredit); %>
                                                 <div class="mono-num <%= displayedBalance < 0 ? 'text-danger' : 'text-success' %>" dir="ltr"><%= displayedBalance.toFixed(2) %> <span class="fs-6 text-muted">EGP</span></div>
@@ -486,7 +486,11 @@
                                                 <div class="mono-num <%= displayedBalance < 0 ? 'text-danger' : 'text-success' %>" dir="ltr"><%= displayedBalance.toFixed(2) %> <span class="fs-6 text-muted">EGP</span></div>
                                             <% } %>
                                             <% if (hasLiveApiServiceCredit && bot.liveApiBalanceCheckedAt) { %>
-                                                <div class="small text-success fw-bold mt-2"><i class="fa-solid fa-rotate me-1"></i>تم الاستعلام الآن</div>
+                                                <div class="small text-muted fw-bold mt-2"><i class="fa-solid fa-clock me-1"></i>آخر فحص: <%= new Date(bot.liveApiBalanceCheckedAt).toLocaleString('ar-LY', { timeZone: 'Africa/Tripoli' }) %></div>
+                                            <% } %>
+                                            <% if (bot.isApiBot) { %>
+                                                <% if (bot.liveApiBalanceError) { %><div class="small text-warning mt-2"><%= bot.liveApiBalanceError %></div><% } %>
+                                                <a class="small d-inline-block mt-2" href="/executor/<%= bot._id %>">فتح التفاصيل للاستعلام عن الرصيد الحالي</a>
                                             <% } %>
                                         </div>
                                     </div>

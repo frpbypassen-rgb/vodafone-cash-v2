@@ -52,8 +52,8 @@ const { clearExecutorAuthCache } = require('../services/executorAuthCache');
 const multer = require('multer');
 const { updateEmployeeExecutionPolicyAsAdmin } = require('../services/mobileWebParityService');
 const { createDepositRequest } = require('../services/executorDepositRequestService');
-const { snapshotServiceLedgers } = require('../utils/executorServiceLedger');
-const { loadAllocatedByGroupIds } = require('../services/executorBalancePoolService');
+const ExecutorBalancePool = require('../models/ExecutorBalancePool');
+const { loadExecutorDirectory } = require('../services/executorDirectoryService');
 
 const adminDepositUpload = multer({
     storage: multer.memoryStorage(),
@@ -131,55 +131,12 @@ const refreshLiveApiBalance = async (bot) => {
 router.get('/executors', requireAuth, async (req, res) => {
     try {
         const [groups, archivedGroups] = await Promise.all([
-            ExecutorGroup.find({ status: { $ne: 'archived' } }).sort({ createdAt: -1 }),
-            ExecutorGroup.find({ status: 'archived' }).sort({ archivedAt: -1 })
+            ExecutorGroup.find({ status: { $ne: 'archived' } }).sort({ createdAt: -1 }).lean(),
+            ExecutorGroup.find({ status: 'archived' }).sort({ archivedAt: -1 }).lean()
         ]);
-        const allocatedByGroup = await loadAllocatedByGroupIds(groups.map((group) => group._id));
-        const groupsWithStats = await Promise.all(groups.map(async (group) => {
-            const syncedBalance = await syncBotBalance(group._id);
-            const fresh = await ExecutorGroup.findById(group._id).select('balance serviceKey serviceKeys serviceBalances name').lean();
-            group.balance = syncedBalance;
-            let liveApiBalance = null;
-            if (group.isApiBot && group.status === 'active') {
-                try {
-                    liveApiBalance = await refreshLiveApiBalance(group);
-                } catch (error) {
-                    liveApiBalance = { serviceCredit: null, checkedAt: new Date(), error: error.message || 'تعذر الاستعلام عن رصيد المزود' };
-                }
-            }
-            let txCount = 0; if (group.isManagerBot) txCount = await Transaction.countDocuments({ managerGroupId: group._id, status: 'completed' }); else txCount = await Transaction.countDocuments({ executorGroupId: group._id, status: 'completed' });
-            const ledgers = snapshotServiceLedgers({
-                group: fresh || group,
-                allocatedBalance: allocatedByGroup.get(String(group._id)) || 0
-            });
-            return {
-                ...group._doc,
-                balance: syncedBalance,
-                liveApiServiceCredit: liveApiBalance ? liveApiBalance.serviceCredit : null,
-                liveApiBalanceCheckedAt: liveApiBalance ? liveApiBalance.checkedAt : null,
-                liveApiBalanceError: liveApiBalance ? liveApiBalance.error : '',
-                txCount,
-                serviceKey: normalizeExecutorServiceKey(group.serviceKey),
-                serviceKeys: getExecutorEnabledServiceKeys(fresh || group),
-                serviceLabel: getExecutorServiceLabel(group),
-                serviceBalances: ledgers.byService,
-                multiService: ledgers.multiService
-            };
-        }));
-        const archivedGroupsWithStats = await Promise.all(archivedGroups.map(async (group) => {
-            const txCount = group.archiveTransactionCount === null || group.archiveTransactionCount === undefined
-                ? await Transaction.countDocuments(executorTransactionFilter(group._id))
-                : group.archiveTransactionCount;
-            return {
-                ...group._doc,
-                balance: group.archiveBalance === null || group.archiveBalance === undefined
-                    ? group.balance
-                    : group.archiveBalance,
-                txCount,
-                serviceKey: normalizeExecutorServiceKey(group.serviceKey),
-                serviceLabel: getExecutorServiceLabel(group)
-            };
-        }));
+        const { bots: groupsWithStats, archivedBots: archivedGroupsWithStats } = await loadExecutorDirectory({
+            groups, archivedGroups, Transaction, Employee, ExecutorBalancePool
+        });
         const origin = `${req.protocol}://${req.get('host')}`;
         res.render('executors', {
             bots: groupsWithStats,
