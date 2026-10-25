@@ -14,6 +14,16 @@ const {
 } = require('../services/operationsSummaryStripService');
 
 describe('operations summary strip', () => {
+    test('separates cash and bank wallets, includes allocated cash and retains zero bank', () => {
+        const rows = mapActiveExecutorStrip([
+            { _id: 'dual', serviceKey: 'vodafone', serviceKeys: ['vodafone', 'bank_account'], serviceBalances: { vodafone: 100, bank_account: 0 } },
+            { _id: 'cash', serviceKey: 'vodafone', balance: -25 },
+            { _id: 'api', serviceKey: 'bank_account', serviceKeys: ['vodafone', 'bank_account'], serviceBalances: { vodafone: 12, bank_account: 8 }, isApiBot: true, lastApiServiceCredit: 90 }
+        ], new Map([['dual', 50]]));
+        expect(rows.find(row => row.id === 'dual')).toMatchObject({ cashBalance: 150, bankBalance: 0 });
+        expect(rows.find(row => row.id === 'cash')).toMatchObject({ cashBalance: -25, bankBalance: null });
+        expect(rows.find(row => row.id === 'api')).toMatchObject({ cashBalance: 12, bankBalance: 90 });
+    });
     test('scans today once and splits completed totals from company deposits', () => {
         const pipeline = buildOperationsDayFacetPipeline({}, new Date('2026-09-19T12:00:00+02:00'));
         const match = pipeline[0].$match;

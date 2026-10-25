@@ -169,11 +169,19 @@ const mapActiveExecutorStrip = (
             && Number.isFinite(cachedCredit);
         const allocated = allocatedByGroup.get(id) || 0;
         const balance = hasCachedCredit ? cachedCredit : manualTotalBalance(group, isApi ? 0 : allocated);
+        const snapshot = snapshotServiceLedgers({ group, allocatedBalance: isApi ? 0 : allocated });
+        const serviceBalance = key => {
+            const row = snapshot.byService.find(service => service.serviceKey === key);
+            if (!row) return null;
+            return hasCachedCredit && snapshot.primaryServiceKey === key ? cachedCredit : row.totalBalance;
+        };
         return {
             id,
             name: group.name || 'منفذ بدون اسم',
             balance,
             balanceSource: hasCachedCredit ? 'api_service' : 'internal',
+            cashBalance: serviceBalance('vodafone'),
+            bankBalance: serviceBalance('bank_account'),
             completedToday: completedByExecutor.get(id) || 0,
             depositsToday: depositsByExecutor.get(id) || 0
         };
