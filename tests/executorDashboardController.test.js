@@ -437,6 +437,21 @@ describe('Executor dashboard group ownership', () => {
         expect(res.status).not.toHaveBeenCalledWith(403);
     });
 
+    test.each(['operator', 'external', 'accountant'])('does not expose private sender proofs to %s via the proxy', async role => {
+        Transaction.findById.mockResolvedValue({ executorGroupId: 'group-1', executorProofImages: ['private.png'] });
+        const res = response();
+        await controller.getProxyExecutorImage({ params: { id: 'tx-1', index: '0' }, session: {}, executorEmployee: { role, groupId: { _id: 'group-1' } } }, res);
+        expect(res.status).toHaveBeenCalledWith(403);
+        expect(streamProofImage).not.toHaveBeenCalled();
+    });
+
+    test('manager can read private proofs of the same group only', async () => {
+        Transaction.findById.mockResolvedValue({ executorGroupId: 'group-1', executorProofImages: ['private.png'] });
+        const res = response();
+        await controller.getProxyExecutorImage({ params: { id: 'tx-1', index: '0' }, session: {}, executorEmployee: { role: 'manager', groupId: { _id: 'group-1' } } }, res);
+        expect(streamProofImage).toHaveBeenCalledWith('/proofs/private.png', res);
+    });
+
     test('batches live-task housekeeping and keeps the completed list bounded', async () => {
         const task = {
             _id: 'task-1',

@@ -100,6 +100,16 @@ describe('executor web reports', () => {
         expect(snapshotCompanyBalances).not.toHaveBeenCalled();
     });
 
+    test.each([['post', '/reports/filter'], ['get', '/reports/employees'], ['post', '/reports/download.pdf']])(
+        'requires MFA enrollment before %s %s', async (method, url) => {
+            const response = await request(buildApp({ session: { mfaEnrollmentRequired: true } }))[method](`/executor-portal${url}`).set('Accept', 'application/json').send({});
+            expect(response.status).toBe(403);
+            expect(response.body.code).toBe('MFA_ENROLLMENT_REQUIRED');
+            expect(mobileWebParityService.getExecutorReports).not.toHaveBeenCalled();
+            expect(generateExecutorReportPdf).not.toHaveBeenCalled();
+        }
+    );
+
     test('preserves session revocation before rendering the report page', async () => {
         const render = jest.fn();
         const response = await request(buildApp({

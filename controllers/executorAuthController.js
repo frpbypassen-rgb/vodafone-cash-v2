@@ -156,7 +156,7 @@ exports.getLogin = (req, res) => {
 exports.postLogin = async (req, res) => {
     try {
         const username = req.body.username?.trim();
-        const password = req.body.password?.trim();
+        const password = typeof req.body.password === 'string' ? req.body.password : '';
         const mfaToken = String(req.body.mfaToken || '').trim();
         const pendingMfaId = req.session.pendingExecutorMfaId;
 

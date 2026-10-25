@@ -76,6 +76,7 @@ const ExecutorGroup = require('../models/ExecutorGroup');
 const zaynpay = require('../services/zaynpayApi');
 const { markProviderResultUnresolved } = require('../services/providerDispatchClaimService');
 const { syncBotBalance } = require('../utils/helpers');
+const { withOptionalMongoTransaction } = require('../services/adminFinancialMutationService');
 const { logAction } = require('../services/auditService');
 const { acquireLock, releaseLock } = require('../services/lockService');
 const eventBus = require('../services/eventBus');
@@ -378,6 +379,22 @@ describe('Executor web transaction completion', () => {
         expect(ExecutorGroup.findByIdAndUpdate).not.toHaveBeenCalled();
         expect(fs.unlinkSync).not.toHaveBeenCalled();
         expect(logger.error).toHaveBeenCalledWith('Executor completion-effects failed', expect.any(Object));
+    });
+
+    test('retains possibly committed proofs when MongoDB cannot confirm the commit outcome', async () => {
+        const uncertain = Object.assign(new Error('commit acknowledgement lost'), {
+            hasErrorLabel: label => label === 'UnknownTransactionCommitResult'
+        });
+        withOptionalMongoTransaction.mockImplementationOnce(async work => {
+            await work(null);
+            throw uncertain;
+        });
+        await controller.postCompleteTask(req, res);
+        expect(res.status).toHaveBeenCalledWith(503);
+        expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ success: false, code: 'EXECUTOR_COMPLETION_UNCERTAIN' }));
+        expect(fs.unlinkSync).not.toHaveBeenCalled();
+        expect(enqueueCompletionEffects).toHaveBeenCalledTimes(1);
+        expect(runCompletionOutboxTick).not.toHaveBeenCalled();
     });
 
     test('reports a balance persistence failure before commit and cleans uncommitted proofs', async () => {

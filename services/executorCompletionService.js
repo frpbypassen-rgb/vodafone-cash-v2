@@ -228,7 +228,10 @@ const completeExecutorTask = async ({ transactionId, executorId, executor, body 
 
         return { bankTransfer };
     } catch (error) {
-        if (!transactionCompleted) {
+        // A lost commit acknowledgement does not prove rollback. The saved
+        // proofs may already belong to a completed operation and its outbox.
+        const commitUncertain = Boolean(error.hasErrorLabel?.('UnknownTransactionCommitResult'));
+        if (!transactionCompleted && !commitUncertain) {
             savedPaths.forEach((filePath) => {
                 try {
                     fs.unlinkSync(filePath);
@@ -236,6 +239,14 @@ const completeExecutorTask = async ({ transactionId, executorId, executor, body 
                     logExecutorFailure('completion-proof-cleanup', cleanupError);
                 }
             });
+        }
+        if (commitUncertain) {
+            logExecutorFailure('completion-commit-uncertain', error);
+            throw new ExecutorTransactionError(
+                'تعذر تأكيد نتيجة إنهاء العملية. تحقق من حالتها قبل إعادة المحاولة؛ تم الاحتفاظ بالإثباتات.',
+                503,
+                'EXECUTOR_COMPLETION_UNCERTAIN'
+            );
         }
         throw error;
     } finally {
