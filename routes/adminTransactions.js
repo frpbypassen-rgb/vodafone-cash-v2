@@ -50,7 +50,7 @@ const {
     emptyPeriodStats,
     loadCentralLedgerOverview
 } = require('../services/centralLedgerOverviewService');
-const { loadOperationsSummaryStrip } = require('../services/operationsSummaryStripService');
+const { loadOperationsSummaryStrip } = require('../services/operationsWorkspaceSummaryService');
 const {
     sortTransactionsByStatusQueue,
     transactionStatusQueuePipelineStages
