@@ -1,0 +1,42 @@
+<section class="agent-daily-list" aria-label="عمليات اليوم" data-agent-daily-list>
+    <% if (!transactions.length) { %>
+    <div class="bw-empty"><i class="fa-regular fa-calendar-check"></i><strong>لا توجد عمليات مطابقة اليوم</strong><span>ستظهر عمليات اليوم هنا. يمكنك تعديل البحث أو مراجعة الأيام السابقة من التقارير.</span></div>
+    <% } %>
+    <% transactions.forEach(tx => {
+        const state = statusMeta[tx.status] || { label: tx.status, tone: 'neutral' };
+        const service = serviceCatalog.find(item => item.key === tx.transferType);
+        const images = (tx.receiptImages || []).filter(image => image && image.url);
+        const firstImage = images[0];
+        const hasProof = images.length > 0 || tx.hasProof;
+    %>
+    <article class="agent-daily-card" data-daily-transaction="<%= tx._id %>">
+        <header class="agent-daily-card-head">
+            <button type="button" class="bw-id-button bw-mono" data-transaction-id="<%= tx._id %>" aria-label="تفاصيل العملية <%= tx.customId %>"><%= tx.customId %></button>
+            <span class="bw-status <%= state.tone %>"><%= state.label %></span>
+        </header>
+        <div class="agent-daily-main">
+            <div class="agent-daily-beneficiary"><span><%= service?.shortLabel || service?.label || tx.transferType %></span><strong><%= tx.accountName || 'المستفيد' %></strong><b class="bw-mono" dir="ltr"><%= tx.vodafoneNumber || tx.accountNumber || '---' %></b></div>
+            <div class="agent-daily-amount"><strong class="bw-mono" dir="ltr"><%= Number(tx.amount || 0).toLocaleString('en-US', { maximumFractionDigits: 2 }) %></strong><span><%= service?.amountCurrencyLabel || 'EGP' %></span></div>
+        </div>
+        <dl class="agent-daily-meta">
+            <div><dt>العميل</dt><dd><%= tx.subAccountName || 'الحساب الرئيسي' %></dd></div>
+            <div><dt>أرسلها</dt><dd><%= tx.employeeName || '---' %></dd></div>
+            <div><dt>وقت الإرسال</dt><dd><time datetime="<%= new Date(tx.createdAt).toISOString() %>"><%= new Date(tx.createdAt).toLocaleTimeString('ar-LY', { timeZone: 'Africa/Tripoli', hour: '2-digit', minute: '2-digit' }) %></time></dd></div>
+            <% if (workspace.permissions.canViewBalance) { %><div><dt>التكلفة</dt><dd><span class="bw-mono"><%= Number(tx.costLYD || 0).toFixed(3) %></span> LYD</dd></div><% } %>
+        </dl>
+        <footer class="agent-daily-actions">
+            <% if (firstImage && images.length === 1) { %>
+            <button type="button" class="bw-button secondary" data-receipt-lightbox data-receipt-url="<%= portalBasePath + firstImage.url.replace(/^\/(client|agent-portal)/, '') %>" data-receipt-label="صورة العملية <%= tx.customId %>"><i class="fa-regular fa-image"></i>صورة العملية</button>
+            <% } else if (hasProof) { %>
+            <button type="button" class="bw-button secondary" data-transaction-id="<%= tx._id %>" data-receipt-focus><i class="fa-regular fa-images"></i>صور العملية<% if (images.length > 1) { %> (<%= images.length %>)<% } %></button>
+            <% } else { %>
+            <button type="button" class="bw-button secondary" data-transaction-id="<%= tx._id %>"><i class="fa-solid fa-eye"></i>التفاصيل</button>
+            <% } %>
+            <% if (firstImage) { %>
+            <button type="button" class="bw-button agent-share-button" data-agent-share-receipt data-receipt-url="<%= portalBasePath + firstImage.url.replace(/^\/(client|agent-portal)/, '') %>" data-receipt-name="<%= tx.customId %>"><i class="fa-brands fa-whatsapp"></i><%= images.length > 1 ? 'مشاركة صورة 1' : 'مشاركة الصورة' %></button>
+            <% } else { %><span class="agent-proof-pending"><i class="fa-regular fa-image"></i>بانتظار صورة العملية</span><% } %>
+            <p class="agent-share-status" role="status" aria-live="polite" hidden></p>
+        </footer>
+    </article>
+    <% }) %>
+</section>

@@ -164,3 +164,28 @@ Feedback redirects accept local client/agent portal paths only, preserving query
 filters and fragments while rejecting external destinations. MongoDB regression
 tests reproduce the original races using synchronized reads, then assert the
 persisted state after real concurrent controller calls.
+
+## Agency daily operations on phones
+
+The agency transactions screen always queries the current Libya calendar day
+using createdAt. Owner roles, date parameters and history=all cannot widen this
+screen. Counts and totals use the same filter as the rows; historical searches
+remain in reports. Company transaction date behavior is unchanged.
+
+The agent-only daily_transactions partial supplies phone cards below 768px;
+the desktop table stays available above that width. Cost fields still obey
+canViewBalance. Agent-only CSS and receipt-share.js are loaded through the agency
+entrypoint, with no company entrypoint changes.
+
+Sharing fetches the authenticated receipt proxy and sends an image File through
+Web Share, so the recipient receives an actual image instead of a private URL.
+The user selects WhatsApp from the phone's share sheet. SVG receipts become PNG.
+If file sharing is unsupported, the image is downloaded for manual attachment.
+Slow downloads and permission errors retain the prepared file for another tap;
+cancellation is silent and expired sessions/HTML responses are not shared.
+Native sharing depends on a supporting mobile browser and HTTPS. The browser
+checks simulate the native share API; they do not send messages to WhatsApp.
+
+Validation: 339 automated cases in 42 suites, 32 daily mobile browser checks at
+320/390/430/1440px, and 4 company/agency isolation scenarios. Run the dedicated
+browser checks with npm run check:agent-daily-browser.

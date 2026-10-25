@@ -7,6 +7,7 @@
             Promise.all([
                 import('../portal-workspace/header.js'),
                 import('../portal-workspace/presentation.js'),
+                import('./receipt-share.js'),
             ])
         )
         .then(() => {

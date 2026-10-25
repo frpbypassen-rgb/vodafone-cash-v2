@@ -7,6 +7,7 @@ const Transaction = require('../../models/Transaction');
 const { pricingFromTransaction } = require('../../utils/agencyPricing');
 const { STATUS_META, SERVICE_CATALOG } = require('./catalog');
 const { escapeRegex, resolveDateRange, safeNumber } = require('./primitives');
+const { systemDateKey, systemDayStart, systemDayEnd } = require('../../config/systemTime');
 
 const ownershipFilter = async (workspace) => {
     if (workspace.isCompany) {
@@ -31,7 +32,18 @@ const ownershipFilter = async (workspace) => {
 };
 
 const buildTransactionFilter = async (workspace, query = {}, options = {}) => {
-    const range = resolveDateRange(query, { forceToday: options.forceToday === true });
+    let range = resolveDateRange(query, { forceToday: options.forceToday === true });
+    if (workspace.isAgent && options.forceToday) {
+        const today = systemDateKey(new Date());
+        range = {
+            start: systemDayStart(today),
+            end: systemDayEnd(today),
+            from: today,
+            to: today,
+            month: '',
+            label: 'اليوم',
+        };
+    }
     const includeAllHistory = String(query.history || '') === 'all' && !options.forceToday;
     const conditions = [await ownershipFilter(workspace)];
     if (!includeAllHistory) conditions.push({ createdAt: { $gte: range.start, $lte: range.end } });

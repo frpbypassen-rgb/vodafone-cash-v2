@@ -25,7 +25,7 @@ const businessTheme = typeof clientTheme !== 'undefined' && clientTheme ? client
 
     <div class="bw-frame">
         <%- include(modernBusiness ? '../portal/partials/company_modern_header' : '../portal/partials/workspace_topbar') %>
-        <main class="bw-main cp-main" id="mainContent">
+        <main class="bw-main cp-main" id="mainContent"<% if (page === 'transactions') { %> data-agent-transactions<% } %>>
             <% if (!modernBusiness || (workspace.isAgent && ['customers', 'customer_profile', 'agency_balances', 'agency_debts', 'agency_account', 'agency_position', 'agency_profits', 'finance'].includes(page))) { %>
             <header class="bw-page-header">
                 <div>
@@ -122,6 +122,7 @@ const businessTheme = typeof clientTheme !== 'undefined' && clientTheme ? client
         <button type="button" class="bw-receipt-lightbox-close" data-lightbox-close aria-label="إغلاق"><i class="fa-solid fa-xmark"></i></button>
         <img id="receiptLightboxImage" alt="صورة الإثبات">
         <p class="bw-receipt-lightbox-caption" id="receiptLightboxCaption">صورة الإثبات</p>
+        <div class="agent-lightbox-actions"><button type="button" class="bw-button agent-share-button" id="agentLightboxShare" data-agent-share-receipt><i class="fa-brands fa-whatsapp"></i>مشاركة الصورة</button><p class="agent-share-status" role="status" aria-live="polite" hidden></p></div>
     </dialog>
 
     <dialog class="bw-dialog bw-assistant-dialog" id="businessAssistantDialog" aria-label="المساعد الذكي">
@@ -254,6 +255,6 @@ const businessTheme = typeof clientTheme !== 'undefined' && clientTheme ? client
     </script>
     <script src="/js/business-portal/rate-notice.js?v=20261025-review" defer></script>
     <script src="/js/business-portal/api-response.js?v=20261025-review" defer></script>
-    <script src="/js/agent-portal/index.js?v=20261025-separated" defer></script>
+    <script src="/js/agent-portal/index.js?v=20261025-daily" defer></script>
 </body>
 </html>
