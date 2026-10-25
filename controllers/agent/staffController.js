@@ -1,4 +1,5 @@
 'use strict';
+const { rotateAgentPassword, setAgentStaffStatus } = require('../../services/agentCredentialService');
 const User = require('../../models/User');
 const AgentEmployee = require('../../models/AgentEmployee');
 const SubAccount = require('../../models/SubAccount');
@@ -113,9 +114,13 @@ exports.postToggleStaff = async (req, res) => {
             return res.redirect('/client/staff?staffError=forbidden');
         }
 
-        target.status = target.status === 'active' ? 'banned' : 'active';
-        target.sessionVersion = Number(target.sessionVersion || 0) + 1;
-        await target.save();
+        const nextStatus = req.body.nextStatus || (target.status === 'active' ? 'banned' : 'active');
+        await setAgentStaffStatus({
+            staffId: target._id,
+            agentId: agent._id,
+            expectedStatus: target.status,
+            nextStatus,
+        });
 
         await logAction({
             action: 'USER_STATUS_CHANGED',
@@ -125,7 +130,7 @@ exports.postToggleStaff = async (req, res) => {
             performedByName: actor.name,
             targetId: target._id,
             targetModel: 'AgentEmployee',
-            result: target.status,
+            result: nextStatus,
             metadata: { agentId: agent._id, webUsername: target.webUsername },
         });
 
@@ -155,10 +160,12 @@ exports.postResetStaffPassword = async (req, res) => {
             return res.redirect('/client/staff?staffError=forbidden');
         }
 
-        target.webPassword = newPassword;
-        target.sessionVersion = Number(target.sessionVersion || 0) + 1;
-        target.refreshToken = undefined;
-        await target.save();
+        await rotateAgentPassword({
+            accountModel: 'AgentEmployee',
+            accountId: target._id,
+            agentId: agent._id,
+            newPassword,
+        });
 
         await logAction({
             action: 'USER_PASSWORD_CHANGED',

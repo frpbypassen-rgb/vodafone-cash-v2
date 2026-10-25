@@ -142,3 +142,25 @@ of this change. Approval still requires transaction-capable MongoDB.
 Local fixtures and regression tests do not replace deployment checks, real
 provider verification or production load testing. Run production readiness and
 MongoDB transaction checks before deploying.
+
+## Credential and status concurrency
+
+Agent password writes and staff status changes belong to
+`services/agentCredentialService.js`. The service only accepts User agents and
+AgentEmployee identities; it never updates company credentials. Staff writes
+include the owning agency and exclude deleted records at write time.
+
+Password rotation hashes once before a single atomic database update, increments
+the persisted session version, and removes refresh credentials and pending OTP
+challenges. Self-service changes compare the verified previous hash at write
+time, so a concurrent administrative reset cannot be overwritten with stale
+credentials. The current browser receives the version returned by MongoDB.
+
+Staff forms submit the desired next status. Repeating a suspension leaves the
+account suspended; a stale status update cannot revive a deleted record. Pending
+authentication credentials are removed when suspending staff.
+
+Feedback redirects accept local client/agent portal paths only, preserving query
+filters and fragments while rejecting external destinations. MongoDB regression
+tests reproduce the original races using synchronized reads, then assert the
+persisted state after real concurrent controller calls.

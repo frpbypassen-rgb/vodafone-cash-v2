@@ -1,4 +1,9 @@
 'use strict';
+jest.mock('../services/agentCredentialService', () => ({
+    rotateAgentPassword: jest.fn(),
+    setAgentStaffStatus: jest.fn(),
+}));
+const credentials = require('../services/agentCredentialService');
 jest.mock('../services/businessPortalService', () => ({ resolveWorkspace: jest.fn() }));
 jest.mock('../services/auditService', () => ({ logAction: jest.fn().mockResolvedValue(undefined) }));
 const bcrypt = require('bcryptjs');
@@ -20,6 +25,7 @@ test.each([
     businessPortal.resolveWorkspace.mockResolvedValue({ actor, actorModel, type: 'agent', isAgent: true });
     jest.spyOn(Model, 'findById').mockResolvedValue(actor);
     jest.spyOn(bcrypt, 'compare').mockResolvedValue(true);
+    credentials.rotateAgentPassword.mockResolvedValue({ sessionVersion: 7 });
     const req = {
         body: {
             currentPassword: 'old-password',
@@ -30,9 +36,16 @@ test.each([
     };
     const res = { redirect: jest.fn() };
     await postChangePassword(req, res);
-    expect(actor.webPassword).toBe(' new-password ');
-    expect(actor.sessionVersion).toBe(5);
-    expect(req.session.clientSessionVersion).toBe(5);
-    expect(actor.save).toHaveBeenCalledTimes(1);
+    expect(credentials.rotateAgentPassword).toHaveBeenCalledWith(
+        expect.objectContaining({
+            accountModel: actorModel,
+            accountId: actor._id,
+            expectedPasswordHash: 'existing-hash',
+            newPassword: ' new-password ',
+            requireActive: true,
+        })
+    );
+    expect(req.session.clientSessionVersion).toBe(7);
+    expect(actor.save).not.toHaveBeenCalled();
     expect(res.redirect).toHaveBeenCalledWith('/client/settings?settingsSuccess=password');
 });

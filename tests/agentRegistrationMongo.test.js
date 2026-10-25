@@ -14,6 +14,7 @@ const Admin = require('../models/Admin');
 const Transaction = require('../models/Transaction');
 const { buildAgentTransactionScope } = require('../services/agentTransactionScopeService');
 const { approveAgentRegistration, rejectAgentRegistration } = require('../services/agentRegistrationService');
+const staffController = require('../controllers/agent/staffController');
 let replica, agent, registration, context;
 jest.setTimeout(120000);
 beforeAll(async () => {
@@ -200,4 +201,163 @@ test('the inactive staff filter includes suspended accounts and excludes deleted
         'staff'
     );
     expect(context.staff.map((person) => String(person._id))).toEqual([String(suspendedId)]);
+});
+
+const staffRequest = (staffId, newPassword = 'new-password') => ({
+    session: { accountType: 'user', clientId: agent._id, clientSessionVersion: 0 },
+    params: { id: String(staffId) },
+    body: { newPassword },
+});
+const staffResponse = () => {
+    const res = { redirect: jest.fn(), status: jest.fn() };
+    res.status.mockReturnValue(res);
+    return res;
+};
+const seedStaff = async () => {
+    await User.collection.insertOne(agent);
+    return AgentEmployee.create({
+        agentId: agent._id,
+        name: 'Staff',
+        webUsername: 'staff@ahram.com',
+        webPassword: 'old-password',
+        status: 'active',
+        sessionVersion: 2,
+        refreshToken: 'old-refresh',
+        otpChallengeId: 'old-challenge',
+        otpCode: 'old-code',
+    });
+};
+test('concurrent staff password resets cannot reuse the same session version', async () => {
+    const target = await seedStaff();
+    const original = AgentEmployee.findOne.bind(AgentEmployee);
+    let release,
+        reads = 0;
+    const bothRead = new Promise((resolve) => {
+        release = resolve;
+    });
+    const spy = jest.spyOn(AgentEmployee, 'findOne').mockImplementation(async (filter) => {
+        const record = await original(filter);
+        reads += 1;
+        if (reads === 2) release();
+        await bothRead;
+        return record;
+    });
+    const responses = [staffResponse(), staffResponse()];
+    try {
+        await Promise.all([
+            staffController.postResetStaffPassword(staffRequest(target._id, 'first-password'), responses[0]),
+            staffController.postResetStaffPassword(staffRequest(target._id, 'second-password'), responses[1]),
+        ]);
+    } finally {
+        spy.mockRestore();
+    }
+    expect((await AgentEmployee.findById(target._id)).sessionVersion).toBe(4);
+    for (const response of responses)
+        expect(response.redirect).toHaveBeenCalledWith('/client/staff?staffSuccess=password');
+});
+test('staff deleted after authorization cannot be restored by a stale status save', async () => {
+    const target = await seedStaff();
+    const original = AgentEmployee.findOne.bind(AgentEmployee);
+    const spy = jest.spyOn(AgentEmployee, 'findOne').mockImplementationOnce(async (filter) => {
+        const record = await original(filter);
+        await AgentEmployee.updateOne({ _id: target._id }, { $set: { status: 'deleted' } });
+        return record;
+    });
+    try {
+        await staffController.postToggleStaff(staffRequest(target._id), staffResponse());
+    } finally {
+        spy.mockRestore();
+    }
+    expect((await AgentEmployee.findById(target._id)).status).toBe('deleted');
+});
+
+test('credential rotation hashes once, clears pending authentication and rejects stale self changes', async () => {
+    const bcrypt = require('bcryptjs');
+    const { rotateAgentPassword } = require('../services/agentCredentialService');
+    const target = await seedStaff();
+    const originalHash = target.webPassword;
+    const updated = await rotateAgentPassword({
+        accountModel: 'AgentEmployee',
+        accountId: target._id,
+        agentId: agent._id,
+        newPassword: ' new-password ',
+    });
+    expect(await bcrypt.compare(' new-password ', updated.webPassword)).toBe(true);
+    expect(await bcrypt.compare('new-password', updated.webPassword)).toBe(false);
+    expect(updated.sessionVersion).toBe(3);
+    for (const field of ['refreshToken', 'otpCode', 'otpChallengeId']) expect(updated[field]).toBeUndefined();
+    await expect(
+        rotateAgentPassword({
+            accountModel: 'AgentEmployee',
+            accountId: target._id,
+            agentId: agent._id,
+            expectedPasswordHash: originalHash,
+            newPassword: 'stale-password',
+            requireActive: true,
+        })
+    ).rejects.toMatchObject({ code: 'AGENT_ACCOUNT_CHANGED' });
+    expect((await AgentEmployee.findById(target._id)).webPassword).toBe(updated.webPassword);
+});
+
+test('credential writes cannot cross agencies or restore deleted accounts', async () => {
+    const { rotateAgentPassword } = require('../services/agentCredentialService');
+    const target = await seedStaff();
+    const request = {
+        accountModel: 'AgentEmployee',
+        accountId: target._id,
+        agentId: new mongoose.Types.ObjectId(),
+        newPassword: 'new-password',
+    };
+    await expect(rotateAgentPassword(request)).rejects.toMatchObject({ code: 'AGENT_ACCOUNT_CHANGED' });
+    await AgentEmployee.updateOne({ _id: target._id }, { $set: { status: 'deleted' } });
+    await expect(rotateAgentPassword({ ...request, agentId: agent._id })).rejects.toMatchObject({
+        code: 'AGENT_ACCOUNT_CHANGED',
+    });
+    expect((await AgentEmployee.findById(target._id)).sessionVersion).toBe(2);
+});
+
+test('repeated explicit suspension stays suspended and does not advance session versions twice', async () => {
+    const target = await seedStaff();
+    const request = staffRequest(target._id);
+    request.body.nextStatus = 'banned';
+    await staffController.postToggleStaff(request, staffResponse());
+    await staffController.postToggleStaff(request, staffResponse());
+    const updated = await AgentEmployee.findById(target._id);
+    expect(updated.status).toBe('banned');
+    expect(updated.sessionVersion).toBe(3);
+    expect(updated.refreshToken).toBeUndefined();
+});
+
+test('owner password rotation uses the agent identity and invalidates the previous hash', async () => {
+    const bcrypt = require('bcryptjs');
+    const { rotateAgentPassword } = require('../services/agentCredentialService');
+    const hash = await bcrypt.hash('old-password', 12);
+    await User.collection.insertOne({
+        ...agent,
+        webPassword: hash,
+        sessionVersion: 8,
+        refreshToken: 'old-refresh',
+    });
+    const updated = await rotateAgentPassword({
+        accountModel: 'User',
+        accountId: agent._id,
+        expectedPasswordHash: hash,
+        newPassword: 'owner-password',
+        requireActive: true,
+    });
+    expect(updated.sessionVersion).toBe(9);
+    expect(updated.refreshToken).toBeUndefined();
+    expect(await bcrypt.compare('owner-password', updated.webPassword)).toBe(true);
+    await expect(
+        rotateAgentPassword({
+            accountModel: 'ClientEmployee',
+            accountId: agent._id,
+            newPassword: 'other-password',
+        })
+    ).rejects.toThrow('INVALID_AGENT_ACCOUNT');
+    await User.updateOne({ _id: agent._id }, { $set: { role: 'user' } });
+    await expect(
+        rotateAgentPassword({ accountModel: 'User', accountId: agent._id, newPassword: 'other-password' })
+    ).rejects.toMatchObject({ code: 'AGENT_ACCOUNT_CHANGED' });
+    expect((await User.findById(agent._id)).sessionVersion).toBe(9);
 });

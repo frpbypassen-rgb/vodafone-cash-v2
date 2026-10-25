@@ -5,6 +5,7 @@ const { loadCompanyAccess, assertCapability } = require('../../services/companyA
 const ClientCompany = require('../../models/ClientCompany');
 const User = require('../../models/User');
 const { logAction } = require('../../services/auditService');
+const { rotateAgentPassword } = require('../../services/agentCredentialService');
 const bcrypt = require('bcryptjs');
 const { applyOwnPasswordChange } = require('../../services/companyPasswordService');
 const ClientEmployee = require('../../models/ClientEmployee');
@@ -85,10 +86,15 @@ exports.postChangePassword = async (req, res) => {
         if (newPassword.length < 8 || newPassword.length > 128 || newPassword !== passwordConfirm) {
             return redirectWithMessage(res, passwordPageHref(workspace), 'settingsError', 'new_password');
         }
-        actor.webPassword = newPassword;
-        actor.sessionVersion = Number(actor.sessionVersion || 0) + 1;
-        await actor.save();
-        req.session.clientSessionVersion = actor.sessionVersion;
+        const updated = await rotateAgentPassword({
+            accountModel: workspace.actorModel,
+            accountId: actor._id,
+            agentId: workspace.entity?._id || actor.agentId,
+            expectedPasswordHash: actor.webPassword,
+            newPassword,
+            requireActive: true,
+        });
+        req.session.clientSessionVersion = updated.sessionVersion;
         await logAction({
             action: 'USER_PASSWORD_CHANGED',
             req,

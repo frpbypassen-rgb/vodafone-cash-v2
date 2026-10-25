@@ -90,7 +90,7 @@
                     </div>
                     <% if (canCreateStaff && String(item._id) !== String(account._id)) { %>
                         <div class="staff-actions">
-                            <form action="/client/agent/staff/<%= item._id %>/toggle" method="POST">
+                            <form action="/client/agent/staff/<%= item._id %>/toggle" method="POST"><input type="hidden" name="nextStatus" value="<%= item.status === 'active' ? 'banned' : 'active' %>">
                                 <button type="submit" class="mini-btn">
                                     <i class="fa-solid <%= item.status === 'active' ? 'fa-user-slash' : 'fa-user-check' %>"></i>
                                     <%= item.status === 'active' ? 'إيقاف' : 'تفعيل' %>

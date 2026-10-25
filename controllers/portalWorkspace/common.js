@@ -52,8 +52,23 @@ const assertIdentityAvailable = async ({ webUsername, phone }) => {
 };
 
 const redirectWithMessage = (res, path, type, code) => {
-    const separator = path.includes('?') ? '&' : '?';
-    return res.redirect(`${path}${separator}${type}=${encodeURIComponent(code)}`);
+    const origin = 'https://portal.invalid';
+    let target;
+    try {
+        target = new URL(typeof path === 'string' ? path : '', origin);
+        if (
+            typeof path !== 'string' ||
+            !path.startsWith('/') ||
+            path.startsWith('//') ||
+            target.origin !== origin ||
+            !/^\/(client|agent-portal)(\/|$)/.test(target.pathname)
+        )
+            throw new Error('INVALID_RETURN_PATH');
+    } catch (_) {
+        target = new URL('/client/settings', origin);
+    }
+    target.searchParams.set(type, code);
+    return res.redirect(`${target.pathname}${target.search}${target.hash}`);
 };
 
 const passwordPageHref = (workspace) => (workspace?.isCompany ? '/client/security' : '/client/settings');

@@ -1,4 +1,9 @@
 'use strict';
+jest.mock('../services/agentCredentialService', () => ({
+    rotateAgentPassword: jest.fn(),
+    setAgentStaffStatus: jest.fn(),
+}));
+const credentials = require('../services/agentCredentialService');
 jest.mock('../services/agentPortalContextService', () => ({ getAgentActor: jest.fn() }));
 jest.mock('../services/auditService', () => ({ logAction: jest.fn().mockResolvedValue(undefined) }));
 jest.mock('../models/AgentEmployee', () => ({ findOne: jest.fn(), create: jest.fn(), exists: jest.fn() }));
@@ -18,6 +23,8 @@ beforeEach(() => {
     };
     getAgentActor.mockResolvedValue({ actor: owner, agent: owner, actorModel: 'User' });
     AgentEmployee.findOne.mockResolvedValue(target);
+    credentials.rotateAgentPassword.mockResolvedValue(target);
+    credentials.setAgentStaffStatus.mockResolvedValue(target);
     req = { params: { id: 'staff-a' }, body: { newPassword: ' secure-password ' } };
     res = { redirect: jest.fn(), status: jest.fn() };
     res.status.mockReturnValue(res);
@@ -25,10 +32,13 @@ beforeEach(() => {
 test('reset preserves the password exactly and invalidates prior sessions and refresh credentials', async () => {
     target.refreshToken = 'old-refresh-token';
     await staff.postResetStaffPassword(req, res);
-    expect(target.webPassword).toBe(' secure-password ');
-    expect(target.sessionVersion).toBe(3);
-    expect(target.refreshToken).toBeUndefined();
-    expect(target.save).toHaveBeenCalledTimes(1);
+    expect(credentials.rotateAgentPassword).toHaveBeenCalledWith({
+        accountModel: 'AgentEmployee',
+        accountId: 'staff-a',
+        agentId: 'agent-a',
+        newPassword: ' secure-password ',
+    });
+    expect(target.save).not.toHaveBeenCalled();
     expect(res.redirect).toHaveBeenCalledWith('/client/staff?staffSuccess=password');
 });
 test.each(['short', 'x'.repeat(129)])(
@@ -59,9 +69,13 @@ test('a delegated manager cannot reset staff passwords without staff-management 
 });
 test('changing staff status invalidates every previously issued session', async () => {
     await staff.postToggleStaff(req, res);
-    expect(target.status).toBe('banned');
-    expect(target.sessionVersion).toBe(3);
-    expect(target.save).toHaveBeenCalledTimes(1);
+    expect(credentials.setAgentStaffStatus).toHaveBeenCalledWith({
+        staffId: 'staff-a',
+        agentId: 'agent-a',
+        expectedStatus: 'active',
+        nextStatus: 'banned',
+    });
+    expect(target.save).not.toHaveBeenCalled();
 });
 test('a staff administrator cannot change their own status through the team endpoint', async () => {
     target._id = owner._id;
