@@ -1,0 +1,229 @@
+.agent-daily-list {
+    display: none;
+}
+html[data-portal='agent'] .bw-button.agent-share-button {
+    background: #087c49;
+    color: #fff;
+    border-color: #087c49;
+}
+.agent-share-button:disabled {
+    opacity: 0.65;
+    cursor: wait;
+}
+.agent-share-status {
+    font-size: 0.8rem;
+    line-height: 1.7;
+    color: var(--text-secondary, #526174);
+    overflow-wrap: anywhere;
+}
+.agent-share-status[hidden] {
+    display: none;
+}
+.bw-receipt-actions:has([data-agent-share-receipt]) {
+    flex-wrap: wrap;
+}
+.bw-receipt-actions .agent-share-status {
+    flex-basis: 100%;
+}
+
+@media (max-width: 767px) {
+    html[data-portal='agent'] [data-agent-transactions] .cp-page-hero-actions {
+        display: none;
+    }
+    html[data-portal='agent'] [data-agent-transactions] .cp-page-hero h2 {
+        font-size: 1.35rem;
+    }
+    html[data-portal='agent'] [data-agent-transactions] .cp-page-hero p {
+        font-size: 0.86rem;
+        line-height: 1.8;
+    }
+    html[data-portal='agent'] [data-agent-transactions] .bw-filter-form {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+    }
+    html[data-portal='agent'] [data-agent-transactions] .bw-filter-form .bw-search-field {
+        grid-column: 1 / -1;
+        min-width: 0;
+    }
+    html[data-portal='agent'] [data-agent-transactions] .bw-filter-form > label {
+        min-width: 0;
+    }
+    html[data-portal='agent'] [data-agent-transactions] .bw-filter-form input,
+    html[data-portal='agent'] [data-agent-transactions] .bw-filter-form select {
+        width: 100%;
+        min-width: 0;
+        font-size: 16px;
+    }
+    html[data-portal='agent'] [data-agent-transactions] .bw-filter-form .bw-meta-chip {
+        display: none;
+    }
+    html[data-portal='agent'] [data-agent-transactions] .bw-filter-form .bw-icon-button {
+        justify-self: end;
+    }
+    html[data-portal='agent'] [data-agent-transactions] .bw-mini-metrics {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 6px;
+    }
+    html[data-portal='agent'] [data-agent-transactions] .bw-mini-metrics article {
+        min-width: 0;
+        min-height: 0;
+        padding: 9px 7px;
+    }
+    html[data-portal='agent'] [data-agent-transactions] .bw-mini-metrics article:last-child {
+        grid-column: 1 / -1;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+    html[data-portal='agent'] [data-agent-transactions] .bw-mini-metrics span {
+        font-size: 0.64rem;
+        line-height: 1.5;
+    }
+    html[data-portal='agent'] [data-agent-transactions] .bw-mini-metrics strong {
+        margin-top: 4px;
+        font-size: 1.05rem;
+    }
+    html[data-portal='agent'] [data-agent-transactions] .agent-desktop-transactions {
+        display: none;
+    }
+    .agent-daily-list {
+        display: grid;
+        gap: 14px;
+    }
+    .agent-daily-card {
+        min-width: 0;
+        padding: 15px;
+        border: 1px solid var(--cp-border, #d6e1e9);
+        border-radius: 18px;
+        background: var(--cp-surface, #fff);
+        box-shadow: 0 4px 16px rgb(15 34 56 / 4%);
+    }
+    .agent-daily-card-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        padding-bottom: 12px;
+        border-bottom: 1px solid var(--cp-border, #d6e1e9);
+    }
+    .agent-daily-card-head .bw-id-button {
+        min-width: 0;
+        font-size: 0.85rem;
+        overflow-wrap: anywhere;
+        text-align: start;
+    }
+    .agent-daily-card-head .bw-status {
+        flex-shrink: 0;
+        font-size: 0.73rem;
+    }
+    .agent-daily-main {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 14px 0;
+    }
+    .agent-daily-beneficiary {
+        min-width: 0;
+        display: grid;
+        gap: 5px;
+    }
+    .agent-daily-beneficiary > span {
+        color: var(--text-secondary, #526174);
+        font-size: 0.76rem;
+    }
+    .agent-daily-beneficiary > strong {
+        font-size: 0.95rem;
+        overflow-wrap: anywhere;
+    }
+    .agent-daily-beneficiary > b {
+        font-size: 0.95rem;
+        overflow-wrap: anywhere;
+        text-align: start;
+    }
+    .agent-daily-amount {
+        flex: 0 0 auto;
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 4px;
+        min-width: 0;
+    }
+    .agent-daily-amount > strong {
+        font-size: clamp(1.1rem, 4.8vw, 1.4rem);
+        white-space: nowrap;
+    }
+    .agent-daily-amount > span {
+        color: var(--text-secondary, #526174);
+        font-size: 0.76rem;
+    }
+    .agent-daily-meta {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+        margin: 0;
+        padding: 12px 0;
+        border-top: 1px solid var(--cp-border, #d6e1e9);
+    }
+    .agent-daily-meta div {
+        min-width: 0;
+    }
+    .agent-daily-meta dt {
+        color: var(--text-secondary, #526174);
+        font-size: 0.74rem;
+        margin-bottom: 4px;
+    }
+    .agent-daily-meta dd {
+        margin: 0;
+        font-size: 0.84rem;
+        overflow-wrap: anywhere;
+    }
+    .agent-daily-actions {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+        padding-top: 12px;
+        border-top: 1px solid var(--cp-border, #d6e1e9);
+    }
+    .agent-daily-actions .bw-button {
+        min-height: 46px;
+        min-width: 0;
+        padding: 10px 8px;
+        font-size: 0.8rem;
+        justify-content: center;
+        white-space: normal;
+    }
+    .agent-proof-pending {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        font-size: 0.75rem;
+        color: var(--text-secondary, #526174);
+    }
+    .agent-daily-actions .agent-share-status {
+        grid-column: 1 / -1;
+        margin: 0;
+    }
+}
+
+html[data-theme='night'] .agent-daily-card {
+    --cp-surface: #14243b;
+    --cp-border: #304158;
+    --text-secondary: #b7c5d8;
+}
+html[data-theme='pharaonic'] .agent-daily-card {
+    --cp-surface: #251e16;
+    --cp-border: #625033;
+    --text-secondary: #dac7a1;
+}
+
+.agent-lightbox-actions {
+    margin: 12px auto;
+    max-width: 360px;
+    text-align: center;
+}
+.agent-lightbox-actions .agent-share-status {
+    color: #e7edf4;
+}

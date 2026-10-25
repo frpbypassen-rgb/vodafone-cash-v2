@@ -210,7 +210,7 @@ const loadTransactions = async (workspace, query = {}) => {
     const page = Math.max(1, Number.parseInt(query.page, 10) || 1);
     const limit = 25;
     const { filter, range, search, includeAllHistory } = await buildTransactionFilter(workspace, query, {
-        forceToday: workspace.forceToday,
+        forceToday: workspace.isAgent || workspace.forceToday,
     });
     const StaffModel = staffModelForWorkspace(workspace);
     const [transactions, total, summary, staff, customers] = await Promise.all([

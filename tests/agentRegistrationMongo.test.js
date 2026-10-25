@@ -361,3 +361,45 @@ test('owner password rotation uses the agent identity and invalidates the previo
     ).rejects.toMatchObject({ code: 'AGENT_ACCOUNT_CHANGED' });
     expect((await User.findById(agent._id)).sessionVersion).toBe(9);
 });
+
+test('agency transactions load only today including counts and ignore all-history URLs', async () => {
+    const { loadTransactions } = require('../services/portalWorkspace/overview');
+    const { systemDateKey, systemDayStart, systemDayEnd } = require('../config/systemTime');
+    agent.phone = 'daily-owner';
+    const day = systemDateKey(new Date());
+    const start = systemDayStart(day);
+    const end = systemDayEnd(day);
+    const entries = [
+        { customId: 'DAILY-BEFORE', createdAt: new Date(start.getTime() - 1) },
+        { customId: 'DAILY-START', createdAt: start },
+        { customId: 'DAILY-END', createdAt: end },
+        { customId: 'DAILY-AFTER', createdAt: new Date(end.getTime() + 1) },
+    ];
+    await Transaction.collection.insertMany(
+        entries.map((row) => ({
+            ...row,
+            userId: agent.phone,
+            amount: 1000,
+            costLYD: 200,
+            status: 'completed',
+            transferType: 'vodafone',
+        }))
+    );
+    const result = await loadTransactions(
+        {
+            isAgent: true,
+            entity: agent,
+            actor: agent,
+            masterType: 'user',
+            masterId: agent._id,
+            permissions: { owner: true },
+        },
+        { history: 'all', from: '2000-01-01', to: '2099-12-31' }
+    );
+    expect(result.transactions.map((row) => row.customId)).toEqual(['DAILY-END', 'DAILY-START']);
+    expect(result.total).toBe(2);
+    expect(result.summary.completedCount).toBe(2);
+    expect(result.summary.totalEGP).toBe(2000);
+    expect(result.filters.history).toBe('');
+    expect(result.filters.from).toBe(day);
+});

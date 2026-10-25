@@ -25,6 +25,7 @@ const resolveWorkspace = async (req) => {
 
 const loadPageContext = async (req, page) => {
     const workspace = await resolveWorkspace(req);
+    if (page === 'transactions') workspace.forceToday = true;
     const context = await buildPageContext(req, page, workspace, canAccessAgentPage);
     context.portalHomeHref = '/agent-portal/dashboard';
     context.navigation = context.navigation.map((item) => ({
