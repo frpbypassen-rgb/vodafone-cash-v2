@@ -1,3 +1,4 @@
+const { readPortalAsset } = require('./helpers/portalAssetSources');
 'use strict';
 
 const fs = require('fs');
@@ -12,14 +13,14 @@ const {
 } = require('../utils/companyPortalTheme');
 
 const WORKSPACE_HEAD = path.join(__dirname, '..', 'views', 'client', 'partials', 'workspace_head.ejs');
-const WORKSPACE_VIEW = path.join(__dirname, '..', 'views', 'client', 'workspace.ejs');
+const WORKSPACE_VIEW = path.join(__dirname, '..', 'views', 'company', 'workspace.ejs');
 
 describe('company theme SSR and preferences', () => {
     test.each([['day', 'company'], ['night', 'company'], ['day', 'agent'], ['night', 'agent']])('keeps the %s %s portal usable when browser storage is blocked', async (theme, type) => {
-        const head = await ejs.renderFile(WORKSPACE_HEAD, {
+        const head = await ejs.renderFile(type === 'agent' ? path.join(__dirname, '../views/agent/partials/head.ejs') : WORKSPACE_HEAD, {
             pageMeta: { title: 'التحويل الذكي' },
             workspace: { type, isCompany: type === 'company', isAgent: type === 'agent' },
-            companyTheme: theme
+            companyTheme: theme, clientTheme: type === 'agent' ? theme : undefined
         });
         const attributes = {};
         const context = {
@@ -83,10 +84,10 @@ describe('company theme SSR and preferences', () => {
     });
 
     test('theme files stay split and Pharaonic art is lazy plus motion-safe', () => {
-        const day = fs.readFileSync(path.join(__dirname, '..', 'public/css/company-portal-theme-day.css'), 'utf8');
-        const night = fs.readFileSync(path.join(__dirname, '..', 'public/css/company-portal-theme-night.css'), 'utf8');
-        const pharaonic = fs.readFileSync(path.join(__dirname, '..', 'public/css/company-portal-theme-pharaonic.css'), 'utf8');
-        const layout = fs.readFileSync(path.join(__dirname, '..', 'public/css/company-portal-layout.css'), 'utf8');
+        const day = readPortalAsset(path.join(__dirname, '..', 'public/css/company-portal-theme-day.css'));
+        const night = readPortalAsset(path.join(__dirname, '..', 'public/css/company-portal-theme-night.css'));
+        const pharaonic = readPortalAsset(path.join(__dirname, '..', 'public/css/company-portal-theme-pharaonic.css'));
+        const layout = readPortalAsset(path.join(__dirname, '..', 'public/css/company-portal-layout.css'));
         expect(day).toContain('#0F766E');
         expect(day).toContain('#E7F1F6');
         expect(night).toContain('#0B1426');

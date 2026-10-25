@@ -1,0 +1,55 @@
+<% const portalBasePath = locals.portalBasePath || '/client'; const portalHref = value => typeof value === 'string' && (value === '/client' || value.startsWith('/client/') || value.startsWith('/client?')) ? portalBasePath + value.slice(7) : value; %>
+<%
+    const feedbackCode = query.customerSuccess || query.staffSuccess || query.requestSuccess || query.settingsSuccess || query.portalSuccess;
+    const errorCode = query.customerError || query.staffError || query.requestError || query.settingsError || query.portalError;
+    const feedbackMessages = {
+        created: 'تم إنشاء الحساب بنجاح.',
+        status: 'تم تحديث حالة الحساب.',
+        password: 'تم تحديث كلمة المرور بنجاح.',
+        theme: workspace.isCompany ? 'تم حفظ مظهر بوابة الشركات على الحساب.' : 'تم حفظ مظهر بوابة العملاء على الحساب.',
+        profile: 'تم حفظ بيانات المنشأة.',
+        approved: 'تم قبول طلب العميل وإنشاء حسابه.',
+        rejected: 'تم رفض طلب التسجيل.',
+        deposit: 'تم تمويل حساب العميل وتسجيل الحركة المالية.',
+        withdraw: 'تم سحب المبلغ من حساب العميل وتسجيل الحركة المالية.',
+        customer_payment: 'تم تسجيل تحصيل العميل وإضافة المبلغ إلى رصيده.',
+        debt_payment: 'تم تسجيل سداد الدين وتحديث رصيد العميل.',
+        customer_payout: 'تم تسجيل المبلغ المدفوع للعميل وتحديث رصيده.',
+        balance_credit: 'تم تصحيح رصيد العميل بالزيادة وتسجيل القيد.',
+        balance_debit: 'تم تصحيح رصيد العميل بالنقص وتسجيل القيد.',
+        credit_limit: 'تم حفظ حد مديونية العميل وتحديث الرصيد الأدنى المسموح.'
+    };
+    const errorMessages = {
+        invalid: 'راجع البيانات المطلوبة ثم حاول مرة أخرى.',
+        duplicate: 'اسم المستخدم أو رقم الهاتف مستخدم بالفعل.',
+        username: 'اسم المستخدم غير صالح. استخدم حروفاً إنجليزية وأرقاماً فقط.',
+        forbidden: 'ليست لديك الصلاحية اللازمة لتنفيذ هذا الإجراء.',
+        notfound: 'تعذر العثور على الحساب المطلوب.',
+        amount: 'أدخل مبلغاً صحيحاً أكبر من صفر.',
+        funds: 'الرصيد المتاح للعميل لا يكفي لتنفيذ السحب.',
+        missing: 'أكمل جميع الحقول المطلوبة.',
+        username_format: 'صيغة اسم المستخدم غير صحيحة.',
+        current_password: 'كلمة المرور الحالية غير صحيحة.',
+        new_password: 'كلمة المرور الجديدة غير متطابقة أو أقل من 8 أحرف.',
+        confirm: 'أعد كتابة اسم المستخدم واكتب RESET لتأكيد إعادة التعيين.',
+        must_change: 'يجب تغيير كلمة المرور المؤقتة قبل متابعة العمل.',
+        theme: 'تعذر حفظ المظهر. اختر نهاري أو ليلي أو فرعوني.',
+        credit_limit: 'حد المديونية يجب أن يكون رقماً موجباً أو صفراً.',
+        limit_below_debt: 'لا يمكن خفض حد المديونية إلى أقل من الدين الحالي للعميل.',
+        server: 'تعذر تنفيذ الطلب حالياً. حاول مرة أخرى.'
+    };
+%>
+<% if (feedbackCode) { %>
+    <div class="bw-alert success" role="status">
+        <i class="fa-solid fa-circle-check"></i>
+        <span><%= feedbackMessages[feedbackCode] || 'تم تنفيذ الإجراء بنجاح.' %></span>
+        <button type="button" data-alert-close aria-label="إغلاق"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+<% } %>
+<% if (errorCode) { %>
+    <div class="bw-alert danger" role="alert">
+        <i class="fa-solid fa-circle-exclamation"></i>
+        <span><%= errorMessages[errorCode] || 'تعذر تنفيذ الإجراء.' %></span>
+        <button type="button" data-alert-close aria-label="إغلاق"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+<% } %>

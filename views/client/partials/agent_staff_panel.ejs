@@ -17,7 +17,7 @@
                 <% } else if (query.staffError === 'username_format') { %>
                     اسم المستخدم يجب أن يكون إنجليزيًا وينتهي بـ @ahram.com.
                 <% } else if (query.staffError === 'password') { %>
-                    الرقم السري يجب ألا يقل عن 6 أحرف.
+                    كلمة المرور يجب أن تكون بين 8 و128 حرفًا.
                 <% } else if (query.staffError === 'forbidden') { %>
                     لا توجد صلاحية لتنفيذ هذا الإجراء.
                 <% } else { %>
@@ -43,7 +43,7 @@
                     </div>
                     <div class="col-md-6">
                         <label class="form-label fw-bold small text-muted">الرقم السري</label>
-                        <input type="text" name="webPassword" class="form-control mono-num text-start" dir="ltr" minlength="6" required>
+                        <input type="password" name="webPassword" class="form-control mono-num text-start" dir="ltr" minlength="8" maxlength="128" autocomplete="new-password" required>
                     </div>
                     <div class="col-md-6">
                         <label class="form-label fw-bold small text-muted">صفة الموظف</label>
@@ -97,7 +97,7 @@
                                 </button>
                             </form>
                             <form action="/client/agent/staff/<%= item._id %>/password" method="POST" class="d-flex gap-2 flex-wrap">
-                                <input type="text" name="newPassword" class="form-control mono-num" dir="ltr" placeholder="رقم سري جديد" minlength="6" required style="min-height:34px; width: 160px;">
+                                <input type="password" name="newPassword" class="form-control mono-num" dir="ltr" placeholder="رقم سري جديد" minlength="8" maxlength="128" autocomplete="new-password" required style="min-height:34px; width: 160px;">
                                 <button type="submit" class="mini-btn">
                                     <i class="fa-solid fa-key"></i>تغيير
                                 </button>

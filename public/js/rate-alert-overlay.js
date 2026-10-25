@@ -73,7 +73,7 @@
                     applicationServerKey: base64UrlToUint8Array(key)
                 });
             }
-            await fetch('/client/api/rate-alerts/subscribe', {
+            await fetch(document.documentElement.dataset.portal === 'agent' ? '/agent-portal/api/rate-alerts/subscribe' : '/client/api/rate-alerts/subscribe', {
                 method: 'POST',
                 credentials: 'same-origin',
                 headers: {
@@ -241,7 +241,7 @@
         if (fetching) return;
         fetching = true;
         try {
-            const response = await fetch('/client/api/rate-alerts/current', {
+            const response = await fetch(document.documentElement.dataset.portal === 'agent' ? '/agent-portal/api/rate-alerts/current' : '/client/api/rate-alerts/current', {
                 credentials: 'same-origin',
                 headers: { Accept: 'application/json' },
                 cache: 'no-store'

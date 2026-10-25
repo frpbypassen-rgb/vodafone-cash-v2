@@ -18,7 +18,7 @@ describe('Agent client role helpers', () => {
             role: 'employee',
             canManageAgent: true,
             canCreateAgentStaff: false,
-            canViewAllReports: true
+            canViewAllReports: true,
         };
 
         expect(agentRoleHelpers.dashboardPersona(manager)).toBe('manager');

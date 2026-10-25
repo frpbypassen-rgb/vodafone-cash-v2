@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const { buildAgentTransactionScope } = require('../services/agentTransactionScopeService');
 const fs = require('fs');
 
 const User = require('../models/User');
@@ -83,39 +84,19 @@ const clientOwnershipFilter = async (req) => {
     if (req.session.accountType === 'agent_staff') {
         const employee = await AgentEmployee.findById(accountId).select('agentId status name role canManageAgent canViewAllReports').lean();
         if (!employee || employee.status !== 'active' || !employee.agentId) return null;
-        const agent = await User.findById(employee.agentId).select('phone webUsername status role').lean();
+        const agent = await User.findById(employee.agentId).select('phone webUsername status role tenantId').lean();
         if (!agent || agent.status !== 'active' || agent.role !== 'agent') return null;
-        const subAccountIds = await SubAccount.find({ masterType: 'user', masterId: agent._id, status: { $ne: 'deleted' } }).distinct('_id');
-        const agentScope = {
-            $or: [
-                { userId: agent.phone, companyId: null, subAccountId: null },
-                { userId: agent.webUsername, companyId: null, subAccountId: null },
-                { subAccountId: { $in: subAccountIds } }
-            ].filter((condition) => condition.userId || condition.subAccountId)
-        };
-        if (!resolveAgentPermissions(employee).employee) return agentScope;
-        return {
-            $and: [
-                agentScope,
-                {
-                    $or: [
-                        { clientActorId: String(employee._id) },
-                        { clientActorId: { $exists: false }, employeeName: employee.name }
-                    ]
-                }
-            ]
-        };
+        return buildAgentTransactionScope({ agent, actor: employee });
     }
 
-    const user = await User.findById(accountId).select('phone webUsername status role').lean();
+    const user = await User.findById(accountId).select('phone webUsername status role tenantId').lean();
     if (!user || user.status !== 'active') return null;
     const conditions = [
         { userId: user.phone, companyId: null, subAccountId: null },
         { userId: user.webUsername, companyId: null, subAccountId: null }
     ].filter((condition) => condition.userId);
     if (user.role === 'agent') {
-        const subAccountIds = await SubAccount.find({ masterType: 'user', masterId: user._id, status: { $ne: 'deleted' } }).distinct('_id');
-        conditions.push({ subAccountId: { $in: subAccountIds } });
+        return buildAgentTransactionScope({ agent: user });
     }
     return conditions.length ? { $or: conditions } : null;
 };
@@ -147,7 +128,7 @@ const getBalanceTransferSource = async (req) => {
     }
 
     if (isAgentStaff) {
-        if (account.role === 'accountant') throw createClientError('ACCOUNTANT_FORBIDDEN', 403);
+        if (!resolveAgentPermissions(account).canInternalTransfer) throw createClientError('ACCOUNTANT_FORBIDDEN', 403);
         const agent = await User.findById(account.agentId);
         if (!agent || agent.role !== 'agent') throw createClientError('AGENT_NOT_FOUND', 404);
         return { modelName: 'User', doc: agent, performedBy: account.name };
@@ -633,9 +614,9 @@ exports.postTransfer = async (req, res) => {
                             message: adminMsg,
                             type: 'transfer'
                         });
-                    } catch(e) {}
+                    } catch(_error) {}
                 }
-            } catch(e) {}
+            } catch(_error) {}
         });
 
     } catch (error) {
@@ -646,7 +627,7 @@ exports.postTransfer = async (req, res) => {
         if (!(error instanceof TransferCooldownError)) {
             console.error('[Transfer] خطأ:', error.message, error.stack);
         }
-        if (useTransaction) { try { await session.abortTransaction(); session.endSession(); } catch(e) {} }
+        if (useTransaction) { try { await session.abortTransaction(); session.endSession(); } catch(_error) {} }
         if (!useTransaction && standaloneCompensations.length) {
             for (const compensate of standaloneCompensations.reverse()) {
                 try { await compensate(); } catch (compensationError) {
@@ -825,7 +806,7 @@ exports.postComplaint = async (req, res) => {
         await tx.save();
         
         res.json({ success: true });
-    } catch (error) {
+    } catch (_error) {
         res.status(500).json({ success: false, error: 'حدث خطأ.' });
     }
 };

@@ -93,7 +93,7 @@ const reserveAccountCode = async (code, current, options = {}) => {
                     ...(tenantId ? { tenantId } : {})
                 }
             },
-            { upsert: true, new: true, runValidators: true, setDefaultsOnInsert: true }
+            { upsert: true, new: true, runValidators: true, setDefaultsOnInsert: true, ...(options.session ? { session: options.session } : {}) }
         );
     } catch (error) {
         if (error.code === 11000) throw duplicateReservationError();
@@ -101,17 +101,25 @@ const reserveAccountCode = async (code, current, options = {}) => {
     }
 };
 
-const assignGeneratedAccountCode = async ({ Model, modelName, id, length, maxAttempts = 200 }) => {
+const assignGeneratedAccountCode = async ({ Model, modelName, id, length, maxAttempts = 200, session = null, tenantId = null }) => {
     const current = { modelName, id };
 
     for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
         const code = validateAccountCode(generateNumericCode(length), length);
         try {
             await ensureAccountCodeAvailable(code, current);
-            await reserveAccountCode(code, current);
-            await Model.findByIdAndUpdate(id, { accountCode: code }, { runValidators: true });
+        } catch (error) {
+            if (error.message === 'ACCOUNT_CODE_DUPLICATE') continue;
+            throw error;
+        }
+        try {
+            await reserveAccountCode(code, current, { session, tenantId });
+            await Model.findByIdAndUpdate(id, { accountCode: code }, { runValidators: true, ...(session ? { session } : {}) });
             return code;
         } catch (error) {
+            // A failed write aborts a MongoDB transaction. Its caller must retry
+            // the complete transaction; cleanup outside it can remove a valid reservation.
+            if (session) throw error;
             if (error.message !== 'ACCOUNT_CODE_DUPLICATE') {
                 await releaseAccountCodeReservation(current).catch(() => {});
                 throw error;

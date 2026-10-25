@@ -1,0 +1,12 @@
+import './core.js';
+import './shell.js';
+import './services.js';
+import './smart-transfer.js';
+import './assistant.js';
+import './transfers.js';
+import './balance-transfer.js';
+import './receipts.js';
+import './support.js';
+import './company-notices.js';
+import './tools.js';
+import './reports.js';

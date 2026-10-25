@@ -1,0 +1,16 @@
+<% const portalBasePath = locals.portalBasePath || '/client'; const portalHref = value => typeof value === 'string' && (value === '/client' || value.startsWith('/client/') || value.startsWith('/client?')) ? portalBasePath + value.slice(7) : value; %>
+<% if ((workspace.isCompany || workspace.isAgent)) { %>
+<section class="cp-page-hero">
+    <div>
+        <span class="bw-section-kicker">لصق الرسالة</span>
+        <h2>التحويل الذكي</h2>
+        <p>حوّل رسالة العميل إلى بيانات جاهزة لمحافظ الكاش. راجع رقم المستلم والمبلغ والتكلفة بالدينار قبل تأكيد الإرسال.</p>
+    </div>
+    <div class="cp-page-hero-actions">
+        <a href="<%= portalBasePath %>/services" class="bw-button ghost"><i class="fa-solid fa-cubes"></i>معرض الخدمات</a>
+    </div>
+</section>
+<% } else { %>
+<p class="cos-isolated-note">الصق رسالة التحويل، راجع البيانات في نافذة سريعة، ثم أرسل العملية مباشرة بعد التأكيد.</p>
+<% } %>
+<%- include('../partials/smart_transfer_panel', { smartTransferActionLabel: 'معاينة التحويل' }) %>

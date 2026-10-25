@@ -1,0 +1,32 @@
+<% const portalBasePath = locals.portalBasePath || '/client'; const portalHref = value => typeof value === 'string' && (value === '/client' || value.startsWith('/client/') || value.startsWith('/client?')) ? portalBasePath + value.slice(7) : value; %>
+<%
+    const themeOptions = [
+        { key: 'day', label: 'نهاري', hint: 'أبيض وأزرق هادئ', icon: 'sun-day' },
+        { key: 'night', label: 'ليلي', hint: 'ألوان داكنة مريحة', icon: 'moon' },
+        { key: 'pharaonic', label: 'فرعوني', hint: 'رمل وذهب وفيروز', icon: 'ankh' }
+    ];
+    const currentTheme = typeof workspace !== 'undefined' && workspace.isAgent && typeof clientTheme !== 'undefined' && clientTheme ? clientTheme : (typeof companyTheme !== 'undefined' ? companyTheme : 'day');
+%>
+<div class="cp-theme-switcher" data-company-theme-switcher>
+    <div class="cp-theme-rail" role="group" aria-label="مظهر البوابة">
+        <% themeOptions.forEach(option => { %>
+            <button type="button" class="cp-theme-option" data-theme-option="<%= option.key %>" aria-pressed="<%= currentTheme === option.key ? 'true' : 'false' %>" title="<%= option.label %> — <%= option.hint %>">
+                <svg class="cp-icon" aria-hidden="true"><use href="#cp-icon-<%= option.icon %>"></use></svg>
+                <span><%= option.label %></span>
+            </button>
+        <% }) %>
+    </div>
+    <button type="button" class="bw-icon-button cp-theme-toggle" data-theme-menu-toggle aria-expanded="false" aria-controls="companyThemePanel" title="مظهر البوابة" aria-label="مظهر البوابة">
+        <svg class="cp-icon" aria-hidden="true"><use href="#cp-icon-ankh"></use></svg>
+    </button>
+    <div class="cp-theme-panel" id="companyThemePanel" data-theme-panel hidden role="dialog" aria-label="اختيار المظهر">
+        <form method="POST" action="<%= portalBasePath %>/settings/theme" class="cp-theme-ssr-form">
+            <% themeOptions.forEach(option => { %>
+                <button type="submit" class="cp-theme-option" name="theme" value="<%= option.key %>" data-theme-option="<%= option.key %>" aria-pressed="<%= currentTheme === option.key ? 'true' : 'false' %>">
+                    <svg class="cp-icon" aria-hidden="true"><use href="#cp-icon-<%= option.icon %>"></use></svg>
+                    <span><%= option.label %><small><%= option.hint %></small></span>
+                </button>
+            <% }) %>
+        </form>
+    </div>
+</div>

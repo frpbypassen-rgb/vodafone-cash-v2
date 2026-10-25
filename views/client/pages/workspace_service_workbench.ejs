@@ -1,18 +1,1 @@
-<% const isolatedService = serviceCatalog.find(item => item.key === servicePage.selectedService) || serviceCatalog[0]; %>
-<% if ((workspace.isCompany || workspace.isAgent)) { %>
-<section class="cp-page-hero cm-service-hero">
-    <div>
-
-        <h2><%= isolatedService.label %></h2>
-        <nav class="cm-breadcrumb" aria-label="مسار الصفحة"><a href="/client/services">الخدمات</a><i class="fa-solid fa-angle-left"></i><span><%= isolatedService.label %></span></nav>
-    </div>
-    <div class="cp-page-hero-actions">
-        <a href="/client/services" class="bw-button ghost"><i class="fa-solid fa-cubes"></i>العودة للخدمات</a>
-    </div>
-</section>
-<% } %>
-<section class="cp-workbench" data-service-key="<%= servicePage.selectedService %>">
-    <div>
-        <%- include((workspace.isCompany || workspace.isAgent) ? '../partials/company_transfer_form' : '../partials/transfer_workbench_form', { isolatedService }) %>
-    </div>
-</section>
+<%- include('../../portal/pages/workspace_service_workbench') %>

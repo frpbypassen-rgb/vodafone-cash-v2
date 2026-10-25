@@ -1,0 +1,67 @@
+<% const portalBasePath = locals.portalBasePath || '/client'; const portalHref = value => typeof value === 'string' && (value === '/client' || value.startsWith('/client/') || value.startsWith('/client?')) ? portalBasePath + value.slice(7) : value; %>
+<aside class="bw-sidebar<%= (workspace.isCompany || workspace.isAgent) ? ' cp-sidebar' : ' cl-sidebar' %>" id="businessSidebar" aria-label="القائمة الرئيسية">
+    <a href="<%= portalHref(typeof portalHomeHref !== 'undefined' ? portalHomeHref : portalHref('/client/dashboard?home=1')) %>" class="bw-brand" aria-label="Power Pay AL-Ahram - الرئيسية">
+        <img src="/images/logo.jpeg" alt="Power Pay AL-Ahram" onerror="this.onerror=null;this.src='/images/logo.jpg'">
+        <span>
+            <strong>AL-AHRAM</strong>
+            <small><%= workspace.portalLabel %></small>
+        </span>
+    </a>
+
+    <section class="bw-entity-card" aria-label="بيانات المنشأة">
+        <span class="bw-entity-icon"><i class="fa-solid <%= (workspace.isCompany || workspace.isAgent) ? 'fa-building' : 'fa-location-dot' %>"></i></span>
+        <div class="bw-entity-copy">
+            <span><%= workspace.entityLabel %></span>
+            <strong><%= workspace.entity.name %></strong>
+            <small><%= workspace.entity.accountCode || workspace.entity.agentCode || 'بدون رقم حساب' %></small>
+        </div>
+        <% if (workspace.permissions.canViewBalance) { %>
+            <div class="bw-side-balance">
+                <span>الرصيد المتاح</span>
+                <strong class="bw-mono"><%= Number(workspace.entity.balance || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) %></strong>
+                <small>LYD</small>
+            </div>
+        <% } else { %>
+            <div class="bw-side-role">
+                <i class="fa-solid fa-user-shield"></i>
+                <span><%= workspace.roleLabel %></span>
+            </div>
+        <% } %>
+    </section>
+
+    <% if ((workspace.isCompany || workspace.isAgent)) { %>
+        <div class="bw-company-navigation-note" aria-label="تنظيم مساحة الشركة">
+            <span><i class="fa-solid fa-layer-group"></i></span>
+            <div>
+                <strong><%= workspace.portalLabel %></strong>
+                <small>قناة واحدة لكل خدمة</small>
+            </div>
+        </div>
+    <% } %>
+
+    <nav class="bw-navigation <%= (workspace.isCompany || workspace.isAgent) ? 'bw-company-navigation' : '' %>" aria-label="أقسام <%= workspace.portalLabel %>">
+        <% [...new Set(navigation.map(item => item.group))].forEach(group => { %>
+            <section class="bw-nav-group">
+                <h2><%= group %></h2>
+                <% navigation.filter(item => item.group === group).forEach(item => { %>
+                    <a href="<%= portalHref(item.href) %>" class="bw-nav-link <%= item.active ? 'active' : '' %>" <%= item.active ? 'aria-current="page"' : '' %>>
+                        <span class="bw-nav-icon">
+                            <% if ((workspace.isCompany || workspace.isAgent) && item.pharaonicIcon) { %>
+                                <svg class="cp-icon" aria-hidden="true"><use href="#cp-icon-<%= item.pharaonicIcon %>"></use></svg>
+                            <% } else { %>
+                                <i class="fa-solid <%= item.icon %>"></i>
+                            <% } %>
+                        </span>
+                        <span><%= item.label %></span>
+                        <i class="fa-solid fa-chevron-left bw-nav-arrow"></i>
+                    </a>
+                <% }) %>
+            </section>
+        <% }) %>
+    </nav>
+
+    <footer class="bw-sidebar-footer">
+        <span><i class="fa-solid fa-circle-check"></i>اتصال آمن</span>
+        <a href="<%= portalBasePath %>/logout"><i class="fa-solid fa-arrow-right-from-bracket"></i>تسجيل الخروج</a>
+    </footer>
+</aside>

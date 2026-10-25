@@ -440,6 +440,8 @@ const { syncBotBalance } = require('./services/balanceService');
 // ==========================================
 // 🔗 ربط المسارات المنفصلة
 // ==========================================
+app.use('/agent-portal', require('./routes/agentPortal'));
+app.use('/client', require('./middlewares/legacyAgentPortal'));
 app.use('/client', require('./routes/clientPortal'));
 app.use('/client', require('./routes/clientReports')); // Reports for clients
 app.use('/corporate', require('./routes/corporate'));

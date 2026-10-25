@@ -1,0 +1,13 @@
+<% const portalBasePath = locals.portalBasePath || '/client'; const portalHref = value => typeof value === 'string' && (value === '/client' || value.startsWith('/client/') || value.startsWith('/client?')) ? portalBasePath + value.slice(7) : value; %>
+<%
+    const dockItems = typeof companyMobileNav !== 'undefined' ? companyMobileNav : [];
+%>
+<nav class="bw-mobile-dock" aria-label="التنقل السريع" data-company-dock>
+    <% dockItems.forEach(item => { %>
+        <a href="<%= portalHref(item.href) %>" class="<%= item.active ? 'active' : '' %>" data-dock-key="<%= item.key %>">
+            <i class="fa-solid <%= item.icon || 'fa-circle' %>" aria-hidden="true"></i>
+            <span><%= item.dockLabel || item.label %></span>
+        </a>
+    <% }) %>
+    <% if (workspace.isAgent) { %><button class="cm-agent-more" type="button" data-sidebar-toggle aria-controls="businessSidebar" aria-expanded="false"><i class="fa-solid fa-bars" aria-hidden="true"></i><span>المزيد</span></button><% } %>
+</nav>

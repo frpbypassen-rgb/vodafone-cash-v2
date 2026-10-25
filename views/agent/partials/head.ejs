@@ -1,0 +1,29 @@
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#E7F1F6">
+    <title><%= pageMeta.title %> | بوابة الوكلاء — الأهرام</title>
+    <script>
+        (() => {
+            const valid = ['day', 'night', 'pharaonic'];
+            const server = <%- JSON.stringify(typeof clientTheme !== 'undefined' ? clientTheme : 'day') %>;
+            let stored = '';
+            try { stored = localStorage.getItem('ahram_agent_theme') || ''; } catch (_) {}
+            const theme = valid.includes(server) ? server : valid.includes(stored) ? stored : 'day';
+            document.documentElement.setAttribute('data-portal', 'agent');
+            document.documentElement.setAttribute('data-theme', theme);
+            const meta = document.querySelector('meta[name="theme-color"]');
+            if (meta) meta.setAttribute('content', { day: '#E7F1F6', night: '#0B1426', pharaonic: '#1A1510' }[theme]);
+            try { localStorage.setItem('ahram_agent_theme', theme); } catch (_) {}
+        })();
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Tajawal:wght@400;500;700;800&family=JetBrains+Mono:wght@600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
+    <% for (const file of ['base', 'tokens', 'layout', 'theme-day', 'theme-night', 'theme-pharaonic', 'modern', 'internal']) { %>
+    <link rel="stylesheet" href="/css/portal-shell/<%= file %>.css?v=20261025-separated">
+    <% } %>
+    <link rel="stylesheet" href="/css/rate-alert-overlay.css?v=20260816-3">
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="/js/rate-alert-overlay.js?v=20261025-separated" defer></script>
+</head>
