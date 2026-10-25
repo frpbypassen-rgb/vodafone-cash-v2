@@ -96,7 +96,7 @@ describe('customer portal theme SSR and preferences', () => {
         expect(head).toContain('valid.includes(server) ? server');
     });
 
-    test('agent workspace shares modern company design while preserving agent identity and saved client theme', async () => {
+    test('agent workspace keeps its own entrypoint and saved client theme', async () => {
         const html = await ejs.renderFile(WORKSPACE_VIEW, {
             page: 'overview',
             pageMeta: { ...PAGE_META.overview, title: 'الرئيسية', eyebrow: 'عمل اليوم' },
@@ -129,13 +129,15 @@ describe('customer portal theme SSR and preferences', () => {
             formatInputDate: () => ''
         }, { filename: WORKSPACE_VIEW });
 
-        expect(html).toContain('data-company-shell');
+        expect(html).toContain('data-agent-shell');
+        expect(html).not.toContain('data-company-shell');
         expect(html).toContain('cp-app');
         expect(html).toContain('cp-sidebar');
         expect(html).toContain('data-portal="agent"');
         expect(html).toContain('data-theme="night"');
         expect(html).toContain('data-company-theme-switcher');
-        expect(html).toContain('/js/company-portal.js?v=');
+        expect(html).toContain('/js/agent-portal/index.js?v=');
+        expect(html).not.toContain('/js/company-portal.js');
         expect(html).toContain('data-company-bell');
         expect(html).toContain('data-company-dock');
         expect(html).toContain('cm-agent-more');

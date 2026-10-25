@@ -1,0 +1,68 @@
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="<%= typeof workspace !== 'undefined' && (workspace.isCompany || workspace.isAgent) ? (typeof companyThemeMeta !== 'undefined' && companyThemeMeta.themeColor ? companyThemeMeta.themeColor : '#E7F1F6') : (typeof clientThemeMeta !== 'undefined' && clientThemeMeta.themeColor ? clientThemeMeta.themeColor : '#E8EEFA') %>">
+    <title><%= pageMeta.title %> | Power Pay AL-Ahram</title>
+    <script>
+        (() => {
+            const readPreference = (key) => {
+                try { return localStorage.getItem(key); } catch (_) { return null; }
+            };
+            const isCompany = <%- JSON.stringify(typeof workspace !== 'undefined' && Boolean((workspace.isCompany || workspace.isAgent))) %>;
+            const density = readPreference('powerpay-business-density') || 'comfortable';
+            document.documentElement.dataset.density = density;
+            if (isCompany) {
+                const valid = ['day', 'night', 'pharaonic'];
+                const stored = readPreference(<%- JSON.stringify(workspace.isAgent ? 'ahram_client_theme' : 'ahram_company_theme') %>);
+                const server = <%- JSON.stringify(workspace.isAgent && typeof clientTheme !== 'undefined' && clientTheme ? clientTheme : (typeof companyTheme !== 'undefined' ? companyTheme : '')) %>;
+                const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+                // After login the server preference wins. localStorage is only a
+                // fallback for first paint when the account has no saved theme.
+                const theme = valid.includes(server) ? server : (valid.includes(stored) ? stored : (prefersDark ? 'night' : 'day'));
+                document.documentElement.setAttribute('data-theme', theme);
+                document.documentElement.setAttribute('data-portal', <%- JSON.stringify(workspace.isAgent ? 'agent' : 'company') %>);
+                if (valid.includes(server)) {
+                    try { localStorage.setItem(<%- JSON.stringify(workspace.isAgent ? 'ahram_client_theme' : 'ahram_company_theme') %>, server); } catch (_error) { /* private mode */ }
+                }
+                const colors = { day: '#E7F1F6', night: '#0B1426', pharaonic: '#1A1510' };
+                const meta = document.querySelector('meta[name="theme-color"]');
+                if (meta) meta.setAttribute('content', colors[theme]);
+                return;
+            }
+            const valid = ['day', 'night', 'pharaonic'];
+            const stored = readPreference('ahram_client_theme');
+            const server = <%- JSON.stringify(typeof clientTheme !== 'undefined' ? clientTheme : '') %>;
+            const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+            const theme = valid.includes(server) ? server : (valid.includes(stored) ? stored : (prefersDark ? 'night' : 'day'));
+            document.documentElement.setAttribute('data-theme', theme);
+            document.documentElement.setAttribute('data-portal', 'customer');
+            if (valid.includes(server)) {
+                try { localStorage.setItem('ahram_client_theme', server); } catch (_error) { /* private mode */ }
+            }
+            const colors = { day: '#E8EEFA', night: '#070B14', pharaonic: '#1C1610' };
+            const meta = document.querySelector('meta[name="theme-color"]');
+            if (meta) meta.setAttribute('content', colors[theme]);
+        })();
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Tajawal:wght@400;500;700;800&family=JetBrains+Mono:wght@600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
+    <link rel="stylesheet" href="/css/client-workspace.css?v=20261025-separated">
+    <% if (typeof workspace !== 'undefined' && (workspace.isCompany || workspace.isAgent)) { %>
+        <link rel="stylesheet" href="/css/company-portal.tokens.css?v=20261025-separated" data-company-shell-css>
+        <link rel="stylesheet" href="/css/company-portal-layout.css?v=20261025-separated" data-company-shell-css>
+        <link rel="stylesheet" href="/css/company-portal-theme-day.css?v=20261025-separated" data-company-shell-css>
+        <link rel="stylesheet" href="/css/company-portal-theme-night.css?v=20261025-separated" data-company-shell-css>
+        <link rel="stylesheet" href="/css/company-portal-theme-pharaonic.css?v=20261025-separated" data-company-shell-css>
+        <link rel="stylesheet" href="/css/company-portal.css?v=20261025-separated" data-company-shell-css>
+        <link rel="stylesheet" href="/css/company-modern.css?v=20261025-separated" data-company-shell-css>
+        <link rel="stylesheet" href="/css/company-internal.css?v=20261025-separated" data-company-shell-css>
+    <% } else { %>
+        <link rel="stylesheet" href="/css/client-portal-2027.css?v=20260920-cl-m2">
+        <%- include('customer_portal_styles') %>
+    <% } %>
+    <link rel="stylesheet" href="/css/rate-alert-overlay.css?v=20260816-3">
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="/js/rate-alert-overlay.js?v=20260902-rate2" defer></script>
+</head>

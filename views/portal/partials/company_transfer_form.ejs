@@ -1,0 +1,139 @@
+<% const portalBasePath = locals.portalBasePath || '/client'; const portalHref = value => typeof value === 'string' && (value === '/client' || value.startsWith('/client/') || value.startsWith('/client?')) ? portalBasePath + value.slice(7) : value; %>
+<% const hub = typeof transferHub !== 'undefined' ? transferHub : { suggestedReasons: [], recentOperations: [] };
+const serviceKey = typeof isolatedService !== 'undefined' ? isolatedService.key : 'vodafone';
+const bankakLayout = serviceKey === 'bankak_sudan';
+const entryTitles = { vodafone: 'إرسال إلى محفظة كاش', bank_account: 'بيانات التحويل', post_account: 'تحويل إلى حساب بريدي', post_card: 'تحويل إلى بطاقة بريدية', sefa_niger: 'بيانات المستفيد', bankak_sudan: 'بيانات المستلم' }; %>
+<section class="bw-transfer-workbench cm-reference-transfer">
+<form id="businessTransferForm" class="bw-form cm-reference-form" enctype="multipart/form-data" novalidate>
+<input type="hidden" name="type" id="transferType" value="كاش">
+<input type="hidden" name="number" id="transferAccountNumber" value="">
+<section class="cm-transfer-entry"><h3><%= entryTitles[serviceKey] || 'بيانات التحويل' %></h3>
+<span id="selectedServiceTitle" class="cm-visually-hidden"><%= typeof isolatedService !== 'undefined' ? isolatedService.label : 'إنشاء تحويل' %></span>
+        <div class="bw-form-grid">
+            <label class="bw-field span-2" data-destination-field>
+                <span id="destinationFieldLabel">رقم المحفظة</span>
+                <input type="text" name="phone" id="transferDestination" class="bw-input bw-mono" dir="ltr" inputmode="numeric" autocomplete="off" required>
+                <small id="destinationFieldHint">أدخل رقم المستلم بدقة.</small>
+            </label>
+            <label class="bw-field span-2" data-bank-method-field hidden>
+                <span>طريقة التحويل البنكي</span>
+                <select name="bankMethod" id="transferBankMethod">
+                    <option value="">اختر طريقة التحويل</option>
+                    <option value="mobile">رقم موبايل</option>
+                    <option value="ipa">عنوان الدفع (IPA)</option>
+                    <option value="account">حساب بنكي</option>
+                    <option value="iban">حساب مصرفي دولي</option>
+                    <option value="card" disabled>بطاقة بنكية (غير متاح حالياً)</option>
+                </select>
+            </label>
+            <label class="bw-field span-2" data-beneficiary-field hidden>
+                <span id="beneficiaryFieldLabel">اسم المستفيد</span>
+                <input type="text" name="name" id="transferBeneficiary" autocomplete="off" maxlength="160" placeholder="أدخل اسم المستفيد">
+            </label>
+            <label class="bw-field span-2" data-bank-field hidden>
+                <span>البنك</span>
+                <select name="bankCode" id="transferBank" autocomplete="off">
+                    <%- include('../../partials/egyptian_bank_options') %>
+                </select>
+                <small>اختر البنك المصري الذي يُحوَّل إليه الحساب.</small>
+            </label>
+            <label class="bw-field" data-subtype-field hidden>
+                <span>نوع خدمة سيفا</span>
+                <select name="serviceSubtype" id="transferSubtype">
+                    <option value="nita">NITA</option>
+                    <option value="nita_account">NITA Account</option>
+                </select>
+            </label>
+            <label class="bw-field" data-city-field hidden>
+                <span>مدينة المستفيد</span>
+                <input type="text" name="city" id="transferCity" autocomplete="off" maxlength="100">
+            </label>
+            <div class="bw-sefa-disclaimer span-2" data-sefa-acknowledgement-field hidden>
+                <div class="bw-sefa-disclaimer-icon"><i class="fa-solid fa-shield-halved"></i></div>
+                <div class="bw-sefa-disclaimer-copy">
+                    <strong data-ack-title>تأكيد صحة بيانات سيفا</strong>
+                    <p data-ack-copy>العميل مسؤول عن صحة الاسم ورقم الحساب والمدينة المدخلة. لا تتحمل الشركة مسؤولية أي خطأ ناتج من بيانات أدخلها العميل.</p>
+                    <label class="bw-sefa-acknowledgement"><input type="checkbox" name="dataEntryAcknowledged" id="transferSefaAcknowledgement" value="true"><span>أقر بمراجعتي للبيانات وتحمل مسؤوليتي عن صحتها قبل الإرسال.</span></label>
+                </div>
+            </div>
+            <label class="bw-field" data-national-id-field hidden>
+                <span>الرقم القومي (14 رقم)</span>
+                <input type="text" name="nationalId" id="transferNationalId" class="bw-mono" dir="ltr" inputmode="numeric" autocomplete="off" minlength="14" maxlength="14" placeholder="14 رقم">
+            </label>
+            <label class="bw-field" data-governorate-field hidden>
+                <span>المحافظة</span>
+                <select name="governorate" id="transferGovernorate">
+                    <option value="">اختر المحافظة</option>
+                    <option value="القاهرة">القاهرة</option>
+                    <option value="الإسكندرية">الإسكندرية</option>
+                    <option value="الجيزة">الجيزة</option>
+                </select>
+            </label>
+            <label class="bw-field span-2" data-identity-field hidden>
+                <span>صورة البطاقة من الأمام</span>
+                <input type="file" name="idCardImage" id="transferIdentityImage" accept="image/jpeg,image/png,image/webp">
+                <small>JPG أو PNG أو WEBP، بحد أقصى 5MB.</small>
+            </label>
+            <% if (bankakLayout) { %></div></section><section class="cm-transfer-entry cm-bankak-amount"><h3>مبلغ التحويل</h3><div class="bw-form-grid"><% } %>
+            <div class="bw-currency-pair span-2">
+                <label class="bw-field bw-money-field">
+                    <span id="transferAmountLabel">المبلغ بالجنيه المصري</span>
+                    <div class="bw-input-affix bw-currency-input"><span class="bw-currency-flag" id="transferAmountFlag" aria-hidden="true">🇪🇬</span><input type="number" name="amount" id="transferAmount" min="1" step="0.01" inputmode="decimal" placeholder="0.00" required><b id="transferAmountCurrency">EGP</b></div>
+                </label>
+                <div class="bw-fx-bridge" aria-live="polite">
+                    <span>سعر الصرف الحالي</span>
+                    <strong class="bw-mono" id="transferRateBridge" dir="ltr">1 LYD = 0.00 EGP</strong>
+                    <small id="transferRateFormula">EGP ÷ السعر = LYD</small>
+                </div>
+                <label class="bw-field bw-money-field">
+                    <span>المقابل بالدينار الليبي</span>
+                    <div class="bw-input-affix bw-currency-input"><span class="bw-currency-flag" aria-hidden="true">🇱🇾</span><input type="number" id="transferAmountLyd" min="0.01" step="0.01" inputmode="decimal" placeholder="0.00"><b>LYD</b></div>
+                </label>
+            </div>
+            <div class="cm-inline-cost span-2"><span>التكلفة بالدينار الليبي</span><strong dir="ltr" data-cm-cost>0.000 LYD</strong></div>
+            <label class="bw-field span-2 cm-transfer-note">
+                <span>ملاحظة <em>اختياري</em></span>
+                <textarea name="notes" id="transferNotes" rows="2" maxlength="500" placeholder="مثال: تحويل مصاريف عائلية"></textarea>
+                <% if (hub.suggestedReasons.length) { %><span class="bw-reason-suggestions"><% hub.suggestedReasons.forEach(reason => { %><button type="button" data-transfer-reason="<%= reason %>"><%= reason %></button><% }) %></span><% } %>
+            </label>
+        </div>
+
+</section>
+<aside class="cm-transfer-summary" aria-label="ملخص التحويل">
+<header><i class="fa-solid fa-calculator"></i><h3>ملخص التكلفة</h3></header>
+<div class="cm-transfer-recipient"><span>المستلم</span><strong dir="ltr" data-cm-recipient>—</strong></div>
+<div class="cm-transfer-recipient"><span>المبلغ المرسل</span><strong dir="ltr" data-cm-amount>—</strong></div>
+        <div class="bw-cost-preview">
+            <div class="cm-summary-service"><span>الخدمة</span><strong id="costServiceLabel">محافظ كاش</strong></div>
+            <div><span>سعر الصرف</span><strong class="bw-mono" id="costRate">1 LYD = 0.00 EGP</strong></div>
+            <div><span><span class="bw-inline-flag" aria-hidden="true">🇱🇾</span> التكلفة التقديرية</span><strong class="bw-mono" id="costEstimate">0.000 LYD</strong></div>
+        </div>
+
+<p class="cm-summary-note"><i class="fa-solid fa-circle-info"></i> تُحسب التكلفة وفق سعر الصرف الحالي. راجع البيانات قبل تأكيد العملية.</p>
+</aside>
+<div class="cm-transfer-action"><div class="bw-form-result" id="transferFormResult" hidden></div><button type="submit" class="bw-button primary wide" id="transferSubmitButton"><span>مراجعة العملية</span><i class="fa-solid fa-arrow-left"></i></button></div>
+<details class="cm-transfer-options"><summary>خيارات إضافية <i class="fa-solid fa-chevron-down"></i></summary><div class="bw-form-grid"><div class="bw-transfer-tools span-2"><button type="button" class="bw-button ghost compact" data-focus-mode><i class="fa-solid fa-expand"></i>وضع التركيز</button><span class="bw-secure-label"><i class="fa-solid fa-shield-halved"></i>إرسال آمن</span></div>            <div class="bw-amount-shortcuts span-2" aria-label="قيم سريعة">
+                <span>إضافة سريعة</span>
+                <button type="button" data-amount-add="100">+100</button>
+                <button type="button" data-amount-add="500">+500</button>
+                <button type="button" data-amount-add="1000">+1,000</button>
+                <% if (workspace.permissions.canViewBalance) { %><button type="button" data-amount-max>أقصى متاح</button><% } %>
+            </div>
+            <label class="bw-field span-2">
+                <span>رقم واتساب العميل <em>اختياري</em></span>
+                <input type="text" name="clientPhone" id="transferClientPhone" class="bw-mono" dir="ltr" inputmode="tel" autocomplete="off" maxlength="30" placeholder="رقم هاتف العميل">
+                <small>يرسل إيصال الإثبات إلى هذا الرقم عند اكتمال العملية. عند تركه فارغاً، يرسل إلى رقم الحساب الذي أنشأ العملية.</small>
+            </label>
+</div></details>
+</form>
+<details class="cm-recent-disclosure"><summary>آخر العمليات <i class="fa-solid fa-chevron-down"></i></summary>    <section class="bw-live-mini-feed" data-transfer-live-feed>
+        <header><div><span class="bw-live-dot"></span><strong>آخر العمليات</strong></div><a href="<%= portalBasePath %>/transactions">عرض الكل</a></header>
+        <div>
+            <% if (!hub.recentOperations.length) { %><p class="bw-live-empty">لا توجد عمليات بعد.</p><% } %>
+            <% hub.recentOperations.forEach(tx => { const meta = statusMeta[tx.status] || { label: tx.status, tone: 'neutral' }; %>
+                <button type="button" data-transaction-id="<%= tx._id %>"><span><strong class="bw-mono"><%= tx.customId %></strong><small><%= tx.accountName || tx.vodafoneNumber || tx.accountNumber || 'مستفيد' %></small></span><b class="bw-mono"><%= Number(tx.amount || 0).toLocaleString('en-US', { maximumFractionDigits: 0 }) %></b><em class="bw-status <%= meta.tone %>"><%= meta.label %></em></button>
+            <% }) %>
+        </div>
+    </section>
+</details>
+</section>

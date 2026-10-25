@@ -1,3 +1,4 @@
+const { readPortalAsset } = require('./helpers/portalAssetSources');
 'use strict';
 
 describe('selected company internal layouts', () => {
@@ -72,110 +73,7 @@ describe('selected company internal layouts', () => {
 
 const path = require('path');
 const fs = require('fs');
-const ejs = require('ejs');
-const {
-    SERVICE_CATALOG,
-    STATUS_META,
-    PAGE_META,
-    buildNavigation,
-    buildCompanyMobileNav,
-    buildAgentMobileNav,
-    resolvePortalHomeHref
-} = require('../services/businessPortalService');
-
-const COMPANY_TITLES = {
-    services: { title: 'معرض الخدمات', eyebrow: 'قناة واحدة لكل بطاقة' },
-    smart_transfer: { title: 'التحويل الذكي', eyebrow: 'من رسالة إلى عملية' },
-    transactions: { title: 'غرفة العمليات', eyebrow: 'بحث ومتابعة التنفيذ' },
-    settings: { title: 'بيانات المنشأة', eyebrow: 'الملف والتواصل' },
-    security: { title: 'أمان الحساب', eyebrow: 'كلمة المرور وMFA والأجهزة' },
-    support: { title: 'مركز الدعم', eyebrow: 'مساعدة ومتابعة آمنة' },
-    finance: { title: 'مكتب المحاسبة', eyebrow: 'رصيد وكشوف بلا تنفيذ' }
-};
-
-const WORKSPACE_VIEW = path.join(__dirname, '..', 'views', 'client', 'workspace.ejs');
-
-const managerWorkspace = {
-    type: 'company',
-    isCompany: true,
-    isAgent: false,
-    persona: 'manager',
-    roleLabel: 'مدير الشركة',
-    entityLabel: 'الشركة',
-    portalLabel: 'بوابة الشركات',
-    forceToday: false,
-    actor: { name: 'مدير الاختبار', webUsername: 'manager@ahram.com' },
-    entity: {
-        name: 'شركة الاختبار',
-        accountCode: 'C-1001',
-        balance: 1250.5,
-        creditLimit: 5000,
-        phone: '0910000000',
-        businessProfile: { contactName: 'مدير الاختبار', city: 'طرابلس' }
-    },
-    permissions: {
-        owner: true,
-        manager: true,
-        accountant: false,
-        employee: false,
-        canTransfer: true,
-        canInternalTransfer: true,
-        canViewBalance: true,
-        canViewReports: true,
-        canRequestDeposit: true,
-        canEditSettings: true,
-        canManageCustomers: false
-    }
-};
-
-const serviceCatalog = SERVICE_CATALOG.map((service) => ({ ...service, rate: 4.85 }));
-
-const renderWorkspacePage = (page, extra = {}) => {
-    const workspace = extra.workspace || managerWorkspace;
-    const navigation = extra.navigation || buildNavigation(workspace, page);
-    return ejs.renderFile(WORKSPACE_VIEW, {
-        page,
-        pageMeta: { ...PAGE_META[page], ...(COMPANY_TITLES[page] || {}) },
-        workspace,
-        portalHomeHref: resolvePortalHomeHref(workspace),
-        navigation,
-        companyMobileNav: buildCompanyMobileNav(workspace, navigation),
-        statusMeta: STATUS_META,
-        serviceCatalog,
-        serviceRates: { vodafone: 4.85 },
-        ratesUpdatedAt: new Date(),
-        pendingRateUpdate: null,
-        lowBalanceAlert: null,
-        systemOpen: true,
-        query: {},
-        csrfToken: 'test-csrf',
-        now: new Date(),
-        companyTheme: extra.companyTheme || 'day',
-        todaySummary: { totalCount: 0, completedCount: 0, pendingCount: 0, totalEGP: 0, totalLYD: 0 },
-        weekSummary: { totalCount: 0, completedCount: 0, pendingCount: 0, totalEGP: 0, totalLYD: 0 },
-        monthSummary: { totalCount: 0, completedCount: 0, pendingCount: 0, totalEGP: 0, totalLYD: 0 },
-        weekdaySeries: [],
-        employeeRoster: [],
-        commandCenterChart: { labels: [], counts: [], values: [], showValues: true },
-        currentMonthLabel: 'شهر الاختبار',
-        recentTransactions: [],
-        filters: { search: '', status: '', service: '', from: '', to: '', type: '', label: 'اليوم', history: '' },
-        summary: { totalCount: 0, completedCount: 0, pendingCount: 0, cancelledCount: 0, totalEGP: 0 },
-        transactions: [],
-        total: 0,
-        pagination: { page: 1, pages: 1 },
-        settingsData: { profile: managerWorkspace.entity.businessProfile },
-        financeSummary: { credits: 0, debits: 0, net: 0, count: 0 },
-        movements: [],
-        listTruncated: false,
-        shownMovementCount: 0,
-        staff: [],
-        ...extra,
-        workspace,
-        navigation,
-        companyMobileNav: extra.companyMobileNav || (workspace.isAgent ? buildAgentMobileNav(navigation, page).dock : buildCompanyMobileNav(workspace, navigation))
-    }, { filename: WORKSPACE_VIEW });
-};
+const { renderWorkspacePage, managerWorkspace } = require('./helpers/agentPortalFixtures');
 
 const CANONICAL_ROUTES = [
     '/client/services',
@@ -194,6 +92,7 @@ describe('canonical company portal pages', () => {
         const posted = [];
         const walk = (stack) => {
             stack.forEach((layer) => {
+                if (layer.handle?.stack) walk(layer.handle.stack);
                 if (layer.route?.path && layer.route.methods.get) {
                     registered.push(layer.route.path);
                 }
@@ -346,9 +245,9 @@ describe('canonical company portal pages', () => {
 
     test('keeps three full palettes in dedicated theme files', () => {
         const files = {
-            day: fs.readFileSync(path.join(__dirname, '..', 'public', 'css', 'company-portal-theme-day.css'), 'utf8'),
-            night: fs.readFileSync(path.join(__dirname, '..', 'public', 'css', 'company-portal-theme-night.css'), 'utf8'),
-            pharaonic: fs.readFileSync(path.join(__dirname, '..', 'public', 'css', 'company-portal-theme-pharaonic.css'), 'utf8')
+            day: readPortalAsset(path.join(__dirname, '..', 'public', 'css', 'company-portal-theme-day.css')),
+            night: readPortalAsset(path.join(__dirname, '..', 'public', 'css', 'company-portal-theme-night.css')),
+            pharaonic: readPortalAsset(path.join(__dirname, '..', 'public', 'css', 'company-portal-theme-pharaonic.css'))
         };
         expect(files.day).toContain('[data-theme="day"]');
         expect(files.night).toContain('[data-theme="night"]');
@@ -362,7 +261,7 @@ describe('canonical company portal pages', () => {
         expect(files.night).toContain('#0B1426');
         expect(files.night).toContain('#38BDF8');
         expect(files.night).toContain('#2DD4BF');
-        const layout = fs.readFileSync(path.join(__dirname, '..', 'public', 'css', 'company-portal-layout.css'), 'utf8');
+        const layout = readPortalAsset(path.join(__dirname, '..', 'public', 'css', 'company-portal-layout.css'));
         expect(layout).toContain('--cp-touch');
         expect(layout).toContain('env(safe-area-inset-bottom)');
         expect(layout).toContain('letter-spacing: 0 !important');
@@ -381,7 +280,7 @@ describe('canonical company portal pages', () => {
         expect(files.pharaonic).toContain('clip-path');
         expect(files.pharaonic).toContain('cp-art-ready');
         expect(fs.existsSync(path.join(__dirname, '..', 'public', 'css', 'company-portal.tokens.css'))).toBe(true);
-        const alias = fs.readFileSync(path.join(__dirname, '..', 'public', 'css', 'company-portal.css'), 'utf8');
+        const alias = readPortalAsset(path.join(__dirname, '..', 'public', 'css', 'company-portal.css'));
         expect(alias).not.toMatch(/@import/);
     });
 
@@ -514,7 +413,7 @@ describe('canonical company portal pages', () => {
         const pagesDir = path.join(__dirname, '..', 'views', 'client', 'pages');
         const files = fs.readdirSync(pagesDir).filter((name) => name.endsWith('.ejs'));
         files.forEach((name) => {
-            const source = fs.readFileSync(path.join(pagesDir, name), 'utf8');
+            const source = readPortalAsset(path.join(pagesDir, name));
             expect(source).not.toMatch(/style="[^"]*(?:color|background)\s*:\s*#/);
         });
     });
@@ -526,29 +425,29 @@ describe('agent portal shared modern design', () => {
         portalLabel: 'بوابة الوكلاء', entityLabel: 'الوكيل', roleLabel: 'مدير الوكيل',
         permissions: { ...managerWorkspace.permissions, canRequestDeposit: false, canManageCustomers: true, canManageStaff: true } };
     test.each(['services', 'service_workbench', 'smart_transfer', 'transactions', 'finance', 'settings', 'security', 'support', 'customers', 'staff'])('renders %s with agent identity and permission-scoped navigation', async page => {
-        const html = await renderWorkspacePage(page, { workspace: agentWorkspace, companyTheme: 'night',
+        const html = await renderWorkspacePage(page, { workspace: agentWorkspace, clientTheme: 'night',
             servicePage: { selectedService: 'vodafone', isolated: true },
             customers: [], pendingRequests: [], customerSummary: { total: 0, active: 0, positiveBalances: 0, totalDebt: 0 },
             staffSummary: { total: 0, active: 0, managers: 0, accountants: 0, monthOperations: 0 }, staffFilters: { search: '', role: '', status: '' } });
         expect(html).toContain('data-portal="agent"');
         expect(html).toContain('data-theme="night"');
         expect(html).toContain('class="cm-header"');
-        expect(html).toContain('/css/company-modern.css');
-        expect(html).toContain('/client/finance/customer-debts');
+        expect(html).toContain('/css/portal-shell/modern.css');
+        expect(html).toContain('/agent-portal/finance/customer-debts');
         expect(html).not.toContain('href="/client/company/deposits"');
         expect(html).toContain('data-company-bell');
         if (page === 'service_workbench') {
             expect(html).toContain('cm-transfer-summary');
             expect((html.match(/id="businessTransferForm"/g) || []).length).toBe(1);
         }
-        if (page === 'staff') expect(html).toContain('action="/client/agent/staff/add"');
+        if (page === 'staff') expect(html).toContain('action="/agent-portal/agent/staff/add"');
     });
     test('employee presentation does not expose balances or customer administration', async () => {
         const workspace = { ...agentWorkspace, persona: 'employee', forceToday: true, permissions: { employee: true, canTransfer: true } };
         const html = await renderWorkspacePage('services', { workspace });
         expect(html).toContain('cm-service-grid');
         expect(html).not.toContain('cm-wallet-amount');
-        expect(html).not.toContain('href="/client/customers"');
-        expect(html).not.toContain('href="/client/finance/customer-debts"');
+        expect(html).not.toContain('href="/agent-portal/customers"');
+        expect(html).not.toContain('href="/agent-portal/finance/customer-debts"');
     });
 });

@@ -59,18 +59,23 @@ const ensureActiveExecutor = async (decodedUser) => {
 };
 
 const ensureActiveCustomerSession = async (decodedUser) => {
-    if (!decodedUser || !['client_user', 'sub_client'].includes(decodedUser.accountType)) return true;
+    if (!decodedUser || !['client_user', 'sub_client', 'agent_staff'].includes(decodedUser.accountType)) return true;
 
     const Model = decodedUser.accountType === 'sub_client'
         ? require('../models/SubAccount')
-        : require('../models/User');
-    const account = await Model.findById(decodedUser.userId).select('status sessionVersion');
+        : decodedUser.accountType === 'agent_staff' ? require('../models/AgentEmployee') : require('../models/User');
+    const account = await Model.findById(decodedUser.userId).select('status sessionVersion agentId');
     const accountIsActive = Boolean(
         account
         && account.status === 'active'
         && Number(account.sessionVersion || 0) === Number(decodedUser.sessionVersion || 0)
     );
-    if (!accountIsActive || !decodedUser.sessionId) return accountIsActive;
+    if (!accountIsActive) return false;
+    if (decodedUser.accountType === 'agent_staff') {
+        const agent = await require('../models/User').findById(account.agentId).select('status role');
+        if (!agent || agent.status !== 'active' || agent.role !== 'agent') return false;
+    }
+    if (!decodedUser.sessionId) return true;
 
     const MobileDeviceSession = require('../models/MobileDeviceSession');
     const session = await MobileDeviceSession.exists({

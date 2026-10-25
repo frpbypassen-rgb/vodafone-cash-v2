@@ -1,6 +1,6 @@
 'use strict';
 
-const sameId = (left, right) => String(left || '') === String(right || '');
+const sameId = (left, right) => Boolean(left && right) && String(left) === String(right);
 
 const isVisibleAgencyClient = (subAccount) => (
     Boolean(subAccount)

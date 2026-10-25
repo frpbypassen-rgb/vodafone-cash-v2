@@ -1,0 +1,9 @@
+'use strict';
+const router = require('express').Router();
+router.use(require('./portal/notifications'));
+router.use(require('./portal/web-push'));
+router.use(require('./portal/theme'));
+router.use(require('./portal/service-requests'));
+router.use(require('./portal/rate-alerts'));
+router.use(require('./portal/support'));
+module.exports = router;

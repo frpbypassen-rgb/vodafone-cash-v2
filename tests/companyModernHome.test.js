@@ -57,7 +57,7 @@ test('agent modern summary keeps agent/customer ownership and staff restrictions
     const customers = jest.spyOn(SubAccount, 'find').mockReturnValue({ distinct });
     const { aggregate, find } = mockTransactions();
     await loadCompanyHome({ ...workspace, isCompany: false, isAgent: true, forceToday: true,
-        entity: { _id: 'agent-one', phone: '218000000000', webUsername: 'agent-one' }, permissions: { employee: true } });
+        entity: { _id: 'agent-one', role: 'agent', phone: '218000000000', webUsername: 'agent-one' }, permissions: { employee: true } });
     expect(customers).toHaveBeenCalledWith({ masterType: 'user', masterId: 'agent-one', status: { $ne: 'deleted' } });
     const scope = aggregate.mock.calls[0][0][0].$match.$and[0];
     expect(scope.$and[0].$or).toEqual([

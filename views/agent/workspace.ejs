@@ -1,0 +1,259 @@
+<% if (!workspace.isAgent || workspace.isCompany) throw new Error('AGENT_VIEW_CONTEXT_REQUIRED');
+locals.portalBasePath = '/agent-portal';
+locals.portalHref = value => typeof value === 'string' && (value === '/client' || value.startsWith('/client/') || value.startsWith('/client?')) ? locals.portalBasePath + value.slice(7) : value;
+const modernBusiness = true;
+const businessRole = workspace.canonicalRole || workspace.permissions?.canonicalRole || (workspace.permissions?.owner ? 'owner' : workspace.persona === 'accountant' ? 'accountant' : workspace.permissions?.manager ? 'manager' : 'employee');
+const businessTheme = typeof clientTheme !== 'undefined' && clientTheme ? clientTheme : 'day'; %>
+<!DOCTYPE html>
+<html lang="ar" dir="rtl"<% if (modernBusiness) { %> data-portal="<%= workspace.isAgent ? 'agent' : 'company' %>" data-agent-role="<%= businessRole %>" data-portal-role="<%= businessRole %>" data-theme="<%= businessTheme %>"<% } else { %> data-portal="customer" data-theme="<%= typeof clientTheme !== 'undefined' && clientTheme ? clientTheme : 'day' %>"<% } %>>
+<%- include('partials/head') %>
+<body class="bw-body<%= modernBusiness ? ' bw-agent-os bw-business-os cp-shell cp-app' : ' cl-app cl-shell' %>" data-page="<%= page %>" data-persona="<%= workspace.persona %>" data-portal="<%= workspace.type %>"<% if (modernBusiness) { %> data-agent-shell data-business-shell data-agent-role="<%= businessRole %>" data-theme="<%= businessTheme %>"<% } else { %> data-customer-shell data-theme="<%= typeof clientTheme !== 'undefined' && clientTheme ? clientTheme : 'day' %>"<% } %>>
+    <% if (modernBusiness) { %>
+        <%- include('../portal/partials/company_icons') %>
+        <span class="cp-sand-dust" aria-hidden="true"></span>
+        <span class="cp-pyramid-art" aria-hidden="true"></span>
+        <span class="cp-glyph-shimmer" aria-hidden="true"></span>
+    <% } else { %>
+        <span class="cl-sand-dust" aria-hidden="true"></span>
+        <span class="cl-pyramid-art" aria-hidden="true"></span>
+        <span class="cl-glyph-shimmer" aria-hidden="true"></span>
+    <% } %>
+    <div class="bw-offline-banner" data-offline-banner hidden><i class="fa-solid fa-wifi"></i><span><strong>الاتصال متوقف</strong> البيانات المعروضة قديمة، وتم إيقاف إرسال التحويلات حتى عودة الشبكة.</span></div>
+    <div class="bw-privacy-shield" data-privacy-shield hidden><i class="fa-solid fa-eye-slash"></i><strong>تم إخفاء البيانات الحساسة</strong><button type="button" data-privacy-restore>إظهار</button></div>
+    <%- include('../portal/partials/workspace_sidebar') %>
+    <button class="bw-sidebar-overlay" type="button" data-sidebar-close aria-label="إغلاق القائمة"></button>
+
+    <div class="bw-frame">
+        <%- include(modernBusiness ? '../portal/partials/company_modern_header' : '../portal/partials/workspace_topbar') %>
+        <main class="bw-main cp-main" id="mainContent">
+            <% if (!modernBusiness || (workspace.isAgent && ['customers', 'customer_profile', 'agency_balances', 'agency_debts', 'agency_account', 'agency_position', 'agency_profits', 'finance'].includes(page))) { %>
+            <header class="bw-page-header">
+                <div>
+                    <span class="bw-eyebrow"><i class="fa-solid <%= pageMeta.icon || 'fa-grid-2' %>"></i><%= pageMeta.eyebrow %></span>
+                    <h1><%= pageMeta.title %></h1>
+                    <p><%= workspace.entity.name %> <span aria-hidden="true">/</span> <%= workspace.roleLabel %></p>
+                </div>
+                <div class="bw-page-actions">
+                    <button class="bw-assistant-launcher" type="button" id="businessAssistantOpen" aria-haspopup="dialog" aria-label="فتح المساعد الذكي" title="المساعد الذكي">
+                        <span class="bw-assistant-launcher-core"><i class="fa-solid fa-wand-magic-sparkles"></i></span>
+                        <i class="fa-solid fa-sparkles bw-assistant-launcher-spark spark-one" aria-hidden="true"></i>
+                        <i class="fa-solid fa-star bw-assistant-launcher-spark spark-two" aria-hidden="true"></i>
+                    </button>
+                    <div class="bw-page-status" aria-label="حالة النظام">
+                        <span class="bw-live-dot <%= systemOpen ? '' : 'is-closed' %>"></span>
+                        <span><%= systemOpen ? 'الخدمة متاحة' : 'الخدمة متوقفة مؤقتاً' %></span>
+                    </div>
+                </div>
+            </header>
+            <% } %>
+
+            <div class="bw-rate-countdown" id="rateChangeCountdown" hidden role="status" aria-live="polite">
+                <span class="bw-rate-countdown-icon"><i class="fa-solid fa-clock"></i></span>
+                <span><strong>تحديث أسعار الصرف قريباً</strong><small>سيتم تطبيق الأسعار الجديدة تلقائياً عند انتهاء العداد.</small><small id="rateChangeDetails" style="white-space: pre-line;"></small></span>
+                <b dir="ltr" data-rate-countdown-value>00:00</b>
+            </div>
+            <div class="bw-rate-countdown" id="rateChangeActivated" hidden role="status" aria-live="polite">
+                <span class="bw-rate-countdown-icon"><i class="fa-solid fa-circle-check"></i></span>
+                <span><strong>تم تفعيل السعر الجديد</strong><small id="rateChangeActivatedDetails" style="white-space: pre-line;"></small></span>
+            </div>
+
+            <%- include('../portal/partials/workspace_feedback') %>
+
+            <% if (page === 'overview') { %>
+                <% if (modernBusiness) { %><%- include('../portal/partials/company_modern_home') %><details class="cm-analytics"><summary>تفاصيل الأداء والفريق <i class="fa-solid fa-chevron-down"></i></summary><% } %>
+                <%- include('../portal/pages/workspace_overview') %>
+                <% if (modernBusiness) { %></details><% } %>
+            <% } else if (page === 'services' && modernBusiness) { %>
+                <%- include('../portal/partials/company_modern_home') %>
+            <% } else if (page === 'services') { %>
+                <%- include('../portal/pages/workspace_services') %>
+            <% } else if (page === 'service_workbench') { %>
+                <%- include('../portal/pages/workspace_service_workbench') %>
+            <% } else if (page === 'smart_transfer') { %>
+                <%- include('../portal/pages/workspace_smart_transfer') %>
+            <% } else if (page === 'internal_transfer') { %>
+                <%- include('../portal/pages/workspace_internal_transfer') %>
+            <% } else if (page === 'deposits') { %>
+                <%- include('../portal/pages/workspace_deposits') %>
+            <% } else if (page === 'transactions') { %>
+                <%- include('../portal/pages/workspace_transactions') %>
+            <% } else if (page === 'finance') { %>
+                <%- include('../portal/pages/workspace_finance') %>
+            <% } else if (['agency_balances', 'agency_debts', 'agency_account', 'agency_position', 'agency_profits'].includes(page)) { %>
+                <%- include('../portal/pages/workspace_agency_finance') %>
+            <% } else if (page === 'customers') { %>
+                <%- include('../portal/pages/workspace_customers') %>
+            <% } else if (page === 'customer_profile') { %>
+                <%- include('../portal/pages/workspace_customer_profile') %>
+            <% } else if (page === 'staff') { %>
+                <%- include('../portal/pages/workspace_staff') %>
+            <% } else if (page === 'reports') { %>
+                <%- include('../portal/pages/workspace_reports') %>
+            <% } else if (page === 'settings') { %>
+                <%- include('../portal/pages/workspace_settings') %>
+            <% } else if (page === 'security') { %>
+                <%- include('../portal/pages/workspace_security') %>
+            <% } else if (page === 'support') { %>
+                <%- include('../portal/pages/workspace_support') %>
+            <% } %>
+        </main>
+
+        <% if (modernBusiness) { %>
+            <%- include('../portal/partials/company_bottom_nav') %>
+        <% } else { %>
+            <%- include('../portal/partials/customer_mobile_dock') %>
+        <% } %>
+    </div>
+
+    <dialog class="bw-dialog bw-transaction-dialog" id="transactionDetailsDialog" aria-labelledby="transactionDetailsTitle">
+        <div class="bw-dialog-head">
+            <div>
+                <span class="bw-section-kicker">غرفة العمليات</span>
+                <h2 id="transactionDetailsTitle">تفاصيل العملية</h2>
+            </div>
+            <button type="button" class="bw-icon-button" data-dialog-close aria-label="إغلاق"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div class="bw-dialog-body" id="transactionDetailsBody">
+            <div class="bw-loading"><i class="fa-solid fa-circle-notch fa-spin"></i><span>جارٍ تحميل التفاصيل...</span></div>
+        </div>
+    </dialog>
+
+    <dialog class="bw-receipt-lightbox" id="receiptLightbox" aria-label="صورة الإثبات">
+        <button type="button" class="bw-receipt-lightbox-close" data-lightbox-close aria-label="إغلاق"><i class="fa-solid fa-xmark"></i></button>
+        <img id="receiptLightboxImage" alt="صورة الإثبات">
+        <p class="bw-receipt-lightbox-caption" id="receiptLightboxCaption">صورة الإثبات</p>
+    </dialog>
+
+    <dialog class="bw-dialog bw-assistant-dialog" id="businessAssistantDialog" aria-label="المساعد الذكي">
+        <div class="bw-dialog-head">
+            <span class="bw-assistant-mark" aria-hidden="true"><i class="fa-solid fa-wand-magic-sparkles"></i><i class="fa-solid fa-star bw-assistant-mark-star"></i></span>
+            <div class="bw-assistant-head-actions"><button type="button" class="bw-icon-button" data-assistant-clear aria-label="مسح المحادثة"><i class="fa-solid fa-eraser"></i></button><button type="button" class="bw-icon-button" data-assistant-close aria-label="إغلاق"><i class="fa-solid fa-xmark"></i></button></div>
+        </div>
+        <div class="bw-assistant-messages" id="businessAssistantMessages" aria-live="polite">
+            <div class="bw-assistant-empty" data-assistant-empty aria-hidden="true">
+                <span class="bw-assistant-orbit orbit-one"><i class="fa-solid fa-sparkles"></i></span>
+                <span class="bw-assistant-orbit orbit-two"><i class="fa-solid fa-star"></i></span>
+                <span class="bw-assistant-orbit orbit-three"><i class="fa-solid fa-circle"></i></span>
+                <span class="bw-assistant-empty-core"><i class="fa-solid fa-wand-magic-sparkles"></i></span>
+            </div>
+        </div>
+        <form class="bw-assistant-form" id="businessAssistantForm">
+            <input id="businessAssistantQuestion" maxlength="800" autocomplete="off" aria-label="اكتب رسالة" required>
+            <button class="bw-button primary" type="submit" id="businessAssistantSubmit" aria-label="إرسال"><i class="fa-solid fa-paper-plane"></i></button>
+        </form>
+    </dialog>
+
+<dialog class="bw-dialog cp-dialog" id="companyMessageDialog" aria-labelledby="companyMessageTitle">
+        <div class="cp-dialog-body">
+            <span class="cp-dialog-mark" aria-hidden="true"><img src="/images/logo.jpeg" alt="" onerror="this.onerror=null;this.src='/images/logo.jpg'"></span>
+            <h2 id="companyMessageTitle">رسالة من الإدارة</h2>
+            <p id="companyMessageCopy"></p>
+            <div class="bw-dialog-actions">
+                <button type="button" class="bw-button secondary" data-dialog-close>لاحقاً</button>
+                <button type="button" class="bw-button primary" id="companyMessageAck">حسناً</button>
+            </div>
+        </div>
+    </dialog>
+
+<dialog class="bw-dialog<%= modernBusiness ? ' cp-dialog' : '' %>" id="transferConfirmDialog" aria-labelledby="transferConfirmTitle">
+        <% if (modernBusiness) { %>
+        <div class="cp-dialog-body">
+            <header class="cp-transfer-review-head" tabindex="-1" autofocus>
+            <span class="bw-section-kicker">مراجعة قبل الإرسال</span>
+            <h2 id="transferConfirmTitle">تأكيد العملية</h2>
+            </header>
+            <div class="bw-dialog-body" id="transferConfirmBody"></div>
+            <div class="bw-dialog-actions">
+                <button type="button" class="bw-button secondary" data-dialog-close>تعديل</button>
+                <button type="button" class="bw-button primary" id="transferConfirmSubmit"><i class="fa-solid fa-check"></i>تأكيد وختم</button>
+            </div>
+        </div>
+        <% } else { %>
+        <div class="bw-dialog-head">
+            <div>
+                <span class="bw-section-kicker">مراجعة قبل الإرسال</span>
+                <h2 id="transferConfirmTitle">تأكيد العملية</h2>
+            </div>
+            <button type="button" class="bw-icon-button" data-dialog-close aria-label="إغلاق"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div class="bw-dialog-body" id="transferConfirmBody"></div>
+        <div class="bw-dialog-actions">
+            <button type="button" class="bw-button secondary" data-dialog-close>تعديل</button>
+            <button type="button" class="bw-button primary" id="transferConfirmSubmit"><i class="fa-solid fa-check"></i>تأكيد وختم</button>
+        </div>
+        <% } %>
+    </dialog>
+
+    <dialog class="bw-dialog cp-dialog" id="transferSuccessDialog" aria-labelledby="transferSuccessTitle">
+        <div class="cp-dialog-body">
+            <% if (modernBusiness) { %>
+            <span class="cp-mark" aria-hidden="true"><svg class="cp-icon"><use href="#cp-icon-horus"></use></svg></span>
+            <% } else { %>
+            <span class="cp-dialog-mark" aria-hidden="true"><img src="/images/logo.jpeg" alt="" onerror="this.onerror=null;this.src='/images/logo.jpg'"></span>
+            <% } %>
+            <h2 id="transferSuccessTitle">تم استلام العملية</h2>
+            <p id="transferSuccessCopy">يمكنك متابعة الحالة من غرفة العمليات.</p>
+            <p class="bw-mono" id="transferSuccessRef" hidden></p>
+            <div class="bw-dialog-actions">
+                <a href="<%= portalBasePath %>/transactions" class="bw-button secondary" id="transferSuccessOps">غرفة العمليات</a>
+                <a href="#" class="bw-button <%= modernBusiness ? 'primary' : 'ghost' %>" id="transferSuccessWhatsapp" hidden target="_blank" rel="noopener">واتساب العميل</a>
+            </div>
+            <button type="button" class="bw-button primary wide" data-dialog-close>متابعة يوم العمل</button>
+        </div>
+    </dialog>
+
+<dialog class="bw-dialog cp-dialog" id="companyActionDialog" aria-labelledby="companyActionTitle">
+        <div class="cp-dialog-body">
+            <span class="cp-dialog-mark" aria-hidden="true"><img src="/images/logo.jpeg" alt="" onerror="this.onerror=null;this.src='/images/logo.jpg'"></span>
+            <h2 id="companyActionTitle">تأكيد الإجراء</h2>
+            <p id="companyActionCopy">هل تريد المتابعة؟</p>
+            <div class="bw-dialog-actions">
+                <button type="button" class="bw-button secondary" data-dialog-close>إلغاء</button>
+                <button type="button" class="bw-button primary" id="companyActionSubmit">تأكيد</button>
+            </div>
+        </div>
+    </dialog>
+
+<% if (page === 'reports') { const exportParams = new URLSearchParams(query); %>
+    <dialog class="bw-dialog bw-export-preview" id="reportExportDialog" aria-labelledby="reportExportTitle">
+        <div class="bw-dialog-head"><div><span class="bw-section-kicker">معاينة الملف</span><h2 id="reportExportTitle">ماذا سيحتوي التقرير؟</h2></div><button type="button" class="bw-icon-button" data-dialog-close aria-label="إغلاق"><i class="fa-solid fa-xmark"></i></button></div>
+        <div class="bw-export-preview-body">
+            <div class="bw-export-file"><span><i class="fa-solid fa-file-shield"></i></span><div><strong><%= reportScopeLabel %></strong><small><%= filters.label %> · <%= reportSummary.totalCount %> عملية</small></div></div>
+            <ul><li><i class="fa-solid fa-check"></i>بيانات الفترة والفلاتر الحالية فقط</li><li><i class="fa-solid fa-check"></i>رقم تقرير وبصمة تحقق قابلة للمراجعة</li><li><i class="fa-solid fa-check"></i>الملخص المالي وتوزيع الخدمات</li></ul>
+            <div class="bw-dialog-actions">
+                <a class="bw-button secondary" href="<%= portalBasePath %>/reports/export.csv?<%= exportParams.toString() %>"><i class="fa-solid fa-file-csv"></i>CSV للبيانات الخام</a>
+                <% if (workspace.isCompany) { %><a class="bw-button primary" href="<%= portalBasePath %>/reports/central.pdf?<%= exportParams.toString() %>"><i class="fa-solid fa-file-pdf"></i>PDF منسق</a><% } %>
+            </div>
+        </div>
+    </dialog>
+    <% } %>
+
+    <script>
+        window.agentPortal = <%- JSON.stringify({
+            page,
+            csrfToken,
+            workspaceType: 'agent',
+            basePath: '/agent-portal',
+            notificationScope: `${workspace.entity._id}:${workspace.actor._id}`,
+            persona: workspace.persona,
+            canViewBalance: workspace.permissions.canViewBalance,
+            canRequestDeposit: workspace.permissions.canRequestDeposit,
+            lowBalanceAlert,
+            ratesUpdatedAt,
+            services: serviceCatalog,
+            pendingRateUpdate,
+            entityName: workspace.entity.name,
+            roleLabel: workspace.roleLabel,
+            availableBalance: workspace.permissions.canViewBalance ? Number(workspace.entity.balance || 0) : null,
+            selectedService: typeof servicePage !== 'undefined' ? servicePage.selectedService : 'vodafone',
+            commandCenterChart: typeof commandCenterChart !== 'undefined' ? commandCenterChart : null
+        }).replace(/</g, '\\u003c') %>;
+        window.rateAlertInitial = <%- JSON.stringify(pendingRateUpdate || null).replace(/</g, '\\u003c') %>;
+        window.rateAlertPushPublicKey = <%- JSON.stringify(process.env.WEB_PUSH_PUBLIC_KEY || '').replace(/</g, '\\u003c') %>;
+        window.rateAlertCsrfToken = <%- JSON.stringify(csrfToken || '').replace(/</g, '\\u003c') %>;
+    </script>
+    <script src="/js/business-portal/rate-notice.js?v=20261025-review" defer></script>
+    <script src="/js/business-portal/api-response.js?v=20261025-review" defer></script>
+    <script src="/js/agent-portal/index.js?v=20261025-separated" defer></script>
+</body>
+</html>
