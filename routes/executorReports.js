@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { invalidateExecutorAuth, loadExecutorEmployee } = require('../services/executorAuthCache');
+const { requireExecutorAuth } = require('../middlewares/requireExecutorPortalAuth');
 const mobileWebParityService = require('../services/mobileWebParityService');
 const mobileWebParityMapper = require('../mappers/mobileWebParityMapper');
 const { generateExecutorReportPdf } = require('../services/reportPdfService');
@@ -29,32 +29,6 @@ const reportInput = (body = {}) => ({
     employeeId: body.employeeId || null,
     search: body.search || null
 });
-
-const requireExecutorAuth = async (req, res, next) => {
-    if (!req.session.isExecutorLoggedIn || !req.session.executorId) {
-        return req.path.includes('/filter')
-            ? res.status(401).json({ success: false, error: 'انتهت جلسة الدخول.' })
-            : res.redirect('/login');
-    }
-    try {
-        const isRead = ['GET', 'HEAD', 'OPTIONS'].includes(req.method);
-        const employee = await loadExecutorEmployee(req.session.executorId, {
-            fresh: true,
-            lean: isRead
-        });
-        if (!employee || employee.status !== 'active' || !employee.groupId || employee.groupId.status !== 'active'
-            || Number(employee.sessionVersion || 0) !== Number(req.session.executorSessionVersion || 0)) {
-            invalidateExecutorAuth(req.session.executorId);
-            return req.path.includes('/filter')
-                ? res.status(401).json({ success: false, error: 'حساب المنفذ غير مفعل.' })
-                : res.redirect('/login');
-        }
-        req.executorEmployee = employee;
-        return next();
-    } catch {
-        return res.status(500).json({ success: false, error: 'تعذر التحقق من الحساب.' });
-    }
-};
 
 router.get('/reports/employees', requireExecutorAuth, async (req, res) => {
     const emp = req.executorEmployee;

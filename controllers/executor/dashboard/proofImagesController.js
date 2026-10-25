@@ -40,7 +40,7 @@ exports.getProxyExecutorImage = async (req, res) => {
         const employeeGroupId = objectIdString(emp?.groupId);
         const ownsExecutorTask = objectIdString(tx.executorGroupId) === employeeGroupId;
         const ownsManagerTask = objectIdString(tx.managerGroupId) === employeeGroupId;
-        if (!emp || (!ownsExecutorTask && !ownsManagerTask)) {
+        if (!emp || emp.role !== 'manager' || (!ownsExecutorTask && !ownsManagerTask)) {
             return res.status(403).send('Forbidden');
         }
         const index = req.params.index ? parseInt(req.params.index) : 0;

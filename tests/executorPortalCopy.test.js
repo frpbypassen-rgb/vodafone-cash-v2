@@ -9,7 +9,7 @@ const read = (relativePath) => fs.readFileSync(path.join(ROOT, relativePath), 'u
 const { readPortalView, readDashboardHandlers } = require('./helpers/executorPortalSources');
 const dashboardView = readPortalView('dashboard');
 const settingsView = read('views/executor/settings.ejs');
-const depositsView = read('views/executor/deposits.ejs');
+const depositsView = readPortalView('deposits');
 const navigationView = read('views/executor/partials/navigation.ejs');
 const dashboardController = readDashboardHandlers();
 

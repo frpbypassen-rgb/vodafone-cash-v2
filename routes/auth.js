@@ -1232,7 +1232,7 @@ router.post('/login', loginLimiter, async (req, res) => {
             ?? req.body?.userPassword
             ?? req.body?.pass
             ?? ''
-        ).trim();
+        );
         req.body.username = username;
         req.body.password = password;
 

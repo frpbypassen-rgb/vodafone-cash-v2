@@ -6,9 +6,15 @@
     const redirectForSecurityCode = (code) => {
         const normalized = String(code || '').trim();
         if (!normalized) return false;
-        if (normalized === 'DEVICE_BINDING_MISMATCH'
-            || normalized === 'SECURITY_SESSION_EXPIRED'
-            || normalized === 'ADMIN_SESSION_REVOKED') {
+        if (normalized === 'MFA_ENROLLMENT_REQUIRED') {
+            window.location.assign('/security/mfa-enroll');
+            return true;
+        }
+        if (
+            normalized === 'DEVICE_BINDING_MISMATCH' ||
+            normalized === 'SECURITY_SESSION_EXPIRED' ||
+            normalized === 'ADMIN_SESSION_REVOKED'
+        ) {
             window.location.assign(`/login?security=${encodeURIComponent(normalized)}`);
             return true;
         }
@@ -30,16 +36,21 @@
     };
 
     window.readExecutorApiResponse = async function readExecutorApiResponse(response) {
-        const data = await response.json().catch(() => ({}));
+        const data = await response.json().catch(() => null);
         if (response.status === 401) {
             window.location.assign('/login');
             throw new Error('انتهت جلسة الدخول.');
         }
-        if (redirectForSecurityCode(data.code)) {
+        if (redirectForSecurityCode(data?.code)) {
             throw new Error(data.error || data.message || 'انتهت جلسة الدخول.');
         }
-        if (!response.ok || data.success === false) {
-            throw new Error(data.message || data.error || 'تعذر إكمال الطلب.');
+        if (!response.ok || data?.success === false) {
+            throw new Error(data?.message || data?.error || 'تعذر إكمال الطلب.');
+        }
+        if (!data || typeof data !== 'object') {
+            throw new Error(
+                'استجابة الخادم غير صالحة. حدّث الصفحة ثم تحقق من حالة العملية قبل إعادة المحاولة.'
+            );
         }
         return data;
     };

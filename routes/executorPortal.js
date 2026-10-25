@@ -29,7 +29,7 @@ const executorSupportService = require('../services/executorSupportService');
 const { ExecutorSupportError } = executorSupportService;
 const { logExecutorFailure } = require('../services/executorTransactionError');
 const executorWebPushService = require('../services/executorWebPushService');
-const { invalidateExecutorAuth, loadExecutorEmployee } = require('../services/executorAuthCache');
+const { requireExecutorAuth, requireExecutorManager, requireExecutorTaskAccess, requireExecutorDepositAccess } = require('../middlewares/requireExecutorPortalAuth');
 
 const supportErrorResponse = (res, error, fallback) => {
     if (error instanceof ExecutorSupportError) {
@@ -37,87 +37,6 @@ const supportErrorResponse = (res, error, fallback) => {
     }
     logExecutorFailure('support', error);
     return res.status(500).json({ success: false, error: fallback });
-};
-
-// Middlewares
-const rejectExecutorSession = (req, res) => {
-    if (req.path.startsWith('/api/')) {
-        return res.status(401).json({ success: false, error: 'انتهت جلسة الدخول.' });
-    }
-    return res.redirect('/login');
-};
-
-const isExecutorReadRequest = (req) => ['GET', 'HEAD', 'OPTIONS'].includes(req.method);
-
-const loadPortalExecutor = async (req) => {
-    const readRequest = isExecutorReadRequest(req);
-    return loadExecutorEmployee(req.session.executorId, {
-        fresh: true,
-        lean: readRequest
-    });
-};
-
-const requireExecutorAuth = async (req, res, next) => {
-    if (!req.session.isExecutorLoggedIn || !req.session.executorId) {
-        return rejectExecutorSession(req, res);
-    }
-    if (req.session.mfaEnrollmentRequired) return res.redirect('/security/mfa-enroll');
-    try {
-        const employee = await loadPortalExecutor(req);
-        if (!employee || employee.status !== 'active' || !employee.groupId || employee.groupId.status !== 'active'
-            || Number(employee.sessionVersion || 0) !== Number(req.session.executorSessionVersion || 0)) {
-            invalidateExecutorAuth(req.session.executorId);
-            delete req.session.isExecutorLoggedIn;
-            delete req.session.executorId;
-            delete req.session.executorGroupId;
-            delete req.session.executorSessionVersion;
-            return rejectExecutorSession(req, res);
-        }
-        req.executorEmployee = employee;
-        return next();
-    } catch (error) {
-        logExecutorFailure('session-check', error);
-        return rejectExecutorSession(req, res);
-    }
-};
-
-const requireExecutorManager = async (req, res, next) => {
-    if (!req.session.isExecutorLoggedIn || !req.session.executorId) return rejectExecutorSession(req, res);
-    try {
-        const emp = await loadPortalExecutor(req);
-        if (!emp || emp.status !== 'active' || !emp.groupId || emp.groupId.status !== 'active'
-            || Number(emp.sessionVersion || 0) !== Number(req.session.executorSessionVersion || 0)) {
-            invalidateExecutorAuth(req.session.executorId);
-            return rejectExecutorSession(req, res);
-        }
-        if (emp.role !== 'manager') {
-            if (req.path.startsWith('/api/')) {
-                return res.status(403).json({ success: false, error: 'هذه الصفحة متاحة لمدير المنفذ فقط.' });
-            }
-            return res.redirect('/executor-portal/reports');
-        }
-        req.managerEmp = emp;
-        return next();
-    } catch (error) {
-        logExecutorFailure('manager-permission-check', error);
-        return res.status(500).json({ success: false, error: 'حدث خطأ أثناء التحقق من الصلاحية.' });
-    }
-};
-
-const requireExecutorTaskAccess = (req, res, next) => {
-    const employee = req.executorEmployee;
-    if (!employee || employee.role === 'accountant') {
-        return res.status(403).json({ success: false, error: 'هذا الحساب لا يملك صلاحية تنفيذ العمليات.' });
-    }
-    return next();
-};
-
-const requireExecutorDepositAccess = (req, res, next) => {
-    const employee = req.executorEmployee;
-    if (!employee || !['manager', 'accountant', 'external'].includes(employee.role)) {
-        return res.status(403).json({ success: false, error: 'هذه الصفحة غير متاحة لهذا الحساب.' });
-    }
-    return next();
 };
 
 router.get('/', (req, res) => {

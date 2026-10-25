@@ -32,26 +32,28 @@ const executorServiceCardMeta = Object.freeze({
 });
 
 const taskServiceKey = (task) => {
-    const transferType = String(task?.transferType || '').trim().toLowerCase();
+    const transferType = String(task?.transferType || '')
+        .trim()
+        .toLowerCase();
     if (['post_account', 'post_card'].includes(transferType)) return 'postal';
     if (['bank_account', 'bank_transfer'].includes(transferType)) return 'bank_account';
     if (transferType === 'cash') return 'vodafone';
     return transferType || 'vodafone';
 };
 
-const executorServiceLabel = (serviceKey) => (
-    executorServiceCardMeta[serviceKey]?.title
-    || linkedExecutorServices.find((service) => service.key === serviceKey)?.label
-    || serviceKey
-);
+const executorServiceLabel = (serviceKey) =>
+    executorServiceCardMeta[serviceKey]?.title ||
+    linkedExecutorServices.find((service) => service.key === serviceKey)?.label ||
+    serviceKey;
 
 function renderExecutorServiceTabs(tasks = [], services = linkedExecutorServices) {
     const tabs = document.getElementById('executorServiceTabs');
     if (!tabs) return;
     const taskKeys = [...new Set((Array.isArray(tasks) ? tasks : []).map(taskServiceKey))];
-    const source = Array.isArray(services) && services.length
-        ? services
-        : taskKeys.map((key) => ({ key, label: executorServiceLabel(key) }));
+    const source =
+        Array.isArray(services) && services.length
+            ? services
+            : taskKeys.map((key) => ({ key, label: executorServiceLabel(key) }));
     const seen = new Set();
     linkedExecutorServices = source.filter((service) => {
         const key = String(service?.key || '').trim();
@@ -73,17 +75,24 @@ function renderExecutorServiceTabs(tasks = [], services = linkedExecutorServices
         selectedExecutorServiceKey = linkedExecutorServices[0].key;
     }
     const filterNote = document.getElementById('executorServiceFilterNote');
-    if (filterNote) filterNote.querySelector('span').textContent = `عرض عمليات ${executorServiceLabel(selectedExecutorServiceKey)} فقط`;
-    tabs.innerHTML = linkedExecutorServices.map((service) => {
-        const meta = executorServiceCardMeta[service.key] || { title: service.label || service.key, icon: 'fa-layer-group' };
-        const count = tasks.filter((task) => taskServiceKey(task) === service.key).length;
-        const active = service.key === selectedExecutorServiceKey;
-        return `<button type="button" class="executor-service-card ${active ? 'is-active' : ''}" data-service-key="${escapeTaskHtml(service.key)}" role="tab" aria-selected="${active ? 'true' : 'false'}">
+    if (filterNote)
+        filterNote.querySelector('span').textContent =
+            `عرض عمليات ${executorServiceLabel(selectedExecutorServiceKey)} فقط`;
+    tabs.innerHTML = linkedExecutorServices
+        .map((service) => {
+            const meta = executorServiceCardMeta[service.key] || {
+                title: service.label || service.key,
+                icon: 'fa-layer-group',
+            };
+            const count = tasks.filter((task) => taskServiceKey(task) === service.key).length;
+            const active = service.key === selectedExecutorServiceKey;
+            return `<button type="button" class="executor-service-card ${active ? 'is-active' : ''}" data-service-key="${escapeTaskHtml(service.key)}" role="tab" aria-selected="${active ? 'true' : 'false'}">
             <span class="executor-service-card-icon"><i class="fa-solid ${meta.icon}"></i></span>
             <span class="executor-service-card-copy"><strong>${escapeTaskHtml(meta.title)}</strong><small>${count} عملية حالية</small></span>
             <span class="executor-service-card-count">${count}</span>
         </button>`;
-    }).join('');
+        })
+        .join('');
     tabs.querySelectorAll('[data-service-key]').forEach((button) => {
         button.addEventListener('click', () => selectExecutorService(button.dataset.serviceKey));
     });
@@ -321,18 +330,22 @@ async function refreshTasks() {
             : visibleTasks.filter((task) => taskServiceKey(task) === selectedExecutorServiceKey);
         const currentTasksHash = Array.isArray(serviceVisibleTasks)
             ? [selectedExecutorServiceKey, ...serviceVisibleTasks]
-                  .map((task) => (typeof task === 'string' ? task : [
-                      task._id,
-                      task.status,
-                      task.amount,
-                      task.operatorId || '',
-                      task.assignedExecutorId || '',
-                      task.assignedExecutorName || '',
-                      task.routingState || '',
-                      task.recipientNumber || '',
-                      task.emergencyAlert || '',
-                      task.notes || '',
-                  ].join(':')))
+                  .map((task) =>
+                      typeof task === 'string'
+                          ? task
+                          : [
+                                task._id,
+                                task.status,
+                                task.amount,
+                                task.operatorId || '',
+                                task.assignedExecutorId || '',
+                                task.assignedExecutorName || '',
+                                task.routingState || '',
+                                task.recipientNumber || '',
+                                task.emergencyAlert || '',
+                                task.notes || '',
+                            ].join(':')
+                  )
                   .join('|')
             : '';
         if (currentTasksHash !== lastTasksHash) {

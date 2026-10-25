@@ -33,7 +33,7 @@
 .group-send:disabled { opacity: .55; }
 @media (max-width: 767.98px) {
     body.executor-os.executor-page-support .support-container { width: 100%; padding: 6px 6px calc(70px + env(safe-area-inset-bottom)); margin: 0; }
-    body.executor-page-support .group-chat { height: calc(100dvh - 132px - env(safe-area-inset-bottom)); min-height: 280px; border-radius: 8px; }
+    body.executor-page-support .group-chat { height: calc(100dvh - 156px - env(safe-area-inset-bottom)); min-height: 280px; border-radius: 8px; }
     body.executor-page-support .group-chat-head { padding: 7px 9px; }
     body.executor-page-support .group-message-list { padding: 8px; gap: 6px; }
     body.executor-page-support .group-message { max-width: 86%; padding: 6px 8px; }

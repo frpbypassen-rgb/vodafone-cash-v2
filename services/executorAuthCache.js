@@ -5,11 +5,18 @@ const Employee = require('../models/Employee');
 const DEFAULT_TTL_MS = 15 * 1000;
 const MAX_TTL_MS = 60 * 1000;
 const MAX_CACHE_ENTRIES = 2000;
-const EMPLOYEE_FIELDS = 'name phone role status groupId webUsername telegramId canViewAllReports balance executionPolicyOverride sessionVersion ussdNetwork ussdWalletPinSetAt';
+const EMPLOYEE_FIELDS = [
+    'name', 'phone', 'role', 'status', 'groupId', 'webUsername', 'telegramId',
+    'canViewAllReports', 'balance', 'balancePoolId', 'tenantId',
+    'executionPolicyOverride', 'sessionVersion', 'ussdNetwork', 'ussdWalletPinSetAt'
+].join(' ');
 const GROUP_FIELDS = [
     'name',
     'status',
     'balance',
+    'serviceKey',
+    'serviceKeys',
+    'serviceBalances',
     'manualTaskRoutingEnabled',
     'manualProofRequired',
     'manualQuickExecuteEnabled',
@@ -19,7 +26,9 @@ const GROUP_FIELDS = [
     'sessionTtlEnabled',
     'sessionTtlSeconds',
     'manualReceiptPrefix',
-    'parentGroupId'
+    'parentGroupId',
+    'parentBotId',
+    'tenantId'
 ].join(' ');
 
 const cache = new Map();

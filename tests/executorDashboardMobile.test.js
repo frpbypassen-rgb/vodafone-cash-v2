@@ -81,7 +81,8 @@ describe('executor manager mobile dashboard', () => {
 
     test('keeps the empty queue readable, clears the dock, and labels active-task actions', () => {
         expect(dashboard).toContain('class="executor-empty-mark"');
-        expect(dashboard).toContain('غرفة العمليات هادئة');
+        expect(dashboard).toContain('لا توجد عمليات في');
+        expect(dashboard).toContain('escapeTaskHtml(executorServiceLabel(selectedExecutorServiceKey))');
         expect(dashboard).toContain("confirmButtonText: 'تأكيد الإلغاء'");
         expect(dashboard).not.toContain('executor-3d-alert.png');
         expect(dashboard).toContain('aria-label="رادار مراقبة العمليات"');
