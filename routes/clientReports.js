@@ -54,6 +54,7 @@ const renderReports = async (req, res) => {
         const context = await businessPortalService.loadPageContext(req, 'reports');
         return res.render('client/workspace', context);
     } catch (error) {
+        if (error.message === 'INVALID_REPORT_DATE') return res.status(400).send('الفترة المحددة غير صحيحة. ارجع واختر تاريخًا صالحًا.');
         if (error.message !== 'NOT_BUSINESS_PORTAL') {
             if (error.message === 'FORBIDDEN_PAGE') {
                 return businessPortalService.redirectForbiddenPage(req, res);

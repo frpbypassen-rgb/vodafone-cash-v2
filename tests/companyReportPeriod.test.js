@@ -22,3 +22,13 @@ test('invalid report period does not sign the user out',async()=>{
         expect(res.status).toHaveBeenCalledWith(400);expect(res.redirect).not.toHaveBeenCalled();
     }finally{load.mockRestore();}
 });
+test('the canonical reports route rejects invalid periods without logout',async()=>{
+    const portal=require('../services/businessPortalService');
+    const load=jest.spyOn(portal,'loadPageContext').mockRejectedValueOnce(new Error('INVALID_REPORT_DATE'));
+    const res={status:jest.fn().mockReturnThis(),send:jest.fn(),redirect:jest.fn()};
+    try{
+        const layer=require('../routes/clientReports').stack.find(item=>item.route?.path==='/reports');
+        await layer.route.stack.at(-1).handle({session:{accountType:'company'}},res);
+        expect(res.status).toHaveBeenCalledWith(400);expect(res.redirect).not.toHaveBeenCalled();
+    }finally{load.mockRestore();}
+});
