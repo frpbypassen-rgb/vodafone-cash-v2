@@ -12,7 +12,7 @@
     <% if (workspace.isAgent || workspace.isCompany) { %><button class="cm-agent-more" type="button" id="agentMoreButton" popovertarget="agentMoreMenu" aria-controls="agentMoreMenu" aria-expanded="false"><i class="fa-solid fa-bars" aria-hidden="true"></i><span>المزيد</span></button><% } %>
 </nav>
 <% if (workspace.isAgent || workspace.isCompany) {
-    const moreItems = navigation.filter(item => !dockItems.some(dock => dock.key === item.key) && !(workspace.isCompany && item.key === 'smart_transfer'));
+    const moreItems = navigation.filter(item => !dockItems.some(dock => dock.key === item.key) && !(workspace.isCompany && ['smart_transfer', 'security'].includes(item.key)));
 %>
 <nav id="agentMoreMenu" class="agent-more-menu" popover="auto" aria-labelledby="agentMoreTitle">
     <header class="agent-more-heading">
@@ -28,7 +28,7 @@
     </div>
     <footer class="agent-more-footer">
         <% moreItems.filter(item => ['settings', 'security'].includes(item.key)).forEach(item => { %>
-        <a href="<%= portalHref(item.href) %>" <%- item.active ? 'aria-current="page"' : '' %>><i class="fa-solid <%= item.icon %>" aria-hidden="true"></i><span><%= item.label %></span><i class="fa-solid fa-chevron-left" aria-hidden="true"></i></a>
+        <a href="<%= portalHref(item.href) %>" <%- item.active ? 'aria-current="page"' : '' %>><i class="fa-solid <%= item.icon %>" aria-hidden="true"></i><span><%= workspace.isCompany && item.key === 'settings' ? 'الإعدادات' : item.label %></span><i class="fa-solid fa-chevron-left" aria-hidden="true"></i></a>
         <% }) %>
         <a class="agent-more-logout" href="<%= portalBasePath %>/logout"><i class="fa-solid fa-arrow-right-from-bracket" aria-hidden="true"></i><span>تسجيل الخروج</span></a>
     </footer>
