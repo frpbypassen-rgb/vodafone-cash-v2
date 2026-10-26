@@ -1,0 +1,31 @@
+<%
+const balanceCustomers = (agencyFinance.customerRows || []).slice().sort((a,b) => String(a.name || '').localeCompare(String(b.name || ''), 'ar'));
+const balanceMoney = value => Number(value || 0).toLocaleString('en-US', { minimumFractionDigits: 3, maximumFractionDigits: 3 });
+const balanceTotals = balanceCustomers.reduce((sum, customer) => { const balance = Number(customer.balance || 0); sum.positive += Math.max(0,balance); sum.debt += Math.max(0,-balance); return sum; }, {positive:0,debt:0});
+%>
+<div class="agent-balances">
+    <section class="agent-balances-summary" aria-label="ملخص أرصدة العملاء الحالية">
+        <div><span>الأرصدة الموجبة</span><strong class="balance-positive" dir="ltr"><%= balanceMoney(balanceTotals.positive) %></strong><small>د.ل</small></div>
+        <div><span>المديونية</span><strong class="balance-negative" dir="ltr"><%= balanceMoney(balanceTotals.debt) %></strong><small>د.ل</small></div>
+        <div><span>عدد العملاء</span><strong><%= balanceCustomers.length %></strong><small>الأرصدة الحالية</small></div>
+    </section>
+    <section class="agent-balances-panel">
+        <label class="agent-balances-search"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><input type="search" data-balance-search placeholder="الاسم، رقم الحساب أو الهاتف" aria-label="البحث عن عميل" autocomplete="off"></label>
+        <div class="agent-balances-controls">
+            <label><span>الرصيد</span><select data-balance-filter><option value="all">الكل</option><option value="positive">رصيد موجب</option><option value="debt">عليه مديونية</option><option value="zero">رصيد صفر</option></select></label>
+            <label><span>الترتيب</span><select data-balance-sort><option value="name">حسب الاسم</option><option value="balance">أعلى رصيد</option><option value="debt">أعلى مديونية</option></select></label>
+        </div>
+    </section>
+    <section class="agent-balances-panel agent-balances-list" aria-label="قائمة أرصدة العملاء">
+        <div data-balance-list>
+        <% balanceCustomers.forEach(customer => { const balance = Number(customer.balance || 0); %>
+            <a class="agent-balance-row" href="/agent-portal/customers/<%= encodeURIComponent(String(customer._id)) %>" data-balance-row data-balance="<%= balance %>" data-name="<%= customer.name || '' %>" data-search="<%= [customer.name,customer.accountCode,customer.phone].filter(Boolean).join(' ') %>" aria-label="فتح حساب <%= customer.name %>">
+                <span class="agent-balance-identity"><strong><%= customer.name || 'عميل' %></strong><small><bdi><%= customer.accountCode || customer.phone || 'بدون رقم حساب' %></bdi></small></span>
+                <span class="agent-balance-value <%= balance > 0 ? 'balance-positive' : balance < 0 ? 'balance-negative' : '' %>"><strong dir="ltr"><%= balanceMoney(balance) %></strong><small>د.ل</small></span><i class="fa-solid fa-angle-left" aria-hidden="true"></i>
+            </a>
+        <% }) %>
+        </div>
+        <p class="agent-balances-empty" data-balance-empty <%= balanceCustomers.length ? 'hidden' : '' %>>لا يوجد عملاء لعرضهم.</p>
+        <footer class="agent-balances-footer" data-balance-footer hidden><span data-balance-progress role="status" aria-live="polite"></span><button class="bw-button ghost compact" type="button" data-balance-more>تحميل المزيد</button></footer>
+    </section>
+</div>

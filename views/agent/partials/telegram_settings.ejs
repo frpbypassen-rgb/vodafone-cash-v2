@@ -1,0 +1,19 @@
+<section class="agent-email-settings agent-telegram-settings" data-agent-telegram aria-label="حسابات تيليجرام المرتبطة">
+    <div class="agent-email-toggle"><span><i class="fa-brands fa-telegram" aria-hidden="true"></i><b>تيليجرام</b><small>حسابات استقبال إيصالات التحويل</small></span><button type="button" class="bw-button ghost" data-telegram-add>إضافة حساب</button></div>
+    <div class="agent-email-details">
+        <p data-telegram-status role="status">جارٍ تحميل الحسابات المرتبطة…</p>
+        <form class="agent-email-form" data-telegram-add-form hidden>
+            <label class="bw-field"><span>اسم الحساب</span><input name="name" type="text" maxlength="60" placeholder="مثال: هاتف المدير أو حساب المحاسب" autocomplete="off" required></label>
+            <div class="agent-email-actions"><button type="submit" class="bw-button primary">إنشاء رابط التفعيل</button><button type="button" class="bw-button ghost" data-telegram-cancel>إلغاء</button></div>
+        </form>
+        <div class="agent-telegram-activation" data-telegram-setup hidden>
+            <strong data-telegram-pending-name></strong>
+            <p>اضغط الزر ثم Start في بوت Ahrampay_bot لإكمال التفعيل.</p>
+            <a class="bw-button primary" data-telegram-open target="_blank" rel="noopener noreferrer">فتح تيليجرام والتفعيل</a>
+            <details><summary>كود الربط اليدوي</summary><label class="bw-field"><span>صالح لمدة 10 دقائق</span><input data-telegram-code type="text" dir="ltr" readonly aria-label="كود ربط تيليجرام"></label><button type="button" class="bw-button ghost" data-telegram-copy>نسخ الكود</button></details>
+            <button type="button" class="bw-button ghost" data-telegram-check>تحديث حالة الربط</button>
+        </div>
+        <div class="agent-telegram-list" data-telegram-list aria-live="polite"></div>
+        <p class="agent-email-result" data-telegram-result role="status" aria-live="polite"></p>
+    </div>
+</section>

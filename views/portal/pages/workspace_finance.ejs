@@ -1,4 +1,7 @@
 <% const portalBasePath = locals.portalBasePath || '/client'; const portalHref = value => typeof value === 'string' && (value === '/client' || value.startsWith('/client/') || value.startsWith('/client?')) ? portalBasePath + value.slice(7) : value; %>
+<% if (workspace.isAgent) { %>
+<%- include('../../agent/partials/financial_ledger') %>
+<% } else { %>
 <% if (workspace.isCompany) { %>
 <section class="cp-page-hero">
     <div>
@@ -99,3 +102,4 @@
 </section>
 
 <% if (workspace.isCompany || workspace.isAgent) { %></div><% } %>
+<% } %>

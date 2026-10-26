@@ -5,11 +5,17 @@
         <h2>أمان الحساب</h2>
         <p>كلمة المرور وAuthenticator والأجهزة في صفحة مستقلة. بيانات المنشأة تبقى في ملف المنشأة.</p>
     </div>
+    <% if (!workspace.isAgent) { %>
     <div class="cp-page-hero-actions">
         <a href="<%= portalBasePath %>/settings" class="bw-button ghost"><i class="fa-solid fa-address-card"></i>بيانات المنشأة</a>
         <a href="/security/sessions" class="bw-button ghost"><i class="fa-solid fa-laptop-mobile"></i>الأجهزة والجلسات</a>
     </div>
+    <% } %>
 </section>
+
+<% if (workspace.isAgent) { %>
+<a href="<%= portalBasePath %>/settings#settings" class="bw-button ghost cm-settings-back"><i class="fa-solid fa-arrow-right" aria-hidden="true"></i> جميع الإعدادات</a>
+<% } %>
 
 <% if (workspace.isCompany || workspace.isAgent) { %>
 <div class="cm-security-banner"><i class="fa-solid fa-shield-halved"></i><div><h2>مركز أمان الحساب</h2><p>راجع كلمة المرور والتحقق الثنائي والجلسات لحماية حسابك.</p></div></div>

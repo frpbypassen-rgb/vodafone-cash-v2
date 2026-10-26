@@ -1,0 +1,42 @@
+.agent-balances { display: grid; gap: 12px; min-width: 0; }
+.agent-balances-summary { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); padding: 14px 0; border: 1px solid var(--cp-line); border-radius: 14px; background: var(--cp-surface); }
+.agent-balances-summary > div { display: grid; gap: 5px; text-align: center; min-width: 0; padding: 0 8px; }
+.agent-balances-summary > div + div { border-inline-start: 1px solid var(--cp-line); }
+.agent-balances-summary span, .agent-balances-summary small { font-size: 11px; color: var(--cp-muted); }
+.agent-balances-summary strong { font-size: 21px; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.agent-balances .balance-positive { color: #087b56; }
+.agent-balances .balance-negative { color: #c53030; }
+html[data-theme="night"] .agent-balances .balance-positive { color: #65dfb3; }
+html[data-theme="night"] .agent-balances .balance-negative { color: #ff9292; }
+.agent-balances-panel { background: var(--cp-surface); border: 1px solid var(--cp-line); border-radius: 14px; padding: 14px; min-width: 0; }
+.agent-balances-search { display: flex; align-items: center; gap: 8px; padding-inline: 10px; border: 1px solid var(--cp-line); border-radius: 10px; color: var(--cp-muted); }
+.agent-balances-search input { width: 100%; min-width: 0; min-height: 44px; font: inherit; font-size: 14px; background: transparent; border: 0; color: var(--cp-ink); }
+.agent-balances-controls { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
+.agent-balances-controls label { display: grid; gap: 4px; min-width: 0; }
+.agent-balances-controls label > span { font-size: 11px; color: var(--cp-muted); }
+.agent-balances-controls select { min-width: 0; width: 100%; height: 42px; padding: 7px; border: 1px solid var(--cp-line); border-radius: 9px; background: var(--cp-surface-soft); color: var(--cp-ink); font: inherit; font-size: 12px; }
+.agent-balance-row { display: flex; gap: 12px; align-items: center; min-height: 66px; padding: 10px 0; color: var(--cp-ink); text-decoration: none; border-bottom: 1px solid var(--cp-line); }
+.agent-balance-row:last-child { border-bottom: 0; }
+.agent-balance-row:hover { background: var(--cp-surface-soft); }
+.agent-balance-identity { flex: 1; min-width: 0; display: grid; gap: 5px; }
+.agent-balance-identity strong { font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.agent-balance-identity small { font-size: 11px; color: var(--cp-muted); overflow-wrap: anywhere; }
+.agent-balance-value { display: grid; gap: 3px; text-align: center; max-width: 48%; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.agent-balance-value strong { font-size: 16px; }
+.agent-balance-value small { font-size: 10px; }
+.agent-balance-row > i { font-size: 11px; color: var(--cp-muted); }
+.agent-balances-footer { display: grid; justify-items: center; gap: 8px; padding-top: 12px; }
+.agent-balances-footer span, .agent-balances-empty { color: var(--cp-muted); font-size: 12px; text-align: center; }
+.agent-balances [hidden] { display: none !important; }
+@media(max-width: 700px) {
+    body[data-page="agency_balances"] .bw-page-header { margin-bottom: 10px; }
+    body[data-page="agency_balances"] .bw-page-header h1 { font-size: 21px; }
+    body[data-page="agency_balances"] .bw-page-header .bw-eyebrow, body[data-page="agency_balances"] .bw-page-header p, body[data-page="agency_balances"] .bw-page-actions { display: none; }
+    .agent-balances { gap: 10px; }
+    .agent-balances-summary { padding: 10px 0; }
+    .agent-balances-summary strong { font-size: 15px; }
+    .agent-balances-summary span, .agent-balances-summary small { font-size: 9px; }
+    .agent-balances-panel { padding: 12px; }
+    .agent-balance-row { min-height: 60px; gap: 8px; }
+    .agent-balance-identity strong, .agent-balance-value strong { font-size: 13px; }
+}

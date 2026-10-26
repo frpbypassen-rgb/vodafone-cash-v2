@@ -40,9 +40,7 @@ const canAccessAgentPage = (workspace, page) => {
         [
             'finance',
             'agency_balances',
-            'agency_debts',
             'agency_account',
-            'agency_position',
             'agency_profits',
         ].includes(page)
     )

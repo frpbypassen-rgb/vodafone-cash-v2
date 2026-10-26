@@ -12,8 +12,7 @@ const orderedServices = [...serviceCatalog.filter(service => ['vodafone', 'bank_
     <span class="cm-smart-entry-action">ابدأ التحويل الذكي <i class="fa-solid fa-arrow-left" aria-hidden="true"></i></span>
 </a>
 <% } %>
-<% if (workspace.isAgent) { %><nav class="cm-agent-shortcuts" aria-label="إدارة الوكالة"><% navigation.filter(item => ['customers', 'agency_debts', 'agency_profits', 'staff'].includes(item.key)).forEach(item => { %><a href="<%= portalHref(item.href) %>"><i class="fa-solid <%= item.icon %>"></i><span><%= item.label %></span><i class="fa-solid fa-arrow-left"></i></a><% }) %></nav><% } %>
-<div class="cm-home-grid">
+<div class="cm-home-grid<%= workspace.isAgent && workspace.permissions.canTransfer ? ' cm-home-grid-single' : '' %>">
     <section class="cm-wallet-area" aria-label="ملخص حساب <%= workspace.entityLabel %>">
         <% if (workspace.permissions.canViewBalance) { %>
         <div class="cm-wallet">
@@ -21,12 +20,12 @@ const orderedServices = [...serviceCatalog.filter(service => ['vodafone', 'bank_
             <strong class="cm-wallet-amount"><bdi><%= money(workspace.entity.balance) %></bdi> <small>د.ل</small></strong>
             <p><%= workspace.entity.name %></p>
             <div class="cm-wallet-actions">
-                <% if (workspace.permissions.canTransfer) { %><a href="#companyServices"><i class="fa-solid fa-plus"></i> تحويل جديد</a><% } %>
+                <% if (workspace.permissions.canTransfer) { %><a href="<%= workspace.isAgent ? portalBasePath + '/services' : '#companyServices' %>"><i class="fa-solid fa-plus"></i> تحويل جديد</a><% } %>
                 <% if (workspace.permissions.canViewReports) { %><a href="<%= portalBasePath %>/reports" class="secondary"><i class="fa-solid fa-file-invoice"></i> كشف الحساب</a><% } %>
             </div>
         </div>
         <% } else { %>
-        <div class="cm-wallet"><span>مساحة التنفيذ</span><h2>ابدأ تحويلك بخطوات بسيطة</h2><p>اختر الخدمة وراجع بيانات المستلم قبل الإرسال.</p><div class="cm-wallet-actions"><a href="#companyServices">اختيار خدمة <i class="fa-solid fa-arrow-left"></i></a></div></div>
+        <div class="cm-wallet"><span>مساحة التنفيذ</span><h2>ابدأ تحويلك بخطوات بسيطة</h2><p>اختر الخدمة وراجع بيانات المستلم قبل الإرسال.</p><div class="cm-wallet-actions"><a href="<%= workspace.isAgent ? portalBasePath + '/services' : '#companyServices' %>">اختيار خدمة <i class="fa-solid fa-arrow-left"></i></a></div></div>
         <% } %>
         <div class="cm-stats" aria-label="إحصائيات اليوم">
             <% if (workspace.permissions.canViewBalance) { %><article class="cm-stat deposit"><i class="fa-solid fa-wallet"></i><span>إيداعات اليوم</span><strong><bdi><%= money(home.deposits) %></bdi> <small>د.ل</small></strong><small>إيداعات معتمدة</small></article><% } %>
@@ -34,7 +33,7 @@ const orderedServices = [...serviceCatalog.filter(service => ['vodafone', 'bank_
             <article class="cm-stat bank"><i class="fa-solid fa-building-columns"></i><span>البنكي اليوم</span><strong><bdi><%= money(home.bank.amount) %></bdi> <small>ج.م</small></strong><small><%= home.bank.count %> عملية مكتملة</small></article>
         </div>
     </section>
-    <% if (workspace.permissions.canTransfer) { %>
+    <% if (!workspace.isAgent && workspace.permissions.canTransfer) { %>
     <section class="cm-services" id="companyServices" aria-labelledby="companyServicesTitle">
         <div class="cm-section-head"><h2 id="companyServicesTitle">الخدمات</h2><a href="<%= portalBasePath %>/smart-transfer">تحويل من رسالة <i class="fa-solid fa-arrow-left"></i></a></div>
         <div class="cm-service-grid">
@@ -45,7 +44,7 @@ const orderedServices = [...serviceCatalog.filter(service => ['vodafone', 'bank_
             <% }) %>
         </div>
     </section>
-    <% } else { %>
+    <% } else if (!workspace.permissions.canTransfer) { %>
     <section class="cm-services"><div class="cm-section-head"><h2>المتابعة المالية</h2></div><div class="cm-service-grid"><a class="cm-service" href="<%= portalBasePath %>/reports"><i class="fa-solid fa-file-invoice"></i><strong>كشف الحساب</strong><small>راجع حركات الحساب وأرصدته</small></a><a class="cm-service" href="<%= portalBasePath %>/finance"><i class="fa-solid fa-scale-balanced"></i><strong>الحركات المالية</strong><small>الإيداعات والخصومات</small></a></div></section>
     <% } %>
 </div>

@@ -281,6 +281,7 @@ const sendTransactionReceipt = async (transactionInput, {
     }
 
     let lock;
+    let telegramResult = null;
     try {
         lock = await acquireLock(`${lockPrefix}:${transactionId}`, 30000, { retryCount: 1, retryDelay: 25 });
     } catch (error) {
@@ -299,6 +300,16 @@ const sendTransactionReceipt = async (transactionInput, {
             return failure;
         }
 
+        const telegram = require('./telegramService');
+        const telegramLink = telegram.telegramConfigured() ? await telegram.findLinkForTransaction(transaction) : null;
+        if (telegramLink?.chatId && ['telegram', 'both'].includes(telegramLink.deliveryMode)) {
+            const telegramReceiptUrl = createReceiptImageUrl({ transactionId: transaction._id, index: proofIndex });
+            if (telegramReceiptUrl) {
+                telegramResult = await telegram.sendReceipt({ transaction, receiptUrl: telegramReceiptUrl, reference: transaction.customId || String(transaction._id), amount: formatReceiptAmount(transaction.amount), currency: receiptCurrency(transaction), proofIndex }).catch(() => ({ success: false, ok: false }));
+            }
+            if (telegramLink.deliveryMode === 'telegram') return { success: Boolean(telegramResult?.success), provider: 'telegram', transactionId: String(transaction._id), reference: transaction.customId };
+        }
+
         const configuration = getWhatChimpConfigurationStatus();
         if (!configuration.receiptReady) {
             const failure = {
@@ -308,14 +319,14 @@ const sendTransactionReceipt = async (transactionInput, {
                 missing: configuration.missing
             };
             await recordEarlyDeliveryFailure({ transaction, stage: 'configuration_verified', result: failure, kind });
-            return failure;
+            return telegramResult?.success ? { ...telegramResult, provider: 'telegram', whatsappSkipped: true } : failure;
         }
 
         const recipient = await resolveReceiptRecipient(transaction);
         if (!recipient?.phone) {
             const failure = { success: false, code: 'RECEIPT_RECIPIENT_MISSING', message: 'لا يوجد رقم واتساب صالح لصاحب العملية.' };
             await recordEarlyDeliveryFailure({ transaction, recipient, stage: 'recipient_resolved', result: failure, kind });
-            return failure;
+            return telegramResult?.success ? { ...telegramResult, provider: 'telegram', whatsappSkipped: true } : failure;
         }
 
         let normalizedPhone;
@@ -324,7 +335,7 @@ const sendTransactionReceipt = async (transactionInput, {
         } catch (error) {
             const failure = { success: false, code: error.code || 'WHATSAPP_PHONE_INVALID', message: error.message };
             await recordEarlyDeliveryFailure({ transaction, recipient, stage: 'phone_normalized', result: failure, kind });
-            return failure;
+            return telegramResult?.success ? { ...telegramResult, provider: 'telegram', whatsappSkipped: true } : failure;
         }
 
         const existing = await WhatsAppDelivery.findOne({
@@ -353,19 +364,6 @@ const sendTransactionReceipt = async (transactionInput, {
             await recordEarlyDeliveryFailure({ transaction, recipient, recipientPhone: normalizedPhone, stage: 'receipt_link_ready', result: failure, kind });
             await logReceiptDelivery({ success: false, transaction, recipient, result: failure });
             return failure;
-        }
-
-        const telegram = require('./telegramService');
-        const telegramLink = await telegram.findLinkForTransaction(transaction);
-        if (telegramLink?.deliveryMode === 'telegram' && telegramLink.chatId) {
-            const telegramResult = await telegram.sendReceipt({
-                transaction,
-                receiptUrl,
-                reference: transaction.customId || String(transaction._id),
-                amount: formatReceiptAmount(transaction.amount),
-                currency: receiptCurrency(transaction)
-            });
-            return { success: Boolean(telegramResult.ok), provider: 'telegram', skipped: !telegramResult.ok, transactionId: String(transaction._id), reference: transaction.customId };
         }
 
         const delivery = existing || new WhatsAppDelivery({
@@ -409,16 +407,6 @@ const sendTransactionReceipt = async (transactionInput, {
             receiptUrl
         });
 
-        if (telegramLink?.deliveryMode === 'both' && telegramLink.chatId) {
-            await telegram.sendReceipt({
-                transaction,
-                receiptUrl,
-                reference: transaction.customId || String(transaction._id),
-                amount: formatReceiptAmount(transaction.amount),
-                currency: receiptCurrency(transaction)
-            }).catch(() => {});
-        }
-
         delivery.status = result.success ? 'sent' : 'failed';
         delivery.messageId = result.messageId || '';
         delivery.failureCode = result.success ? '' : (result.code || 'WHATCHIMP_REQUEST_FAILED');
@@ -432,6 +420,7 @@ const sendTransactionReceipt = async (transactionInput, {
 
         return {
             ...result,
+            ...(telegramResult?.success && !result.success ? { success: true, provider: 'telegram', whatsappFailed: true } : {}),
             transactionId: String(transaction._id),
             reference: transaction.customId,
             recipientPhone: normalizedPhone
@@ -487,8 +476,17 @@ const sendSplitPartReceipt = async ({
             return { success: false, code: 'RECEIPT_PROOF_MISSING', message: 'لم يتم حفظ صورة إثبات هذا الجزء.' };
         }
 
+        const telegram = require('./telegramService');
+        const telegramLink = telegram.telegramConfigured() ? await telegram.findLinkForTransaction(transaction) : null;
+        let partTelegramResult = null;
+        if (telegramLink?.chatId && ['telegram', 'both'].includes(telegramLink.deliveryMode)) {
+            const partUrl = createReceiptImageUrl({ transactionId: transaction._id, index: resolvedIndex });
+            if (partUrl) partTelegramResult = await telegram.sendReceipt({ transaction, receiptUrl: partUrl, reference: reference || `${transaction.customId}:${safePartId}`, amount: formatReceiptAmount(amount), currency: receiptCurrency(transaction), proofIndex: resolvedIndex }).catch(() => ({ success: false }));
+            if (telegramLink.deliveryMode === 'telegram') return { success: Boolean(partTelegramResult?.success), provider: 'telegram' };
+        }
         const configuration = getWhatChimpConfigurationStatus();
         if (!configuration.receiptReady) {
+            if (partTelegramResult?.success) return { ...partTelegramResult, provider: 'telegram', whatsappSkipped: true };
             return {
                 success: false,
                 code: 'WHATCHIMP_RECEIPT_NOT_READY',
@@ -499,6 +497,7 @@ const sendSplitPartReceipt = async ({
 
         const recipient = await resolveReceiptRecipient(transaction);
         if (!recipient?.phone) {
+            if (partTelegramResult?.success) return { ...partTelegramResult, provider: 'telegram', whatsappSkipped: true };
             return { success: false, code: 'RECEIPT_RECIPIENT_MISSING', message: 'لا يوجد رقم واتساب صالح لصاحب العملية.' };
         }
 
@@ -506,7 +505,7 @@ const sendSplitPartReceipt = async ({
         try {
             normalizedPhone = normalizeWhatsAppPhone(recipient.phone);
         } catch (error) {
-            return { success: false, code: error.code || 'WHATSAPP_PHONE_INVALID', message: error.message };
+            return partTelegramResult?.success ? { ...partTelegramResult, provider: 'telegram', whatsappSkipped: true } : { success: false, code: error.code || 'WHATSAPP_PHONE_INVALID', message: error.message };
         }
 
         const existing = await WhatsAppDelivery.findOne({
@@ -589,7 +588,7 @@ const sendSplitPartReceipt = async ({
         delivery.sentAt = result.success ? new Date() : undefined;
         await saveDelivery(delivery);
         await logReceiptDelivery({ success: result.success, transaction, recipient, result });
-        return { ...result, duplicate: false, partId: safePartId };
+        return { ...result, ...(partTelegramResult?.success && !result.success ? { success: true, provider: 'telegram', whatsappFailed: true } : {}), duplicate: false, partId: safePartId };
     } catch (error) {
         return {
             success: false,

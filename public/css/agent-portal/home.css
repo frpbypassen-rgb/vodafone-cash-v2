@@ -1,4 +1,5 @@
 /* Compact agency home, scoped to phones so desktop and other pages keep their layout. */
+html[data-portal="agent"] body[data-page="overview"] .cm-home-grid-single { grid-template-columns: minmax(0, 1fr); }
 @media (max-width: 600px) {
     html[data-portal="agent"] body[data-page="overview"] {
         .bw-main { padding: 16px 12px 100px; }

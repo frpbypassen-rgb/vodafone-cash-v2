@@ -175,6 +175,7 @@ const renderAgentPage = (page, role = 'owner', extra = {}) => {
     const { calculateAgencyMetrics } = require('../../services/agencyFinanceService');
     return renderWorkspacePage(page, {
         workspace,
+        ...(page === 'finance' ? { pageMeta: { title: 'السجل المالي', eyebrow: 'تتبّع الحركات المالية', icon: 'fa-scale-balanced' } } : {}),
         account: workspace.actor,
         accountType: role === 'owner' ? 'user' : 'agent_staff',
         customersCount: 0,
@@ -206,6 +207,11 @@ const renderAgentPage = (page, role = 'owner', extra = {}) => {
         periodLabel: 'فترة الاختبار',
         customerSummary: { total: 0, active: 0, positiveBalances: 0, totalDebt: 0, monthVolumeEGP: 0 },
         customers: [],
+        customerProfile: {
+            customer: { _id: 'customer-fixture', name: 'عميل الاختبار', accountCode: 'U-1001', phone: '0910000001', balance: 100, availableToSpend: 100, reserved: 0, realizedProfit: 0, completedCount: 0, marginPiasters: 3 },
+            pricingRows: [],
+            transactions: [],
+        },
         pendingRequests: [],
         agencyFinance: {
             metrics: calculateAgencyMetrics({ walletBalance: 1250.5 }),

@@ -2,7 +2,7 @@
 
 const express = require('express');
 const router = express.Router();
-const { linkChatByCode, sendMessage } = require('../services/telegramService');
+const { linkChatByCode, sendMessage, recordInteraction } = require('../services/telegramService');
 
 router.post('/', async (req, res) => {
     const expected = String(process.env.TELEGRAM_WEBHOOK_SECRET || '');
@@ -15,8 +15,11 @@ router.post('/', async (req, res) => {
     const text = String(message?.text || '').trim();
     const chatId = message?.chat?.id;
     if (!chatId || !text) return res.sendStatus(200);
+    if (message.chat.type !== 'private') return res.sendStatus(200);
+    const code = text.replace(/^\/start(?:@[A-Za-z0-9_]+)?\s+/i, '').trim();
     try {
-        const result = await linkChatByCode({ code: text, chatId });
+        await recordInteraction(chatId);
+        const result = await linkChatByCode({ code, chatId, telegramUser: message.from || {} });
         await sendMessage(chatId, result.success
             ? 'تم ربط حسابك بنجاح. ستصل إيصالاتك إلى هذه المحادثة.'
             : 'الكود غير صحيح أو منتهي. اطلب كوداً جديداً من الإدارة.');

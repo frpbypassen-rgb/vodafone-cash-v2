@@ -5,6 +5,7 @@ const ClientCompany = require('../models/ClientCompany');
 const Employee = require('../models/Employee');
 const ExecutorGroup = require('../models/ExecutorGroup');
 const Ledger = require('../models/Ledger');
+const Settlement = require('../models/Settlement');
 const { findReportTransactions } = require('./unifiedReportService');
 const User = require('../models/User');
 const { systemDateKey, systemDayStart, systemDayEnd } = require('../config/systemTime');
@@ -320,7 +321,7 @@ const loadAuditLogs = async ({ transactions, auditScope, start, end, settlements
     });
 };
 
-const loadAdminReport = async (input = {}) => {
+const loadAdminReport = async (input = {}, options = {}) => {
     const range = getDateRange(input.dateType, input.dateValue, input.dateFrom, input.dateTo);
     const scope = await resolveReportScope(input);
     const previousQuery = { ...scope.baseQuery, createdAt: { $lt: range.start } };
@@ -329,7 +330,9 @@ const loadAdminReport = async (input = {}) => {
     const [previousTransactions, currentTransactions, settlements] = await Promise.all([
         findReportTransactions(previousQuery, { select: 'status amount costLYD' }),
         findReportTransactions(currentQuery, { sort: { createdAt: -1 } }),
-        ensureDailySettlements(range.start, range.end)
+        options.readOnly
+            ? Settlement.find({ type: 'daily', entityType: 'system', status: 'closed', 'period.start': { $gte: range.start, $lte: range.end } }).lean()
+            : ensureDailySettlements(range.start, range.end)
     ]);
 
     const calculated = buildReportSummary({

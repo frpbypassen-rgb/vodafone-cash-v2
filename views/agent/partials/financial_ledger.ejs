@@ -1,0 +1,64 @@
+<%
+const ledgerMoney = value => Number(value || 0).toLocaleString('en-US', { minimumFractionDigits: 3, maximumFractionDigits: 3 });
+const ledgerTypes = { DEPOSIT: 'إيداع', DEDUCTION: 'خصم', TRANSFER: 'تحويل', COMMISSION: 'عمولة', REFUND: 'استرجاع', REVERSAL: 'قيد عكسي' };
+const visibleMovements = movements.filter(item => !filters.type || item.direction === filters.type);
+const hasLedgerBalance = value => value !== undefined && value !== null && value !== '' && Number.isFinite(Number(value));
+const isAgencyAccount = locals.ledgerAccount === true;
+const ledgerPath = isAgencyAccount ? '/agent-portal/finance/agency-account' : '/agent-portal/finance';
+%>
+<div class="agent-ledger<%= isAgencyAccount ? ' agent-ledger-account' : '' %>">
+    <section class="agent-ledger-summary" aria-label="ملخص الفترة المالية">
+        <% if (isAgencyAccount) { const accountMetrics = agencyFinance.metrics; %>
+        <article><span>الرصيد المتاح</span><strong dir="ltr" class="<%= Number(accountMetrics.availableWallet) < 0 ? 'ledger-debit' : 'ledger-credit' %>"><%= ledgerMoney(accountMetrics.availableWallet) %></strong><small>د.ل · الآن</small></article>
+        <article><span>المحجوز</span><strong dir="ltr"><%= ledgerMoney(accountMetrics.reservedAgency) %></strong><small>د.ل · عمليات معلقة</small></article>
+        <article><span>قبل الحجز</span><strong dir="ltr"><%= ledgerMoney(accountMetrics.bookWallet) %></strong><small>د.ل · الرصيد الدفتري</small></article>
+        <% } else { %>
+        <article><span>الرصيد الحالي</span><strong dir="ltr" class="<%= Number(workspace.entity.balance || 0) < 0 ? 'ledger-debit' : 'ledger-credit' %>"><%= ledgerMoney(workspace.entity.balance) %></strong><small>د.ل · الآن</small></article>
+        <article><span>إجمالي الدائن</span><strong dir="ltr" class="ledger-credit"><%= ledgerMoney(financeSummary.credits) %></strong><small>د.ل · كامل الفترة</small></article>
+        <article><span>إجمالي المدين</span><strong dir="ltr" class="ledger-debit"><%= ledgerMoney(financeSummary.debits) %></strong><small>د.ل · كامل الفترة</small></article>
+        <article><span>صافي الحركة</span><strong dir="ltr" class="<%= Number(financeSummary.net || 0) < 0 ? 'ledger-debit' : 'ledger-credit' %>"><%= ledgerMoney(financeSummary.net) %></strong><small>د.ل · كامل الفترة</small></article>
+        <% } %>
+    </section>
+    <section class="agent-ledger-panel agent-ledger-tools">
+        <label class="agent-ledger-search"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><input type="search" data-ledger-search placeholder="ابحث برقم المرجع أو البيان" aria-label="البحث في الحركات المعروضة" autocomplete="off"></label>
+        <details class="agent-ledger-filter-drawer" <%= filters.type ? 'open' : '' %>>
+        <summary><i class="fa-solid fa-sliders" aria-hidden="true"></i> تصفية</summary>
+        <form method="GET" action="<%= ledgerPath %>" class="agent-ledger-filters">
+            <% if (!workspace.forceToday) { %>
+            <label><span>من تاريخ</span><input type="date" name="from" value="<%= filters.from %>"></label>
+            <label><span>إلى تاريخ</span><input type="date" name="to" value="<%= filters.to %>"></label>
+            <% } %>
+            <label><span>اتجاه الحركة</span><select name="type"><option value="">الكل</option><option value="credit" <%= filters.type === 'credit' ? 'selected' : '' %>>دائن · إضافة رصيد</option><option value="debit" <%= filters.type === 'debit' ? 'selected' : '' %>>مدين · خصم رصيد</option></select></label>
+            <div class="agent-ledger-filter-actions"><button class="bw-button primary compact" type="submit">تطبيق</button><a class="bw-button ghost compact" href="<%= ledgerPath %>">إعادة ضبط</a></div>
+        </form>
+        </details>
+    </section>
+    <section class="agent-ledger-panel">
+        <header class="agent-ledger-list-head"><div><h2><%= isAgencyAccount ? 'حركات حساب الوكالة' : 'سجل الحركات المالية' %></h2><p><%= filters.label %> · توقيت ليبيا</p><small data-ledger-count><%= isAgencyAccount ? 'الحركات المحمّلة' : 'عدد حركات الفترة' %>: <%= financeSummary.count %> · المعروض حسب الفلتر: <%= visibleMovements.length %></small></div><button type="button" class="bw-button ghost compact" onclick="window.print()"><i class="fa-solid fa-print"></i>طباعة</button></header>
+        <% if (isAgencyAccount) { %><a class="agent-ledger-full-link" href="/agent-portal/finance?<%= new URLSearchParams({ from: filters.from || '', to: filters.to || '' }).toString() %>">السجل المالي الكامل <i class="fa-solid fa-arrow-left" aria-hidden="true"></i></a><% } %>
+        <% if (listTruncated) { %><div class="bw-alert warning"><%= isAgencyAccount ? 'تظهر أحدث 300 حركة من دفتر الوكالة؛ ضيّق الفترة لمراجعة الحركات الأقدم.' : 'القائمة المعروضة محدودة بأحدث الحركات. إجماليات الفترة تشمل كامل السجل؛ ضيّق الفترة لمراجعة الحركات الأقدم.' %></div><% } %>
+        <% if (!visibleMovements.length) { %><div class="bw-empty"><i class="fa-solid fa-book-open"></i><strong>لا توجد حركات مطابقة</strong><span>جرّب تغيير الفترة أو اتجاه الحركة.</span></div><% } %>
+        <div class="agent-ledger-entries">
+        <% visibleMovements.forEach(item => { const credit = item.direction === 'credit'; %>
+            <details class="agent-ledger-entry" data-ledger-entry data-ledger-search-text="<%= [item.transactionId, item.description, ledgerTypes[item.type]].filter(Boolean).join(' ') %>">
+                <summary class="agent-ledger-row">
+                    <span class="agent-ledger-row-text"><strong><%= item.description || ledgerTypes[item.type] || 'حركة مالية' %></strong><small><bdi><%= item.transactionId || 'غير متوفر' %></bdi> · <%= new Date(item.createdAt).toLocaleDateString('en-GB', { timeZone: 'Africa/Tripoli' }) %></small></span>
+                    <span class="agent-ledger-row-amount <%= credit ? 'ledger-credit' : 'ledger-debit' %>" dir="ltr"><strong><%= credit ? '+' : '−' %><%= ledgerMoney(Math.abs(Number(item.amount || 0))) %></strong><small>د.ل</small></span><i class="fa-solid fa-chevron-down agent-ledger-chevron" aria-hidden="true"></i>
+                </summary>
+                <div class="agent-ledger-expanded">
+                <div class="agent-ledger-entry-head"><span class="agent-ledger-direction <%= credit ? 'ledger-credit' : 'ledger-debit' %>"><i class="fa-solid <%= credit ? 'fa-arrow-down' : 'fa-arrow-up' %>"></i><%= credit ? 'دائن' : 'مدين' %> · <%= ledgerTypes[item.type] || 'حركة مالية' %></span><strong dir="ltr" class="agent-ledger-amount <%= credit ? 'ledger-credit' : 'ledger-debit' %>"><%= credit ? '+' : '−' %><%= ledgerMoney(Math.abs(Number(item.amount || 0))) %> <small>LYD</small></strong></div>
+                <p class="agent-ledger-description"><%= item.description || 'حركة مالية' %></p>
+                <dl class="agent-ledger-details">
+                    <div><dt>رقم المرجع</dt><dd dir="ltr"><%= item.transactionId || 'غير متوفر' %></dd></div>
+                    <div><dt>التاريخ والوقت</dt><dd><time datetime="<%= new Date(item.createdAt).toISOString() %>" dir="ltr"><%= new Date(item.createdAt).toLocaleString('en-GB', { timeZone: 'Africa/Tripoli', hour12: false }) %></time></dd></div>
+                </dl>
+                <div class="agent-ledger-balances"><div><span>الرصيد قبل الحركة</span><strong dir="ltr"><%= hasLedgerBalance(item.balanceBefore) ? ledgerMoney(item.balanceBefore) + ' LYD' : 'غير متوفر' %></strong></div><i class="fa-solid fa-arrow-left" aria-hidden="true"></i><div><span>الرصيد بعد الحركة</span><strong dir="ltr"><%= hasLedgerBalance(item.balanceAfter) ? ledgerMoney(item.balanceAfter) + ' LYD' : 'غير متوفر' %></strong></div></div>
+                <small class="agent-ledger-source"><%= item.source === 'ledger' ? 'قيد دفتر الأستاذ' : 'من سجل المعاملة · لا يتوفر له رصيد موثق قبل الحركة وبعدها' %></small>
+                </div>
+            </details>
+        <% }) %>
+        </div>
+        <p class="agent-ledger-search-empty" data-ledger-empty hidden role="status">لا توجد حركات مطابقة للبحث.</p>
+        <div class="agent-ledger-pagination" data-ledger-pagination hidden><span data-ledger-progress role="status" aria-live="polite"></span><button type="button" class="bw-button ghost compact" data-ledger-more>تحميل المزيد</button></div>
+    </section>
+</div>

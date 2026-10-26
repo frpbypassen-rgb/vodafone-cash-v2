@@ -31,6 +31,9 @@ const buildBaseContext = async (req, page, workspace) => {
         ...PAGE_META[page],
         ...(workspace.isCompany ? COMPANY_PAGE_META[page] || {} : {}),
     };
+    if (workspace.isAgent && page === 'finance') {
+        Object.assign(pageMeta, { title: 'السجل المالي', eyebrow: 'تتبّع الحركات المالية' });
+    }
     if (workspace.forceToday) {
         if (page === 'overview') Object.assign(pageMeta, { title: 'الرئيسية', eyebrow: 'عمل اليوم' });
         if (page === 'transactions')
@@ -159,6 +162,9 @@ const loadPageContext = async (req, page, workspace, canAccessPage) => {
         const range = resolveDateRange(req.query, { forceToday: workspace.forceToday });
         context.agencyFinance = await agencyFinanceService.loadAgencyFinance(workspace, { range });
         context.filters = range;
+        if (page === 'agency_account') {
+            context.filters = { ...range, type: ['credit', 'debit'].includes(req.query.type) ? req.query.type : '' };
+        }
     }
     if (page === 'customer_profile') {
         const range = resolveDateRange(req.query, { forceToday: workspace.forceToday });

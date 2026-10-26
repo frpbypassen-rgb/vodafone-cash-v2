@@ -76,7 +76,7 @@
     </style>
 </head>
 <body>
-    <header class="topbar"><div class="topbar-inner"><div class="brand"><span class="brand-mark"><i class="fa-solid fa-shield-halved"></i></span><span>AHRAM PAY</span></div><a class="back" href="<%= returnUrl %>"><i class="fa-solid fa-arrow-right"></i> رجوع للحساب</a></div></header>
+    <header class="topbar"><div class="topbar-inner"><div class="brand"><span class="brand-mark"><i class="fa-solid fa-shield-halved"></i></span><span>AHRAM PAY</span></div><a class="back" href="<%= returnUrl %>"><i class="fa-solid fa-arrow-right"></i> <%= typeof returnLabel !== 'undefined' ? returnLabel : 'رجوع للحساب' %></a></div></header>
     <main class="page">
         <section class="hero">
             <div class="hero-copy"><span class="kicker"><i class="fa-solid fa-lock"></i> أمان <%= principalName %></span><h1>الأجهزة والجلسات المتصلة</h1><p>يسمح النظام بجهاز واحد فقط لكل حساب. أي جهاز جديد يحتاج رمز Authenticator ثم موافقة الإدارة.</p></div>

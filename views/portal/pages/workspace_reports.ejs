@@ -13,7 +13,7 @@
         <% } else { %>
             <a href="<%= portalBasePath %>/finance" class="bw-button ghost"><i class="fa-solid fa-scale-balanced"></i>مكتب المحاسبة</a>
             <% if (workspace.permissions.manager || workspace.permissions.accountant) { %>
-                <a href="<%= portalBasePath %>/reports/staff" class="bw-button ghost"><i class="fa-solid fa-chart-column"></i>أداء الموظفين</a>
+                <a href="<%= portalBasePath %><%= workspace.isAgent ? '/reports?scope=staff' : '/reports/staff' %>" class="bw-button ghost"><i class="fa-solid fa-chart-column"></i>أداء الموظفين</a>
             <% } %>
         <% } %>
     </div>

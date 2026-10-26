@@ -412,6 +412,15 @@ const sendTransferRequest = async ({
         if (!response.ok || payload.success !== true)
             throw new Error(payload.error || 'تعذر تأكيد إرسال العملية. تحقق من حالتها قبل المحاولة مجدداً.');
         finishIdempotency('web-transfer');
+        const serviceBalances = document.querySelectorAll('[data-agent-service-balance]');
+        if (serviceBalances.length && config.canViewBalance && payload.newBalance !== null && payload.newBalance !== undefined && payload.newBalance !== '' && Number.isFinite(Number(payload.newBalance))) {
+            config.availableBalance = Number(payload.newBalance);
+            serviceBalances.forEach(node => {
+                node.textContent = config.availableBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 3 });
+                node.classList.toggle('is-positive', config.availableBalance > 0);
+                node.classList.toggle('is-negative', config.availableBalance < 0);
+            });
+        }
         onSuccess?.(payload, { service, destination, phoneHint });
         return payload;
     } catch (error) {

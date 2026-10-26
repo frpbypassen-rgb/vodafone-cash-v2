@@ -433,7 +433,7 @@ describe('agent portal shared modern design', () => {
         expect(html).toContain('data-theme="night"');
         expect(html).toContain('class="cm-header"');
         expect(html).toContain('/css/portal-shell/modern.css');
-        expect(html).toContain('/agent-portal/finance/customer-debts');
+        expect(html).not.toContain('href="/agent-portal/finance/customer-debts"');
         expect(html).not.toContain('href="/client/company/deposits"');
         expect(html).toContain('data-company-bell');
         if (page === 'service_workbench') {

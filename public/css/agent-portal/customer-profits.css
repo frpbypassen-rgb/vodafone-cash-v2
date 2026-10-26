@@ -1,0 +1,32 @@
+.agent-profits .agent-balances-summary { grid-template-columns: repeat(2,minmax(0,1fr)); }
+.agent-profit-periods { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+.agent-profit-periods a { padding: 7px 12px; border: 1px solid var(--cp-line); border-radius: 8px; color: var(--cp-icon); font-size: 12px; }
+.agent-profit-periods span { font-size: 11px; color: var(--cp-muted); }
+.agent-profit-custom-period { margin-bottom: 12px; font-size: 12px; }
+.agent-profit-custom-period > summary { cursor: pointer; color: var(--cp-icon); padding: 6px 0; }
+.agent-profit-custom-period form { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
+.agent-profit-custom-period label { display: grid; gap: 4px; min-width: 0; }
+.agent-profit-custom-period input, .agent-profit-sort select { min-height: 42px; width: 100%; min-width: 0; border: 1px solid var(--cp-line); border-radius: 8px; background: var(--cp-surface-soft); color: var(--cp-ink); font: inherit; padding: 6px; }
+.agent-profit-custom-period button { grid-column: 1 / -1; }
+.agent-profit-sort { display: flex; align-items: center; gap: 10px; margin-top: 10px; font-size: 12px; }
+.agent-profit-sort > span { color: var(--cp-muted); }
+.agent-profit-sort select { flex: 1; }
+.agent-profit-entry { border-bottom: 1px solid var(--cp-line); }
+.agent-profit-entry:last-child { border: 0; }
+.agent-profit-entry > summary { list-style: none; cursor: pointer; border-bottom: 0; }
+.agent-profit-entry > summary::-webkit-details-marker { display: none; }
+.agent-profit-entry[open] > summary > i { transform: rotate(180deg); }
+.agent-profit-detail { padding: 0 0 14px; font-size: 12px; }
+.agent-profit-detail dl { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 12px; margin: 0 0 10px; border-radius: 10px; background: var(--cp-surface-soft); }
+.agent-profit-detail dl > div { min-width: 0; }
+.agent-profit-detail dt { font-size: 10px; color: var(--cp-muted); }
+.agent-profit-detail dd { margin: 4px 0 0; text-align: right; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.agent-profit-services > summary { cursor: pointer; display: flex; align-items: center; justify-content: space-between; font-size: 13px; min-height: 24px; }
+.agent-profit-services[open] > summary { margin-bottom: 12px; }
+.agent-profit-service { display: grid; grid-template-columns: 1fr auto; gap: 5px; border-bottom: 1px solid var(--cp-line); padding: 10px 0; font-size: 12px; }
+.agent-profit-service > small { grid-column: 1 / -1; color: var(--cp-muted); font-size: 10px; }
+@media(max-width:700px) {
+    body[data-page="agency_profits"] .bw-page-header { margin-bottom: 10px; }
+    body[data-page="agency_profits"] .bw-page-header h1 { font-size: 21px; }
+    body[data-page="agency_profits"] .bw-page-header .bw-eyebrow, body[data-page="agency_profits"] .bw-page-header p, body[data-page="agency_profits"] .bw-page-actions { display: none; }
+}

@@ -79,8 +79,12 @@ const businessTheme = typeof clientTheme !== 'undefined' && clientTheme ? client
                 <%- include('../portal/pages/workspace_transactions') %>
             <% } else if (page === 'finance') { %>
                 <%- include('../portal/pages/workspace_finance') %>
-            <% } else if (['agency_balances', 'agency_debts', 'agency_account', 'agency_position', 'agency_profits'].includes(page)) { %>
-                <%- include('../portal/pages/workspace_agency_finance') %>
+            <% } else if (page === 'agency_balances') { %>
+                <%- include('partials/customer_balances') %>
+            <% } else if (page === 'agency_account') { %>
+                <%- include('partials/financial_ledger', { ledgerAccount: true, movements: agencyFinance.agencyLedger.map(row => ({ ...row, direction: Number(row.amount) >= 0 ? 'credit' : 'debit', source: 'ledger' })), financeSummary: { count: agencyFinance.agencyLedger.length }, listTruncated: agencyFinance.agencyLedger.length >= 300 }) %>
+            <% } else if (page === 'agency_profits') { %>
+                <%- include('partials/customer_profits') %>
             <% } else if (page === 'customers') { %>
                 <%- include('../portal/pages/workspace_customers') %>
             <% } else if (page === 'customer_profile') { %>
@@ -256,5 +260,11 @@ const businessTheme = typeof clientTheme !== 'undefined' && clientTheme ? client
     <script src="/js/business-portal/rate-notice.js?v=20261025-review" defer></script>
     <script src="/js/business-portal/api-response.js?v=20261025-review" defer></script>
     <script src="/js/agent-portal/index.js?v=20261025-daily" defer></script>
+    <script src="/js/agent-portal/mobile-menu.js?v=20261026-more" defer></script>
+    <script src="/js/agent-portal/report-email.js?v=20261026-verify" defer></script>
+    <script src="/js/agent-portal/telegram-settings.js?v=20261026-accounts" defer></script>
+    <% if (['finance', 'agency_account'].includes(page)) { %><script src="/js/agent-portal/finance.js?v=20261026-compact" defer></script><% } %>
+    <% if (page === 'agency_balances') { %><script src="/js/agent-portal/customer-balances.js?v=20261026-compact" defer></script><% } %>
+    <% if (page === 'agency_profits') { %><script src="/js/agent-portal/customer-profits.js?v=20261026-compact" defer></script><% } %>
 </body>
 </html>

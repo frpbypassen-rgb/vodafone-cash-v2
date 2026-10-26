@@ -10,6 +10,7 @@ const schema = new mongoose.Schema({
     failureCode: { type: String, default: '' },
     failureReason: { type: String, default: '' },
     receiptUrl: { type: String, default: '' },
+    receiptIdentity: { type: String, default: '' },
     sentAt: { type: Date }
 }, { timestamps: true });
 schema.index({ transactionId: 1, chatId: 1 }, { unique: true });

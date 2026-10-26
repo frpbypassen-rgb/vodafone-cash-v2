@@ -23,15 +23,22 @@ async function main() {
         'overview',
         'services',
         'service_workbench',
+        'smart_transfer',
+        'internal_transfer',
         'transactions',
         'reports',
         'settings',
         'security',
         'support',
         'customers',
+        'customer_profile',
         'staff',
         'agency_profits',
         'agency_debts',
+        'finance',
+        'agency_balances',
+        'agency_account',
+        'agency_position',
     ];
     const renderingErrors = [];
     for (const role of roles)
@@ -98,7 +105,7 @@ async function main() {
             const workspace = buildAgentWorkspace(role);
             for (const name of pages) {
                 if (!canAccessPage(workspace, name)) continue;
-                for (const width of [390, 1440]) {
+                for (const width of [320, 390, 1440]) {
                     const page = await browser.newPage();
                     const errors = [];
                     page.on('pageerror', (error) => errors.push(error.message));

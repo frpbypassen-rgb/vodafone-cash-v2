@@ -176,6 +176,25 @@ test('the agency entrypoint remains inert on a company page', () => {
         })
     ).not.toThrow();
 });
+test('agency staff report links use the supported report scope', async () => {
+    const html = await renderAgentPage('reports', 'owner');
+    expect(html).toContain('/agent-portal/reports?scope=staff');
+    expect(html).not.toContain('/agent-portal/reports/staff');
+    workspaceService.loadPageContext.mockResolvedValue({ workspace: buildAgentWorkspace('owner') });
+    const response = await request(app()).get('/agent-portal/reports?scope=staff');
+    expect(response.status).toBe(200);
+    expect(response.body.view).toBe('agent/workspace');
+});
+
+test.each(['owner', 'manager', 'accountant', 'employee'])(
+    'agency %s settings do not link to unsupported webhook administration',
+    async (role) => {
+        const html = await renderAgentPage('settings', role);
+        expect(html).not.toContain('/agent-portal/integrations/webhooks');
+        expect(html).toContain('/agent-portal/security');
+    }
+);
+
 test('browser and server behavior stays split into reviewable modules', () => {
     for (const folder of [
         'services/portalWorkspace',

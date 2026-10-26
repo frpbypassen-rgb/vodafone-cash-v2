@@ -17,6 +17,7 @@ jest.mock('../models/WhatsAppDelivery', () => {
 jest.mock('../services/lockService', () => ({ acquireLock: jest.fn(), releaseLock: jest.fn() }));
 jest.mock('../services/auditService', () => ({ logAction: jest.fn() }));
 jest.mock('../services/receiptShareService', () => ({ createReceiptImageUrl: jest.fn() }));
+jest.mock('../services/telegramService', () => ({ telegramConfigured: jest.fn(() => false), findLinkForTransaction: jest.fn(), sendReceipt: jest.fn() }));
 jest.mock('../services/whatsappService', () => ({
     getWhatChimpConfigurationStatus: jest.fn(),
     normalizeWhatsAppPhone: jest.fn(),
@@ -41,6 +42,7 @@ const {
 describe('WhatsApp receipt delivery', () => {
     beforeEach(() => {
         jest.clearAllMocks();
+        require('../services/telegramService').telegramConfigured.mockReturnValue(false);
         acquireLock.mockResolvedValue({ release: jest.fn() });
         releaseLock.mockResolvedValue(undefined);
         getWhatChimpConfigurationStatus.mockReturnValue({
@@ -81,6 +83,21 @@ describe('WhatsApp receipt delivery', () => {
         expect(WhatsAppDelivery).toHaveBeenCalledTimes(1);
         expect(WhatsAppDelivery.mock.instances[0].status).toBe('sent');
         expect(WhatsAppDelivery.mock.instances[0].messageId).toBe('wamid.receipt.1');
+    });
+
+    test.each(['telegram', 'both'])('Telegram receipts in %s mode do not depend on WhatChimp configuration', async (mode) => {
+        const telegram = require('../services/telegramService');
+        telegram.telegramConfigured.mockReturnValue(true);
+        telegram.findLinkForTransaction.mockResolvedValue({ deliveryMode: mode, chatId: '123456789' });
+        telegram.sendReceipt.mockResolvedValue({ success: true, ok: true });
+        getWhatChimpConfigurationStatus.mockReturnValue({ receiptReady: false, missing: ['template'] });
+        const transaction = { _id: 'tx-telegram', customId: 'ATT-TG-1', status: 'completed', transferType: 'vodafone', amount: 100, proofImage: 'proofs/tg.jpg' };
+        Transaction.findById.mockResolvedValue(transaction);
+        WhatsAppDelivery.findOne.mockResolvedValue(null);
+        const result = await sendCompletedTransactionReceipt(transaction);
+        expect(result).toMatchObject({ success: true, provider: 'telegram' });
+        expect(telegram.sendReceipt).toHaveBeenCalledTimes(1);
+        expect(sendReceipt).not.toHaveBeenCalled();
     });
 
     test('delivers the receipt to the optional client WhatsApp number before the sender account', async () => {

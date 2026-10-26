@@ -4,7 +4,12 @@
 <section class="cp-page-hero cm-service-hero">
     <div>
 
-        <h2><%= isolatedService.label %></h2>
+        <div class="<%= workspace.isAgent ? 'agent-cash-heading' : '' %>">
+            <h2><%= isolatedService.label %></h2>
+            <% if (workspace.isAgent && workspace.permissions.canViewBalance) { %>
+            <span class="agent-cash-balance"><small><i class="fa-solid fa-wallet" aria-hidden="true"></i> الرصيد المتاح</small><span><strong data-agent-service-balance class="<%= Number(workspace.entity.balance || 0) > 0 ? 'is-positive' : Number(workspace.entity.balance || 0) < 0 ? 'is-negative' : '' %>" dir="ltr"><%= Number(workspace.entity.balance || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 3 }) %></strong> <bdi>د.ل</bdi></span></span>
+            <% } %>
+        </div>
         <nav class="cm-breadcrumb" aria-label="مسار الصفحة"><a href="<%= portalBasePath %>/services">الخدمات</a><i class="fa-solid fa-angle-left"></i><span><%= isolatedService.label %></span></nav>
     </div>
     <div class="cp-page-hero-actions">

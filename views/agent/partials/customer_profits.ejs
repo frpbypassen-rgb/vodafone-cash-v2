@@ -1,0 +1,46 @@
+<%
+const profitMoney = value => Number(value || 0).toLocaleString('en-US', { minimumFractionDigits: 3, maximumFractionDigits: 3 });
+const profitRows = agencyFinance.profitRows || [];
+const profitMetrics = profitRows.reduce((totals, row) => { totals.realizedProfit += Number(row.realizedProfit || 0); totals.expectedProfit += Number(row.expectedProfit || 0); return totals; }, { realizedProfit: 0, expectedProfit: 0 });
+const profitQuery = locals.query || {};
+const profitProfileParams = new URLSearchParams(filters.month ? { month: filters.month } : { from: filters.from || '', to: filters.to || '' }).toString();
+%>
+<div class="agent-balances agent-profits">
+    <section class="agent-balances-summary" aria-label="ملخص أرباح الفترة">
+        <div><span>الربح المحقق</span><strong class="balance-positive" dir="ltr"><%= profitMoney(profitMetrics.realizedProfit) %></strong><small>د.ل · عمليات مكتملة</small></div>
+        <div><span>الربح المتوقع</span><strong dir="ltr"><%= profitMoney(profitMetrics.expectedProfit) %></strong><small>د.ل · عمليات معلقة</small></div>
+    </section>
+    <section class="agent-balances-panel">
+        <nav class="agent-profit-periods" aria-label="فترة الأرباح">
+            <a href="/agent-portal/finance/profits?period=today">اليوم</a>
+            <% if (!workspace.forceToday) { %><a href="/agent-portal/finance/profits">هذا الشهر</a><% } %>
+            <span><%= filters.label %></span>
+        </nav>
+        <% if (!workspace.forceToday) { %>
+        <details class="agent-profit-custom-period" <%= profitQuery.from || profitQuery.to ? 'open' : '' %>><summary>فترة مخصصة <i class="fa-solid fa-sliders" aria-hidden="true"></i></summary>
+            <form method="GET" action="/agent-portal/finance/profits"><label>من<input type="date" name="from" value="<%= filters.from %>" required></label><label>إلى<input type="date" name="to" value="<%= filters.to %>" required></label><button type="submit" class="bw-button primary compact">تطبيق</button></form>
+        </details>
+        <% } %>
+        <label class="agent-balances-search"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><input type="search" data-profit-search placeholder="ابحث باسم العميل" aria-label="البحث باسم العميل" autocomplete="off"></label>
+        <label class="agent-profit-sort"><span>الترتيب</span><select data-profit-sort><option value="profit">أعلى ربح محقق</option><option value="name">حسب الاسم</option></select></label>
+    </section>
+    <section class="agent-balances-panel" aria-label="أرباح العملاء">
+        <% if ((agencyFinance.periodTransactions || []).length >= 5000) { %><p class="bw-alert warning">تُعرض بيانات أحدث 5000 عملية؛ اختر فترة أقصر لمراجعة الأرباح بدقة.</p><% } %>
+        <div data-profit-list>
+        <% profitRows.forEach(row => { %>
+            <details class="agent-profit-entry" data-profit-row data-name="<%= row.customerName %>" data-profit="<%= Number(row.realizedProfit || 0) %>">
+                <summary class="agent-balance-row"><span class="agent-balance-identity"><strong><%= row.customerName %></strong><small><%= row.completedCount %> عملية مكتملة</small></span><span class="agent-balance-value <%= Number(row.realizedProfit || 0) < 0 ? 'balance-negative' : 'balance-positive' %>"><strong dir="ltr"><%= profitMoney(row.realizedProfit) %></strong><small>د.ل · محقق</small></span><i class="fa-solid fa-chevron-down" aria-hidden="true"></i></summary>
+                <div class="agent-profit-detail"><dl><div><dt>الربح المتوقع</dt><dd dir="ltr"><%= profitMoney(row.expectedProfit) %> LYD</dd></div><div><dt>أرباح مستبعدة · ملغية</dt><dd dir="ltr"><%= profitMoney(row.reversedProfit) %> LYD</dd></div><div><dt>حجم التحويلات المكتملة</dt><dd dir="ltr"><%= Number(row.totalEGP || 0).toLocaleString('en-US', { maximumFractionDigits: 2 }) %> EGP</dd></div><div><dt>إجمالي العمليات</dt><dd><%= row.operationCount %></dd></div></dl><a href="/agent-portal/customers/<%= encodeURIComponent(String(row.customerId)) %>?<%= profitProfileParams %>" class="bw-text-link">فتح حساب العميل <i class="fa-solid fa-arrow-left" aria-hidden="true"></i></a></div>
+            </details>
+        <% }) %>
+        </div>
+        <p class="agent-balances-empty" data-profit-empty <%= profitRows.length ? 'hidden' : '' %>>لا توجد أرباح للعملاء في الفترة المحددة.</p>
+        <footer class="agent-balances-footer" data-profit-footer hidden><span data-profit-progress role="status" aria-live="polite"></span><button type="button" class="bw-button ghost compact" data-profit-more>تحميل المزيد</button></footer>
+    </section>
+    <details class="agent-balances-panel agent-profit-services"><summary>الأرباح حسب الخدمة <i class="fa-solid fa-chevron-down" aria-hidden="true"></i></summary><div>
+        <% if (!(agencyFinance.serviceProfitRows || []).length) { %><p class="agent-balances-empty">لا توجد بيانات في هذه الفترة.</p><% } %>
+        <% (agencyFinance.serviceProfitRows || []).forEach(row => { const service = serviceCatalog.find(item => item.key === row.serviceKey); %>
+        <div class="agent-profit-service"><strong><%= service?.shortLabel || service?.label || row.serviceKey %></strong><span class="balance-positive" dir="ltr"><%= profitMoney(row.realizedProfit) %> LYD</span><small><%= row.operationCount %> عملية · محقق فقط</small></div>
+        <% }) %>
+    </div></details>
+</div>

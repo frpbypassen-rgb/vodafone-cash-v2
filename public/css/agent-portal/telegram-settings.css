@@ -1,0 +1,22 @@
+.agent-telegram-settings > .agent-email-toggle { flex-wrap: wrap; }
+.agent-telegram-list { display: grid; gap: 12px; }
+.agent-telegram-card { padding: 14px; border: 1px solid var(--cp-line); border-radius: 12px; background: var(--cp-surface); min-width: 0; }
+.agent-telegram-card-header { display: flex; align-items: start; justify-content: space-between; gap: 12px; }
+.agent-telegram-card h4 { margin: 0 0 6px; font-size: 15px; overflow-wrap: anywhere; }
+.agent-telegram-card-header p { margin: 0; font-size: 12px; color: var(--cp-muted); }
+.agent-telegram-card-toggle { display: flex; align-items: center; gap: 8px; min-height: 44px; font-size: 12px; white-space: nowrap; }
+.agent-telegram-card-toggle input { width: 20px; height: 20px; accent-color: var(--cp-icon); }
+.agent-telegram-state { display: inline-block; margin-top: 8px; padding: 3px 9px; border-radius: 8px; background: var(--cp-surface-soft); color: var(--cp-muted); font-size: 12px; }
+.agent-telegram-state.is-active { color: var(--cp-success); }
+.agent-telegram-dates { display: grid; gap: 4px; margin: 10px 0; font-size: 11px; color: var(--cp-muted); }
+.agent-telegram-card .agent-email-actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin-bottom: 0; }
+.agent-telegram-card .agent-email-actions button { min-width: 0; min-height: 44px; font-size: 12px; padding: 8px 6px; }
+.agent-telegram-remove { color: var(--cp-danger, #c53030); }
+.agent-telegram-activation { padding: 14px; margin-bottom: 14px; border: 1px solid var(--cp-line); border-radius: 12px; background: var(--cp-surface); }
+.agent-telegram-activation > .bw-button { width: 100%; margin: 8px 0; }
+.agent-telegram-activation details { margin: 12px 0; }
+.agent-telegram-activation summary { cursor: pointer; min-height: 44px; font-size: 13px; }
+.agent-telegram-activation input { width: 100%; font-size: 14px; }
+.agent-telegram-rename { display: grid; gap: 8px; margin-top: 10px; }
+.agent-telegram-rename input { width: 100%; min-width: 0; font-size: 16px; }
+@media (max-width: 380px) { .agent-telegram-card-header { flex-wrap: wrap; } }

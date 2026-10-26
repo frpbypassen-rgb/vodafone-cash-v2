@@ -1,0 +1,23 @@
+<section class="agent-email-settings" data-report-email aria-label="الكشف اليومي بالبريد">
+    <label class="agent-email-toggle"><span><i class="fa-solid fa-envelope" aria-hidden="true"></i><b>البريد الإلكتروني</b><small>كشف حساب يومي بعد منتصف الليل بتوقيت ليبيا</small></span><input type="checkbox" data-report-email-toggle disabled aria-label="تفعيل الكشف اليومي بالبريد"></label>
+    <div class="agent-email-details">
+        <p data-report-email-summary role="status" hidden></p>
+        <p data-report-email-last hidden></p>
+        <div class="agent-email-actions" data-report-email-actions hidden>
+            <button type="button" class="bw-button ghost" data-report-email-change>تغيير البريد</button>
+            <button type="button" class="bw-button secondary" data-report-email-test>إرسال كشف تجريبي</button>
+        </div>
+        <div data-report-email-setup hidden>
+            <form data-report-email-request class="agent-email-form">
+                <label class="bw-field"><span>البريد المستلم للكشف</span><input name="email" type="email" dir="ltr" autocomplete="email" maxlength="254" placeholder="name@example.com" required></label>
+                <button type="submit" class="bw-button primary" data-report-email-send>إرسال كود التفعيل</button>
+            </form>
+            <form data-report-email-verify class="agent-email-form" hidden>
+                <label class="bw-field"><span>كود التفعيل</span><input name="code" type="text" dir="ltr" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" placeholder="000000" required><small>الكود صالح لمدة 10 دقائق، وبحد أقصى 5 محاولات.</small></label>
+                <button type="submit" class="bw-button primary">تأكيد وتفعيل البريد</button>
+            </form>
+            <button type="button" class="bw-button ghost" data-report-email-cancel>إلغاء</button>
+        </div>
+        <p class="agent-email-result" data-report-email-result role="status" aria-live="polite"></p>
+    </div>
+</section>

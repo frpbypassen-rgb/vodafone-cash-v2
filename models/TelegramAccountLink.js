@@ -8,9 +8,17 @@ const telegramAccountLinkSchema = new mongoose.Schema({
     tenantId: { type: mongoose.Schema.Types.ObjectId, ref: 'Tenant', index: true },
     codeHash: { type: String, required: true, unique: true, index: true, select: false },
     codeHint: { type: String, required: true, select: false },
-    chatId: { type: String, trim: true, default: '', index: true },
+    chatId: { type: String, trim: true, default: undefined },
+    codeExpiresAt: { type: Date },
+    activateOnLink: { type: Boolean, default: false },
+    requestedById: { type: mongoose.Schema.Types.ObjectId },
+    requestedByModel: { type: String, enum: ['User', 'AgentEmployee'] },
     linkedAt: { type: Date, default: null },
     linkedBy: { type: String, default: 'telegram' },
+    displayName: { type: String, maxlength: 60 },
+    username: String,
+    telegramName: String,
+    lastInteractionAt: Date,
     deliveryMode: { type: String, enum: ['off', 'whatsapp', 'telegram', 'both'], default: 'whatsapp' },
     active: { type: Boolean, default: true, index: true }
 }, { timestamps: true });

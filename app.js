@@ -537,6 +537,15 @@ Promise.all([connectDB(), initRedis()]).then(async () => {
         await warnProviderPaidAwaitingCompletion(logger);
     }
     void require('./services/adminOperationAlertService').initializeAdminOperationAlerts();
+    await Promise.all([
+        require('./models/TelegramAccountLink').createIndexes(),
+        require('./models/TelegramDelivery').createIndexes(),
+        require('./models/TelegramReceiptClaim').createIndexes(),
+        require('./models/AgentTelegramConnection').createIndexes()
+    ]).catch(() => logger.error('Telegram receipt indexes could not be initialized'));
+    await require('./services/agentReportEmailWorker').start().catch(() => {
+        logger.error('Agency statement email worker could not start');
+    });
     merchantWebhookService.startMerchantWebhookWorker();
     await startExecutorPushNotificationWorker().catch((error) => {
         logger.error('Executor push notification worker failed to start', { error: error.message });

@@ -20,6 +20,8 @@ const auth = require('../controllers/clientAuthController');
 const router = express.Router();
 router.get('/login', (_req, res) => res.redirect('/login?portal=client'));
 router.use(requireAgentPortal);
+router.use(require('./agentReportEmail'));
+router.use(require('./agentTelegram'));
 router.get('/', (_req, res) => res.redirect('/agent-portal/dashboard'));
 const pages = {
     '/dashboard': 'overview',
@@ -31,9 +33,7 @@ const pages = {
     '/reports': 'reports',
     '/finance': 'finance',
     '/finance/customer-balances': 'agency_balances',
-    '/finance/customer-debts': 'agency_debts',
     '/finance/agency-account': 'agency_account',
-    '/finance/position': 'agency_position',
     '/finance/profits': 'agency_profits',
     '/customers': 'customers',
     '/customers/:id': 'customer_profile',
@@ -45,6 +45,8 @@ const pages = {
 };
 for (const [url, page] of Object.entries(pages)) router.get(url, renderPage(page));
 router.get('/account', (_req, res) => res.redirect('/agent-portal/finance'));
+router.get('/finance/position', (_req, res) => res.redirect('/agent-portal/finance'));
+router.get('/finance/customer-debts', (_req, res) => res.redirect('/agent-portal/finance/customer-balances'));
 router.get('/transfers', (_req, res) => res.redirect('/agent-portal/transactions'));
 router.get('/logout', auth.logout);
 router.get('/profile-photo', dashboard.getProfilePhoto);
