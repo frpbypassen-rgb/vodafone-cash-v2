@@ -550,10 +550,14 @@ Promise.all([connectDB(), initRedis()]).then(() => startBoundHttpServer({
             require('./models/TelegramAccountLink').createIndexes(),
             require('./models/TelegramDelivery').createIndexes(),
             require('./models/TelegramReceiptClaim').createIndexes(),
-            require('./models/AgentTelegramConnection').createIndexes()
+            require('./models/AgentTelegramConnection').createIndexes(),
+            require('./models/CompanyTelegramConnection').createIndexes()
         ]).catch(() => logger.error('Telegram receipt indexes could not be initialized'));
         await require('./services/agentReportEmailWorker').start().catch(() => {
             logger.error('Agency statement email worker could not start');
+        });
+        await require('./services/companyReportEmailWorker').start().catch(() => {
+            logger.error('Company statement email worker could not start');
         });
         merchantWebhookService.startMerchantWebhookWorker();
         await startExecutorPushNotificationWorker().catch((error) => {

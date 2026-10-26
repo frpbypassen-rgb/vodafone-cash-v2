@@ -9,6 +9,7 @@ const SubAccount = require('../models/SubAccount');
 const TelegramDelivery = require('../models/TelegramDelivery');
 const TelegramReceiptClaim = require('../models/TelegramReceiptClaim');
 const AgentTelegramConnection = require('../models/AgentTelegramConnection');
+const CompanyTelegramConnection = require('../models/CompanyTelegramConnection');
 const AgentEmployee = require('../models/AgentEmployee');
 const { tenantScope } = require('../utils/tenantScope');
 const { tenantMode } = require('../middlewares/tenantResolver');
@@ -48,6 +49,7 @@ const createAccountCode = async ({ ownerModel, ownerId, tenantId, preserveChat =
 
 const linkChatByCode = async ({ code, chatId, telegramUser }) => {
     if (/^AGT-/i.test(String(code || '').trim())) return require('./agentTelegramSettingsService').confirmLink({ code: String(code).trim(), chatId, telegramUser });
+    if (/^CMP-/i.test(String(code || '').trim())) return require('./companyTelegramSettingsService').confirmLink({ code: String(code).trim(), chatId, telegramUser });
     const normalized = String(code || '').trim().toUpperCase();
     if (!/^TG-[A-F0-9]{12}$/.test(normalized)) return { success: false, code: 'INVALID_CODE' };
     if (!/^[1-9]\d{0,19}$/.test(String(chatId))) return { success: false, code: 'PRIVATE_CHAT_REQUIRED' };
@@ -55,6 +57,7 @@ const linkChatByCode = async ({ code, chatId, telegramUser }) => {
     const pending = await TelegramAccountLink.findOne(filter).lean();
     if (!pending) return { success: false, code: 'CODE_NOT_FOUND' };
     if (pending.ownerModel === 'User' && await AgentTelegramConnection.exists({ agentId: pending.ownerId, chatId: String(chatId), deletedAt: null, linkedAt: { $ne: null } })) return { success: false, code: 'CHAT_ALREADY_LINKED' };
+    if (pending.ownerModel === 'ClientCompany' && await CompanyTelegramConnection.exists({ companyId: pending.ownerId, chatId: String(chatId), deletedAt: null, linkedAt: { $ne: null } })) return { success: false, code: 'CHAT_ALREADY_LINKED' };
     if (pending.activateOnLink) {
         const agent = await User.findById(pending.ownerId).lean();
         const actor = pending.requestedByModel === 'User' ? agent : await AgentEmployee.findById(pending.requestedById).lean();
@@ -86,6 +89,7 @@ const recordInteraction = async chatId => {
     const update = { $set: { lastInteractionAt: new Date() } };
     await Promise.all([
         AgentTelegramConnection.updateMany({ chatId: String(chatId), deletedAt: null }, update),
+        CompanyTelegramConnection.updateMany({ chatId: String(chatId), deletedAt: null }, update),
         TelegramAccountLink.updateMany({ chatId: String(chatId) }, update),
     ]);
 };
@@ -130,14 +134,18 @@ const findLinksForTransaction = async transaction => {
     const legacy = await TelegramAccountLink.findOne({ ownerModel, ownerId, active: true, deliveryMode: { $in: ['telegram', 'both'] }, chatId: { $exists: true, $nin: ['', null] }, ...tenant }).lean();
     const connections = ownerModel === 'User' && owner.role === 'agent'
         ? await AgentTelegramConnection.find({ agentId: ownerId, ...tenant, enabled: true, deletedAt: null, linkedAt: { $ne: null }, chatId: { $exists: true, $nin: ['', null] } }).lean() : [];
-    const rows = [...(legacy ? [legacy] : []), ...connections.map(row => ({ ...row, deliveryMode: legacy?.deliveryMode === 'telegram' ? 'telegram' : 'both', connectionId: row._id }))];
+    const companyConnections = ownerModel === 'ClientCompany'
+        ? await CompanyTelegramConnection.find({ companyId: ownerId, ...tenant, enabled: true, deletedAt: null, linkedAt: { $ne: null }, chatId: { $exists: true, $nin: ['', null] } }).lean() : [];
+    const rows = [...(legacy ? [legacy] : []), ...connections.map(row => ({ ...row, deliveryMode: legacy?.deliveryMode === 'telegram' ? 'telegram' : 'both', connectionId: row._id })),
+        ...companyConnections.map(row => ({ ...row, deliveryMode: legacy?.deliveryMode === 'telegram' ? 'telegram' : 'both', connectionId: row._id, connectionModel: 'company' }))];
     return [...new Map(rows.map(row => [row.chatId, row])).values()];
 };
 const findLinkForTransaction = async transaction => (await findLinksForTransaction(transaction))[0] || null;
 
 const sendReceiptToLink = async ({ transaction, receiptUrl, reference, amount, currency, proofIndex = 0 }, link) => {
     if (link.connectionId) {
-        const active = await AgentTelegramConnection.exists({ _id: link.connectionId, enabled: true, deletedAt: null, chatId: link.chatId });
+        const Connection = link.connectionModel === 'company' ? CompanyTelegramConnection : AgentTelegramConnection;
+        const active = await Connection.exists({ _id: link.connectionId, enabled: true, deletedAt: null, chatId: link.chatId });
         if (!active) return { success: false, skipped: true, code: 'TELEGRAM_NOT_SELECTED' };
     }
     const caption = `إيصال العملية ${reference || transaction.customId || ''}\nالمبلغ: ${amount || transaction.amount || ''} ${currency || ''}`;
