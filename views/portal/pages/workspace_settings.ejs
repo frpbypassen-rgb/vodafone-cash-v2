@@ -5,7 +5,7 @@
 <section class="cp-page-hero">
     <div>
         <span class="bw-section-kicker">ملف <%= workspace.entityLabel %></span>
-        <h2>بيانات <%= workspace.entityLabel %></h2>
+        <h2><%= workspace.isCompany ? 'الإعدادات' : 'بيانات ' + workspace.entityLabel %></h2>
         <p>التواصل والمدينة والسجل في هذه الصفحة. كلمة المرور والأجهزة في أمان الحساب.</p>
     </div>
     <% if (!workspace.isAgent && !workspace.isCompany) { %>
