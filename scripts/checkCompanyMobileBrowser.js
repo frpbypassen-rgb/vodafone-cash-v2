@@ -15,6 +15,12 @@ async function downloadReport(url) {
     const csrf=html.match(/name="_csrf" value="([^"]+)"/)[1];
     const result=await fetch(base+'/login',{method:'POST',redirect:'manual',headers:{Cookie:cookie(),'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({_csrf:csrf,username:'company_demo@ahram.com',password:process.env.COMPANY_DEMO_PASSWORD,portal:'client'})});
     remember(result);assert.equal(result.status,302);assert(!String(result.headers.get('location')).includes('login'));
+    for(const invalid of ['/client/reports?from=2026-10-30&to=2026-10-01','/client/reports/central.pdf?month=2026-13']) {
+        const rejected=await fetch(base+invalid,{headers:{Cookie:cookie()},redirect:'manual'});
+        assert.equal(rejected.status,400,'Invalid periods must not redirect through logout');
+    }
+    const settings=await fetch(base+'/client/settings',{headers:{Cookie:cookie()},redirect:'manual'});
+    assert.equal(settings.status,200,'Session must remain active after invalid report input');
     const response=await fetch(url,{headers:{Cookie:cookie()}});assert.equal(response.status,200);
     assert(response.headers.get('content-type').includes('application/pdf'));
     return Buffer.from(await response.arrayBuffer());
