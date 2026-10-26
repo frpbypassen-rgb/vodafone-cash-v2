@@ -1,12 +1,12 @@
 <% const portalBasePath = locals.portalBasePath || '/client'; const portalHref = value => typeof value === 'string' && (value === '/client' || value.startsWith('/client/') || value.startsWith('/client?')) ? portalBasePath + value.slice(7) : value; %>
 <% const isolatedService = serviceCatalog.find(item => item.key === servicePage.selectedService) || serviceCatalog[0]; %>
-<% if ((workspace.isCompany || workspace.isAgent)) { %>
+<% if ((workspace.isCompany || (workspace.isAgent || workspace.isCompany))) { %>
 <section class="cp-page-hero cm-service-hero">
     <div>
 
-        <div class="<%= workspace.isAgent ? 'agent-cash-heading' : '' %>">
+        <div class="<%= (workspace.isAgent || workspace.isCompany) ? 'agent-cash-heading' : '' %>">
             <h2><%= isolatedService.label %></h2>
-            <% if (workspace.isAgent && workspace.permissions.canViewBalance) { %>
+            <% if ((workspace.isAgent || workspace.isCompany) && workspace.permissions.canViewBalance) { %>
             <span class="agent-cash-balance"><small><i class="fa-solid fa-wallet" aria-hidden="true"></i> الرصيد المتاح</small><span><strong data-agent-service-balance class="<%= Number(workspace.entity.balance || 0) > 0 ? 'is-positive' : Number(workspace.entity.balance || 0) < 0 ? 'is-negative' : '' %>" dir="ltr"><%= Number(workspace.entity.balance || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 3 }) %></strong> <bdi>د.ل</bdi></span></span>
             <% } %>
         </div>
@@ -19,6 +19,6 @@
 <% } %>
 <section class="cp-workbench" data-service-key="<%= servicePage.selectedService %>">
     <div>
-        <%- include((workspace.isCompany || workspace.isAgent) ? '../partials/company_transfer_form' : '../partials/transfer_workbench_form', { isolatedService }) %>
+        <%- include((workspace.isCompany || (workspace.isAgent || workspace.isCompany)) ? '../partials/company_transfer_form' : '../partials/transfer_workbench_form', { isolatedService }) %>
     </div>
 </section>

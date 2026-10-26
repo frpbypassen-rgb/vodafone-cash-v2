@@ -138,7 +138,7 @@ const COMPANY_PAGE_META = Object.freeze({
     services: { title: 'معرض الخدمات', eyebrow: 'قناة واحدة لكل بطاقة' },
     transactions: { title: 'غرفة العمليات', eyebrow: 'بحث ومتابعة التنفيذ' },
     staff: { title: 'فريق الشركة', eyebrow: 'الحسابات والأدوار' },
-    finance: { title: 'مكتب المحاسبة', eyebrow: 'رصيد وكشوف بلا تنفيذ' },
+    finance: { title: 'السجل المالي', eyebrow: 'تتبّع الحركات المالية' },
     reports: { title: 'كشف الحساب', eyebrow: 'بيانات موحّدة من الإدارة' },
     settings: { title: 'بيانات المنشأة', eyebrow: 'الملف والتواصل' },
     security: { title: 'أمان الحساب', eyebrow: 'كلمة المرور وMFA والأجهزة' },

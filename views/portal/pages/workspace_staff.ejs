@@ -1,6 +1,7 @@
 <% const portalBasePath = locals.portalBasePath || '/client'; const portalHref = value => typeof value === 'string' && (value === '/client' || value.startsWith('/client/') || value.startsWith('/client?')) ? portalBasePath + value.slice(7) : value; %>
 <% if (workspace.isAgent) { %>
 <%- include('../../agent/partials/staff') %>
+<% } else if(workspace.isCompany) { %><%- include('../../company/partials/staff') %>
 <% } else { %>
 <% if (workspace.isCompany) { %>
 <section class="cp-page-hero">
@@ -84,6 +85,7 @@
 <dialog class="bw-dialog" id="createStaffDialog" aria-labelledby="createStaffTitle">
     <% if (workspace.isAgent) { %>
     <%- include('../../agent/partials/create_staff') %>
+    <% } else if(workspace.isCompany) { %><%- include('../../company/partials/create_staff') %>
     <% } else { %>
     <form method="POST" action="<%= portalBasePath %>/<%= workspace.isCompany ? 'company' : 'agent' %>/staff/add" class="bw-dialog-form">
         <div class="bw-dialog-head"><div><span class="bw-section-kicker">حساب فريق جديد</span><h2 id="createStaffTitle">إضافة موظف</h2></div><button type="button" class="bw-icon-button" data-dialog-close aria-label="إغلاق"><i class="fa-solid fa-xmark"></i></button></div>

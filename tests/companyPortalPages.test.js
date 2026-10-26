@@ -2,6 +2,11 @@ const { readPortalAsset } = require('./helpers/portalAssetSources');
 'use strict';
 
 describe('selected company internal layouts', () => {
+    test('every company settings category has an existing panel', async () => {
+        const html = await renderWorkspacePage('settings');
+        const categories = html.match(/<nav class="cm-settings-categories"[\s\S]*?<\/nav>/)[0];
+        for (const match of categories.matchAll(/href="#([^"]+)"/g)) expect(html).toContain(`id="${match[1]}"`);
+    });
     test.each(['vodafone', 'bank_account', 'post_account', 'post_card', 'sefa_niger', 'bankak_sudan'])('renders %s with one transfer form and live cost summary', async (service) => {
         const html = await renderWorkspacePage('service_workbench', {
             servicePage: { selectedService: service, isolated: true }
@@ -13,7 +18,8 @@ describe('selected company internal layouts', () => {
         expect(html).toContain('id="transferAmountLyd"');
         // Each isolated page must pass its service into the included form,
         // otherwise bank and international transfers silently use the cash layout.
-        if (service === 'bank_account') expect(html).toContain('<h3>بيانات التحويل</h3>');
+        if (service === 'bank_account') expect(html).toContain('id="transferBankMethod"');
+        expect(html).toContain('agent-cash-balance');
         if (service === 'bankak_sudan') expect(html).toContain('cm-bankak-amount');
         for (const id of ['transferDestination', 'transferBankMethod', 'transferSubtype', 'transferIdentityImage', 'transferSefaAcknowledgement']) {
             expect((html.match(new RegExp('id="' + id + '"', 'g')) || []).length).toBe(1);
@@ -63,7 +69,7 @@ describe('selected company internal layouts', () => {
         if (scope === 'staff') {
             expect(html).toContain('cm-performance-meter');
             expect(html).toContain('75%');
-            expect(html).not.toContain('id="liquidityChart"');
+            expect(html).toContain('agent-report-row');
         } else {
             expect(html).toContain('id="liquidityChart"');
         }
@@ -158,7 +164,7 @@ describe('canonical company portal pages', () => {
         expect(html).not.toContain('class="cm-wallet-amount"');
         expect(html).not.toContain('class="cm-stat deposit"');
         expect(html).not.toContain('href="/client/staff"');
-        expect(html).toContain('آخر عملياتي اليوم');
+        expect(html).not.toContain('آخر عملياتي اليوم');
         expect(html).toContain('href="/client/services/cash"');
     });
 
@@ -201,15 +207,15 @@ describe('canonical company portal pages', () => {
         expect(html).toContain('الرصيد');
     });
 
-    test('team page uses the selected table layout instead of company-os chrome', async () => {
+    test('team page uses compact searchable rows', async () => {
         const html = await renderWorkspacePage('staff', {
             staffSummary: { total: 3, active: 2, managers: 1, accountants: 1, monthOperations: 12 },
             staffFilters: { search: '', role: '', status: '' },
             staff: []
         });
-        expect(html).toContain('cp-page-hero');
-        expect(html).toContain('فريق الشركة');
-        expect(html).toContain('<table class="bw-table">');
+        expect(html).toContain('data-staff-search');
+        expect(html).toContain('الموظفون');
+        expect(html).not.toContain('<table class="bw-table">');
         expect(html).not.toContain('cos-ledger-office');
         expect(html).not.toContain('cos-ops-card');
     });
@@ -217,8 +223,9 @@ describe('canonical company portal pages', () => {
     test('filters mobile dock items by company role', async () => {
         const managerHtml = await renderWorkspacePage('services');
         expect(managerHtml).toContain('data-dock-key="services"');
-        expect(managerHtml).toContain('data-dock-key="reports"');
-        expect(managerHtml).toContain('data-dock-key="settings"');
+        expect(managerHtml).toContain('href="/client/reports"');
+        expect(managerHtml).toContain('id="agentMoreMenu"');
+        expect(managerHtml).toContain('href="/client/settings"');
         expect(managerHtml).toContain('fa-file-invoice');
         expect(managerHtml).not.toContain('data-dock-key="smart_transfer"');
 
@@ -238,7 +245,7 @@ describe('canonical company portal pages', () => {
             }
         });
         expect(accountantHtml).toContain('data-dock-key="finance"');
-        expect(accountantHtml).toContain('data-dock-key="reports"');
+        expect(accountantHtml).toContain('href="/client/reports"');
         expect(accountantHtml).not.toContain('data-dock-key="services"');
         expect(accountantHtml).not.toContain('data-dock-key="smart_transfer"');
     });
@@ -382,7 +389,7 @@ describe('canonical company portal pages', () => {
         expect(html).not.toContain('proofs/official.svg');
     });
 
-    test('company reports stay in the manager phone dock with labels and icons', async () => {
+    test('company reports remain accessible from the phone More menu', async () => {
         const html = await renderWorkspacePage('reports', {
             reportScope: 'organization',
             reportScopeLabel: 'كشف الحساب',
@@ -401,11 +408,12 @@ describe('canonical company portal pages', () => {
             centralAdminReportInput: { dateType: 'month', dateValue: '2026-09' },
             reportTransactions: []
         });
-        expect(html).toContain('data-dock-key="reports"');
+        expect(html).toContain('href="/client/reports"');
         expect(html).toContain('data-company-dock');
-        expect(html).toMatch(/data-dock-key="reports"[\s\S]*fa-file-invoice[\s\S]*التقارير/);
+        expect(html).toContain('id="agentMoreMenu"');
+        expect(html).toContain('fa-file-invoice');
         expect(html).toContain('كشف الحساب');
-        expect(html).toContain('إنشاء التقرير');
+        expect(html).toContain('تنزيل كشف الإدارة الشامل');
         expect(html).not.toContain('client-portal-2027.css');
     });
 

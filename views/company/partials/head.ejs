@@ -62,6 +62,10 @@
         <link rel="stylesheet" href="/css/client-portal-2027.css?v=20260920-cl-m2">
         <%- include('customer_portal_styles') %>
     <% } %>
+    <% for(const asset of ['transactions','home','support','mobile-menu','services','finance','customer-balances','reports','staff','customers']) { %><link rel="stylesheet" href="/css/company-mobile/<%= asset %>.css?v=20261027"><% } %>
+    <link rel="stylesheet" href="/css/company-mobile/layout.css?v=20261027">
+    <link rel="stylesheet" href="/css/company-mobile/report-email.css?v=20261027">
+    <link rel="stylesheet" href="/css/company-mobile/telegram-settings.css?v=20261027">
     <link rel="stylesheet" href="/css/rate-alert-overlay.css?v=20260816-3">
     <script src="/socket.io/socket.io.js"></script>
     <script src="/js/rate-alert-overlay.js?v=20260902-rate2" defer></script>

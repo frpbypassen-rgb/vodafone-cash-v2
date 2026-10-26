@@ -68,7 +68,7 @@ const buildNavigation = (workspace, activePage) => {
               {
                   key: 'finance',
                   href: '/client/finance',
-                  label: 'مكتب المحاسبة',
+                  label: 'السجل المالي',
                   icon: 'fa-scale-balanced',
                   group: 'الرقابة المالية',
                   visible: workspace.permissions.canViewBalance,
@@ -212,15 +212,16 @@ const buildNavigation = (workspace, activePage) => {
 };
 
 const COMPANY_MOBILE_KEYS = Object.freeze({
-    manager: ['services', 'transactions', 'reports', 'support', 'settings'],
-    accountant: ['finance', 'transactions', 'reports', 'support', 'settings'],
-    employee: ['services', 'smart_transfer', 'transactions', 'support', 'security'],
+    manager: ['overview', 'services', 'transactions', 'support'],
+    accountant: ['overview', 'finance', 'transactions', 'support'],
+    employee: ['services', 'smart_transfer', 'transactions', 'support'],
 });
 
 const COMPANY_MOBILE_LABELS = Object.freeze({
-    services: 'الخدمات',
-    smart_transfer: 'تحويل',
-    transactions: 'عمليات',
+    overview: 'الرئيسية',
+    services: 'تحويل',
+    smart_transfer: 'الذكي',
+    transactions: 'العمليات',
     support: 'الدعم',
     settings: 'الحساب',
     security: 'الحساب',

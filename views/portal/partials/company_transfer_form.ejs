@@ -7,7 +7,7 @@ const entryTitles = { vodafone: 'إرسال إلى محفظة كاش', bank_acco
 <form id="businessTransferForm" class="bw-form cm-reference-form" enctype="multipart/form-data" novalidate>
 <input type="hidden" name="type" id="transferType" value="كاش">
 <input type="hidden" name="number" id="transferAccountNumber" value="">
-<section class="cm-transfer-entry"><% if (!workspace.isAgent) { %><h3><%= entryTitles[serviceKey] || 'بيانات التحويل' %></h3><% } %>
+<section class="cm-transfer-entry"><% if (!workspace.isAgent && !workspace.isCompany) { %><h3><%= entryTitles[serviceKey] || 'بيانات التحويل' %></h3><% } %>
 <span id="selectedServiceTitle" class="cm-visually-hidden"><%= typeof isolatedService !== 'undefined' ? isolatedService.label : 'إنشاء تحويل' %></span>
         <div class="bw-form-grid">
             <label class="bw-field span-2" data-destination-field>
@@ -94,7 +94,7 @@ const entryTitles = { vodafone: 'إرسال إلى محفظة كاش', bank_acco
             <label class="bw-field span-2 cm-transfer-note">
                 <span>ملاحظة <em>اختياري</em></span>
                 <textarea name="notes" id="transferNotes" rows="2" maxlength="500" placeholder="مثال: تحويل مصاريف عائلية"></textarea>
-                <% if (!workspace.isAgent && hub.suggestedReasons.length) { %><span class="bw-reason-suggestions"><% hub.suggestedReasons.forEach(reason => { %><button type="button" data-transfer-reason="<%= reason %>"><%= reason %></button><% }) %></span><% } %>
+                <% if (!workspace.isAgent && !workspace.isCompany && hub.suggestedReasons.length) { %><span class="bw-reason-suggestions"><% hub.suggestedReasons.forEach(reason => { %><button type="button" data-transfer-reason="<%= reason %>"><%= reason %></button><% }) %></span><% } %>
             </label>
         </div>
 

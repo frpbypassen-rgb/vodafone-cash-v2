@@ -8,7 +8,7 @@
         <h2>بيانات <%= workspace.entityLabel %></h2>
         <p>التواصل والمدينة والسجل في هذه الصفحة. كلمة المرور والأجهزة في أمان الحساب.</p>
     </div>
-    <% if (!workspace.isAgent) { %>
+    <% if (!workspace.isAgent && !workspace.isCompany) { %>
     <div class="cp-page-hero-actions">
         <a href="<%= portalBasePath %>/security" class="bw-button ghost"><i class="fa-solid fa-shield-halved"></i>أمان الحساب</a>
     </div>
@@ -39,7 +39,7 @@
 <a href="#preferences"><i class="fa-solid fa-palette"></i><strong>المظهر</strong><span>الوضع النهاري والليلي</span></a>
 <a href="#notifications"><i class="fa-solid fa-bell"></i><strong>الإشعارات</strong><span>تفضيلات التنبيهات</span></a>
 <a href="#integrations"><i class="fa-solid fa-plug"></i><strong>التكاملات</strong><span>الربط مع أنظمة منشأتك</span></a>
-<% if (workspace.isAgent) { %><a href="<%= portalBasePath %>/security"><i class="fa-solid fa-shield-halved"></i><strong>أمان الحساب</strong><span>كلمة المرور والتحقق الثنائي</span></a><a href="#services"><i class="fa-solid fa-tags"></i><strong>أسعار الخدمات</strong><span>الأسعار الفعالة لحساب الوكيل</span></a><% } %>
+<% if (workspace.isAgent || workspace.isCompany) { %><a href="<%= portalBasePath %>/security"><i class="fa-solid fa-shield-halved"></i><strong>أمان الحساب</strong><span>كلمة المرور والتحقق الثنائي</span></a><a href="#services"><i class="fa-solid fa-tags"></i><strong>أسعار الخدمات</strong><span>الأسعار الفعالة لحساب <%= workspace.isCompany ? 'الشركة' : 'الوكيل' %></span></a><% } %>
 </nav><button type="button" class="bw-button ghost cm-settings-back" data-settings-back hidden><i class="fa-solid fa-arrow-right"></i> جميع الإعدادات</button><% } %>
 <div class="bw-settings-stack">
     <section class="bw-settings-panel active" id="identity">
@@ -72,12 +72,12 @@
     <section class="bw-settings-panel" id="notifications">
         <header class="bw-settings-panel-head"><span class="bw-settings-panel-icon tone-gold"><i class="fa-solid fa-bell"></i></span><div><span>الإشعارات</span><h2>تنبيهات هذا الجهاز</h2><p>اختر القنوات التي تريد استخدامها للتنبيهات التشغيلية.</p></div></header>
         <div class="bw-notification-choices">
-            <label><span><i class="fa-solid fa-mobile-screen"></i><b><%= workspace.isAgent ? 'إشعارات ويب' : 'Push' %></b><small>العمليات وتغير الأسعار</small></span><input type="checkbox" data-notification-preference="push" checked></label>
-            <% if (workspace.isAgent) { %><div class="agent-push-test" data-agent-push-test-controls hidden><button type="button" class="bw-button ghost compact" data-agent-push-test><i class="fa-solid fa-bell" aria-hidden="true"></i>اختبار الإشعارات</button><span data-agent-push-test-status role="status" aria-live="polite"></span></div><% } %>
-            <% if (!workspace.isAgent) { %>
+            <label><span><i class="fa-solid fa-mobile-screen"></i><b><%= 'إشعارات ويب' %></b><small>العمليات وتغير الأسعار</small></span><input type="checkbox" data-notification-preference="push" checked></label>
+            <% if (workspace.isAgent || workspace.isCompany) { %><div class="agent-push-test" data-agent-push-test-controls hidden><button type="button" class="bw-button ghost compact" data-agent-push-test><i class="fa-solid fa-bell" aria-hidden="true"></i>اختبار الإشعارات</button><span data-agent-push-test-status role="status" aria-live="polite"></span></div><% } %>
+            <% if (!workspace.isAgent && !workspace.isCompany) { %>
             <label><span><i class="fa-solid fa-envelope"></i><b>البريد الإلكتروني</b><small>التقارير والتنبيهات المهمة</small></span><input type="checkbox" data-notification-preference="email"></label>
             <% } %>
-            <% if (!workspace.isAgent) { %>
+            <% if (!workspace.isAgent && !workspace.isCompany) { %>
             <label><span><i class="fa-solid fa-comment-sms"></i><b>SMS</b><small>تنبيهات الأمان فقط</small></span><input type="checkbox" data-notification-preference="sms"></label>
             <% } %>
         </div>
@@ -90,8 +90,9 @@
         <% } else { %>
         <p class="bw-muted">كشف الإدارة الشامل بالبريد متاح للحسابات التي تملك صلاحية الاطلاع على حساب الوكالة بالكامل.</p>
         <% } %>
-        <% } else { %>
-        <div class="bw-setting-note"><i class="fa-solid fa-circle-info"></i><span><strong>تفضيلات الجهاز</strong><small>تُحفظ محلياً حالياً، بينما تظل التنبيهات الأمنية الحرجة فعالة دائماً.</small></span></div>
+        <% } else if(workspace.isCompany) { %>
+        <% if(workspace.permissions.canEditSettings) { %><%- include('../../company/partials/telegram_settings') %><% } %>
+        <% if(workspace.permissions.canViewReports && workspace.permissions.canViewBalance && (!workspace.permissions.employee || workspace.permissions.canViewAllReports)) { %><%- include('../../company/partials/report_email_settings') %><% } %>
         <% } %>
     </section>
 
@@ -116,10 +117,8 @@
     </section>
     <% } %>
 
-    <% if (!workspace.isCompany) { %>
     <section class="bw-settings-panel" id="services">
         <header class="bw-settings-panel-head"><span class="bw-settings-panel-icon tone-gold"><i class="fa-solid fa-tags"></i></span><div><span>الخدمات والأسعار</span><h2>الأسعار الفعالة لحسابك</h2><p>يتم تحديدها مركزياً بحسب باقة الحساب وصلاحياته.</p></div></header>
         <div class="bw-rate-list"><% serviceCatalog.forEach(service => { %><div class="bw-rate-row"><span class="bw-service-icon tone-<%= service.tone %>"><i class="fa-solid <%= service.icon %>"></i></span><div><strong><%= service.label %></strong><small><%= service.description %></small></div><strong class="bw-mono"><%= Number(service.rate).toFixed(2) %></strong></div><% }) %></div>
     </section>
-    <% } %>
 </div>

@@ -458,14 +458,15 @@ router.get('/security/sessions', requireWebMfaContext, async (req, res) => {
     const principal = webSecurityPrincipal(req);
     const isAgent = req.webMfaContext.accountType === 'agent_staff'
         || (req.webMfaContext.accountType === 'client_user' && req.webMfaContext.account.role === 'agent');
+    const isCompany = req.webMfaContext.accountType === 'client_company';
     const returnUrl = req.session.isExecutorLoggedIn
         ? '/executor-portal/settings'
-        : (isAgent ? '/agent-portal/security' : '/client/settings?section=security');
+        : (isAgent ? '/agent-portal/security' : isCompany ? '/client/security' : '/client/settings?section=security');
     return res.render('account_security_sessions', {
         principalName: principal?.principalName || 'الحساب',
         returnUrl,
-        returnLabel: isAgent ? 'أمان الحساب' : 'رجوع للحساب',
-        isAgentSessions:isAgent
+        returnLabel: isAgent || isCompany ? 'أمان الحساب' : 'رجوع للحساب',
+        isAgentSessions:isAgent || isCompany
     });
 });
 

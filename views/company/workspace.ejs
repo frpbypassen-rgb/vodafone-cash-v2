@@ -25,7 +25,7 @@ const businessTheme = workspace.isAgent && typeof clientTheme !== 'undefined' &&
 
     <div class="bw-frame">
         <%- include(modernBusiness ? '../portal/partials/company_modern_header' : '../portal/partials/workspace_topbar') %>
-        <main class="bw-main cp-main" id="mainContent">
+        <main class="bw-main cp-main" id="mainContent"<% if(page==='transactions') { %> data-agent-transactions<% } %>><% if(page==='finance') { %><h1 class="company-mobile-title">السجل المالي</h1><% } %>
             <% if (!modernBusiness || (workspace.isAgent && ['customers', 'customer_profile', 'agency_balances', 'agency_debts', 'agency_account', 'agency_position', 'agency_profits', 'finance'].includes(page))) { %>
             <header class="bw-page-header">
                 <div>
@@ -64,7 +64,7 @@ const businessTheme = workspace.isAgent && typeof clientTheme !== 'undefined' &&
                 <%- include('../portal/pages/workspace_overview') %>
                 <% if (modernBusiness) { %></details><% } %>
             <% } else if (page === 'services' && modernBusiness) { %>
-                <%- include('../portal/partials/company_modern_home') %>
+                <%- include('partials/transfer_services') %>
             <% } else if (page === 'services') { %>
                 <%- include('../portal/pages/workspace_services') %>
             <% } else if (page === 'service_workbench') { %>
@@ -78,7 +78,7 @@ const businessTheme = workspace.isAgent && typeof clientTheme !== 'undefined' &&
             <% } else if (page === 'transactions') { %>
                 <%- include('../portal/pages/workspace_transactions') %>
             <% } else if (page === 'finance') { %>
-                <%- include('../portal/pages/workspace_finance') %>
+                <%- include('partials/financial_ledger') %>
             <% } else if (['agency_balances', 'agency_debts', 'agency_account', 'agency_position', 'agency_profits'].includes(page)) { %>
                 <%- include('../portal/pages/workspace_agency_finance') %>
             <% } else if (page === 'customers') { %>
@@ -88,7 +88,7 @@ const businessTheme = workspace.isAgent && typeof clientTheme !== 'undefined' &&
             <% } else if (page === 'staff') { %>
                 <%- include('../portal/pages/workspace_staff') %>
             <% } else if (page === 'reports') { %>
-                <%- include('../portal/pages/workspace_reports') %>
+                <%- include('partials/reports') %>
             <% } else if (page === 'settings') { %>
                 <%- include('../portal/pages/workspace_settings') %>
             <% } else if (page === 'security') { %>
@@ -121,7 +121,7 @@ const businessTheme = workspace.isAgent && typeof clientTheme !== 'undefined' &&
     <dialog class="bw-receipt-lightbox" id="receiptLightbox" aria-label="صورة الإثبات">
         <button type="button" class="bw-receipt-lightbox-close" data-lightbox-close aria-label="إغلاق"><i class="fa-solid fa-xmark"></i></button>
         <img id="receiptLightboxImage" alt="صورة الإثبات">
-        <p class="bw-receipt-lightbox-caption" id="receiptLightboxCaption">صورة الإثبات</p>
+        <p class="bw-receipt-lightbox-caption" id="receiptLightboxCaption">صورة الإثبات</p><div class="agent-lightbox-actions"><button type="button" class="bw-button agent-share-button" id="agentLightboxShare" data-agent-share-receipt>مشاركة الصورة</button><p class="agent-share-status" role="status" hidden></p></div>
     </dialog>
 
     <dialog class="bw-dialog bw-assistant-dialog" id="businessAssistantDialog" aria-label="المساعد الذكي">
@@ -313,5 +313,12 @@ const businessTheme = workspace.isAgent && typeof clientTheme !== 'undefined' &&
     <% } else { %>
     <script src="/js/client-portal.js?v=20260920-cl-m2" defer></script>
     <% } %>
+<script src="/js/company-mobile/mobile-menu.js?v=20261027" defer></script>
+    <% if(page==='finance') { %><script src="/js/company-mobile/finance.js?v=20261027" defer></script><% } %>
+    <% if(page==='reports') { %><script src="/js/company-mobile/reports.js?v=20261027" defer></script><% } %>
+    <% if(page==='staff') { %><script src="/js/company-mobile/staff.js?v=20261027" defer></script><script src="/js/company-mobile/create-customer.js?v=20261027" defer></script><script src="/js/company-mobile/staff-permissions.js?v=20261027" defer></script><% } %>
+    <script src="/js/company-mobile/push-test.js?v=20261027" defer></script>
+    <% if(page==='settings') { %><script src="/js/company-mobile/report-email.js?v=20261027" defer></script><script src="/js/company-mobile/telegram-settings.js?v=20261027" defer></script><% } %>
+<script type="module" src="/js/company-mobile/receipt-share.js?v=20261027"></script>
 </body>
 </html>

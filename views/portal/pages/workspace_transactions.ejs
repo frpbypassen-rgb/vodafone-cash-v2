@@ -50,8 +50,8 @@
         <span class="bw-meta-chip"><%= total %> نتيجة</span>
     </header>
     <% const showCost = workspace.permissions.canViewBalance; %>
-    <% if (workspace.isAgent) { %><%- include('../../agent/partials/daily_transactions') %><% } %>
-    <div class="bw-table-wrap<%= workspace.isAgent ? ' agent-desktop-transactions' : '' %>">
+    <% if (workspace.isAgent) { %><%- include('../../agent/partials/daily_transactions') %><% } else if(workspace.isCompany) { %><%- include('../../company/partials/daily_transactions') %><% } %>
+    <div class="bw-table-wrap<%= workspace.isAgent || workspace.isCompany ? ' agent-desktop-transactions' : '' %>">
         <table class="bw-table bw-transactions-table">
             <thead><tr><th>العملية</th><th>الخدمة والمستلم</th><th>العميل / الموظف</th><th>المبلغ</th><% if (showCost) { %><th>التكلفة</th><% } %><th>الحالة</th><th>التاريخ</th><th></th></tr></thead>
             <tbody>

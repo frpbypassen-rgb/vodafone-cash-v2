@@ -70,10 +70,11 @@ test('staff cards hide costs and pending operations have no share button', async
     expect(card).toContain('بانتظار صورة العملية');
 });
 
-test('company page does not acquire agency cards, styles or share entrypoint', async () => {
+test('company page uses its own mobile cards and share assets while retaining date filters', async () => {
     const html = await renderWorkspacePage('transactions', { transactions: [transaction], total: 1 });
-    expect(html).not.toContain('data-agent-daily-list');
-    expect(html).not.toContain('data-agent-share-receipt');
+    expect(html).toContain('data-agent-daily-list');
+    expect(html).toContain('data-agent-share-receipt');
+    expect(html).toContain('/js/company-mobile/receipt-share.js');
     expect(html).not.toContain('/css/agent-portal/');
     expect(html).toContain('name="from"');
 });

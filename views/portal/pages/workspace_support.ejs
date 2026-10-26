@@ -10,7 +10,7 @@
         <% if (workspace.permissions.canRequestDeposit) { %>
             <a href="<%= portalBasePath %>/company/deposits" class="bw-button ghost"><i class="fa-solid fa-building-columns"></i><%= workspace.permissions.manager ? 'طلب إيداع' : 'متابعة الإيداع' %></a>
         <% } %>
-        <% if (!workspace.isAgent) { %>
+        <% if (!workspace.isAgent && !workspace.isCompany) { %>
             <a href="<%= portalBasePath %>/transactions" class="bw-button ghost"><i class="fa-solid fa-list-check"></i><%= workspace.forceToday ? 'عمليات اليوم' : 'غرفة العمليات' %></a>
         <% } %>
     </div>

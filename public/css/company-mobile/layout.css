@@ -1,0 +1,29 @@
+html[data-portal="company"] .company-mobile-title { font-size: 20px; margin: 0 0 14px; }
+html[data-portal="company"] .company-report-receipt { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--cp-line); padding: 10px 0; font-size: 12px; }
+@media (max-width: 960px) {
+    html[data-portal="company"] .bw-mobile-dock { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+    html[data-portal="company"] .bw-main { min-width: 0; }
+    html[data-portal="company"] .cm-service-hero .cm-breadcrumb,
+    html[data-portal="company"] .cm-service-hero > .cp-page-hero-actions { display: none; }
+    html[data-portal="company"] .cm-settings-summary { display: none; }
+    html[data-portal="company"] .bw-settings-panel { padding: 16px; }
+    html[data-portal="company"] .bw-settings-panel-head { margin-bottom: 16px; }
+    html[data-portal="company"] .bw-settings-panel-head h2 { font-size: 18px; }
+    html[data-portal="company"] .bw-settings-panel-head p { font-size: 12px; }
+    html[data-portal="company"] .bw-settings-panel-head > span { width: 42px; height: 42px; }
+    html[data-portal="company"] .cp-page-hero { padding: 12px 0; margin-bottom: 12px; }
+    html[data-portal="company"] .cp-page-hero h2 { font-size: 21px; }
+    html[data-portal="company"] .cp-page-hero > div > p { display: none; }
+    html[data-portal="company"] .bw-setting-note { display: none; }
+}
+@media (max-width: 600px) {
+    html[data-portal="company"] body[data-page="overview"] .cm-transaction { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 7px 10px; padding: 12px 0; min-height: 0; }
+    html[data-portal="company"] body[data-page="overview"] .cm-transaction-person { min-width: 0; }
+    html[data-portal="company"] body[data-page="overview"] .cm-transaction-person strong { font-size: 13px; }
+    html[data-portal="company"] body[data-page="overview"] .cm-transaction-person small { font-size: 10px; }
+    html[data-portal="company"] body[data-page="overview"] .cm-transaction > time { font-size: 10px; grid-column: 1; grid-row: 2; }
+    html[data-portal="company"] body[data-page="overview"] .cm-transaction > time small { display: inline; margin-inline-start: 6px; }
+    html[data-portal="company"] body[data-page="overview"] .cm-transaction-amount { grid-column: 2; grid-row: 1; font-size: 15px; }
+    html[data-portal="company"] body[data-page="overview"] .cm-transaction > .bw-status { grid-column: 2; grid-row: 2; justify-self: end; }
+    html[data-portal="company"] body[data-page="overview"] .cm-transaction > .bw-icon-button { grid-column: 1 / -1; width: 100%; height: 32px; min-height: 32px; }
+}

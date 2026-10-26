@@ -57,7 +57,7 @@ const renderReceiptGallery = (transaction) => {
                                     <strong>${label}</strong>
                                     <span class="bw-receipt-actions">
                                         <button type="button" class="bw-icon-button compact" data-receipt-lightbox data-receipt-url="${url}" data-receipt-label="${label}" title="تكبير الصورة" aria-label="تكبير ${label}"><i class="fa-solid fa-expand"></i></button>
-                                        ${config.workspaceType === 'agent' ? `<button type="button" class="bw-button agent-share-button" data-agent-share-receipt data-receipt-url="${url}" data-receipt-name="${escapeHtml(transaction.customId || 'operation')}"><i class="fa-brands fa-whatsapp"></i>مشاركة الصورة</button>` : ''}
+                                        ${['agent','company'].includes(config.workspaceType) ? `<button type="button" class="bw-button agent-share-button" data-agent-share-receipt data-receipt-url="${url}" data-receipt-name="${escapeHtml(transaction.customId || 'operation')}"><i class="fa-brands fa-whatsapp"></i>مشاركة الصورة</button>` : ''}
                                         <a href="${url}" download="proof-${escapeHtml(transaction.customId || index + 1)}-${index + 1}" class="bw-icon-button compact receipt" title="تحميل الصورة" aria-label="تحميل ${label}"><i class="fa-solid fa-download"></i></a>
                                     </span>
                                 </figcaption>

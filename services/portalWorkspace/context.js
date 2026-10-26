@@ -42,7 +42,7 @@ const buildBaseContext = async (req, page, workspace) => {
             Object.assign(pageMeta, { title: 'تقارير اليوم', eyebrow: 'ملخص اليوم الحالي' });
     }
     if (workspace.isCompany && page === 'finance' && workspace.persona === 'accountant') {
-        Object.assign(pageMeta, { title: 'مكتب المحاسبة', eyebrow: 'رصيد وكشوف بلا تنفيذ' });
+        Object.assign(pageMeta, { title: 'السجل المالي', eyebrow: 'تتبّع الحركات المالية' });
     }
     if (workspace.isCompany && page === 'deposits' && !workspace.permissions.manager) {
         Object.assign(pageMeta, { title: 'متابعة الإيداع', eyebrow: 'تمويل بانتظار الاعتماد' });

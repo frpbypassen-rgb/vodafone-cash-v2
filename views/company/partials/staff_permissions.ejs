@@ -1,0 +1,17 @@
+<% const permissionOptions = [
+    {key:'canCreateTransfer', label:'تنفيذ التحويلات'},
+    {key:'canViewAllReports', label:'عرض جميع العمليات والتقارير'},
+    {key:'canManageCompanyProfile', label:'تعديل بيانات الشركة'},
+    {key:'canManageCompany', label:'مدير تشغيل', hint:'متابعة الفريق والرصيد دون إنشاء حسابات الموظفين.'}
+]; %>
+<details class="agent-create-financial agent-permission-panel" data-permission-panel data-role="<%= permissionRole %>" <%= permissionEdit ? 'open' : '' %>>
+    <summary>صلاحيات الموظف</summary><div>
+    <label class="agent-create-field"><span>نوع الصلاحيات</span><select name="permissionsMode" data-permission-mode><option value="basic">أساسية حسب الدور</option><option value="custom" <%= permissionEdit ? 'selected' : '' %>>تخصيص الصلاحيات</option></select></label>
+    <div data-permission-options <%= permissionEdit ? '' : 'hidden' %>>
+        <% permissionOptions.forEach(option => { const value = permissionValues ? permissionValues[option.key] === true : option.key === 'canCreateTransfer'; %>
+        <label class="agent-create-manager agent-permission-option"><input type="checkbox" name="permission_<%= option.key %>" data-permission-key="<%= option.key %>" data-permission-label="<%= option.label %>" data-grantable="true" <%= value ? 'checked' : '' %>><span><strong><%= option.label %></strong><% if(option.hint) { %><small><%= option.hint %></small><% } %></span></label>
+        <% }) %>
+    </div>
+    <p class="agent-create-description" data-permission-summary aria-live="polite"></p>
+    </div>
+</details>

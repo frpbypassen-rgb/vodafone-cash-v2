@@ -208,7 +208,7 @@ describe('Business portal service', () => {
             }
         }, 'services');
         const dock = buildCompanyMobileNav({ persona: 'manager', isCompany: true }, managerNav);
-        expect(dock.map((item) => item.key)).toEqual(['services', 'transactions', 'reports', 'support', 'settings']);
+        expect(dock.map((item) => item.key)).toEqual(['overview', 'services', 'transactions', 'support']);
         expect(dock.every((item) => item.dockLabel)).toBe(true);
 
         const employeeNav = buildNavigation({
@@ -224,7 +224,7 @@ describe('Business portal service', () => {
             }
         }, 'services');
         expect(buildCompanyMobileNav({ persona: 'employee' }, employeeNav).map((item) => item.key))
-            .toEqual(['services', 'smart_transfer', 'transactions', 'support', 'security']);
+            .toEqual(['services', 'smart_transfer', 'transactions', 'support']);
     });
 
     test('resolves company service workbenches by key or slug', () => {
