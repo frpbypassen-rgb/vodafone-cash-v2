@@ -1,0 +1,63 @@
+/* Compact agency home, scoped to phones so desktop and other pages keep their layout. */
+@media (max-width: 600px) {
+    html[data-portal="agent"] body[data-page="overview"] {
+        .bw-main { padding: 16px 12px 100px; }
+        .cm-greeting { margin-bottom: 12px; gap: 8px; }
+        .cm-greeting > div { min-width: 0; }
+        .cm-greeting h1 { font-size: 20px; overflow-wrap: anywhere; }
+        .cm-greeting p { font-size: 12px; line-height: 1.6; }
+
+        .cm-smart-entry {
+            display: grid;
+            grid-template-columns: 36px minmax(0, 1fr);
+            align-items: center;
+            gap: 8px 10px;
+            margin-bottom: 12px;
+            padding: 12px;
+            border-radius: 14px;
+        }
+        .cm-smart-entry-icon { width: 36px; height: 36px; border-radius: 10px; font-size: 18px; }
+        .cm-smart-entry-copy { gap: 2px; }
+        .cm-smart-kicker { font-size: 11px; }
+        .cm-smart-entry-copy strong { font-size: 15px; line-height: 1.5; }
+        .cm-smart-entry-copy > span:last-child { display: none; }
+        .cm-smart-entry-action {
+            grid-column: 1 / -1;
+            min-height: 44px;
+            padding: 8px 12px;
+            gap: 8px;
+            border-radius: 9px;
+            font-size: 12px;
+        }
+
+        .cm-agent-shortcuts { margin: 12px 0; gap: 8px; }
+        .cm-agent-shortcuts a { min-width: 0; min-height: 48px; padding: 10px; font-size: 12px; }
+        .cm-agent-shortcuts a span { overflow-wrap: anywhere; }
+        .cm-agent-shortcuts a i { flex-shrink: 0; }
+        .cm-home-grid { gap: 12px; margin-bottom: 12px; }
+        .cm-wallet { min-height: 0; padding: 14px 16px; border-radius: 14px; }
+        .cm-wallet-amount { font-size: 30px; overflow-wrap: anywhere; }
+        .cm-wallet-amount small { font-size: 14px; }
+        .cm-wallet p { margin: 4px 0 12px; }
+        .cm-wallet-actions { gap: 8px; }
+        .cm-wallet-actions a { min-width: 0; padding: 8px; font-size: 12px; }
+        .cm-stats { margin-top: 8px; gap: 6px; }
+        .cm-stat { padding: 10px 6px; }
+        .cm-stat > i { width: 26px; height: 26px; margin-bottom: 6px; font-size: 13px; }
+        .cm-stat > strong { font-size: 15px; }
+
+        .cm-services, .cm-recent { padding: 12px; border-radius: 14px; }
+        .cm-section-head { flex-wrap: wrap; gap: 6px; }
+        .cm-section-head h2 { font-size: 15px; }
+        .cm-section-head a { font-size: 11px; }
+        .cm-service-grid { gap: 8px; }
+        .cm-service { min-height: 124px; padding: 12px 8px; gap: 6px; }
+        .cm-service-icon { width: 32px; height: 32px; font-size: 20px; }
+        .cm-service small { font-size: 11px; line-height: 1.6; }
+        .cm-recent-tools form { min-width: 0; }
+        .cm-recent-tools > div { display: flex; flex-wrap: wrap; }
+        .cm-recent-tools a { min-height: 44px; padding: 8px; }
+        .cm-empty { padding: 22px 10px; }
+        .cm-analytics { display: none; }
+    }
+}

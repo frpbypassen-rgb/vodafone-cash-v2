@@ -1,0 +1,72 @@
+html[data-portal="agent"] body[data-page="support"] .bw-support-chat {
+    height: clamp(680px, 80dvh, 900px);
+    min-height: 0;
+}
+html[data-portal="agent"] body[data-page="support"] .bw-chat-messages {
+    min-height: 0;
+    max-height: none;
+    overflow-y: auto;
+    overscroll-behavior-y: contain;
+    padding: 20px;
+    border: 0;
+    border-radius: 0;
+}
+html[data-portal="agent"] body[data-page="support"] .bw-support-chat > .bw-section-head,
+html[data-portal="agent"] body[data-page="support"] .bw-chat-composer {
+    flex-shrink: 0;
+}
+html[data-portal="agent"] body[data-page="support"] .bw-chat-input {
+    min-width: 0;
+}
+html[data-portal="agent"] body[data-page="support"] .bw-chat-input textarea {
+    display: block;
+    min-height: 96px;
+    max-height: 160px;
+    padding: 12px;
+    font-size: 16px;
+    line-height: 1.7;
+}
+html[data-portal="agent"] body[data-page="support"] .bw-chat-message p {
+    font-size: 15px;
+    line-height: 1.8;
+    overflow-wrap: anywhere;
+}
+@media (max-width: 760px) {
+    html[data-portal="agent"] body[data-page="support"] .bw-main {
+        padding-inline: 12px;
+    }
+    html[data-portal="agent"] body[data-page="support"] .bw-support-chat {
+        height: clamp(440px, calc(100dvh - 200px), 800px);
+        border-radius: 16px;
+    }
+    html[data-portal="agent"] body[data-page="support"] .bw-support-chat > .bw-section-head {
+        padding: 14px 16px;
+    }
+    html[data-portal="agent"] body[data-page="support"] .bw-chat-messages {
+        padding: 16px 12px;
+    }
+    html[data-portal="agent"] body[data-page="support"] .bw-chat-composer {
+        grid-template-columns: minmax(0, 1fr) 44px 56px;
+        align-items: end;
+        gap: 6px;
+        padding: 12px;
+    }
+    html[data-portal="agent"] body[data-page="support"] .bw-chat-input textarea {
+        min-height: 88px;
+        max-height: 144px;
+    }
+    html[data-portal="agent"] body[data-page="support"] .bw-chat-composer .bw-button {
+        grid-column: auto;
+        width: 56px;
+        min-width: 0;
+        min-height: 48px;
+        padding: 6px;
+        flex-direction: column;
+        gap: 2px;
+        font-size: 12px;
+    }
+    html[data-portal="agent"] body[data-page="support"] .bw-chat-composer > .bw-icon-button {
+        width: 44px;
+        min-height: 48px;
+    }
+}
