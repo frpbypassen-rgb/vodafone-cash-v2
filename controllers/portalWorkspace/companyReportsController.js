@@ -37,9 +37,9 @@ exports.downloadCentralCompanyReportPdf = async (req, res) => {
         return res.end(pdf);
     } catch (error) {
         console.error('[Business Portal] central company PDF failed:', error.message);
-        const status = error.code === 'PDF_BROWSER_NOT_FOUND' ? 503 : 500;
+        const status = error.message === 'INVALID_REPORT_DATE' ? 400 : error.code === 'PDF_BROWSER_NOT_FOUND' ? 503 : 500;
         return res
             .status(status)
-            .send(status === 503 ? 'تعذر تشغيل مولد PDF المركزي حالياً.' : 'تعذر إعداد التقرير المركزي.');
+            .send(status === 400 ? 'الفترة المحددة غير صحيحة.' : status === 503 ? 'تعذر تشغيل مولد PDF المركزي حالياً.' : 'تعذر إعداد التقرير المركزي.');
     }
 };

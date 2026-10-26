@@ -20,6 +20,7 @@ exports.renderPage = (page) => async (req, res, next) => {
         return res.render('company/workspace', context);
     } catch (error) {
         if (error.message === 'NOT_BUSINESS_PORTAL' && typeof next === 'function') return next();
+        if (error.message === 'INVALID_REPORT_DATE') return res.status(400).send('الفترة المحددة غير صحيحة. ارجع واختر تاريخًا صالحًا.');
         if (error.message === 'FORBIDDEN_PAGE') {
             return businessPortalService.redirectForbiddenPage(req, res);
         }

@@ -6,7 +6,8 @@ const agencyFinanceService = require('../agencyFinanceService');
 const { pricingFromTransaction, roundMoney } = require('../../utils/agencyPricing');
 const { buildArtifact: buildCentralReportArtifact } = require('../centralReportService');
 const { findReportTransactions, getUnifiedReportStatus } = require('../unifiedReportService');
-const { loadAdminReport } = require('../adminReportService');
+const { loadAdminReport, getDateRange } = require('../adminReportService');
+const { systemDateKey, systemDayStart } = require('../../config/systemTime');
 const { presentClientPortalTransaction } = require('../clientReceiptService');
 const { formatInputDate, safeNumber } = require('./primitives');
 const { SERVICE_CATALOG, REPORT_SCOPES, COMPANY_REPORT_SCOPES } = require('./catalog');
@@ -101,11 +102,11 @@ const centralCompanyReportInput = (workspace, query = {}) => {
         error.statusCode = 403;
         throw error;
     }
-    const requestedType = String(query.centralDateType || query.dateType || '').toLowerCase();
+    const requestedType = String(query.centralDateType || query.dateType || (query.from && query.to ? 'range' : '')).toLowerCase();
     const quickPeriod = String(query.period || '').toLowerCase();
     const now = new Date();
     if (quickPeriod === 'today') {
-        const today = formatInputDate(now);
+        const today = systemDateKey(now);
         return {
             mainCategory: 'company',
             subId: String(workspace.entity._id),
@@ -117,8 +118,8 @@ const centralCompanyReportInput = (workspace, query = {}) => {
         };
     }
     if (quickPeriod === 'week') {
-        const start = formatInputDate(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6));
-        const end = formatInputDate(now);
+        const end = systemDateKey(now);
+        const start = systemDateKey(new Date(systemDayStart(end).getTime() - 6 * 86400000));
         return {
             mainCategory: 'company',
             subId: String(workspace.entity._id),
@@ -130,7 +131,7 @@ const centralCompanyReportInput = (workspace, query = {}) => {
         };
     }
     const dateType = requestedType === 'day' ? 'day' : 'month';
-    const today = new Date().toISOString().slice(0, 10);
+    const today = systemDateKey(now);
     const dateFrom = String(query.centralFrom || query.from || '');
     const dateTo = String(query.centralTo || query.to || '');
     const resolvedType = requestedType === 'range' ? 'range' : dateType;
@@ -144,6 +145,7 @@ const centralCompanyReportInput = (workspace, query = {}) => {
                       query.month ||
                       today.slice(0, 7)
               );
+    getDateRange(resolvedType, dateValue, dateFrom, dateTo);
     return {
         mainCategory: 'company',
         subId: String(workspace.entity._id),
@@ -157,7 +159,8 @@ const centralCompanyReportInput = (workspace, query = {}) => {
 
 const loadCentralCompanyReport = async (workspace, query = {}) => {
     const input = centralCompanyReportInput(workspace, query);
-    return { input, report: await loadAdminReport(input) };
+    input.tenantId = workspace.entity.tenantId || null;
+    return { input, report: await loadAdminReport(input, { readOnly: true }) };
 };
 
 const loadReports = async (workspace, query = {}) => {
