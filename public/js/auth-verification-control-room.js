@@ -29,13 +29,21 @@
                 input.value = slots.map((slot) => slot.value.replace(/\D/g, '').slice(0, 1)).join('');
             };
 
-            const beginVerification = (event) => {
+            const beginVerification = async (event) => {
                 if (event) event.preventDefault();
                 if (form.dataset.authSubmitting === 'true') return;
                 syncSlots();
                 if (input.value.replace(/\D/g, '').length !== 6) return;
                 form.dataset.authSubmitting = 'true';
                 button.disabled = true;
+                const original=button.innerHTML;
+                if(window.loginLocation?.required && !await window.loginLocation.ensure()){
+                    form.dataset.authSubmitting='false';button.disabled=false;button.innerHTML=original;
+                    button.style.display='block';
+                    setProgress(0,'أعد تحديد الموقع ثم حاول مجددًا',0);
+                    document.getElementById('locationRetryButton')?.focus();
+                    return;
+                }
                 button.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin ms-1"></i> جارٍ التحقق...';
                 setProgress(18, 'استلام الرمز', 0);
                 window.setTimeout(() => setProgress(48, 'فحص الصيغة', 1), 150);

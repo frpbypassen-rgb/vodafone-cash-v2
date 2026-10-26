@@ -118,7 +118,8 @@ const renderLogin = (res, error = null, data = {}) => {
         adminPortal: req?.query?.portal === 'admin' || req?.body?.portal === 'admin',
         passwordResetEmailEnabled: isPasswordResetEmailEnabled(),
         passwordResetSupportPhone: getBrandContact().phoneDisplay,
-        passwordResetSupportEmail: getBrandContact().supportEmail
+        passwordResetSupportEmail: getBrandContact().supportEmail,
+        locationRequired: req?.loginLocationRequired ?? (isSecurityVerificationRequired() && !getEmergencyClientOtpBypassState().active)
     });
 };
 
@@ -1179,6 +1180,15 @@ router.post('/security/passkey-login/verify', async (req, res) => {
         console.error('[Unified Login] passkey verification failed:', error.message);
         return res.status(422).json({ success: false, error: 'تعذر التحقق من مفتاح المرور.' });
     }
+});
+
+router.use('/login',async(req,_res,next)=>{
+    req.loginLocationRequired=isSecurityVerificationRequired() && !getEmergencyClientOtpBypassState().active;
+    if(req.loginLocationRequired){
+        try{req.loginLocationRequired=(await securityControl.getState()).locationRequired !== false;}
+        catch(_error){ /* The frontend must retain the required-location guard if policy cannot be loaded. */ }
+    }
+    next();
 });
 
 router.get('/login', async (req, res) => {

@@ -7,8 +7,12 @@ describe('Login geolocation must not block the UI', () => {
     const unified = fs.readFileSync(path.join(__dirname, '..', 'views', 'unified_login.ejs'), 'utf8');
     const executor = fs.readFileSync(path.join(__dirname, '..', 'views', 'executor', 'login.ejs'), 'utf8');
 
+    test('unified login uses the policy-aware location controller',()=>{
+        expect(unified).toContain('data-location-required');
+        expect(unified).toContain('/js/login-location.js');
+        expect(unified).toContain('locationRetryButton');
+    });
     test.each([
-        ['unified login', unified],
         ['executor login', executor]
     ])('%s uses a short GPS wait and a cached position', (_label, source) => {
         expect(source).toMatch(/LOCATION_WAIT_MS\s*=\s*3500/);
