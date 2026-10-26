@@ -23,7 +23,7 @@ async function downloadReport(url) {
 async function main() {
     if (!/^http:\/\/127\.0\.0\.1:\d+$/.test(base)) throw new Error('Only a local demo is supported.');
     if (!process.env.COMPANY_DEMO_PASSWORD) throw new Error('COMPANY_DEMO_PASSWORD is required.');
-    const output = path.resolve(process.argv[2] || 'outputs/company-mobile-browser');
+    const output = path.resolve(process.argv.slice(2).find(arg=>!arg.startsWith('--')) || 'outputs/company-mobile-browser');
     fs.mkdirSync(output, { recursive: true });
     const browser = await (await loadPuppeteer()).launch({ headless: true, executablePath: process.env.PUPPETEER_EXECUTABLE_PATH });
     try {
