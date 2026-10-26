@@ -1,0 +1,24 @@
+<%
+const transferBasePath = locals.portalBasePath || '/agent-portal';
+const transferServices = [
+    ...serviceCatalog.filter(service => ['vodafone', 'bank_account'].includes(service.key)),
+    ...serviceCatalog.filter(service => !['vodafone', 'bank_account'].includes(service.key))
+];
+%>
+<% if (workspace.permissions.canTransfer) { %>
+<section class="cm-services" id="companyServices" aria-labelledby="agentTransferServicesTitle">
+    <div class="cm-section-head">
+        <h1 id="agentTransferServicesTitle">خدمات التحويل</h1>
+    </div>
+    <div class="cm-service-grid">
+        <% transferServices.forEach(service => { %>
+        <a class="cm-service tone-<%= service.tone %>" href="<%= transferBasePath %>/services/<%= service.slug || service.key %>">
+            <span class="cm-service-icon"><i class="fa-solid <%= service.icon || 'fa-wallet' %>" aria-hidden="true"></i></span>
+            <strong><%= service.label %></strong>
+            <small><%= service.description %></small>
+            <span class="cm-service-arrow" aria-hidden="true"><i class="fa-solid fa-arrow-left"></i></span>
+        </a>
+        <% }) %>
+    </div>
+</section>
+<% } %>

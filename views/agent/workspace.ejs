@@ -64,7 +64,7 @@ const businessTheme = typeof clientTheme !== 'undefined' && clientTheme ? client
                 <%- include('../portal/pages/workspace_overview') %>
                 <% if (modernBusiness) { %></details><% } %>
             <% } else if (page === 'services' && modernBusiness) { %>
-                <%- include('../portal/partials/company_modern_home') %>
+                <%- include('partials/transfer_services') %>
             <% } else if (page === 'services') { %>
                 <%- include('../portal/pages/workspace_services') %>
             <% } else if (page === 'service_workbench') { %>
