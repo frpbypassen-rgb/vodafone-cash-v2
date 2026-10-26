@@ -302,7 +302,7 @@ import { config, portalFetch } from './core.js';
     const setupCommandChart = () => {
         const canvas = document.getElementById('commandCenterWeekChart');
         const chart = config.commandCenterChart;
-        if (!canvas || !chart || typeof window.Chart === 'undefined') return;
+        if (!canvas || !chart || typeof window.Chart === 'undefined' || window.commandCenterWeekChart?.canvas === canvas) return;
         const labels = Array.isArray(chart.labels) ? chart.labels : [];
         const counts = Array.isArray(chart.counts) ? chart.counts : [];
         const values = Array.isArray(chart.values) ? chart.values : [];
@@ -400,4 +400,5 @@ import { config, portalFetch } from './core.js';
     registerWorker();
     setupPush();
     setupCommandChart();
+    window.addEventListener('company-chart-ready',setupCommandChart,{once:true});
 })();

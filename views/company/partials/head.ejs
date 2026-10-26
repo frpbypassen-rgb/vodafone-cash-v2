@@ -48,24 +48,18 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Tajawal:wght@400;500;700;800&family=JetBrains+Mono:wght@600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
-    <link rel="stylesheet" href="/css/client-workspace.css?v=20261025-separated">
+    <link rel="stylesheet" href="/css/portal-shell/base.css?v=20261025-separated">
     <% if (typeof workspace !== 'undefined' && (workspace.isCompany || workspace.isAgent)) { %>
-        <link rel="stylesheet" href="/css/company-portal.tokens.css?v=20261025-separated" data-company-shell-css>
-        <link rel="stylesheet" href="/css/company-portal-layout.css?v=20261025-separated" data-company-shell-css>
-        <link rel="stylesheet" href="/css/company-portal-theme-day.css?v=20261025-separated" data-company-shell-css>
-        <link rel="stylesheet" href="/css/company-portal-theme-night.css?v=20261025-separated" data-company-shell-css>
-        <link rel="stylesheet" href="/css/company-portal-theme-pharaonic.css?v=20261025-separated" data-company-shell-css>
-        <link rel="stylesheet" href="/css/company-portal.css?v=20261025-separated" data-company-shell-css>
-        <link rel="stylesheet" href="/css/company-modern.css?v=20261025-separated" data-company-shell-css>
-        <link rel="stylesheet" href="/css/company-internal.css?v=20261025-separated" data-company-shell-css>
+        <% for(const file of ['tokens','layout','theme-day','theme-night','theme-pharaonic','modern','internal']) { %>
+        <link rel="stylesheet" href="/css/portal-shell/<%= file %>.css?v=20261025-separated" data-company-shell-css>
+        <% } %>
     <% } else { %>
         <link rel="stylesheet" href="/css/client-portal-2027.css?v=20260920-cl-m2">
         <%- include('customer_portal_styles') %>
     <% } %>
-    <% for(const asset of ['transactions','home','support','mobile-menu','services','finance','customer-balances','reports','staff','customers']) { %><link rel="stylesheet" href="/css/company-mobile/<%= asset %>.css?v=20261027"><% } %>
+    <% const companyPageStyles={overview:['home'],services:['services'],service_workbench:['services'],smart_transfer:['services'],transactions:['transactions'],finance:['finance'],reports:['customer-balances','reports'],staff:['customer-balances','staff','customers'],settings:['report-email','telegram-settings'],support:['support']}; %>
+    <% for(const asset of ['mobile-menu',...(companyPageStyles[typeof page === 'string' ? page : ''] || [])]) { %><link rel="stylesheet" href="/css/company-mobile/<%= asset %>.css?v=20261027"><% } %>
     <link rel="stylesheet" href="/css/company-mobile/layout.css?v=20261027">
-    <link rel="stylesheet" href="/css/company-mobile/report-email.css?v=20261027">
-    <link rel="stylesheet" href="/css/company-mobile/telegram-settings.css?v=20261027">
     <link rel="stylesheet" href="/css/rate-alert-overlay.css?v=20260816-3">
     <script src="/socket.io/socket.io.js"></script>
     <script src="/js/rate-alert-overlay.js?v=20260902-rate2" defer></script>

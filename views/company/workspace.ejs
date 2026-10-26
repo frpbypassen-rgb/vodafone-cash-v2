@@ -145,7 +145,7 @@ const businessTheme = workspace.isAgent && typeof clientTheme !== 'undefined' &&
 
     <dialog class="bw-dialog cp-dialog" id="companyWelcomeDialog" aria-label="ترحيب الشركة">
         <div class="cp-dialog-body">
-            <span class="cp-dialog-mark" aria-hidden="true"><img src="/images/logo.jpeg" alt="" onerror="this.onerror=null;this.src='/images/logo.jpg'"></span>
+            <span class="cp-dialog-mark" aria-hidden="true"><img src="/images/login-otp-logo.jpg" alt="" width="96" height="96" decoding="async"></span>
             <h2 id="companyWelcomeTitle"><%= workspace.entity.name %></h2>
             <p id="companyWelcomeCopy">مرحباً <%= workspace.actor.name %>. أنت تدخل ك<%= workspace.roleLabel %>. <%= systemOpen ? 'الخدمة متاحة الآن.' : 'الخدمة متوقفة مؤقتاً.' %></p>
             <button type="button" class="bw-button primary wide" data-dialog-close>دخول الغرفة</button>
@@ -154,7 +154,7 @@ const businessTheme = workspace.isAgent && typeof clientTheme !== 'undefined' &&
 
     <dialog class="bw-dialog cp-dialog" id="companyMessageDialog" aria-labelledby="companyMessageTitle">
         <div class="cp-dialog-body">
-            <span class="cp-dialog-mark" aria-hidden="true"><img src="/images/logo.jpeg" alt="" onerror="this.onerror=null;this.src='/images/logo.jpg'"></span>
+            <span class="cp-dialog-mark" aria-hidden="true"><img src="/images/login-otp-logo.jpg" alt="" width="96" height="96" decoding="async"></span>
             <h2 id="companyMessageTitle">رسالة من الإدارة</h2>
             <p id="companyMessageCopy"></p>
             <div class="bw-dialog-actions">
@@ -166,7 +166,7 @@ const businessTheme = workspace.isAgent && typeof clientTheme !== 'undefined' &&
 
     <dialog class="bw-dialog cp-dialog" id="companyLowBalanceDialog" aria-labelledby="companyLowBalanceTitle">
         <div class="cp-dialog-body">
-            <span class="cp-dialog-mark" aria-hidden="true"><img src="/images/logo.jpeg" alt="" onerror="this.onerror=null;this.src='/images/logo.jpg'"></span>
+            <span class="cp-dialog-mark" aria-hidden="true"><img src="/images/login-otp-logo.jpg" alt="" width="96" height="96" decoding="async"></span>
             <h2 id="companyLowBalanceTitle">تنبيه الرصيد</h2>
             <p id="companyLowBalanceCopy"></p>
             <div class="bw-dialog-actions">
@@ -212,7 +212,7 @@ const businessTheme = workspace.isAgent && typeof clientTheme !== 'undefined' &&
             <% if (modernBusiness) { %>
             <span class="cp-mark" aria-hidden="true"><svg class="cp-icon"><use href="#cp-icon-horus"></use></svg></span>
             <% } else { %>
-            <span class="cp-dialog-mark" aria-hidden="true"><img src="/images/logo.jpeg" alt="" onerror="this.onerror=null;this.src='/images/logo.jpg'"></span>
+            <span class="cp-dialog-mark" aria-hidden="true"><img src="/images/login-otp-logo.jpg" alt="" width="96" height="96" decoding="async"></span>
             <% } %>
             <h2 id="transferSuccessTitle">تم استلام العملية</h2>
             <p id="transferSuccessCopy">يمكنك متابعة الحالة من غرفة العمليات.</p>
@@ -227,7 +227,7 @@ const businessTheme = workspace.isAgent && typeof clientTheme !== 'undefined' &&
 
     <dialog class="bw-dialog cp-dialog" id="companyPinDialog" aria-labelledby="companyPinTitle">
         <form class="cp-dialog-body" id="companyPinForm">
-            <span class="cp-dialog-mark" aria-hidden="true"><img src="/images/logo.jpeg" alt="" onerror="this.onerror=null;this.src='/images/logo.jpg'"></span>
+            <span class="cp-dialog-mark" aria-hidden="true"><img src="/images/login-otp-logo.jpg" alt="" width="96" height="96" decoding="async"></span>
             <h2 id="companyPinTitle">رمز العمليات</h2>
             <p>أدخل الرمز من 4 إلى 6 أرقام لتأكيد التحويل. لا يُحفظ الرمز في المتصفح.</p>
             <label class="bw-field">
@@ -244,7 +244,7 @@ const businessTheme = workspace.isAgent && typeof clientTheme !== 'undefined' &&
 
     <dialog class="bw-dialog cp-dialog" id="companyActionDialog" aria-labelledby="companyActionTitle">
         <div class="cp-dialog-body">
-            <span class="cp-dialog-mark" aria-hidden="true"><img src="/images/logo.jpeg" alt="" onerror="this.onerror=null;this.src='/images/logo.jpg'"></span>
+            <span class="cp-dialog-mark" aria-hidden="true"><img src="/images/login-otp-logo.jpg" alt="" width="96" height="96" decoding="async"></span>
             <h2 id="companyActionTitle">تأكيد الإجراء</h2>
             <p id="companyActionCopy">هل تريد المتابعة؟</p>
             <div class="bw-dialog-actions">
@@ -256,7 +256,7 @@ const businessTheme = workspace.isAgent && typeof clientTheme !== 'undefined' &&
 
     <dialog class="bw-dialog cp-dialog" id="companyLogoutDialog" aria-labelledby="companyLogoutTitle">
         <div class="cp-dialog-body">
-            <span class="cp-dialog-mark" aria-hidden="true"><img src="/images/logo.jpeg" alt="" onerror="this.onerror=null;this.src='/images/logo.jpg'"></span>
+            <span class="cp-dialog-mark" aria-hidden="true"><img src="/images/login-otp-logo.jpg" alt="" width="96" height="96" decoding="async"></span>
             <h2 id="companyLogoutTitle">إغلاق يوم العمل</h2>
             <p>سيتم تسجيل خروجك بأمان من بوابة <%= workspace.isAgent ? 'الوكلاء' : 'الشركات' %>. يمكنك العودة لاحقاً بنفس حسابك.</p>
             <div class="bw-dialog-actions">
@@ -305,11 +305,9 @@ const businessTheme = workspace.isAgent && typeof clientTheme !== 'undefined' &&
     </script>
     <script src="/js/business-portal/rate-notice.js?v=20261025-review" defer></script>
     <script src="/js/business-portal/api-response.js?v=20261025-review" defer></script>
-    <script src="/js/client-workspace.js?v=20261025-separated" defer></script>
+    <script type="module" src="/js/company-mobile/index.js?v=20261027-performance"></script>
     <% if (modernBusiness) { %>
-    <% if (page === 'overview') { %><script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script><% } %>
-    <script src="/js/company-portal.js?v=20261025-separated" defer></script>
-    <script src="/js/company-internal.js?v=20261025-separated" defer></script>
+    <% if (page === 'overview') { %><script src="/js/company-mobile/chart-loader.js?v=20261027" defer></script><% } %>
     <% } else { %>
     <script src="/js/client-portal.js?v=20260920-cl-m2" defer></script>
     <% } %>

@@ -39,7 +39,7 @@ const readPortalAsset = (input, seen = new Set()) => {
                     ? node.source?.value
                     : null;
             if (typeof name === 'string' && name.startsWith('.'))
-                references.push(path.resolve(path.dirname(file), name));
+                references.push(path.resolve(path.dirname(file), name.split('?')[0]));
             for (const value of Object.values(node)) {
                 if (Array.isArray(value)) value.forEach(visit);
                 else if (value && typeof value === 'object') visit(value);

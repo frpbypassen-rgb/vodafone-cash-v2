@@ -1,7 +1,7 @@
 <% const portalBasePath = locals.portalBasePath || '/client'; const portalHref = value => typeof value === 'string' && (value === '/client' || value.startsWith('/client/') || value.startsWith('/client?')) ? portalBasePath + value.slice(7) : value; %>
 <aside class="bw-sidebar<%= (workspace.isCompany || workspace.isAgent) ? ' cp-sidebar' : ' cl-sidebar' %>" id="businessSidebar" aria-label="القائمة الرئيسية">
     <a href="<%= portalHref(typeof portalHomeHref !== 'undefined' ? portalHomeHref : portalHref('/client/dashboard?home=1')) %>" class="bw-brand" aria-label="Power Pay AL-Ahram - الرئيسية">
-        <img src="/images/logo.jpeg" alt="Power Pay AL-Ahram" onerror="this.onerror=null;this.src='/images/logo.jpg'">
+        <img src="<%= workspace.isCompany ? '/images/login-otp-logo.jpg' : '/images/logo.jpeg' %>" alt="Power Pay AL-Ahram" decoding="async"<% if(!workspace.isCompany) { %> onerror="this.onerror=null;this.src='/images/logo.jpg'"<% } %>>
         <span>
             <strong>AL-AHRAM</strong>
             <small><%= workspace.portalLabel %></small>

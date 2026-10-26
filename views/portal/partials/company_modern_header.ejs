@@ -3,7 +3,7 @@
 const navLabels = { customers: 'العملاء', finance: 'المالية', overview: 'الرئيسية', services: 'الخدمات', transactions: 'العمليات', deposits: 'الإيداعات', staff: 'الموظفون', reports: 'التقارير' }; %>
 <header class="cm-header">
     <a class="cm-brand" href="<%= portalHref(portalHomeHref) %>" aria-label="الأهرام — الرئيسية">
-        <img src="/images/logo.jpeg" alt="شعار الأهرام" onerror="this.onerror=null;this.src='/images/logo.jpg'">
+        <img src="<%= workspace.isCompany ? '/images/login-otp-logo.jpg' : '/images/logo.jpeg' %>" alt="شعار الأهرام" width="44" height="44" decoding="async"<% if(!workspace.isCompany) { %> onerror="this.onerror=null;this.src='/images/logo.jpg'"<% } %>>
         <span><strong>AL-AHRAM <b>Pay</b></strong><small><%= workspace.entity.name %></small></span>
     </a>
     <nav class="cm-navigation" aria-label="أقسام <%= workspace.entityLabel %>">

@@ -12,7 +12,7 @@ const {
     buildThemePreferenceUpdate
 } = require('../utils/companyPortalTheme');
 
-const WORKSPACE_HEAD = path.join(__dirname, '..', 'views', 'client', 'partials', 'workspace_head.ejs');
+const WORKSPACE_HEAD = path.join(__dirname, '..', 'views', 'company', 'partials', 'head.ejs');
 const WORKSPACE_VIEW = path.join(__dirname, '..', 'views', 'company', 'workspace.ejs');
 
 describe('company theme SSR and preferences', () => {
@@ -67,11 +67,11 @@ describe('company theme SSR and preferences', () => {
             companyThemeMeta: { themeColor: '#0B1426' }
         }, { filename: WORKSPACE_HEAD });
 
-        expect(head).toContain('/css/company-portal.tokens.css');
-        expect(head).toContain('/css/company-portal-layout.css');
-        expect(head).toContain('/css/company-portal-theme-day.css');
-        expect(head).toContain('/css/company-portal-theme-night.css');
-        expect(head).toContain('/css/company-portal-theme-pharaonic.css');
+        expect(head).toContain('/css/portal-shell/tokens.css');
+        expect(head).toContain('/css/portal-shell/layout.css');
+        expect(head).toContain('/css/portal-shell/theme-day.css');
+        expect(head).toContain('/css/portal-shell/theme-night.css');
+        expect(head).toContain('/css/portal-shell/theme-pharaonic.css');
         expect(head).not.toContain('client-company-os.css');
         expect(head).toContain('valid.includes(server) ? server');
         expect(head).toContain('ahram_company_theme');

@@ -5,7 +5,7 @@
             <i class="fa-solid fa-bars-staggered"></i>
         </button>
         <a href="<%= portalHref(typeof portalHomeHref !== 'undefined' ? portalHomeHref : portalHref('/client/dashboard?home=1')) %>" class="bw-topbar-brand" aria-label="AL-AHRAM - الرئيسية">
-            <img src="/images/logo.jpeg" alt="" onerror="this.onerror=null;this.src='/images/logo.jpg'">
+            <img src="<%= workspace.isCompany ? '/images/login-otp-logo.jpg' : '/images/logo.jpeg' %>" alt="" decoding="async"<% if(!workspace.isCompany) { %> onerror="this.onerror=null;this.src='/images/logo.jpg'"<% } %>>
             <span>AL-AHRAM</span>
         </a>
         <div class="bw-breadcrumbs">
