@@ -97,7 +97,10 @@ const { ensureUnifiedReportInfrastructure } = require('./services/unifiedReportS
 
 // 🟢 استدعاء طابور المهام الجديد (Queue System)
 
+const { startupGate, startBoundHttpServer } = require('./services/httpStartupService');
 const app = express();
+app.locals.startupReady = false;
+app.use(startupGate(() => app.locals.startupReady === true));
 const isProduction = process.env.NODE_ENV === 'production';
 app.locals.systemTimeZone = SYSTEM_TIME_ZONE;
 app.locals.sessionStoreHealthy = true;
@@ -284,6 +287,8 @@ app.get('/metrics', requireOperationalAccess({ tokenEnv: 'METRICS_AUTH_TOKEN' })
 app.get('/health', (req, res) => {
     res.json({
         status: 'ok',
+        pid: process.pid,
+        startupReady: app.locals.startupReady === true,
         uptime: process.uptime(),
         timestamp: new Date().toISOString(),
         version: '2.0.0',
@@ -297,10 +302,12 @@ app.get('/health/ready', async (req, res) => {
         const dbStatus = dbState === 1 ? 'connected' : dbState === 2 ? 'connecting' : 'disconnected';
         const redisRequired = ['1', 'true', 'yes', 'on'].includes(String(process.env.REDIS_REQUIRED || '').trim().toLowerCase());
         const redisReady = !redisRequired || isRedis();
-        const ready = dbState === 1 && app.locals.sessionStoreHealthy && redisReady && !app.locals.isShuttingDown;
+        const ready = app.locals.startupReady === true && dbState === 1 && app.locals.sessionStoreHealthy && redisReady && !app.locals.isShuttingDown;
         const flagOn = (name) => ['1', 'true', 'yes', 'on'].includes(String(process.env[name] || '').trim().toLowerCase());
         res.status(ready ? 200 : 503).json({
             status: ready ? 'ok' : 'degraded',
+            pid: process.pid,
+            startupReady: app.locals.startupReady === true,
             db: dbStatus,
             sessionStore: app.locals.sessionStoreHealthy ? 'connected' : 'degraded',
             redis: redisReady ? 'connected' : 'degraded',
@@ -500,64 +507,68 @@ if (process.env.SENTRY_DSN) {
 app.use(errorHandler);
 
 const PORT = process.env.PORT || 3000;
-Promise.all([connectDB(), initRedis()]).then(async () => {
-    logDisabledRuntimeSubsystems(logger);
-    await assertStagingStartupSafe({
-        env: process.env,
-        db: mongoose.connection && mongoose.connection.db,
-        processTitle: process.title
-    });
-    const { initBullMQ } = require('./services/bullQueueService');
-    if (isBullmqWorkersEnabled() && !initBullMQ()) {
-        logger.warn('BullMQ API transfer worker is not ready; API routing will use in-process queue');
-    }
-    const merchantWebhookService = require('./services/merchantWebhookService');
-    await Promise.all([
-        ensureApiReconciliationIndexes(),
-        ensurePerformanceIndexes(),
-        ensureSecurityDeviceIndexes(),
-        ensureUnifiedReportInfrastructure(),
-        merchantWebhookService.ensureMerchantWebhookIndexes()
-    ]);
-    if (isFinancialSchedulersEnabled()) {
-        await restorePendingRateActivation({ app });
-        startRateChangeActivationMonitor({ app });
-        startApiCompletionMonitor();
-        startApiProviderReturnMonitor();
-        startApiPendingMonitor();
-        closeEligibleDailySettlement().catch((error) => {
-            logger.error('Initial financial day close failed', { error: error.message });
+Promise.all([connectDB(), initRedis()]).then(() => startBoundHttpServer({
+    server, port: PORT,
+    initialize: async () => {
+        logDisabledRuntimeSubsystems(logger);
+        await assertStagingStartupSafe({
+            env: process.env,
+            db: mongoose.connection && mongoose.connection.db,
+            processTitle: process.title
         });
-        cron.schedule('*/15 * * * *', () => {
+        const { initBullMQ } = require('./services/bullQueueService');
+        if (isBullmqWorkersEnabled() && !initBullMQ()) {
+            logger.warn('BullMQ API transfer worker is not ready; API routing will use in-process queue');
+        }
+        const merchantWebhookService = require('./services/merchantWebhookService');
+        await Promise.all([
+            ensureApiReconciliationIndexes(),
+            ensurePerformanceIndexes(),
+            ensureSecurityDeviceIndexes(),
+            ensureUnifiedReportInfrastructure(),
+            merchantWebhookService.ensureMerchantWebhookIndexes()
+        ]);
+        if (isFinancialSchedulersEnabled()) {
+            await restorePendingRateActivation({ app });
+            startRateChangeActivationMonitor({ app });
+            startApiCompletionMonitor();
+            startApiProviderReturnMonitor();
+            startApiPendingMonitor();
             closeEligibleDailySettlement().catch((error) => {
-                logger.error('Scheduled financial day close failed', { error: error.message });
+                logger.error('Initial financial day close failed', { error: error.message });
             });
-        }, { timezone: SYSTEM_TIME_ZONE });
-    } else {
-        await warnProviderPaidAwaitingCompletion(logger);
-    }
-    void require('./services/adminOperationAlertService').initializeAdminOperationAlerts();
-    await Promise.all([
-        require('./models/TelegramAccountLink').createIndexes(),
-        require('./models/TelegramDelivery').createIndexes(),
-        require('./models/TelegramReceiptClaim').createIndexes(),
-        require('./models/AgentTelegramConnection').createIndexes()
-    ]).catch(() => logger.error('Telegram receipt indexes could not be initialized'));
-    await require('./services/agentReportEmailWorker').start().catch(() => {
-        logger.error('Agency statement email worker could not start');
-    });
-    merchantWebhookService.startMerchantWebhookWorker();
-    await startExecutorPushNotificationWorker().catch((error) => {
-        logger.error('Executor push notification worker failed to start', { error: error.message });
-    });
-    const {
-        ensureExecutorCompletionOutboxIndexes,
-        startExecutorCompletionOutboxWorker
-    } = require('./services/executorCompletionOutboxService');
-    await ensureExecutorCompletionOutboxIndexes();
-    await startExecutorCompletionOutboxWorker();
-    // 🟢 التأكد من وجود الإعدادات الافتراضية في قاعدة البيانات لتفادي أخطاء null pointer
-    server.listen(PORT, () => {
+            cron.schedule('*/15 * * * *', () => {
+                closeEligibleDailySettlement().catch((error) => {
+                    logger.error('Scheduled financial day close failed', { error: error.message });
+                });
+            }, { timezone: SYSTEM_TIME_ZONE });
+        } else {
+            await warnProviderPaidAwaitingCompletion(logger);
+        }
+        void require('./services/adminOperationAlertService').initializeAdminOperationAlerts();
+        await Promise.all([
+            require('./models/TelegramAccountLink').createIndexes(),
+            require('./models/TelegramDelivery').createIndexes(),
+            require('./models/TelegramReceiptClaim').createIndexes(),
+            require('./models/AgentTelegramConnection').createIndexes()
+        ]).catch(() => logger.error('Telegram receipt indexes could not be initialized'));
+        await require('./services/agentReportEmailWorker').start().catch(() => {
+            logger.error('Agency statement email worker could not start');
+        });
+        merchantWebhookService.startMerchantWebhookWorker();
+        await startExecutorPushNotificationWorker().catch((error) => {
+            logger.error('Executor push notification worker failed to start', { error: error.message });
+        });
+        const {
+            ensureExecutorCompletionOutboxIndexes,
+            startExecutorCompletionOutboxWorker
+        } = require('./services/executorCompletionOutboxService');
+        await ensureExecutorCompletionOutboxIndexes();
+        await startExecutorCompletionOutboxWorker();
+        // 🟢 التأكد من وجود الإعدادات الافتراضية في قاعدة البيانات لتفادي أخطاء null pointer
+    },
+    onReady: () => {
+        app.locals.startupReady = true;
         logger.info(`🟢 Al-Ahram Pay v2.0 running on port ${PORT}`, { port: PORT, env: process.env.NODE_ENV || 'development' });
         console.log(`🟢 السيرفر يعمل بقوة الزمن الفعلي والحماية الشاملة على البورت ${PORT}`);
         systemMonitor.recordActivity('system', `اكتمل تشغيل السيرفر المحلي على المنفذ ${PORT}.`, { level: 'success', silent: true });
@@ -567,8 +578,8 @@ Promise.all([connectDB(), initRedis()]).then(async () => {
             const { logAction } = require('./services/auditService');
             logAction({ action: 'SYSTEM_STARTUP', metadata: { port: PORT, nodeVersion: process.version } }).catch(() => {});
         }
-    });
-}).catch((error) => {
+    }
+})).catch((error) => {
     logger.error('Application startup failed', { error: error.message });
     process.exit(1);
 });

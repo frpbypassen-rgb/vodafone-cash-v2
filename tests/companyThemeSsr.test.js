@@ -18,6 +18,7 @@ const WORKSPACE_VIEW = path.join(__dirname, '..', 'views', 'company', 'workspace
 describe('company theme SSR and preferences', () => {
     test.each([['day', 'company'], ['night', 'company'], ['day', 'agent'], ['night', 'agent']])('keeps the %s %s portal usable when browser storage is blocked', async (theme, type) => {
         const head = await ejs.renderFile(type === 'agent' ? path.join(__dirname, '../views/agent/partials/head.ejs') : WORKSPACE_HEAD, {
+            page: 'smart_transfer',
             pageMeta: { title: 'التحويل الذكي' },
             workspace: { type, isCompany: type === 'company', isAgent: type === 'agent' },
             companyTheme: theme, clientTheme: type === 'agent' ? theme : undefined

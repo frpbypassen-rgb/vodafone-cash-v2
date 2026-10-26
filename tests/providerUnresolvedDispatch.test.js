@@ -86,7 +86,8 @@ const successPaymentBody = () => ({
         Message: 'عمليه ناجحه',
         Data: {
             TransactionNumber: '50011611',
-            RefTransactionNumber: '28059087',
+            // Only a masked reference represents settled success in the current provider contract.
+            RefTransactionNumber: paymentMode === 'success_masked' ? '2805****9087' : '28059087',
             Amount: AMOUNT,
             BalanceBefore: 5000,
             BalanceAfter: 4900,
@@ -465,7 +466,7 @@ describe('provider dispatch defects', () => {
 
     test('normal success still sends one Payment and one executor debit', async () => {
         armProvider();
-        paymentMode = 'success';
+        paymentMode = 'success_masked';
         const { user, executor, tx } = await createFixture();
 
         await queueService.processSingleJob(String(tx._id), String(executor._id));
@@ -533,7 +534,7 @@ describe('provider dispatch defects', () => {
         afterRefusal.executorGroupId = executor._id;
         afterRefusal.executorName = executor.name;
         await afterRefusal.save();
-        paymentMode = 'success';
+        paymentMode = 'success_masked';
         await queueService.processSingleJob(String(tx._id), String(executor._id));
 
         const stored = await reload(tx);

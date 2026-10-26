@@ -84,6 +84,7 @@ describe('queueService API execution', () => {
             _id: 'tx-1',
             customId: 'ATT-2608-0001',
             status: 'processing',
+            executorGroupId: 'group-api',
             amount: 100,
             notes: '',
             adminNotes: '',
@@ -154,6 +155,7 @@ describe('queueService API execution', () => {
             _id: 'tx-2',
             customId: 'ATT-2608-0002',
             status: 'processing',
+            executorGroupId: 'group-api',
             amount: 50,
             notes: '',
             adminNotes: '',
@@ -193,6 +195,7 @@ describe('queueService API execution', () => {
             _id: 'tx-postal',
             customId: 'ATT-2608-POST',
             status: 'processing',
+            executorGroupId: 'cash-api',
             transferType: 'post_account',
             adminNotes: '',
             save: jest.fn().mockResolvedValue(true)
@@ -210,6 +213,18 @@ describe('queueService API execution', () => {
         expect(tx.status).toBe('pending');
         expect(tx.executorGroupId).toBeUndefined();
         expect(tx.adminNotes).toContain('لا تطابق خدمة المنفذ');
+        expect(executeTransferViaApi).not.toHaveBeenCalled();
+        expect(startApiBalanceAudit).not.toHaveBeenCalled();
+    });
+
+    test.each([
+        ['completed', 'group-api'],
+        ['processing', 'another-executor'],
+        ['processing', null],
+    ])('skips stale job with status %s and group %s without provider calls', async (status, executorGroupId) => {
+        Transaction.findById.mockResolvedValue({ _id: 'stale', status, executorGroupId });
+        ExecutorGroup.findById.mockResolvedValue({ _id: 'group-api' });
+        await queueService.processSingleJob('stale', 'group-api');
         expect(executeTransferViaApi).not.toHaveBeenCalled();
         expect(startApiBalanceAudit).not.toHaveBeenCalled();
     });
