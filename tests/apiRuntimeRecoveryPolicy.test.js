@@ -80,3 +80,27 @@ test('a paid completed transaction is never classified as safe to resend or fenc
     expect(summarize(paid)).toMatchObject({ terminal: true, result: 'accepted', ledgerPosted: false });
     expect(() => buildRecoveryFence(paid, 'recovery-test')).toThrow('TARGET_NOT_PRISTINE');
 });
+
+test.each(['absent', 'null'])('fencing restores an originally %s API data field exactly', async (kind) => {
+    if (kind === 'absent')
+        await Transaction.collection.updateOne({ _id: tx._id }, { $unset: { apiResultData: '' } });
+    else await Transaction.collection.updateOne({ _id: tx._id }, { $set: { apiResultData: null } });
+    const original = await Transaction.collection.findOne({ _id: tx._id });
+    const fence = buildRecoveryFence(original, 'restore-test');
+    expect((await Transaction.collection.updateOne(fence.filter, fence.update)).modifiedCount).toBe(1);
+    expect((await claimProviderDispatch(original)).claimed).toBe(false);
+    expect(
+        (await Transaction.collection.updateOne(fence.releaseFilter, fence.releaseUpdate)).modifiedCount
+    ).toBe(1);
+    const restored = await Transaction.collection.findOne({ _id: tx._id });
+    expect(Object.prototype.hasOwnProperty.call(restored, 'apiResultData')).toBe(kind === 'null');
+    if (kind === 'null') expect(restored.apiResultData).toBeNull();
+});
+
+test.each([
+    { providerReportedReference: 'evidence' },
+    { waitingApiAutoCompletion: true },
+    { providerResolutionOutcome: 'provider_paid' },
+])('prior provider evidence prevents an automatic recovery fence', (apiResultData) => {
+    expect(pristine({ ...tx, apiResultData })).toBe(false);
+});
