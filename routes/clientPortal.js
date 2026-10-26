@@ -33,6 +33,8 @@ const { requireClientAuth, endUnauthorizedClientSession } = require('../middlewa
 
 const { getSupportIdentity } = require('../services/portalSupportService');
 router.use(require('./portalSharedApi'));
+router.use(require('./companyReportEmail'));
+router.use(require('./companyTelegram'));
 
 // Controllers
 const clientAuthController = require('../controllers/clientAuthController');
@@ -132,6 +134,7 @@ router.get('/company/staff', requireClientAuth, clientCompanyController.getStaff
 router.post('/company/staff/add', requireClientAuth, clientCompanyController.postAddStaff);
 router.post('/company/staff/:id/toggle', requireClientAuth, clientCompanyController.postToggleStaff);
 router.post('/company/staff/:id/password', requireClientAuth, clientCompanyController.postResetStaffPassword);
+router.post('/company/staff/:id/permissions', requireClientAuth, clientCompanyController.postUpdateStaffPermissions);
 router.post('/agent/staff/add', requireClientAuth, clientAgentController.postAddStaff);
 router.post('/agent/staff/:id/toggle', requireClientAuth, clientAgentController.postToggleStaff);
 router.post('/agent/staff/:id/password', requireClientAuth, clientAgentController.postResetStaffPassword);

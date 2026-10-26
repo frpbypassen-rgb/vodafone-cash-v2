@@ -100,7 +100,7 @@ const loadStaff = async (workspace, query = {}) => {
     }
     if (status)
         conditions.push({
-            status: workspace.isAgent && status === 'inactive' ? { $in: ['inactive', 'banned'] } : status,
+            status: status === 'inactive' ? { $in: ['inactive', 'banned'] } : status,
         });
     if (role === 'manager')
         conditions.push({ $or: [{ role: 'owner' }, { canManageCompany: true }, { canManageAgent: true }] });

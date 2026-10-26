@@ -12,7 +12,7 @@ const { systemDateKey, systemDayStart, systemDayEnd } = require('../../config/sy
 const ownershipFilter = async (workspace, purpose = 'transactions') => {
     if (workspace.isCompany) {
         const companyScope = { companyId: workspace.entity._id };
-        if (!workspace.permissions.employee) return companyScope;
+        if (!workspace.permissions.employee || workspace.permissions.canViewAllReports) return companyScope;
         // السجلات الجديدة تعتمد معرّف الموظف وليس الاسم. نُبقي توافقاً محدوداً
         // مع السجلات القديمة التي لا تحمل المعرّف حتى تُستكمل هجرتها.
         return {

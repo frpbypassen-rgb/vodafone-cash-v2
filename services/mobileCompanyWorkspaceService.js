@@ -27,7 +27,7 @@ const normalizeUsername = (value) => {
 
 const isOwner = (employee) => {
     const role = String(employee.role || '').toLowerCase();
-    const isLegacyOwner = role !== 'accountant'
+    const isLegacyOwner = !employee.corporateRole && role !== 'accountant'
         && employee.canViewAllReports === true
         && employee.canManageCompany !== true;
     return role === 'owner' || employee.canCreateCompanyStaff === true || isLegacyOwner;
@@ -180,6 +180,7 @@ const createEmployee = async (req) => {
         webUsername: username,
         webPassword: password,
         role: requestedRole,
+        corporateRole: grantManager ? 'manager' : requestedRole,
         status: 'active',
         canManageCompany: grantManager,
         canCreateCompanyStaff: false,
@@ -253,6 +254,7 @@ const updateEmployeePermissions = async (req) => {
         || employee.canManageCompany
         || permissions.includes('company.reports.read_all')
         || permissions.includes('company.reports.full');
+    employee.corporateRole = employee.canManageCompany ? 'manager' : isAccountant ? 'accountant' : 'employee';
     employee.sessionVersion = Number(employee.sessionVersion || 0) + 1;
     await employee.save();
     await logAction({

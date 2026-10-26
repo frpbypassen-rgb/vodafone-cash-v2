@@ -220,7 +220,7 @@ const resolveCompanyIdentity = (account) => {
         };
     }
 
-    const isLegacyOwner = role !== 'accountant'
+    const isLegacyOwner = !account.corporateRole && role !== 'accountant'
         && account.canViewAllReports === true
         && account.canManageCompany !== true;
     const isOwner = role === 'owner' || account.canCreateCompanyStaff === true || isLegacyOwner;

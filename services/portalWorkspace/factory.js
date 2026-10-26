@@ -40,7 +40,7 @@ const buildWorkspaceResult = ({ type, actor, entity, actorModel, entityModel, pe
                 : undefined,
         masterType: type === 'company' ? 'company' : 'user',
         masterId: entity._id,
-        forceToday: permissions.employee && !(type === 'agent' && permissions.canViewAllReports),
+        forceToday: permissions.employee && !permissions.canViewAllReports,
     };
 };
 

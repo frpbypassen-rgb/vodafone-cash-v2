@@ -244,6 +244,36 @@ exports.getStaffManagement = async (req, res) => {
 };
 
 const denyStaff = (res, code = 'forbidden') => res.status(403).redirect(`/client/staff?staffError=${code}`);
+const staffResponse = (req, res, code, success = false, status = 400) => {
+    if (String(req.headers?.accept || '').includes('application/json')) return res.status(success ? 200 : status).json({ success, code });
+    return res.redirect(`/client/staff?${success ? 'staffSuccess' : 'staffError'}=${code}`);
+};
+const staffPermissionValues = (body, role) => {
+    if (body.permissionsMode === 'basic') return { canManageCompany: false, canCreateTransfer: role !== 'accountant', canViewAllReports: role === 'accountant', canManageCompanyProfile: false };
+    if (body.permissionsMode !== 'custom') return null;
+    return Object.fromEntries(['canManageCompany', 'canCreateTransfer', 'canViewAllReports', 'canManageCompanyProfile'].map(key => [key, isChecked(body[`permission_${key}`])]));
+};
+
+exports.postUpdateStaffPermissions = async (req, res) => {
+    try {
+        const { account, company, access } = await getCompanyActor(req);
+        assertCapability(access, 'canManageTeam');
+        const target = await findCompanyStaffTarget({ companyId: company._id, targetId: req.params.id });
+        assertNotSelf(account._id, target._id);
+        if (isCompanyOwner(target)) return staffResponse(req, res, 'forbidden', false, 403);
+        const permissions = staffPermissionValues(req.body, target.role);
+        const version = Number(req.body.version);
+        if (!permissions || !Number.isSafeInteger(version) || version < 0) return staffResponse(req, res, 'permissions');
+        const updated = await ClientEmployee.findOneAndUpdate({ _id: target._id, companyId: company._id,
+            ...(version === 0 ? { $or: [{ sessionVersion: 0 }, { sessionVersion: { $exists: false } }] } : { sessionVersion: version })
+        }, { $set: { ...permissions, corporateRole: permissions.canManageCompany ? 'manager' : target.role === 'accountant' ? 'accountant' : 'employee' }, $inc: { sessionVersion: 1 } }, { returnDocument: 'after' });
+        if (!updated) return staffResponse(req, res, 'changed', false, 409);
+        await logAction({ action: 'USER_PERMISSIONS_CHANGED', req, performedById: account._id, performedByModel: 'ClientEmployee', performedByName: account.name, targetId: target._id, targetModel: 'ClientEmployee', success: true, metadata: { companyId: String(company._id), permissions } });
+        return staffResponse(req, res, 'permissions', true);
+    } catch(error) {
+        return staffResponse(req, res, ['FORBIDDEN', 'CROSS_COMPANY', 'SELF_TARGET_FORBIDDEN'].includes(error.code) ? 'forbidden' : 'server', false, error.statusCode || 500);
+    }
+};
 
 exports.postAddStaff = async (req, res) => {
     try {
@@ -254,18 +284,20 @@ exports.postAddStaff = async (req, res) => {
         const phone = String(req.body.phone || '').trim();
         const webPassword = String(req.body.webPassword || '').trim();
         const role = String(req.body.role || 'employee').trim();
-        const grantManagerAccess = isChecked(req.body.canManageCompany);
-        const canCreateTransfer = req.body.canCreateTransfer === undefined
+        const chosen = staffPermissionValues(req.body, role);
+        if (req.body.permissionsMode !== undefined && !chosen) return staffResponse(req, res, 'permissions');
+        const grantManagerAccess = chosen ? chosen.canManageCompany : isChecked(req.body.canManageCompany);
+        const canCreateTransfer = chosen ? chosen.canCreateTransfer : req.body.canCreateTransfer === undefined
             ? role !== 'accountant'
             : isChecked(req.body.canCreateTransfer);
-        const canManageCompanyProfile = isChecked(req.body.canManageCompanyProfile);
-        const canViewAllReports = isChecked(req.body.canViewAllReports) || role === 'accountant' || grantManagerAccess;
+        const canManageCompanyProfile = chosen ? chosen.canManageCompanyProfile : isChecked(req.body.canManageCompanyProfile);
+        const canViewAllReports = chosen ? chosen.canViewAllReports : isChecked(req.body.canViewAllReports) || role === 'accountant' || grantManagerAccess;
 
-        if (!name || !phone || !webPassword || !['employee', 'accountant'].includes(role)) {
-            return res.redirect('/client/staff?staffError=missing');
+        if (name.length < 3 || name.length > 120 || !/^\+?[0-9]{8,15}$/.test(phone) || !webPassword || !['employee', 'accountant'].includes(role)) {
+            return staffResponse(req, res, 'missing');
         }
-        if (webPassword.length < 8) {
-            return res.redirect('/client/staff?staffError=password');
+        if (webPassword.length < 8 || webPassword.length > 128) {
+            return staffResponse(req, res, 'password');
         }
 
         const webUsername = normalizeCompanyUsername(req.body.webUsername);
@@ -279,6 +311,7 @@ exports.postAddStaff = async (req, res) => {
             webUsername,
             webPassword,
             role,
+            corporateRole: grantManagerAccess ? 'manager' : role,
             status: 'active',
             mustChangePassword: true,
             canManageCompany: grantManagerAccess,
@@ -308,16 +341,16 @@ exports.postAddStaff = async (req, res) => {
             }
         });
 
-        return res.redirect('/client/staff?staffSuccess=created');
+        return staffResponse(req, res, 'created', true);
     } catch (error) {
-        if (error.code === 'FORBIDDEN' || error.message === 'FORBIDDEN') return denyStaff(res);
+        if (error.code === 'FORBIDDEN' || error.message === 'FORBIDDEN') return staffResponse(req, res, 'forbidden', false, 403);
         const code = error.message === 'USERNAME_TAKEN'
             ? 'username'
             : error.message === 'INVALID_USERNAME'
                 ? 'username_format'
                 : 'server';
         console.error('[Company Staff] create failed:', error.message);
-        return res.redirect(`/client/staff?staffError=${code}`);
+        return staffResponse(req, res, code);
     }
 };
 

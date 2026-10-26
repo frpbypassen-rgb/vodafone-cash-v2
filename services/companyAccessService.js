@@ -43,7 +43,7 @@ const explicitFlag = (account, key) => {
 
 const isLegacyOwner = (account) => {
     const role = String(account?.role || '').toLowerCase();
-    return role !== 'accountant'
+    return !account?.corporateRole && role !== 'accountant'
         && account?.canViewAllReports === true
         && account?.canManageCompany !== true;
 };
