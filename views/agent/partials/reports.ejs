@@ -1,0 +1,43 @@
+<%
+const reportMoney = value => Number(value || 0).toLocaleString('en-US', {minimumFractionDigits:3,maximumFractionDigits:3});
+const periodParams = new URLSearchParams({scope:reportScope});
+if (filters.month) periodParams.set('month',filters.month);
+else { if(filters.from) periodParams.set('from',filters.from); if(filters.to) periodParams.set('to',filters.to); }
+if(query.search) periodParams.set('search',query.search);
+const reportCurrencies = [...new Set(serviceBreakdown.map(item => item.amountCurrencyLabel || 'EGP'))];
+const reportVolume = serviceBreakdown.reduce((sum,item)=>sum+Number(item.totalEGP || 0),0);
+const hasOneCurrency = reportCurrencies.length <= 1;
+%>
+<div class="agent-balances agent-reports">
+    <div class="agent-report-print-title"><h1><%= reportScopeLabel %></h1><p><%= workspace.entity.name %> · <%= filters.label %> · توقيت ليبيا</p></div>
+    <header class="agent-reports-head"><h2>التقارير</h2><% if(workspace.permissions.canViewReports && workspace.permissions.canViewBalance && workspace.permissions.canViewAllReports) { const downloadParams = new URLSearchParams(periodParams);downloadParams.delete('scope');downloadParams.delete('search'); %><a class="agent-report-official-download" href="/agent-portal/reports/central.pdf?<%= downloadParams.toString() %>" aria-label="تنزيل كشف الإدارة الشامل للفترة المحددة" title="تنزيل كشف الإدارة الشامل PDF"><i class="fa-solid fa-download" aria-hidden="true"></i></a><% } %></header>
+    <section class="agent-balances-panel agent-report-controls">
+        <% if(!workspace.forceToday) { %><details class="agent-report-period-drawer"><summary><span><i class="fa-regular fa-calendar" aria-hidden="true"></i> <%= filters.label %></span><i class="fa-solid fa-chevron-down" aria-hidden="true"></i></summary><nav class="agent-report-periods" aria-label="فترة التقرير"><a href="/agent-portal/reports?scope=<%= reportScope %>&period=today">اليوم</a><a href="/agent-portal/reports?scope=<%= reportScope %>">هذا الشهر</a></nav><form method="GET" action="/agent-portal/reports"><input type="hidden" name="scope" value="<%= reportScope %>"><label>من<input type="date" name="from" value="<%= filters.from %>" required></label><label>إلى<input type="date" name="to" value="<%= filters.to %>" required></label><button type="submit" class="bw-button primary compact">عرض الفترة المخصصة</button></form></details><% } else { %><div class="agent-report-fixed-period"><i class="fa-regular fa-calendar" aria-hidden="true"></i> اليوم</div><% } %>
+        <nav class="agent-report-scopes" aria-label="نوع التقرير"><% Object.entries(reportScopes).forEach(([key,label])=>{const params=new URLSearchParams(periodParams);params.set('scope',key); %><a href="/agent-portal/reports?<%= params.toString() %>" class="<%= reportScope===key?'active':'' %>" <%= reportScope===key?'aria-current=page':'' %>><%= key==='organization'?'عام':key==='customers'?'العملاء':key==='staff'?'الموظفون':label %></a><% }) %></nav>
+        <% if(!workspace.permissions.canViewAllReports) { %><small class="agent-report-note">عملياتك فقط · توقيت ليبيا</small><% } %>
+    </section>
+    <section class="agent-balances-summary" aria-label="ملخص الفترة">
+        <div><span>عمليات مكتملة</span><strong><%= reportSummary.completedCount %></strong><small>من <%= reportSummary.totalCount %> عملية</small></div>
+        <div><span>حجم التحويلات</span><strong dir="ltr"><%= hasOneCurrency?Number(reportVolume).toLocaleString('en-US',{maximumFractionDigits:2}):reportCurrencies.length %></strong><small><%= hasOneCurrency?reportCurrencies[0] || 'EGP':'عملات · التفصيل حسب الخدمة' %></small></div>
+        <% if(workspace.permissions.canViewBalance) { %><div><span>الربح المحقق</span><strong class="balance-positive" dir="ltr"><%= reportMoney(reportSummary.realizedProfit) %></strong><small>د.ل · مكتملة فقط</small></div><% } else { %><div><span>قيد التنفيذ</span><strong><%= reportSummary.pendingCount %></strong><small>عملية</small></div><% } %>
+    </section>
+    <section class="agent-balances-panel">
+        <label class="agent-balances-search"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><input type="search" data-report-search placeholder="<%= reportScope==='customers'?'ابحث باسم العميل':reportScope==='staff'?'ابحث باسم الموظف':'ابحث بالتاريخ' %>" aria-label="البحث في نتائج التقرير" autocomplete="off"></label>
+        <% if(reportSummary.totalCount>=5000) { %><p class="agent-report-warning">بلغ التقرير حد 5000 عملية. اختر فترة أقصر لمراجعة النتائج كاملة.</p><% } %>
+        <div class="agent-report-rows">
+        <% reportRows.forEach(row=>{ %><details class="agent-report-row" data-report-row data-search="<%= row.key %>">
+            <summary class="agent-balance-row"><span class="agent-balance-identity"><strong><%= row.key %></strong><small><%= row.completedCount %> مكتملة · <%= row.totalCount %> عملية</small></span><span class="agent-balance-value <%= workspace.permissions.canViewBalance?'balance-positive':'' %>"><strong dir="ltr"><%= workspace.permissions.canViewBalance?reportMoney(row.realizedProfit):Number(row.completedCount || 0).toLocaleString('en-US') %></strong><small><%= workspace.permissions.canViewBalance?'د.ل · ربح محقق':'عملية مكتملة' %></small></span><i class="fa-solid fa-chevron-down" aria-hidden="true"></i></summary>
+            <dl class="agent-report-row-detail"><div><dt>قيد التنفيذ</dt><dd><%= row.pendingCount %></dd></div><div><dt>ملغية أو مرفوضة</dt><dd><%= row.cancelledCount %></dd></div><% if(hasOneCurrency) { %><div><dt>حجم التحويلات المكتملة</dt><dd dir="ltr"><%= Number(row.totalEGP || 0).toLocaleString('en-US',{maximumFractionDigits:2}) %> <%= reportCurrencies[0] || 'EGP' %></dd></div><% } %><% if(workspace.permissions.canViewBalance) { %><div><dt>تكلفة التحويلات</dt><dd dir="ltr"><%= reportMoney(row.totalLYD) %> LYD</dd></div><div><dt>الربح المتوقع</dt><dd dir="ltr"><%= reportMoney(row.expectedProfit) %> LYD</dd></div><div><dt>صافي الإيداع</dt><dd dir="ltr"><%= reportMoney(Number(row.deposits || 0)-Number(row.deductions || 0)) %> LYD</dd></div><% } %></dl>
+        </details><% }) %>
+        </div>
+        <p class="agent-balances-empty" data-report-empty <%= reportRows.length?'hidden':'' %>>لا توجد نتائج لهذه الفترة.</p>
+        <footer class="agent-balances-footer" data-report-footer hidden><span data-report-progress role="status" aria-live="polite"></span><button type="button" class="bw-button ghost compact" data-report-more>تحميل المزيد</button></footer>
+    </section>
+    <details class="agent-balances-panel agent-report-analysis"><summary>التحليلات والتوثيق <i class="fa-solid fa-chevron-down" aria-hidden="true"></i></summary>
+        <div class="agent-report-analysis-counts"><span>مكتملة: <b><%= reportSummary.completedCount %></b></span><span>قيد التنفيذ: <b><%= reportSummary.pendingCount %></b></span><span>ملغية: <b><%= reportSummary.cancelledCount %></b></span></div>
+        <% if(workspace.permissions.canViewBalance) { %><div class="agent-report-chart"><strong>الوارد والصادر · د.ل</strong><div class="bw-liquidity-chart" id="liquidityChart" role="img" aria-label="الوارد والصادر خلال الفترة"><div class="bw-chart-empty">لا توجد بيانات كافية للرسم.</div></div><div class="bw-chart-legend"><span class="incoming"><i></i>وارد</span><span class="outgoing"><i></i>صادر</span></div></div><script type="application/json" id="liquiditySeriesData"><%- JSON.stringify(reportAnalytics.liquiditySeries || []).replace(/</g, '\\u003c') %></script><% } %>
+        <% if(!serviceBreakdown.length) { %><p class="agent-balances-empty">لا توجد عمليات مكتملة.</p><% } %>
+        <% serviceBreakdown.forEach(item=>{ %><div class="agent-report-service"><strong><%= item.label %></strong><bdi><%= Number(item.totalEGP || 0).toLocaleString('en-US',{maximumFractionDigits:2}) %> <%= item.amountCurrencyLabel || 'EGP' %></bdi><small><%= item.count %> عملية مكتملة<% if(workspace.permissions.canViewBalance) { %> · ربح <%= reportMoney(item.realizedProfit) %> د.ل<% } %></small></div><% }) %>
+    <details class="agent-report-audit"><summary>بيانات توثيق التقرير</summary><small class="agent-report-note">ملخص الفترة والتنزيل يشملان جميع النتائج · توقيت ليبيا.</small><dl class="agent-report-row-detail"><div><dt>رقم التقرير</dt><dd dir="ltr"><%= centralReport.reportId %></dd></div><div><dt>حالة السجل</dt><dd><%= centralSync.status==='ready'?'متزامن':'قيد التحديث' %></dd></div><div><dt>بصمة التحقق</dt><dd dir="ltr"><%= centralReport.checksum %></dd></div></dl></details>
+    </details>
+</div>

@@ -17,3 +17,6 @@
 .agent-email-settings button { min-height: 44px; }
 .agent-email-settings :is(input, button) { scroll-margin-block: 100px; }
 @media (max-width: 600px) { .agent-email-details { padding: 0 12px 14px; } .agent-email-toggle { padding: 14px 12px; } .agent-email-actions > button { flex: 1 1 140px; } }
+.agent-push-test { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 0 10px 10px; }
+.agent-push-test[hidden] { display: none !important; }
+.agent-push-test > span { flex: 1 1 150px; color: var(--cp-muted); font-size: 11px; line-height: 1.7; }

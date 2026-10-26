@@ -1,4 +1,5 @@
 <head>
+    <% const agentAssetPage = typeof page === 'string' ? page : ''; %>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="theme-color" content="#E7F1F6">
@@ -32,8 +33,11 @@
     <link rel="stylesheet" href="/css/agent-portal/telegram-settings.css?v=20261026-accounts">
     <link rel="stylesheet" href="/css/agent-portal/services.css?v=20261026-balance">
     <link rel="stylesheet" href="/css/agent-portal/finance.css?v=20261026-ledger">
-    <% if (['agency_balances', 'agency_profits'].includes(page)) { %><link rel="stylesheet" href="/css/agent-portal/customer-balances.css?v=20261026-compact"><% } %>
-    <% if (page === 'agency_profits') { %><link rel="stylesheet" href="/css/agent-portal/customer-profits.css?v=20261026-compact"><% } %>
+    <% if (['agency_balances', 'agency_profits', 'customers', 'staff', 'reports'].includes(agentAssetPage)) { %><link rel="stylesheet" href="/css/agent-portal/customer-balances.css?v=20261026-compact"><% } %>
+    <% if (agentAssetPage === 'reports') { %><link rel="stylesheet" href="/css/agent-portal/reports.css?v=20261026-compact"><% } %>
+    <% if (agentAssetPage === 'staff') { %><link rel="stylesheet" href="/css/agent-portal/staff.css?v=20261026-compact"><% } %>
+    <% if (['customers', 'staff'].includes(agentAssetPage)) { %><link rel="stylesheet" href="/css/agent-portal/customers.css?v=20261026-create"><% } %>
+    <% if (agentAssetPage === 'agency_profits') { %><link rel="stylesheet" href="/css/agent-portal/customer-profits.css?v=20261026-compact"><% } %>
     <script src="/socket.io/socket.io.js"></script>
     <script src="/js/rate-alert-overlay.js?v=20261025-separated" defer></script>
 </head>

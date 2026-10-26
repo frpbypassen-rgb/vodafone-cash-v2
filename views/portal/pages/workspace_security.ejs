@@ -18,7 +18,7 @@
 <% } %>
 
 <% if (workspace.isCompany || workspace.isAgent) { %>
-<div class="cm-security-banner"><i class="fa-solid fa-shield-halved"></i><div><h2>مركز أمان الحساب</h2><p>راجع كلمة المرور والتحقق الثنائي والجلسات لحماية حسابك.</p></div></div>
+<% if (!workspace.isAgent) { %><div class="cm-security-banner"><i class="fa-solid fa-shield-halved"></i><div><h2>مركز أمان الحساب</h2><p>راجع كلمة المرور والتحقق الثنائي والجلسات لحماية حسابك.</p></div></div><% } %>
 <nav class="cm-security-cards" aria-label="خيارات الأمان">
 <a href="#companyPassword"><i class="fa-solid fa-key"></i><strong>كلمة المرور</strong><span>تحديث كلمة مرور الدخول</span></a>
 <a href="#companyMfa"><i class="fa-solid fa-shield-halved"></i><strong>التحقق الثنائي</strong><span>مراجعة حماية Authenticator</span></a>

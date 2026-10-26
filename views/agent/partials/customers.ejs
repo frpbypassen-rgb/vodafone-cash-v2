@@ -1,0 +1,26 @@
+<div class="agent-balances agent-customers">
+    <% if (workspace.permissions.canViewBalance) { const customerMoney = value => Number(value || 0).toLocaleString('en-US', {minimumFractionDigits:3, maximumFractionDigits:3}); %>
+    <section class="agent-balances-summary" aria-label="ملخص أرصدة العملاء الحالية">
+        <div><span>الأرصدة الموجبة</span><strong class="balance-positive" dir="ltr"><%= customerMoney(customerSummary.positiveBalances) %></strong><small>د.ل</small></div>
+        <div><span>المديونية</span><strong class="balance-negative" dir="ltr"><%= customerMoney(customerSummary.totalDebt) %></strong><small>د.ل</small></div>
+        <div><span>عدد العملاء</span><strong><%= customers.length %></strong><small>الأرصدة الحالية</small></div>
+    </section>
+    <% } %>
+    <header class="agent-customers-head"><span><strong><%= customers.length %></strong> عميل · <%= customers.filter(customer => customer.status === 'active').length %> نشط</span><% if (workspace.permissions.canManageCustomers) { %><button type="button" class="bw-button primary compact" data-dialog-open="createCustomerDialog"><i class="fa-solid fa-user-plus"></i>إضافة عميل</button><% } %></header>
+    <section class="agent-balances-panel">
+        <label class="agent-balances-search"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><input type="search" data-customer-search placeholder="الاسم، الهاتف أو رقم الحساب" aria-label="البحث عن عميل" autocomplete="off"></label>
+        <label class="agent-customers-filter"><span>الحالة</span><select data-customer-filter><option value="all">الكل</option><option value="active">نشط</option><option value="inactive">موقوف</option></select></label>
+    </section>
+    <section class="agent-balances-panel">
+        <div>
+        <% customers.slice().sort((a,b) => String(a.name || '').localeCompare(String(b.name || ''),'ar')).forEach(customer => { %>
+            <div class="agent-customer-row" data-customer-row data-status="<%= customer.status === 'active' ? 'active' : 'inactive' %>" data-search="<%= [customer.name,customer.phone,customer.accountCode].filter(Boolean).join(' ') %>">
+                <a class="agent-customer-profile" href="/agent-portal/customers/<%= encodeURIComponent(String(customer._id)) %>"><span class="agent-balance-identity"><strong><%= customer.name %></strong><small><bdi><%= customer.accountCode || 'قيد التوليد' %></bdi> · <bdi><%= customer.phone || 'بدون هاتف' %></bdi></small></span><span class="agent-customer-status <%= customer.status === 'active' ? 'active' : '' %>"><%= customer.status === 'active' ? 'نشط' : 'موقوف' %></span></a>
+                <% if (workspace.permissions.canManageCustomers) { %><details class="agent-customer-actions"><summary aria-label="إجراءات حساب <%= customer.name %>"><i class="fa-solid fa-ellipsis-vertical" aria-hidden="true"></i></summary><div><a href="/agent-portal/customers/<%= encodeURIComponent(String(customer._id)) %>#credit-limit">حد المديونية</a><button type="button" data-customer-balance data-customer-id="<%= customer._id %>" data-customer-name="<%= customer.name %>">تمويل أو سحب</button><form method="POST" action="/agent-portal/customers/<%= encodeURIComponent(String(customer._id)) %>/toggle" data-confirm="<%= customer.status === 'active' ? 'إيقاف حساب هذا العميل؟' : 'إعادة تنشيط حساب هذا العميل؟' %>"><button type="submit"><%= customer.status === 'active' ? 'إيقاف الحساب' : 'تنشيط الحساب' %></button></form></div></details><% } %>
+            </div>
+        <% }) %>
+        </div>
+        <p class="agent-balances-empty" data-customer-empty <%= customers.length ? 'hidden' : '' %>>لا يوجد عملاء لعرضهم.</p>
+        <footer class="agent-balances-footer" data-customer-footer hidden><span data-customer-progress role="status" aria-live="polite"></span><button type="button" class="bw-button ghost compact" data-customer-more>تحميل المزيد</button></footer>
+    </section>
+</div>

@@ -1,0 +1,17 @@
+<form method="POST" action="/agent-portal/customers/add" id="agentCreateCustomerForm" class="agent-create-form" data-create-kind="customer" novalidate>
+    <header class="agent-create-head"><h2 id="createCustomerTitle">إضافة عميل</h2><button type="button" class="bw-icon-button" data-dialog-close aria-label="إغلاق"><i class="fa-solid fa-xmark"></i></button></header>
+    <div class="agent-create-body">
+        <h3>البيانات الأساسية</h3>
+        <label class="agent-create-field"><span>الاسم الكامل</span><input name="name" type="text" minlength="3" maxlength="120" autocomplete="name" required aria-describedby="createNameError"><small id="createNameError" data-create-error="name" hidden></small></label>
+        <label class="agent-create-field"><span>رقم الهاتف</span><input name="phone" type="tel" inputmode="tel" dir="ltr" pattern="\+?[0-9]{8,15}" maxlength="16" autocomplete="tel" required aria-describedby="createPhoneError"><small id="createPhoneError" data-create-error="phone" hidden></small></label>
+        <h3>بيانات الدخول</h3>
+        <label class="agent-create-field"><span>اسم المستخدم</span><span class="agent-create-affix" dir="ltr"><input name="webUsername" type="text" pattern="[A-Za-z0-9_]{3,40}" minlength="3" maxlength="40" autocomplete="off" autocapitalize="none" spellcheck="false" required aria-describedby="createUsernameError"><b>@ahram.com</b></span><small id="createUsernameError" data-create-error="webUsername" hidden></small></label>
+        <label class="agent-create-field"><span>كلمة المرور</span><span class="agent-create-affix"><input id="agentCustomerPassword" name="webPassword" type="password" minlength="8" maxlength="128" autocomplete="new-password" required aria-describedby="createPasswordError"><button type="button" data-create-password aria-controls="agentCustomerPassword" aria-pressed="false" aria-label="إظهار كلمة المرور">إظهار</button></span><small id="createPasswordError" data-create-error="webPassword" hidden></small></label>
+        <details class="agent-create-financial"><summary>إعدادات مالية <small>اختياري</small></summary><div>
+            <label class="agent-create-field"><span>هامش الربح بالقروش</span><input name="marginPiasters" type="number" min="0" max="500" step="1" inputmode="numeric" value="0" required aria-describedby="createMarginError"><small id="createMarginError" data-create-error="marginPiasters" hidden></small></label>
+            <label class="agent-create-field"><span>حد المديونية · د.ل</span><input name="creditLimit" type="number" min="0" step="0.001" inputmode="decimal" value="0" required aria-describedby="createCreditError"><small id="createCreditError" data-create-error="creditLimit" hidden></small></label>
+        </div></details>
+        <p class="agent-create-result" data-create-result role="status" aria-live="polite" hidden></p>
+    </div>
+    <footer class="agent-create-footer"><button type="submit" class="bw-button primary" data-create-submit>إنشاء حساب العميل</button></footer>
+</form>

@@ -32,8 +32,6 @@ const pages = {
     '/transactions': 'transactions',
     '/reports': 'reports',
     '/finance': 'finance',
-    '/finance/customer-balances': 'agency_balances',
-    '/finance/agency-account': 'agency_account',
     '/finance/profits': 'agency_profits',
     '/customers': 'customers',
     '/customers/:id': 'customer_profile',
@@ -46,7 +44,8 @@ const pages = {
 for (const [url, page] of Object.entries(pages)) router.get(url, renderPage(page));
 router.get('/account', (_req, res) => res.redirect('/agent-portal/finance'));
 router.get('/finance/position', (_req, res) => res.redirect('/agent-portal/finance'));
-router.get('/finance/customer-debts', (_req, res) => res.redirect('/agent-portal/finance/customer-balances'));
+router.get('/finance/agency-account', (_req, res) => res.redirect('/agent-portal/finance'));
+router.get(['/finance/customer-balances', '/finance/customer-debts'], (_req, res) => res.redirect('/agent-portal/customers'));
 router.get('/transfers', (_req, res) => res.redirect('/agent-portal/transactions'));
 router.get('/logout', auth.logout);
 router.get('/profile-photo', dashboard.getProfilePhoto);
@@ -54,6 +53,7 @@ router.get('/api/transactions', dashboard.getApiTransactions);
 router.get('/api/rates', queries.getCurrentRates);
 router.get('/transactions/:id/details', queries.getTransactionDetails);
 router.get('/reports/export.csv', reports.exportReportCsv);
+router.get('/reports/central.pdf', rateLimit({windowMs:60000,max:10,standardHeaders:true,legacyHeaders:false,keyGenerator:req=>String(req.session.clientId)}), reports.downloadCentralAgentReportPdf);
 router.get(['/proxy/image/:id', '/proxy/image/:id/:index'], transactions.getProxyImage);
 router.post('/api/smart-transfer/parse', queries.parseSmartTransferMessage);
 router.post(
@@ -76,6 +76,7 @@ router.post('/settings/theme', settings.postClientTheme);
 router.post('/agent/staff/add', staff.postAddStaff);
 router.post('/agent/staff/:id/toggle', staff.postToggleStaff);
 router.post('/agent/staff/:id/password', staff.postResetStaffPassword);
+router.post('/agent/staff/:id/permissions', staff.postUpdatePermissions);
 router.post('/agent/registration-requests/:id/approve', registration.postApproveClientRequest);
 router.post('/agent/registration-requests/:id/reject', registration.postRejectClientRequest);
 router.use(require('./portalSharedApi'));

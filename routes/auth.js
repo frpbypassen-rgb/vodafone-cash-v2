@@ -445,6 +445,7 @@ const securitySessionsError = (res, error) => {
         : (error.code === 'SECURITY_ACCESS_REQUEST_EXPIRED' ? 410 : 400);
     const messages = {
         SECURITY_DEVICE_NOT_FOUND: 'الجلسة غير موجودة أو تم إنهاؤها بالفعل.',
+        SECURITY_CURRENT_DEVICE_REQUIRED: 'تعذر التحقق من الجلسة الحالية. أعد تسجيل الدخول قبل إنهاء الأجهزة الأخرى.',
         SECURITY_ACCESS_REQUEST_NOT_FOUND: 'طلب الجهاز غير موجود أو تمت مراجعته.',
         SECURITY_ACCESS_REQUEST_EXPIRED: 'انتهت صلاحية طلب الجهاز. أعد محاولة تسجيل الدخول.',
         SECURITY_ADMIN_APPROVAL_REQUIRED: 'هذا الطلب يحتاج موافقة الإدارة حفاظاً على أمان الحساب.'
@@ -458,11 +459,12 @@ router.get('/security/sessions', requireWebMfaContext, async (req, res) => {
         || (req.webMfaContext.accountType === 'client_user' && req.webMfaContext.account.role === 'agent');
     const returnUrl = req.session.isExecutorLoggedIn
         ? '/executor-portal/settings'
-        : (isAgent ? '/agent-portal/settings#settings' : '/client/settings?section=security');
+        : (isAgent ? '/agent-portal/security' : '/client/settings?section=security');
     return res.render('account_security_sessions', {
         principalName: principal?.principalName || 'الحساب',
         returnUrl,
-        returnLabel: isAgent ? 'جميع الإعدادات' : 'رجوع للحساب'
+        returnLabel: isAgent ? 'أمان الحساب' : 'رجوع للحساب',
+        isAgentSessions:isAgent
     });
 });
 
@@ -548,6 +550,15 @@ router.get('/security/sessions/data', requireWebMfaContext, async (req, res) => 
     } catch (error) {
         return securitySessionsError(res, error);
     }
+});
+
+router.post('/security/sessions/revoke-others',requireWebMfaContext,async(req,res)=>{
+    try {
+        const principal=webSecurityPrincipal(req);
+        const result=await securityControl.revokeOtherPrincipalDevices({principal,req});
+        await logAction({action:'SECURITY_OTHER_DEVICES_REVOKED_BY_OWNER',req,performedById:principal.principalId,performedByName:principal.principalName,targetId:principal.principalId,severity:'warning',metadata:{revokedCount:result.revokedCount}});
+        return res.json({success:true,...result});
+    } catch(error) { return securitySessionsError(res,error); }
 });
 
 router.post('/security/sessions/:id/revoke', requireWebMfaContext, async (req, res) => {

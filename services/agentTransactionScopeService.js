@@ -5,7 +5,7 @@ const { tenantMode } = require('../middlewares/tenantResolver');
 const { resolveAgentPermissions } = require('../utils/agentPortalPolicy');
 
 // Reports, transaction details and receipt downloads must use the same boundary.
-const buildAgentTransactionScope = async ({ agent, actor = agent }) => {
+const buildAgentTransactionScope = async ({ agent, actor = agent, purpose = 'transactions' }) => {
     if (!agent?._id || agent.role !== 'agent' || !actor?._id) throw new Error('INVALID_AGENT_SCOPE');
     const tenant = {};
     if (tenantMode() === 'multi') {
@@ -27,7 +27,8 @@ const buildAgentTransactionScope = async ({ agent, actor = agent }) => {
             { subAccountId: { $in: customerIds } },
         ],
     };
-    if (resolveAgentPermissions(actor).canViewAllReports) return ownership;
+    const permissions = resolveAgentPermissions(actor);
+    if (purpose === 'reports' ? permissions.canViewAllReports : purpose === 'details' ? permissions.canViewAllReports || permissions.canViewAllTransactions : permissions.canViewAllTransactions) return ownership;
     const ownRecords = [{ clientActorId: String(actor._id) }];
     if (actor.name) ownRecords.push({ clientActorId: { $exists: false }, employeeName: actor.name });
     return { $and: [ownership, { $or: ownRecords }] };

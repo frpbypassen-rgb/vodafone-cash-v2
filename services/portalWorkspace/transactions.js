@@ -9,7 +9,7 @@ const { STATUS_META, SERVICE_CATALOG } = require('./catalog');
 const { escapeRegex, resolveDateRange, safeNumber } = require('./primitives');
 const { systemDateKey, systemDayStart, systemDayEnd } = require('../../config/systemTime');
 
-const ownershipFilter = async (workspace) => {
+const ownershipFilter = async (workspace, purpose = 'transactions') => {
     if (workspace.isCompany) {
         const companyScope = { companyId: workspace.entity._id };
         if (!workspace.permissions.employee) return companyScope;
@@ -28,7 +28,7 @@ const ownershipFilter = async (workspace) => {
         };
     }
 
-    return buildAgentTransactionScope({ agent: workspace.entity, actor: workspace.actor });
+    return buildAgentTransactionScope({ agent: workspace.entity, actor: workspace.actor, purpose });
 };
 
 const buildTransactionFilter = async (workspace, query = {}, options = {}) => {
@@ -45,7 +45,7 @@ const buildTransactionFilter = async (workspace, query = {}, options = {}) => {
         };
     }
     const includeAllHistory = String(query.history || '') === 'all' && !options.forceToday;
-    const conditions = [await ownershipFilter(workspace)];
+    const conditions = [await ownershipFilter(workspace, options.purpose || 'transactions')];
     if (!includeAllHistory) conditions.push({ createdAt: { $gte: range.start, $lte: range.end } });
     const search = String(query.search || '').trim();
 

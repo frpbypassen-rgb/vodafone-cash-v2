@@ -1,0 +1,15 @@
+<form method="POST" action="/agent-portal/agent/staff/add" id="agentCreateStaffForm" class="agent-create-form" data-create-kind="staff" novalidate>
+    <header class="agent-create-head"><h2 id="createStaffTitle">إضافة موظف</h2><button type="button" class="bw-icon-button" data-dialog-close aria-label="إغلاق"><i class="fa-solid fa-xmark"></i></button></header>
+    <div class="agent-create-body">
+        <h3>البيانات الأساسية</h3>
+        <label class="agent-create-field"><span>الاسم الكامل</span><input name="name" type="text" minlength="3" maxlength="120" autocomplete="name" required aria-describedby="staffNameError"><small id="staffNameError" data-create-error="name" hidden></small></label>
+        <label class="agent-create-field"><span>رقم الهاتف</span><input name="phone" type="tel" inputmode="tel" dir="ltr" pattern="\+?[0-9]{8,15}" maxlength="16" autocomplete="tel" required aria-describedby="staffPhoneError"><small id="staffPhoneError" data-create-error="phone" hidden></small></label>
+        <h3>بيانات الدخول</h3>
+        <label class="agent-create-field"><span>اسم المستخدم</span><span class="agent-create-affix" dir="ltr"><input name="webUsername" type="text" pattern="[A-Za-z0-9_]{3,40}" minlength="3" maxlength="40" autocomplete="off" autocapitalize="none" spellcheck="false" required aria-describedby="staffUsernameError"><b>@ahram.com</b></span><small id="staffUsernameError" data-create-error="webUsername" hidden></small></label>
+        <label class="agent-create-field"><span>كلمة المرور</span><span class="agent-create-affix"><input id="agentStaffPassword" name="webPassword" type="password" minlength="8" maxlength="128" autocomplete="new-password" required aria-describedby="staffPasswordError"><button type="button" data-create-password aria-controls="agentStaffPassword" aria-pressed="false" aria-label="إظهار كلمة المرور">إظهار</button></span><small id="staffPasswordError" data-create-error="webPassword" hidden></small></label>
+        <label class="agent-create-field"><span>الدور</span><select name="role" data-create-role required aria-describedby="staffRoleDescription staffRoleError"><option value="employee">موظف تنفيذ</option><option value="accountant">محاسب</option></select><span class="agent-create-description" id="staffRoleDescription" data-create-role-description>ينفّذ التحويلات ويتابع عملياته فقط.</span><small id="staffRoleError" data-create-error="role" hidden></small></label>
+        <%- include('staff_permissions', { permissionValues: null, permissionRole: 'employee', permissionEdit: false }) %>
+        <p class="agent-create-result" data-create-result role="status" aria-live="polite" hidden></p>
+    </div>
+    <footer class="agent-create-footer"><button type="submit" class="bw-button primary" data-create-submit>إنشاء حساب الموظف</button></footer>
+</form>

@@ -147,23 +147,7 @@ const buildNavigation = (workspace, activePage) => {
                   label: workspace.isAgent ? 'السجل المالي' : 'الحركات المالية',
                   icon: 'fa-scale-balanced',
                   group: 'العمل اليومي',
-                  visible: workspace.permissions.canViewBalance,
-              },
-              {
-                  key: 'agency_balances',
-                  href: '/client/finance/customer-balances',
-                  label: 'أرصدة العملاء',
-                  icon: 'fa-wallet',
-                  group: 'محاسبة الوكالة',
-                  visible: workspace.permissions.canViewBalance,
-              },
-              {
-                  key: 'agency_account',
-                  href: '/client/finance/agency-account',
-                  label: 'حساب الوكالة',
-                  icon: 'fa-building-columns',
-                  group: 'محاسبة الوكالة',
-                  visible: workspace.permissions.canViewBalance,
+                  visible: workspace.permissions.canViewBalance && workspace.permissions.canViewAllTransactions,
               },
               {
                   key: 'agency_profits',
@@ -171,7 +155,7 @@ const buildNavigation = (workspace, activePage) => {
                   label: 'أرباح العملاء',
                   icon: 'fa-chart-line',
                   group: 'محاسبة الوكالة',
-                  visible: workspace.permissions.canViewBalance,
+                  visible: workspace.permissions.canViewBalance && workspace.permissions.canViewAllReports,
               },
               {
                   key: 'customers',
@@ -187,7 +171,7 @@ const buildNavigation = (workspace, activePage) => {
                   label: 'الموظفون',
                   icon: 'fa-user-group',
                   group: 'الإدارة',
-                  visible: workspace.permissions.manager || workspace.permissions.accountant,
+                  visible: workspace.permissions.manager || workspace.permissions.accountant || workspace.permissions.canManageStaff,
               },
               {
                   key: 'reports',

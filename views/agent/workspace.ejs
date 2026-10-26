@@ -79,10 +79,6 @@ const businessTheme = typeof clientTheme !== 'undefined' && clientTheme ? client
                 <%- include('../portal/pages/workspace_transactions') %>
             <% } else if (page === 'finance') { %>
                 <%- include('../portal/pages/workspace_finance') %>
-            <% } else if (page === 'agency_balances') { %>
-                <%- include('partials/customer_balances') %>
-            <% } else if (page === 'agency_account') { %>
-                <%- include('partials/financial_ledger', { ledgerAccount: true, movements: agencyFinance.agencyLedger.map(row => ({ ...row, direction: Number(row.amount) >= 0 ? 'credit' : 'debit', source: 'ledger' })), financeSummary: { count: agencyFinance.agencyLedger.length }, listTruncated: agencyFinance.agencyLedger.length >= 300 }) %>
             <% } else if (page === 'agency_profits') { %>
                 <%- include('partials/customer_profits') %>
             <% } else if (page === 'customers') { %>
@@ -92,7 +88,7 @@ const businessTheme = typeof clientTheme !== 'undefined' && clientTheme ? client
             <% } else if (page === 'staff') { %>
                 <%- include('../portal/pages/workspace_staff') %>
             <% } else if (page === 'reports') { %>
-                <%- include('../portal/pages/workspace_reports') %>
+                <%- include('partials/reports') %>
             <% } else if (page === 'settings') { %>
                 <%- include('../portal/pages/workspace_settings') %>
             <% } else if (page === 'security') { %>
@@ -263,8 +259,13 @@ const businessTheme = typeof clientTheme !== 'undefined' && clientTheme ? client
     <script src="/js/agent-portal/mobile-menu.js?v=20261026-more" defer></script>
     <script src="/js/agent-portal/report-email.js?v=20261026-verify" defer></script>
     <script src="/js/agent-portal/telegram-settings.js?v=20261026-accounts" defer></script>
-    <% if (['finance', 'agency_account'].includes(page)) { %><script src="/js/agent-portal/finance.js?v=20261026-compact" defer></script><% } %>
-    <% if (page === 'agency_balances') { %><script src="/js/agent-portal/customer-balances.js?v=20261026-compact" defer></script><% } %>
+    <% if (page === 'finance') { %><script src="/js/agent-portal/finance.js?v=20261026-compact" defer></script><% } %>
     <% if (page === 'agency_profits') { %><script src="/js/agent-portal/customer-profits.js?v=20261026-compact" defer></script><% } %>
+    <% if (page === 'customers') { %><script src="/js/agent-portal/customers.js?v=20261026-compact" defer></script><% } %>
+    <% if (['customers', 'staff'].includes(page)) { %><script src="/js/agent-portal/create-customer.js?v=20261026-accounts" defer></script><% } %>
+    <% if (page === 'staff') { %><script src="/js/agent-portal/staff.js?v=20261026-compact" defer></script><% } %>
+    <% if (page === 'staff') { %><script src="/js/agent-portal/staff-permissions.js?v=20261026-limited" defer></script><% } %>
+    <% if (page === 'reports') { %><script src="/js/agent-portal/reports.js?v=20261026-compact" defer></script><% } %>
+    <% if (page === 'settings') { %><script src="/js/agent-portal/push-test.js?v=20261026-test" defer></script><% } %>
 </body>
 </html>

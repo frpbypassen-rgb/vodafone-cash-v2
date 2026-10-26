@@ -16,6 +16,10 @@ const { normalizeCreditLimit } = require('../../services/agencyCreditLimitServic
 const { SERVICE_RATE_KEYS } = require('../../utils/rateHelper');
 
 exports.postCreateCustomer = async (req, res) => {
+    const jsonRequest = req.baseUrl === '/agent-portal' && String(req.headers?.accept || '').includes('application/json');
+    const respond = (type, code, status = 400) => jsonRequest
+        ? res.status(type === 'customerSuccess' ? 201 : status).json({ success: type === 'customerSuccess', code })
+        : redirectWithMessage(res, '/client/customers', type, code);
     try {
         const workspace = await businessPortalService.resolveWorkspace(req);
         requireCustomerManager(workspace);
@@ -31,7 +35,7 @@ exports.postCreateCustomer = async (req, res) => {
         const creditLimit = normalizeCreditLimit(req.body.creditLimit);
 
         if (name.length < 3 || !/^\+?[0-9]{8,15}$/.test(phone) || webPassword.length < 8) {
-            return redirectWithMessage(res, '/client/customers', 'customerError', 'invalid');
+            return respond('customerError', 'invalid');
         }
         await assertIdentityAvailable({ webUsername, phone });
 
@@ -71,7 +75,7 @@ exports.postCreateCustomer = async (req, res) => {
             metadata: { portal: workspace.type, webUsername, phone },
         });
 
-        return redirectWithMessage(res, '/client/customers', 'customerSuccess', 'created');
+        return respond('customerSuccess', 'created');
     } catch (error) {
         const code =
             error.message === 'IDENTITY_TAKEN'
@@ -84,7 +88,7 @@ exports.postCreateCustomer = async (req, res) => {
                       ? 'forbidden'
                       : 'server';
         console.error('[Business Portal] create customer failed:', error.message);
-        return redirectWithMessage(res, '/client/customers', 'customerError', code);
+        return respond('customerError', code, code === 'forbidden' ? 403 : code === 'server' ? 500 : 400);
     }
 };
 

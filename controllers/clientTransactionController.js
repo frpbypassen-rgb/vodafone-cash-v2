@@ -82,11 +82,11 @@ const clientOwnershipFilter = async (req) => {
     }
 
     if (req.session.accountType === 'agent_staff') {
-        const employee = await AgentEmployee.findById(accountId).select('agentId status name role canManageAgent canViewAllReports').lean();
+        const employee = await AgentEmployee.findById(accountId).select('agentId status name role canManageAgent canViewAllReports staffPermissions').lean();
         if (!employee || employee.status !== 'active' || !employee.agentId) return null;
         const agent = await User.findById(employee.agentId).select('phone webUsername status role tenantId').lean();
         if (!agent || agent.status !== 'active' || agent.role !== 'agent') return null;
-        return buildAgentTransactionScope({ agent, actor: employee });
+        return buildAgentTransactionScope({ agent, actor: employee, purpose: 'details' });
     }
 
     const user = await User.findById(accountId).select('phone webUsername status role tenantId').lean();

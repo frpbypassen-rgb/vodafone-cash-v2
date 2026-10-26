@@ -1,5 +1,8 @@
 <% const portalBasePath = locals.portalBasePath || '/client'; const portalHref = value => typeof value === 'string' && (value === '/client' || value.startsWith('/client/') || value.startsWith('/client?')) ? portalBasePath + value.slice(7) : value; %>
-<% if (workspace.isCompany || workspace.isAgent) { %>
+<% if (workspace.isAgent) { %>
+<%- include('../../agent/partials/staff') %>
+<% } else { %>
+<% if (workspace.isCompany) { %>
 <section class="cp-page-hero">
     <div>
         <span class="bw-section-kicker">فريق <%= workspace.entityLabel %></span>
@@ -76,8 +79,12 @@
 
 </section>
 
+<% } %>
 <% if (workspace.permissions.canManageStaff) { %>
 <dialog class="bw-dialog" id="createStaffDialog" aria-labelledby="createStaffTitle">
+    <% if (workspace.isAgent) { %>
+    <%- include('../../agent/partials/create_staff') %>
+    <% } else { %>
     <form method="POST" action="<%= portalBasePath %>/<%= workspace.isCompany ? 'company' : 'agent' %>/staff/add" class="bw-dialog-form">
         <div class="bw-dialog-head"><div><span class="bw-section-kicker">حساب فريق جديد</span><h2 id="createStaffTitle">إضافة موظف</h2></div><button type="button" class="bw-icon-button" data-dialog-close aria-label="إغلاق"><i class="fa-solid fa-xmark"></i></button></div>
         <div class="bw-dialog-body bw-form-grid">
@@ -95,6 +102,7 @@
         </div>
         <div class="bw-dialog-actions"><button type="button" class="bw-button secondary" data-dialog-close>إلغاء</button><button type="submit" class="bw-button primary"><i class="fa-solid fa-user-plus"></i>إنشاء الحساب</button></div>
     </form>
+    <% } %>
 </dialog>
 
 <dialog class="bw-dialog compact-dialog" id="staffPasswordDialog" aria-labelledby="staffPasswordTitle">

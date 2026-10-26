@@ -28,6 +28,14 @@ const agentEmployeeSchema = new mongoose.Schema({
     canViewAllReports: { type: Boolean, default: false },
     canManageAgent: { type: Boolean, default: false },
     canCreateAgentStaff: { type: Boolean, default: false },
+    staffPermissions: { type: new mongoose.Schema({
+        canTransfer: { type: Boolean, required: true },
+        canViewBalance: { type: Boolean, required: true },
+        canViewAllTransactions: { type: Boolean, required: true },
+        canViewAllReports: { type: Boolean, required: true },
+        canManageCustomers: { type: Boolean, required: true },
+        canManageStaff: { type: Boolean, required: true }
+    }, { _id: false }), default: undefined },
     tenantId: { type: mongoose.Schema.Types.ObjectId, ref: 'Tenant' },
     refreshToken: { type: String },
     deletedCredentials: {

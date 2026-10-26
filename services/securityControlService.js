@@ -648,6 +648,16 @@ const revokePrincipalDevice = async ({ principal, deviceId, req, reason = 'user_
     return { device, current };
 };
 
+const revokeOtherPrincipalDevices = async ({principal,req}) => {
+    const binding={channel:requestChannel(req),deviceIdHash:hashDeviceId(ensureDeviceId(req,null))};
+    const owner={principalType:principal.principalType,principalId:principal.principalId,status:'active'};
+    if (!await SecurityDevice.exists({...owner,...binding})) {
+        const error=new Error('SECURITY_CURRENT_DEVICE_REQUIRED');error.code=error.message;throw error;
+    }
+    const result=await SecurityDevice.updateMany({...owner,$nor:[binding]},{$set:{status:'revoked',revokedAt:new Date(),revokedReason:'other_devices_revoked_by_account_owner'}});
+    return {revokedCount:result.modifiedCount || 0};
+};
+
 const reviewPrincipalAccessRequest = async ({ principal, requestId, approve, reviewedBy, reviewNote = '' }) => {
     const state = await getState();
     if (approve && state.adminApprovalRequired !== false) {
@@ -897,6 +907,7 @@ module.exports = {
     authorizeLogin,
     listPrincipalSessions,
     revokePrincipalDevice,
+    revokeOtherPrincipalDevices,
     reviewPrincipalAccessRequest,
     ensureSecurityDeviceIndexes,
     applySessionSecurity,

@@ -1,4 +1,7 @@
 <% const portalBasePath = locals.portalBasePath || '/client'; const portalHref = value => typeof value === 'string' && (value === '/client' || value.startsWith('/client/') || value.startsWith('/client?')) ? portalBasePath + value.slice(7) : value; %>
+<% if (workspace.isAgent) { %>
+<%- include('../../agent/partials/customers') %>
+<% } else { %>
 <section class="bw-mini-metrics">
     <article><span>إجمالي العملاء</span><strong class="bw-mono"><%= customerSummary.total %></strong></article>
     <article class="success"><span>الحسابات النشطة</span><strong class="bw-mono"><%= customerSummary.active %></strong></article>
@@ -42,7 +45,9 @@
     </div>
 </section>
 
+<% } %>
 <% if (workspace.isAgent) { %>
+    <details class="agent-customer-requests"><summary>طلبات التسجيل الجديدة · <%= pendingRequests.length %></summary>
     <section class="bw-section" id="registrationRequests">
         <header class="bw-section-head"><div><span class="bw-section-kicker">اعتماد الوكيل</span><h2>طلبات التسجيل الجديدة</h2></div><span class="bw-meta-chip"><%= pendingRequests.length %> طلب</span></header>
         <div class="bw-request-grid">
@@ -67,9 +72,13 @@
             <% }) %>
         </div>
     </section>
+    </details>
 <% } %>
 
 <dialog class="bw-dialog" id="createCustomerDialog" aria-labelledby="createCustomerTitle">
+    <% if (workspace.isAgent) { %>
+    <%- include('../../agent/partials/create_customer') %>
+    <% } else { %>
     <form method="POST" action="<%= portalBasePath %>/customers/add" class="bw-dialog-form">
         <div class="bw-dialog-head"><div><span class="bw-section-kicker">حساب تابع جديد</span><h2 id="createCustomerTitle">إضافة عميل</h2></div><button type="button" class="bw-icon-button" data-dialog-close aria-label="إغلاق"><i class="fa-solid fa-xmark"></i></button></div>
         <div class="bw-dialog-body bw-form-grid">
@@ -82,6 +91,7 @@
         </div>
         <div class="bw-dialog-actions"><button type="button" class="bw-button secondary" data-dialog-close>إلغاء</button><button type="submit" class="bw-button primary"><i class="fa-solid fa-user-plus"></i>إنشاء الحساب</button></div>
     </form>
+    <% } %>
 </dialog>
 
 <dialog class="bw-dialog" id="customerBalanceDialog" aria-labelledby="customerBalanceTitle">

@@ -63,7 +63,7 @@ exports.getCurrentRates = async (req, res) => {
 exports.getTransactionDetails = async (req, res) => {
     try {
         const workspace = await businessPortalService.resolveWorkspace(req);
-        const ownership = await businessPortalService.ownershipFilter(workspace);
+        const ownership = await businessPortalService.ownershipFilter(workspace, 'details');
         const conditions = [ownership, { _id: req.params.id }];
         if (workspace.forceToday) {
             const range = businessPortalService.resolveDateRange({}, { forceToday: true });

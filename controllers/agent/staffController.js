@@ -9,6 +9,7 @@ const Admin = require('../../models/Admin');
 const { logAction } = require('../../services/auditService');
 const { getAgentActor } = require('../../services/agentPortalContextService');
 const { resolveAgentPermissions } = require('../../utils/agentPortalPolicy');
+const { buildStaffPermissions, canEditStaffPermissions } = require('../../utils/agentStaffPermissions');
 const canCreateAgentStaff = (actor) => resolveAgentPermissions(actor).canManageStaff;
 const USERNAME_DOMAIN = '@ahram.com';
 const isChecked = (value) => ['on', 'true', '1', 'yes'].includes(String(value || '').toLowerCase());
@@ -40,22 +41,28 @@ const assertUsernameAvailable = async (webUsername) => {
 };
 
 exports.postAddStaff = async (req, res) => {
+    const jsonRequest = req.baseUrl === '/agent-portal' && String(req.headers?.accept || '').includes('application/json');
+    const respond = (code, status = 400) => jsonRequest
+        ? res.status(code === 'created' ? 201 : status).json({ success: code === 'created', code })
+        : res.redirect(`/client/staff?${code === 'created' ? 'staffSuccess' : 'staffError'}=${code}`);
     try {
         const { actor, agent, actorModel } = await getAgentActor(req);
         if (!canCreateAgentStaff(actor))
-            return res.status(403).redirect('/client/staff?staffError=forbidden');
+            return respond('forbidden', 403);
 
         const name = String(req.body.name || '').trim();
         const phone = String(req.body.phone || '').trim();
         const webPassword = String(req.body.webPassword || '');
         const role = String(req.body.role || 'employee').trim();
         const grantManagerAccess = isChecked(req.body.canManageAgent);
+        const staffPermissions = req.body.permissionsMode ? buildStaffPermissions(req.body, actor, role) : undefined;
+        if (!resolveAgentPermissions(actor).owner && !staffPermissions) return respond('forbidden', 403);
 
         if (!name || !phone || !webPassword || !['employee', 'accountant'].includes(role)) {
-            return res.redirect('/client/staff?staffError=missing');
+            return respond('missing');
         }
         if (webPassword.length < 8 || webPassword.length > 128)
-            return res.redirect('/client/staff?staffError=password');
+            return respond('password');
 
         const webUsername = normalizeUsername(req.body.webUsername);
         await assertUsernameAvailable(webUsername);
@@ -69,9 +76,10 @@ exports.postAddStaff = async (req, res) => {
             webPassword,
             role,
             status: 'active',
-            canManageAgent: grantManagerAccess,
+            canManageAgent: staffPermissions ? false : grantManagerAccess,
             canCreateAgentStaff: false,
-            canViewAllReports: role === 'accountant' || grantManagerAccess,
+            canViewAllReports: staffPermissions ? staffPermissions.canViewAllReports : role === 'accountant' || grantManagerAccess,
+            ...(staffPermissions ? { staffPermissions } : {}),
         });
 
         await logAction({
@@ -86,16 +94,38 @@ exports.postAddStaff = async (req, res) => {
             metadata: { agentId: agent._id, role, canManageAgent: grantManagerAccess, webUsername },
         });
 
-        return res.redirect('/client/staff?staffSuccess=created');
+        return respond('created');
     } catch (error) {
         const code =
             error.message === 'USERNAME_TAKEN'
                 ? 'username'
                 : error.message === 'INVALID_USERNAME'
                   ? 'username_format'
-                  : 'server';
+                  : ['INVALID_PERMISSIONS', 'PERMISSION_ESCALATION'].includes(error.code) ? 'permissions' : 'server';
         console.error('[Agent Staff] create failed:', error.message);
-        return res.redirect(`/client/staff?staffError=${code}`);
+        return respond(code, code === 'server' ? 500 : 400);
+    }
+};
+
+exports.postUpdatePermissions = async (req, res) => {
+    try {
+        const { actor, agent, actorModel } = await getAgentActor(req);
+        if (!canCreateAgentStaff(actor)) return res.status(403).json({ success: false, code: 'forbidden' });
+        const target = await AgentEmployee.findOne({ _id: req.params.id, agentId: agent._id, status: { $ne: 'deleted' }, ...(agent.tenantId ? { tenantId: agent.tenantId } : {}) }).lean();
+        if (!target || !canEditStaffPermissions(actor, target)) return res.status(403).json({ success: false, code: 'forbidden' });
+        if (String(req.body.version) !== String(target.sessionVersion || 0)) return res.status(409).json({ success: false, code: 'changed' });
+        const staffPermissions = buildStaffPermissions(req.body, actor, target.role);
+        const updated = await AgentEmployee.findOneAndUpdate({ _id: target._id, agentId: agent._id, status: target.status, role: target.role, ...(target.sessionVersion === undefined ? { $or: [{sessionVersion:0},{sessionVersion:{$exists:false}}] } : {sessionVersion:target.sessionVersion}) }, {
+            $set: { staffPermissions, canManageAgent: false, canCreateAgentStaff: false, canViewAllReports: staffPermissions.canViewAllReports },
+            $inc: { sessionVersion: 1 },
+            $unset: { refreshToken: '', otpCode: '', otpExpires: '', otpChallengeId: '', otpIssuedAt: '', otpAttempts: '' }
+        }, { new: true, runValidators: true });
+        if (!updated) return res.status(409).json({ success: false, code: 'changed' });
+        await logAction({ action: 'USER_UPDATED', req, performedById: actor._id, performedByModel: actorModel, performedByName: actor.name, targetId: target._id, targetModel: 'AgentEmployee', result: 'ناجح', metadata: { agentId: agent._id, staffPermissions } });
+        return res.json({ success: true, code: 'permissions_updated' });
+    } catch (error) {
+        const denied = ['INVALID_PERMISSIONS', 'PERMISSION_ESCALATION'].includes(error.code);
+        return res.status(denied ? 403 : 500).json({ success: false, code: denied ? 'permissions' : 'server' });
     }
 };
 
@@ -110,7 +140,7 @@ exports.postToggleStaff = async (req, res) => {
             agentId: agent._id,
             status: { $ne: 'deleted' },
         });
-        if (!target || String(target._id) === String(actor._id)) {
+        if (!target || !canEditStaffPermissions(actor, target)) {
             return res.redirect('/client/staff?staffError=forbidden');
         }
 
@@ -156,7 +186,7 @@ exports.postResetStaffPassword = async (req, res) => {
             agentId: agent._id,
             status: { $ne: 'deleted' },
         });
-        if (!target || String(target._id) === String(actor._id)) {
+        if (!target || !canEditStaffPermissions(actor, target)) {
             return res.redirect('/client/staff?staffError=forbidden');
         }
 

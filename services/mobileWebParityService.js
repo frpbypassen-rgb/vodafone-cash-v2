@@ -292,7 +292,7 @@ async function getClientReports({ userId, accountType, dateType, dateValue, date
         throw new Error('INVALID_PERIOD');
     }
 
-    const canViewAll = (!isEmployee && !isAgentStaff)
+    const canViewAll = isAgentStaff ? require('../utils/agentPortalPolicy').resolveAgentPermissions(account).canViewAllReports : (!isEmployee && !isAgentStaff)
         || account.canViewAllReports
         || account.canManageCompany
         || account.canManageAgent
@@ -487,7 +487,7 @@ async function getBalanceTransferSource(userId, accountType) {
     }
 
     if (isAgentStaff) {
-        if (account.role === 'accountant') throw new Error('ACCOUNTANT_FORBIDDEN');
+        if (!require('../utils/agentPortalPolicy').resolveAgentPermissions(account).canTransfer) throw new Error('ACCOUNTANT_FORBIDDEN');
         const agent = await User.findById(account.agentId);
         if (!agent || agent.role !== 'agent') throw new Error('AGENT_NOT_FOUND');
         return { modelName: 'User', doc: agent, performedBy: account.name };

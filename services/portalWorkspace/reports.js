@@ -179,6 +179,7 @@ const loadReports = async (workspace, query = {}) => {
             : query;
     const { filter, range } = await buildTransactionFilter(workspace, reportQuery, {
         forceToday: workspace.forceToday,
+        purpose: 'reports',
     });
     // Reports are always read through the shared central reporting gateway.
     // It mirrors the financial source of truth used by the administration portal.
@@ -227,7 +228,7 @@ const loadReports = async (workspace, query = {}) => {
         reportRows,
         serviceBreakdown,
         agencyProfitRows:
-            workspace.isAgent && workspace.permissions.canViewBalance
+            workspace.isAgent && workspace.permissions.canViewBalance && workspace.permissions.canViewAllReports
                 ? agencyFinanceService.buildProfitRows(transactions, new Map())
                 : [],
         reportTransactions: transactions.slice(0, 100).map(presentClientPortalTransaction),

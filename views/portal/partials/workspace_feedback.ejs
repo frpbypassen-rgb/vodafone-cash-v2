@@ -4,6 +4,7 @@
     const errorCode = query.customerError || query.staffError || query.requestError || query.settingsError || query.portalError;
     const feedbackMessages = {
         created: 'تم إنشاء الحساب بنجاح.',
+        permissions: 'تم حفظ الصلاحيات. يلزم الموظف تسجيل الدخول مجددًا لتطبيقها.',
         status: 'تم تحديث حالة الحساب.',
         password: 'تم تحديث كلمة المرور بنجاح.',
         theme: workspace.isCompany ? 'تم حفظ مظهر بوابة الشركات على الحساب.' : 'تم حفظ مظهر بوابة العملاء على الحساب.',

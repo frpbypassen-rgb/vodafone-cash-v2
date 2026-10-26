@@ -7,6 +7,8 @@ const { resolveMarginPiasters } = require('../../utils/agencyPricing');
 const { calculateCreditState } = require('../agencyCreditLimitService');
 const { safeNumber, resolveDateRange, escapeRegex } = require('./primitives');
 const { ownershipFilter, staffModelForWorkspace, staffOwnerFilter } = require('./transactions');
+const { resolveAgentPermissions } = require('../../utils/agentPortalPolicy');
+const { canEditStaffPermissions } = require('../../utils/agentStaffPermissions');
 
 const loadCustomers = async (workspace) => {
     const customers = await SubAccount.find({
@@ -134,6 +136,7 @@ const loadStaff = async (workspace, query = {}) => {
     return {
         staff: staff.map((member) => ({
             ...member,
+            ...(workspace.isAgent ? { portalPermissions: resolveAgentPermissions(member), canEditPermissions: canEditStaffPermissions(workspace.actor, member) } : {}),
             stats: statsByName.get(member.name) || {
                 transactionCount: 0,
                 completedCount: 0,

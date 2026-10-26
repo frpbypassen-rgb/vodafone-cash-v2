@@ -72,7 +72,8 @@
     <section class="bw-settings-panel" id="notifications">
         <header class="bw-settings-panel-head"><span class="bw-settings-panel-icon tone-gold"><i class="fa-solid fa-bell"></i></span><div><span>الإشعارات</span><h2>تنبيهات هذا الجهاز</h2><p>اختر القنوات التي تريد استخدامها للتنبيهات التشغيلية.</p></div></header>
         <div class="bw-notification-choices">
-            <label><span><i class="fa-solid fa-mobile-screen"></i><b>Push</b><small>العمليات وتغير الأسعار</small></span><input type="checkbox" data-notification-preference="push" checked></label>
+            <label><span><i class="fa-solid fa-mobile-screen"></i><b><%= workspace.isAgent ? 'إشعارات ويب' : 'Push' %></b><small>العمليات وتغير الأسعار</small></span><input type="checkbox" data-notification-preference="push" checked></label>
+            <% if (workspace.isAgent) { %><div class="agent-push-test" data-agent-push-test-controls hidden><button type="button" class="bw-button ghost compact" data-agent-push-test><i class="fa-solid fa-bell" aria-hidden="true"></i>اختبار الإشعارات</button><span data-agent-push-test-status role="status" aria-live="polite"></span></div><% } %>
             <% if (!workspace.isAgent) { %>
             <label><span><i class="fa-solid fa-envelope"></i><b>البريد الإلكتروني</b><small>التقارير والتنبيهات المهمة</small></span><input type="checkbox" data-notification-preference="email"></label>
             <% } %>

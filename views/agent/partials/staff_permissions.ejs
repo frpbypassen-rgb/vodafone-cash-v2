@@ -1,0 +1,19 @@
+<% const permissionOptions = [
+{key:'canTransfer',label:'تنفيذ التحويلات'},
+{key:'canViewBalance',label:'عرض الرصيد المالي',hint:'السجل المالي يحتاج أيضًا عرض جميع العمليات.'},
+{key:'canViewAllTransactions',label:'عرض جميع العمليات'},
+{key:'canViewAllReports',label:'عرض جميع التقارير'},
+{key:'canManageCustomers',label:'إدارة العملاء',hint:'يشمل إنشاء وتمويل وإيقاف حسابات العملاء.'},
+{key:'canManageStaff',label:'إنشاء وإدارة الموظفين',hint:'صلاحية إدارية لإدارة حسابات الفريق.'}
+]; %>
+<details class="agent-create-financial agent-permission-panel" data-permission-panel data-role="<%= permissionRole %>" <%= permissionEdit ? 'open' : '' %>>
+    <summary>صلاحيات الموظف</summary><div>
+    <label class="agent-create-field"><span>نوع الصلاحيات</span><select name="permissionsMode" data-permission-mode><option value="basic">صلاحيات أساسية حسب الدور</option><option value="custom" <%= permissionEdit ? 'selected' : '' %>>تخصيص الصلاحيات</option></select></label>
+    <div data-permission-options <%= permissionEdit ? '' : 'hidden' %>>
+        <% permissionOptions.forEach(option => { const allowed = workspace.permissions[option.key] === true; const value = permissionValues ? permissionValues[option.key] === true : option.key === 'canTransfer'; %>
+        <label class="agent-create-manager agent-permission-option"><input type="checkbox" name="permission_<%= option.key %>" data-permission-key="<%= option.key %>" data-permission-label="<%= option.label %>" data-grantable="<%= allowed ? 'true' : 'false' %>" <%= value ? 'checked' : '' %> <%= !allowed || permissionRole === 'accountant' && option.key === 'canTransfer' ? 'disabled' : '' %>><span><strong><%= option.label %></strong><% if (option.hint) { %><small><%= option.hint %></small><% } %><% if (!allowed) { %><small>لا تملك صلاحية منحها.</small><% } %></span></label>
+        <% }) %>
+    </div>
+    <p class="agent-create-description" data-permission-summary aria-live="polite">الصلاحيات غير المحددة تبقى غير مسموحة؛ عرض العمليات والتقارير يقتصر على الموظف عند عدم اختيار العرض الشامل.</p>
+    </div>
+</details>

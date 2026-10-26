@@ -7,19 +7,22 @@ const resolveAgentPermissions = (actor = {}) => {
     const owner = actor?.role === 'agent';
     const accountant = actor?.role === 'accountant';
     const manager = knownRole && (owner || actor.canManageAgent === true);
+    const custom = !owner && actor.staffPermissions;
+    const capability = (key, fallback) => knownRole && (owner || (custom ? custom[key] === true : fallback));
     return {
         owner,
         manager,
         accountant,
         employee: knownRole && !manager && !accountant,
-        canTransfer: knownRole && !accountant,
-        canViewBalance: knownRole && (owner || manager || accountant || actor.canViewAllReports === true),
-        canManageCustomers: manager,
-        canManageStaff: knownRole && (owner || actor.canCreateAgentStaff === true),
+        canTransfer: !accountant && capability('canTransfer', true),
+        canViewBalance: capability('canViewBalance', manager || accountant || actor.canViewAllReports === true),
+        canManageCustomers: capability('canManageCustomers', manager),
+        canManageStaff: capability('canManageStaff', actor.canCreateAgentStaff === true),
         canViewReports: knownRole,
-        canViewAllReports: knownRole && (owner || manager || accountant || actor.canViewAllReports === true),
-        canEditSettings: owner || manager,
-        canInternalTransfer: knownRole && !accountant,
+        canViewAllReports: capability('canViewAllReports', manager || accountant || actor.canViewAllReports === true),
+        canViewAllTransactions: capability('canViewAllTransactions', manager || accountant || actor.canViewAllReports === true),
+        canEditSettings: owner || (!custom && manager),
+        canInternalTransfer: !accountant && capability('canTransfer', true),
         canRequestDeposit: false,
     };
 };
@@ -36,18 +39,11 @@ const canAccessAgentPage = (workspace, page) => {
     if (['services', 'service_workbench', 'smart_transfer'].includes(page))
         return access.canTransfer === true;
     if (page === 'internal_transfer') return access.canInternalTransfer === true;
-    if (
-        [
-            'finance',
-            'agency_balances',
-            'agency_account',
-            'agency_profits',
-        ].includes(page)
-    )
-        return access.canViewBalance === true;
-    if (page === 'customer_profile') return access.canViewBalance || access.canManageCustomers;
+    if (page === 'finance') return access.canViewBalance === true && access.canViewAllTransactions === true;
+    if (page === 'agency_profits') return access.canViewBalance === true && access.canViewAllReports === true;
+    if (page === 'customer_profile') return access.canManageCustomers || access.canViewBalance && access.canViewAllReports;
     if (page === 'customers') return access.canManageCustomers === true;
-    if (page === 'staff') return access.manager || access.accountant;
+    if (page === 'staff') return access.manager || access.accountant || access.canManageStaff;
     return page === 'reports' && access.canViewReports === true;
 };
 
