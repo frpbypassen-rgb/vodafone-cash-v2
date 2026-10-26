@@ -183,6 +183,7 @@ const addTransferJob = async (txId, apiGroupId) => {
     if (isApiTransferWorkerReady()) {
         try {
             await apiTransferQueue.add(`transfer_${txId}`, { txId, apiGroupId }, {
+                deduplication: { id: `api-transfer-${String(txId)}-${String(apiGroupId)}` },
                 attempts: 3,
                 backoff: { type: 'exponential', delay: 2000 },
                 removeOnComplete: true,

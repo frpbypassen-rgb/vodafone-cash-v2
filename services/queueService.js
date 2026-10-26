@@ -100,20 +100,16 @@ class ApiTransferQueue {
     }
 
     async processSingleJob(txId, apiGroupId) {
-        const guard = await guardAutomaticProviderRedispatch(txId);
-        if (guard.handled) {
-            logger.warn('API transfer job held before provider dispatch', {
-                txId,
-                apiGroupId,
-                reason: guard.reason,
-                code: guard.code || UNRESOLVED_CODE
-            });
-            return { skipped: true, code: guard.code || UNRESOLVED_CODE };
-        }
         return withApiExecutorSerialization(apiGroupId, () => this.processSingleJobSerialized(txId, apiGroupId));
     }
 
     async processSingleJobSerialized(txId, apiGroupId) {
+        // Re-read the durable claim after waiting for this provider's previous task.
+        const guard = await guardAutomaticProviderRedispatch(txId);
+        if (guard.handled) {
+            logger.warn('API transfer job held before provider dispatch', { txId, apiGroupId, reason: guard.reason, code: guard.code || UNRESOLVED_CODE });
+            return { skipped: true, code: guard.code || UNRESOLVED_CODE };
+        }
         try {
             const tx = await Transaction.findById(txId);
             const executorGroup = await ExecutorGroup.findById(apiGroupId);
@@ -126,6 +122,11 @@ class ApiTransferQueue {
                     hasExecutorGroup: Boolean(executorGroup),
                     status: tx ? tx.status : null
                 });
+                return;
+            }
+
+            if (String(tx.executorGroupId || '') !== String(apiGroupId)) {
+                logger.warn('API transfer job skipped after executor reassignment', { txId, apiGroupId });
                 return;
             }
 

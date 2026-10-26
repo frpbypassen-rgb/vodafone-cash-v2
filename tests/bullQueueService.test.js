@@ -310,7 +310,7 @@ describe('BullMQ Queue Service Tests (Redis / Distributed Queue)', () => {
         expect(mockAdd).toHaveBeenCalledWith(
             'transfer_tx-after-redis',
             { txId: 'tx-after-redis', apiGroupId: 'group-2' },
-            expect.any(Object)
+            expect.objectContaining({ deduplication: { id: 'api-transfer-tx-after-redis-group-2' }, removeOnFail: false })
         );
     });
 });

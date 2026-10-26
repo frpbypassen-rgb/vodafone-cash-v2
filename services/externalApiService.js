@@ -3,7 +3,7 @@ const axios = require('axios');
 const fs = require('fs');
 const https = require('https');
 const path = require('path');
-const { loadPuppeteer } = require('../utils/puppeteerLoader');
+const { renderApiReceiptWithBrowser } = require('./apiReceiptBrowserService');
 const { SYSTEM_TIME_ZONE } = require('../config/systemTime');
 const { getApiProviderPreset } = require('../utils/apiProviderPresets');
 const {
@@ -724,10 +724,7 @@ const getApiProviderTransaction = async (apiBot, transactionNumber) => {
 
 // 🧾 صانع إيصالات الـ API الذكي
 const generateCustomReceipt = async (tx, apiResult) => {
-    let browser;
-    try {
-        const puppeteer = await loadPuppeteer();
-        browser = await puppeteer.launch({ headless: "new", args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu', '--single-process'] });
+    return renderApiReceiptWithBrowser(async (browser) => {
         const page = await browser.newPage();
         await page.setViewport({ width: 520, height: 860 });
         
@@ -801,7 +798,7 @@ const generateCustomReceipt = async (tx, apiResult) => {
         await new Promise(resolve => setTimeout(resolve, 500)); 
         const element = await page.$('#receipt-container');
         return await element.screenshot({ type: 'jpeg', quality: 100 });
-    } catch (error) { return null; } finally { if (browser) await browser.close(); }
+    });
 };
 
 const saveApiReceiptProof = async (tx, apiResult) => {
