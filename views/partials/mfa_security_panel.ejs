@@ -1,5 +1,5 @@
 <% const compactMfaPanel = typeof workspace !== 'undefined' && (workspace.isCompany || workspace.isAgent); %>
-<section class="mfa-security-panel<%= compactMfaPanel ? ' mfa-compact' : '' %>" data-mfa-panel>
+<section class="mfa-security-panel<%= compactMfaPanel ? ' mfa-compact' : '' %>" data-mfa-panel data-mfa-csrf="<%= typeof csrfToken !== 'undefined' ? csrfToken : '' %>">
     <div class="mfa-panel-heading">
         <div>
             <% if (compactMfaPanel) { %>
@@ -42,20 +42,31 @@
     <% } %>
 
     <div class="mfa-setup" data-mfa-setup hidden>
-        <div class="mfa-notice">
-            <strong>احفظ بيانات الاسترداد قبل المتابعة</strong>
-            <span>أضف المفتاح يدويًا في Google Authenticator أو Microsoft Authenticator. هذه البيانات تظهر أثناء الإعداد فقط.</span>
+        <ol class="mfa-steps" aria-label="خطوات التفعيل"><li data-mfa-step-label="1" aria-current="step"><span>1</span> إضافة الحساب</li><li data-mfa-step-label="2"><span>2</span> تأكيد الرمز</li></ol>
+        <div data-mfa-add-step>
+            <h3 class="mfa-step-title">أضف الحساب إلى تطبيق المصادقة</h3>
+            <p class="mfa-help">اختر طريقة واحدة فقط. لن تتفعل الحماية حتى تأكيد الرمز.</p>
+            <a class="mfa-button primary mfa-wide" data-mfa-open-app referrerpolicy="no-referrer"><i class="fa-solid fa-arrow-up-right-from-square" aria-hidden="true"></i> فتح تطبيق المصادقة</a>
+            <p class="mfa-help">إن لم يفتح التطبيق، استخدم QR أو الإضافة اليدوية أدناه.</p>
+            <div class="mfa-methods">
+                <details data-mfa-method><summary>مسح رمز QR <span>من جهاز آخر</span></summary><div class="mfa-qr"><img data-mfa-qr-image alt="امسح الرمز بتطبيق المصادقة لإضافة الحساب" width="216" height="216"></div></details>
+                <details data-mfa-method><summary>إضافة يدوية</summary><div class="mfa-secret-label">اسم الحساب</div><div class="mfa-account-label" data-mfa-account-label></div><div class="mfa-secret-label">نوع الحساب: حسب الوقت (TOTP)</div><div class="mfa-secret-row"><code data-mfa-secret></code><button type="button" data-mfa-copy-secret aria-label="نسخ مفتاح الإعداد"><i class="fa-regular fa-copy" aria-hidden="true"></i></button></div></details>
+            </div>
+            <div class="mfa-actions mfa-step-actions"><button type="button" class="mfa-button primary mfa-wide" data-mfa-next>أضفت الحساب — متابعة</button><button type="button" class="mfa-button mfa-wide" data-mfa-cancel>إلغاء الإعداد</button></div>
         </div>
-        <div class="mfa-qr" data-mfa-qr hidden aria-label="رمز QR لإعداد تطبيق المصادقة"></div>
-        <div class="mfa-secret-label">مفتاح الإعداد</div>
-        <div class="mfa-secret-row"><code data-mfa-secret></code><button type="button" data-mfa-copy-secret title="نسخ"><i class="fa-regular fa-copy"></i></button></div>
-        <div class="mfa-secret-label">رابط الإعداد</div>
-        <div class="mfa-uri-row"><code data-mfa-uri></code><button type="button" data-mfa-copy-uri title="نسخ"><i class="fa-regular fa-copy"></i></button></div>
-        <div class="mfa-recovery-box"><strong>رموز الاسترداد</strong><div data-mfa-recovery></div></div>
-        <div class="mfa-confirm-row">
-            <input type="text" inputmode="numeric" maxlength="6" autocomplete="one-time-code" aria-label="رمز Authenticator المكون من 6 أرقام" data-mfa-confirm-token placeholder="رمز التحقق من 6 أرقام">
-            <button type="button" class="mfa-button primary" data-mfa-confirm>تأكيد التفعيل</button>
+        <div data-mfa-confirm-step hidden>
+            <h3 class="mfa-step-title">أدخل رمز التطبيق</h3>
+            <p class="mfa-help">افتح التطبيق واكتب الرمز الحالي من 6 أرقام، ثم ارجع هنا للتأكيد.</p>
+            <div class="mfa-confirm-row"><input type="text" inputmode="numeric" maxlength="32" autocomplete="one-time-code" aria-label="رمز Authenticator المكون من 6 أرقام" data-mfa-confirm-token placeholder="000000"><button type="button" class="mfa-button primary" data-mfa-confirm>تأكيد التفعيل</button></div>
+            <button type="button" class="mfa-button mfa-wide mfa-step-actions" data-mfa-back>الرجوع لطريقة الإضافة</button>
         </div>
+    </div>
+    <div class="mfa-setup" data-mfa-recovery-step hidden>
+        <h3 class="mfa-step-title">تم تفعيل الحماية</h3>
+        <p class="mfa-help">احفظ رموز الاسترداد في مكان آمن قبل الإغلاق. ستحتاجها عند فقدان هاتفك، ويُستخدم كل رمز مرة واحدة.</p>
+        <label class="mfa-secret-label">رموز الاسترداد<textarea class="mfa-recovery-codes" data-mfa-recovery readonly rows="8" dir="ltr" autocomplete="off"></textarea></label>
+        <div class="mfa-actions"><button type="button" class="mfa-button" data-mfa-copy-recovery>نسخ الرموز</button><button type="button" class="mfa-button" data-mfa-download-recovery>تنزيل الرموز</button></div>
+        <button type="button" class="mfa-button primary mfa-wide mfa-step-actions" data-mfa-finish>حفظت الرموز — إنهاء</button>
     </div>
 </section>
 
@@ -75,6 +86,8 @@
         --mfa-error: #ffb0b7; --mfa-error-bg: #44242e; --mfa-info: #b8d4ff; --mfa-info-bg: #1a3153;
     }
     .mfa-security-panel [hidden] { display: none !important; }
+    .mfa-security-panel[data-mfa-progress="true"] :is(.mfa-description, .mfa-login-summary, .mfa-device-summary) { display: none; }
+    .mfa-security-panel :is(button, a, summary, input, textarea) { scroll-margin-block: 100px; }
     .mfa-panel-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
     .mfa-panel-heading > div { min-width: 0; }
     .mfa-kicker { display: block; margin-bottom: 5px; color: var(--mfa-info); font-size: 12px; font-weight: 700; }
@@ -102,8 +115,23 @@
     .mfa-message { margin: 12px 0; padding: 10px 12px; border-radius: 9px; color: var(--mfa-info); background: var(--mfa-info-bg); font-size: 12px; line-height: 1.7; }
     .mfa-message.error { color: var(--mfa-error); background: var(--mfa-error-bg); }
     .mfa-setup { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--mfa-line); min-width: 0; }
-    .mfa-qr { box-sizing: content-box; width: 152px; height: 152px; margin: 0 auto 14px; padding: 8px; background: #fff; border-radius: 8px; }
-    .mfa-qr img, .mfa-qr canvas { display: block; width: 152px; height: 152px; }
+    .mfa-qr { width: min(100%, 216px); margin: 0 auto 10px; background: #fff; border-radius: 8px; }
+    .mfa-qr img { display: block; width: 100%; height: auto; }
+    .mfa-steps { display: flex; gap: 8px; padding: 0; margin: 0 0 16px; list-style: none; }
+    .mfa-steps li { flex: 1; color: var(--mfa-muted); font-size: 12px; line-height: 1.8; }
+    .mfa-steps li[aria-current="step"] { color: var(--mfa-info); font-weight: 700; }
+    .mfa-steps li span { display: inline-flex; justify-content: center; align-items: center; width: 24px; height: 24px; border: 1px solid var(--mfa-line); border-radius: 50%; }
+    .mfa-step-title { margin: 0; color: var(--mfa-ink); font-size: 14px; line-height: 1.6; }
+    .mfa-help { color: var(--mfa-muted); font-size: 12px; line-height: 1.8; margin: 8px 0 12px; }
+    .mfa-wide { width: 100%; }
+    .mfa-step-actions { margin-top: 12px; }
+    .mfa-methods { display: grid; gap: 8px; }
+    .mfa-methods details { border: 1px solid var(--mfa-line); border-radius: 10px; padding: 0 12px; }
+    .mfa-methods summary { min-height: 44px; line-height: 44px; cursor: pointer; color: var(--mfa-ink); font-size: 13px; }
+    .mfa-methods summary span { font-size: 11px; color: var(--mfa-muted); }
+    .mfa-methods details[open] { padding-bottom: 12px; }
+    .mfa-account-label { overflow-wrap: anywhere; color: var(--mfa-ink); font-size: 13px; }
+    .mfa-recovery-codes { box-sizing: border-box; display: block; width: 100%; margin-top: 8px; padding: 10px; border: 1px solid var(--mfa-line); border-radius: 10px; color: var(--mfa-ink); background: var(--mfa-soft); font: 14px/1.8 monospace; text-align: center; }
     .mfa-notice { display: grid; gap: 4px; padding: 11px 12px; margin-bottom: 14px; border-radius: 9px; color: var(--mfa-warn); background: var(--mfa-warn-bg); font-size: 12px; line-height: 1.7; }
     .mfa-secret-label { display: block; margin: 9px 0 5px; color: var(--mfa-muted); font-size: 12px; font-weight: 700; }
     .mfa-secret-row, .mfa-uri-row { display: flex; align-items: center; gap: 8px; min-width: 0; }
@@ -123,61 +151,4 @@
     }
 </style>
 
-<script>
-(() => {
-    const panel = document.querySelector('[data-mfa-panel]');
-    if (!panel || panel.dataset.bound === 'true') return;
-    panel.dataset.bound = 'true';
-    const csrf = <%- JSON.stringify(typeof csrfToken !== 'undefined' ? csrfToken : '') %>;
-    const find = (selector) => panel.querySelector(selector);
-    const setMessage = (message, error = false) => { const node = find('[data-mfa-message]'); node.textContent = message || ''; node.hidden = !message; node.classList.toggle('error', error); };
-    const request = async (path, options = {}) => {
-        const response = await fetch(path, { credentials: 'same-origin', ...options, headers: { 'Content-Type': 'application/json', 'x-csrf-token': csrf, ...(options.headers || {}) } });
-        const data = await response.json().catch(() => ({}));
-        if (!response.ok || data.success === false) throw new Error(data.error || 'تعذر إكمال الطلب.');
-        return data;
-    };
-    const setBusy = (busy) => panel.querySelectorAll('button').forEach((button) => { button.disabled = busy; });
-    const render = (data) => {
-        const enabled = data.enabled === true;
-        const enabledLabel = find('[data-mfa-enabled]'); if (enabledLabel) enabledLabel.textContent = enabled ? 'مفعّل' : 'غير مفعّل';
-        find('[data-mfa-login-rule]').textContent = enabled ? 'كلمة المرور + رمز تحقق' : 'بدون رمز Authenticator';
-        const state = find('[data-mfa-state]'); state.textContent = enabled ? 'مفعّل' : 'غير مفعّل'; state.classList.toggle('ready', enabled); state.classList.toggle('warn', !enabled);
-        find('[data-mfa-start]').hidden = enabled;
-        find('[data-mfa-disable]').hidden = !enabled;
-        const manage = find('[data-mfa-manage]');
-        if (manage) { manage.hidden = !enabled; manage.setAttribute('aria-expanded', 'false'); find('[data-mfa-management]').hidden = true; }
-    };
-    find('[data-mfa-manage]')?.addEventListener('click', () => {
-        const management = find('[data-mfa-management]'); management.hidden = !management.hidden;
-        find('[data-mfa-manage]').setAttribute('aria-expanded', String(!management.hidden));
-    });
-    const refresh = async () => { try { render(await request('/security/mfa/status', { method: 'GET', headers: {} })); } catch (error) { setMessage(error.message, true); } };
-    const copy = async (value) => { await navigator.clipboard.writeText(value); setMessage('تم نسخ البيانات.'); setTimeout(() => setMessage(''), 1800); };
-    find('[data-mfa-copy-secret]').addEventListener('click', () => copy(find('[data-mfa-secret]').textContent));
-    find('[data-mfa-copy-uri]').addEventListener('click', () => copy(find('[data-mfa-uri]').textContent));
-    find('[data-mfa-start]').addEventListener('click', async () => {
-        setBusy(true); setMessage('');
-        try {
-            const data = await request('/security/mfa/setup', { method: 'POST', body: '{}' });
-            find('[data-mfa-secret]').textContent = data.setup.secret; find('[data-mfa-uri]').textContent = data.setup.qrUri;
-            const qr = find('[data-mfa-qr]');
-            qr.replaceChildren();
-            qr.hidden = typeof window.QRCode !== 'function';
-            if (!qr.hidden) new window.QRCode(qr, { text: data.setup.qrUri, width: 152, height: 152 });
-            find('[data-mfa-recovery]').innerHTML = (data.setup.recoveryCodes || []).map((code) => `<code>${code}</code>`).join(''); find('[data-mfa-setup]').hidden = false; find('[data-mfa-start]').hidden = true; setMessage('أدخل المفتاح في تطبيق Authenticator ثم اكتب الرمز الحالي للتأكيد.');
-        } catch (error) { setMessage(error.message, true); } finally { setBusy(false); }
-    });
-    find('[data-mfa-confirm]').addEventListener('click', async () => {
-        const token = find('[data-mfa-confirm-token]').value.trim(); const secret = find('[data-mfa-secret]').textContent.trim(); const recoveryCodes = Array.from(find('[data-mfa-recovery]').querySelectorAll('code')).map((node) => node.textContent.trim());
-        if (!/^\d{6}$/.test(token)) return setMessage('أدخل رمز Authenticator المكون من 6 أرقام.', true);
-        setBusy(true);
-        try { await request('/security/mfa/confirm', { method: 'POST', body: JSON.stringify({ secret, token, recoveryCodes }) }); find('[data-mfa-setup]').hidden = true; setMessage('تم تفعيل Authenticator وتوثيق هذا الجهاز لمدة 24 ساعة.'); await refresh(); } catch (error) { setMessage(error.message, true); } finally { setBusy(false); }
-    });
-    find('[data-mfa-disable]').addEventListener('click', async () => {
-        const token = window.prompt('أدخل رمز Authenticator أو رمز الاسترداد لإيقاف الحماية:')?.trim(); if (!token) return;
-        setBusy(true); try { await request('/security/mfa/disable', { method: 'POST', body: JSON.stringify({ token }) }); setMessage('تم إيقاف Authenticator وإلغاء وثوق الأجهزة.'); await refresh(); } catch (error) { setMessage(error.message, true); } finally { setBusy(false); }
-    });
-    refresh();
-})();
-</script>
+<script src="/js/mfa-enrollment.js?v=20261027-steps" defer></script>

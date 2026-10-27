@@ -34,9 +34,12 @@ describe('executor settings mobile workspace', () => {
         expect(controller).toContain('normalizeExecutorPhone(req.body?.phone)');
     });
 
-    test('authenticator QR stays in the browser and sessions show recorded location only', () => {
-        const mfa = read('views/partials/mfa_security_panel.ejs');
-        expect(mfa).toContain('new window.QRCode(qr, { text: data.setup.qrUri');
+    test('authenticator QR is generated locally and sessions show recorded location only', () => {
+        const mfa = read('services/webMfaEnrollmentService.js');
+        expect(mfa).toContain('QRCode.toDataURL(pending.data.qrUri');
+        expect(mfa).not.toMatch(/https?:\/\/.*(?:qr|chart)/i);
+        const client = read('public/js/mfa-enrollment.js');
+        expect(client).toContain("data:image/png;base64,");
         const sessions = read('views/account_security_sessions.ejs');
         expect(sessions).toContain('approximateLocation(device.lastLocation)');
         expect(sessions).toContain("'غير متوفر'");

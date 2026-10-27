@@ -1,5 +1,7 @@
 const express = require('express');
 const router = express.Router();
+const webMfaEnrollment = require('../services/webMfaEnrollmentService');
+router.use('/security/mfa', (_req, res, next) => { res.set('Cache-Control', 'private, no-store'); next(); });
 const bcrypt = require('bcryptjs');
 const { randomUUID } = require('crypto');
 const rateLimit = require('express-rate-limit');
@@ -323,6 +325,7 @@ router.get('/security/mfa/status', requireWebMfaContext, async (req, res) => {
         return res.json({
             success: true,
             ...status,
+            enrollment: await webMfaEnrollment.resume(req.session, account, accountType),
             trustedDevice,
             passkeyEnrolled,
             passkeyRequired: isPasskeyRequired()
@@ -335,38 +338,41 @@ router.get('/security/mfa/status', requireWebMfaContext, async (req, res) => {
 router.post('/security/mfa/setup', requireWebMfaContext, async (req, res) => {
     try {
         const { account, accountType } = req.webMfaContext;
-        const setup = accountMfaService.setup(account);
+        const setup = await webMfaEnrollment.start(req.session, account, accountType);
         return res.json({ success: true, setup });
     } catch (error) {
-        const status = error.message === 'MFA_ALREADY_ENABLED' ? 409 : 400;
-        return res.status(status).json({ success: false, error: error.message });
+        return res.status(error.statusCode || 400).json({ success: false, error: error.statusCode ? error.message : 'تعذر تجهيز التحقق الثنائي.' });
     }
 });
 
 router.post('/security/mfa/confirm', requireWebMfaContext, async (req, res) => {
     try {
         const { account, accountType } = req.webMfaContext;
-        const confirmed = await accountMfaService.confirmSetup(
-            account,
-            String(req.body?.secret || '').trim().toUpperCase(),
-            String(req.body?.token || '').trim(),
-            Array.isArray(req.body?.recoveryCodes) ? req.body.recoveryCodes : []
-        );
+        const confirmed = await webMfaEnrollment.confirm(req.session, account, accountType, req.body?.token);
         const deviceId = webMfaDeviceId(req, res);
         await accountMfaService.trustDevice({ account, accountType, deviceId, req });
         req.session.mfaEnrollmentRequired = false;
         await new Promise((resolve) => req.session.save(resolve));
-        return res.json({ success: true, status: confirmed });
+        return res.json({ success: true, status: confirmed, enrollment: await webMfaEnrollment.resume(req.session, account, accountType) });
     } catch (error) {
-        const status = error.code === 'MFA_INVALID' ? 422 : 400;
-        return res.status(status).json({ success: false, error: error.message });
+        const status = error.statusCode || (error.code === 'MFA_INVALID' ? 422 : 400);
+        return res.status(status).json({ success: false, error: error.code === 'MFA_INVALID' ? 'الرمز غير صحيح. جرّب الرمز الحالي في التطبيق.' : error.statusCode ? error.message : 'تعذر تأكيد التفعيل.' });
     }
 });
 
+router.post('/security/mfa/setup/cancel', requireWebMfaContext, (req, res) => {
+    const { account, accountType } = req.webMfaContext;
+    return res.json({ success: true, ...webMfaEnrollment.cancel(req.session, account, accountType) });
+});
+router.post('/security/mfa/recovery/ack', requireWebMfaContext, async (req, res) => {
+    const { account, accountType } = req.webMfaContext;
+    return res.json({ success: true, ...await webMfaEnrollment.acknowledge(req.session, account, accountType) });
+});
 router.post('/security/mfa/disable', requireWebMfaContext, async (req, res) => {
     try {
         const { account, accountType } = req.webMfaContext;
         const status = await accountMfaService.disable(account, String(req.body?.token || '').trim());
+        webMfaEnrollment.cancel(req.session, account, accountType);
         return res.json({ success: true, status });
     } catch (error) {
         const code = error.code === 'MFA_INVALID' ? 422 : 400;

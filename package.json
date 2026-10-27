@@ -84,6 +84,7 @@
     "node-cron": "^4.2.1",
     "nodemailer": "^10.2.1",
     "puppeteer": "^25.16.0",
+    "qrcode": "^1.5.4",
     "redlock": "^5.0.0-beta.2",
     "socket.io": "^4.8.3",
     "swagger-jsdoc": "^6.3.0",
