@@ -32,9 +32,9 @@ if (Test-Path -LiteralPath $daemonPidPath) {
     $daemon = $processes | Where-Object { $_.ProcessId -eq $daemonProcessId -and $_.CommandLine -match '[\\/]pm2[\\/]lib[\\/]Daemon\.js' }
     if ($parsed -and $daemon -and (Get-Command pm2 -ErrorAction SilentlyContinue) -and (Get-Command node -ErrorAction SilentlyContinue)) {
         # Parse in Node: Windows environment keys can differ only in case, which PowerShell 5 rejects.
-        $pm2SafeJson = & pm2 jlist 2>$null | & node -e 'let s='''';process.stdin.on(''data'',d=>s+=d);process.stdin.on(''end'',()=>{try{const a=JSON.parse(s);console.log(JSON.stringify(a.map(p=>({name:p.name,pid:p.pid,status:p.pm2_env?.status,restarts:p.pm2_env?.restart_time,cwd:p.pm2_env?.pm_cwd,script:p.pm2_env?.pm_exec_path,port:p.pm2_env?.PORT,nodeEnv:p.pm2_env?.NODE_ENV,workers:p.pm2_env?.BULLMQ_WORKERS_ENABLED,schedulers:p.pm2_env?.FINANCIAL_SCHEDULERS_ENABLED,webhooks:p.pm2_env?.MERCHANT_WEBHOOK_WORKER_ENABLED}))));}catch{process.exitCode=1;}});'
+        $pm2SafeJson = & pm2 jlist 2>$null | & node -e 'let s='''';process.stdin.on(''data'',d=>s+=d);process.stdin.on(''end'',()=>{try{const a=JSON.parse(s);console.log(JSON.stringify({apps:a.map(p=>({name:p.name,pid:p.pid,status:p.pm2_env?.status,restarts:p.pm2_env?.restart_time,cwd:p.pm2_env?.pm_cwd,script:p.pm2_env?.pm_exec_path,port:p.pm2_env?.PORT,nodeEnv:p.pm2_env?.NODE_ENV,workers:p.pm2_env?.BULLMQ_WORKERS_ENABLED,schedulers:p.pm2_env?.FINANCIAL_SCHEDULERS_ENABLED,webhooks:p.pm2_env?.MERCHANT_WEBHOOK_WORKER_ENABLED}))}));}catch{process.exitCode=1;}});'
         if ($LASTEXITCODE -eq 0) {
-            $pm2Apps = @($pm2SafeJson | ConvertFrom-Json)
+            $pm2Apps = @(($pm2SafeJson | ConvertFrom-Json).apps)
             $pm2Inspection = 'Read from the verified existing daemon.'
         } else { $pm2Inspection = 'Could not parse PM2 metadata; no raw environment was printed.' }
     }
@@ -74,7 +74,7 @@ try {
 $services = @(Get-CimInstance Win32_Service | Where-Object { $_.Name -match 'pm2|node|plesk|psa|w3svc|was|nginx|apache' -or $_.ProcessId -in $listenerIds } | Select-Object Name, State, ProcessId, StartMode)
 $startupTasks = @()
 try {
-    $startupTasks = @(Get-ScheduledTask | Where-Object { $_.TaskName -match 'pm2|ahram|node' -or ($_.Actions.Execute -join ' ') -match 'pm2|node\.exe' } | Select-Object TaskName, TaskPath, State)
+    $startupTasks = @(Get-ScheduledTask | Where-Object { $_.TaskName -match 'pm2|ahram|node' -or ($_.Actions.Execute -join ' ') -match 'pm2|node\.exe' } | Select-Object TaskName, TaskPath, @{Name='State';Expression={[string]$_.State}})
 } catch { }
 $revision = & git -C $projectRoot rev-parse --short HEAD
 $workingTree = @(& git -C $projectRoot status --short)
