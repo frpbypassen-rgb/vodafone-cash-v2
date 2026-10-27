@@ -62,7 +62,7 @@ node scripts/checkCompanyInteractionsBrowser.js
 
 - راجع التغييرات المرحلية واستبعد `outputs/` وبيانات التجربة والأسرار.
 - شغّل `npm audit --omit=dev` مع سلسلة شهادات موثوقة. لا تعطّل تحقق TLS لتجاوز خطأ الشهادة.
-- كشف الفحص في 2026-10-27 عن 7 تنبيهات عالية و3 متوسطة و0 حرجة في الاعتماديات الحالية، دون تغيير `package.json` أو `package-lock.json`. تحتاج هذه النتائج إلى معالجة أو تقييم قبل إعلان جاهزية النشر الأمني؛ لم تُجرَ ترقية جماعية للحزم ضمن مراجعة الهاتف.
+- عولجت تنبيهات الاعتماديات في تحديث 2026-10-27؛ أصبحت نتيجة `npm audit` صفرًا للتشغيل والتطوير. راجع [تقرير المعالجة وحدود التحقق](dependency-security-2026-10-27.md)، بما فيه إخفاقات الاختبارات السابقة المطابقة للإصدار قبل التحديث.
 - افحص تهيئة SMTP والبوت ومولد PDF في بيئة التشغيل قبل تفعيل الاستخدام الحقيقي.
 
 بعد طلب النشر ورفع الإصدار المعتمد، تُنفّذ أوامر السيرفر:
@@ -70,6 +70,8 @@ node scripts/checkCompanyInteractionsBrowser.js
 ```powershell
 git pull --ff-only origin main
 if ($LASTEXITCODE -ne 0) { throw 'Git pull failed' }
+npm ci
+if ($LASTEXITCODE -ne 0) { throw 'Dependency installation failed' }
 pm2 restart ahram-pay --update-env
 pm2 save
 Invoke-RestMethod 'http://127.0.0.1:3000/health/ready'
