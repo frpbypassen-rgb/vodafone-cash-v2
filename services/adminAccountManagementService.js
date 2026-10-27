@@ -764,6 +764,14 @@ const updateEditableAccount = async ({ type, id, payload, uploads = {} }) => {
     const companyOwner = definition.type === 'company'
         ? await findCompanyLoginOwner(account._id)
         : null;
+    if (['agent', 'company'].includes(definition.type)) {
+        const { withRevision, conflict } = require('../utils/portalSettingsRevision');
+        const revision = payload.profileRevision === undefined ? (account.profileRevision || 0) : Number(payload.profileRevision);
+        const guard = withRevision({}, revision, 'profileRevision');
+        if (revision !== (account.profileRevision || 0)) throw conflict();
+        account.$where = guard;
+        account.$inc('profileRevision', 1);
+    }
     const snapshotContext = definition.type === 'company' ? { companyOwner } : {};
     const oldData = safeSnapshot(definition.type, account, snapshotContext);
     let accountCodeChange = null;
@@ -821,6 +829,7 @@ const updateEditableAccount = async ({ type, id, payload, uploads = {} }) => {
         };
     } catch (error) {
         if (accountCodeChange) await accountCodeChange.rollback().catch(() => {});
+        if (error.name === 'DocumentNotFoundError' && ['agent', 'company'].includes(definition.type)) throw require('../utils/portalSettingsRevision').conflict();
         if (error instanceof AdminAccountManagementError) throw error;
         if (error?.code === 11000) throw new AdminAccountManagementError('IDENTITY_TAKEN');
         throw error;
@@ -881,6 +890,7 @@ const loadEditOptions = async (type, account) => {
 
 const getErrorMessage = (error) => {
     const code = error?.code || error?.message;
+    if (code === 'SETTINGS_CHANGED') return 'تغيرت إعدادات الحساب من نافذة أخرى. أعد تحميل الصفحة وراجع البيانات قبل الحفظ.';
     if (String(code || '').startsWith('ACCOUNT_CODE_INVALID_')) return ERROR_MESSAGES.ACCOUNT_CODE_INVALID;
     return ERROR_MESSAGES[code] || ERROR_MESSAGES.UPDATE_FAILED;
 };

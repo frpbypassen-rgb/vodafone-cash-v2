@@ -91,7 +91,9 @@ router.post(
                 apiEnabled: req.body.apiEnabled === 'on',
                 webhooksEnabled: req.body.webhooksEnabled === 'on',
             };
-            const row = await service.setAdminAccess(Model, scope, flags);
+            const revision = typeof req.body.revision === 'string' && /^\d+$/.test(req.body.revision) ? Number(req.body.revision) : req.body.revision;
+            require('../utils/portalSettingsRevision').withRevision({}, revision);
+            const row = await service.setAdminAccess(Model, scope, flags, revision, req.session.adminName || 'الإدارة');
             await logAction({
                 action: 'MERCHANT_INTEGRATION_ACCESS_CHANGED',
                 req,

@@ -116,7 +116,11 @@
             <div class="strip-item"><span>معرف النظام</span><strong class="mono"><%= account._id %></strong></div>
         </section>
 
+        <% if (['agent', 'company'].includes(accountType)) { %>
+        <%- include('partials/admin_portal_settings', { integrationAccount: account, integrationAccountType: accountType }) %>
+        <% } %>
         <form class="editor-form" action="/admin/accounts/<%= accountType %>/<%= account._id %>/edit" method="POST" enctype="multipart/form-data" autocomplete="off">
+            <% if (['agent', 'company'].includes(accountType)) { %><input type="hidden" name="profileRevision" value="<%= value('profileRevision', 0) %>"><% } %>
             <section class="form-section">
                 <h2 class="section-heading"><i class="fa-solid fa-address-card"></i> البيانات الأساسية</h2>
                 <div class="field-grid">
@@ -244,7 +248,7 @@
                 </section>
             <% } %>
 
-            <% if (['user', 'agent', 'company', 'subaccount'].includes(accountType)) { %>
+            <% if (['user', 'subaccount'].includes(accountType)) { %>
                 <section class="form-section">
                     <h2 class="section-heading"><i class="fa-brands fa-telegram"></i> إيصالات Telegram</h2>
                     <div class="security-note"><i class="fa-solid fa-lock"></i><span>كود الربط يظهر للإدارة فقط. أرسله للحساب المعني ليكتبه وحده في محادثة البوت.</span></div>

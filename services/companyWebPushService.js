@@ -45,6 +45,7 @@ const upsertCompanySubscription = async ({ userId, accountType = 'company', subs
     return WebPushSubscription.findOneAndUpdate(
         { endpoint: normalized.endpoint },
         {
+            $inc: { settingsRevision: 1 },
             $set: {
                 subscription: normalized.subscription,
                 userId: id,
@@ -63,7 +64,7 @@ const disableCompanySubscription = async ({ userId, endpoint }) => {
         accountType: { $in: [...COMPANY_ACCOUNT_TYPES] },
         ...(String(endpoint || '').trim() ? { endpoint: String(endpoint).trim() } : {})
     };
-    const result = await WebPushSubscription.updateMany(query, { $set: { active: false } });
+    const result = await WebPushSubscription.updateMany(query, { $set: { active: false }, $inc: { settingsRevision: 1 } });
     return Number(result.modifiedCount || 0);
 };
 
@@ -137,7 +138,7 @@ const sendCompanyWebPush = async ({
             });
             await WebPushSubscription.updateOne(
                 { _id: row._id },
-                { $set: { lastSuccessAt: new Date(), lastError: '', active: true } }
+                { $set: { lastSuccessAt: new Date(), lastError: '' } }
             );
             return true;
         } catch (error) {
@@ -145,8 +146,9 @@ const sendCompanyWebPush = async ({
             await WebPushSubscription.updateOne(
                 { _id: row._id },
                 {
+                    ...(expired ? { $inc: { settingsRevision: 1 } } : {}),
                     $set: {
-                        active: !expired,
+                        ...(expired ? { active: false } : {}),
                         lastError: String(error.message || 'WEB_PUSH_FAILED').slice(0, 500)
                     }
                 }

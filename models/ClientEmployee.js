@@ -33,7 +33,9 @@ const clientEmployeeSchema = new mongoose.Schema({
     corporatePortalEnabled: { type: Boolean, default: false },
     // Legacy alias only. Canonical theme lives on preferences.companyTheme.
     uiTheme: { type: String, enum: ['day', 'night', 'pharaonic'], default: undefined },
+    displayRevision: { type: Number, default: 0 },
     preferences: {
+        density: { type: String, enum: ['comfortable', 'compact'], default: undefined },
         companyTheme: { type: String, enum: ['day', 'night', 'pharaonic'], default: undefined }
     },
     mustChangePassword: { type: Boolean, default: false },

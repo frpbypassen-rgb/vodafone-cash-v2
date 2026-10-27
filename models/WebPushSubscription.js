@@ -3,6 +3,7 @@
 const mongoose = require('mongoose');
 
 const webPushSubscriptionSchema = new mongoose.Schema({
+    ...require('../utils/portalSettingsRevision').revisionFields,
     endpoint: { type: String, required: true, unique: true, index: true },
     subscription: { type: Object, required: true },
     userId: { type: String, required: true, index: true },

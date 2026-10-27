@@ -1,17 +1,18 @@
 (() => {
     'use strict';
     const controls = document.querySelector('[data-agent-push-test-controls]');
-    const preference = document.querySelector('[data-notification-preference="push"]');
+    const preference = document.querySelector('[data-server-notifications], [data-notification-preference="push"]');
     if (!controls || !preference) return;
     const button = controls.querySelector('[data-agent-push-test]');
     const status = controls.querySelector('[data-agent-push-test-status]');
     let busy = false;
-    try {
+    if (!preference.hasAttribute('data-server-notifications')) try {
         const stored = localStorage.getItem('powerpay-notification-push');
         if (stored !== null) preference.checked = stored === 'true';
     } catch (_) {}
     const sync = () => { controls.hidden = !preference.checked; status.textContent = ''; };
     preference.addEventListener('change', sync);
+    preference.addEventListener('notificationstatesync', sync);
     sync();
     const timeout = (promise, ms = 8000) => new Promise((resolve,reject) => {
         const timer = setTimeout(() => reject(new Error('TIMEOUT')),ms);

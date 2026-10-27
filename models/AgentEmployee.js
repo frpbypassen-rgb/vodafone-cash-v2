@@ -44,7 +44,9 @@ const agentEmployeeSchema = new mongoose.Schema({
     },
     deletedAt: { type: Date },
     deletedBy: { type: String },
+    displayRevision: { type: Number, default: 0 },
     preferences: {
+        density: { type: String, enum: ['comfortable', 'compact'], default: undefined },
         clientTheme: { type: String, enum: ['day', 'night', 'pharaonic'], default: undefined }
     }
 }, { timestamps: true });

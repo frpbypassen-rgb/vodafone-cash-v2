@@ -5,7 +5,7 @@ const modernBusiness = true;
 const businessRole = workspace.canonicalRole || workspace.permissions?.canonicalRole || (workspace.permissions?.owner ? 'owner' : workspace.persona === 'accountant' ? 'accountant' : workspace.permissions?.manager ? 'manager' : 'employee');
 const businessTheme = typeof clientTheme !== 'undefined' && clientTheme ? clientTheme : 'day'; %>
 <!DOCTYPE html>
-<html lang="ar" dir="rtl"<% if (modernBusiness) { %> data-portal="<%= workspace.isAgent ? 'agent' : 'company' %>" data-agent-role="<%= businessRole %>" data-portal-role="<%= businessRole %>" data-theme="<%= businessTheme %>"<% } else { %> data-portal="customer" data-theme="<%= typeof clientTheme !== 'undefined' && clientTheme ? clientTheme : 'day' %>"<% } %>>
+<html data-density="<%= workspace.actor.preferences?.density || 'comfortable' %>" lang="ar" dir="rtl"<% if (modernBusiness) { %> data-portal="<%= workspace.isAgent ? 'agent' : 'company' %>" data-agent-role="<%= businessRole %>" data-portal-role="<%= businessRole %>" data-theme="<%= businessTheme %>"<% } else { %> data-portal="customer" data-theme="<%= typeof clientTheme !== 'undefined' && clientTheme ? clientTheme : 'day' %>"<% } %>>
 <%- include('partials/head') %>
 <body class="bw-body<%= modernBusiness ? ' bw-agent-os bw-business-os cp-shell cp-app' : ' cl-app cl-shell' %>" data-page="<%= page %>" data-persona="<%= workspace.persona %>" data-portal="<%= workspace.type %>"<% if (modernBusiness) { %> data-agent-shell data-business-shell data-agent-role="<%= businessRole %>" data-theme="<%= businessTheme %>"<% } else { %> data-customer-shell data-theme="<%= typeof clientTheme !== 'undefined' && clientTheme ? clientTheme : 'day' %>"<% } %>>
     <% if (modernBusiness) { %>
@@ -257,9 +257,9 @@ const businessTheme = typeof clientTheme !== 'undefined' && clientTheme ? client
     <script src="/js/business-portal/api-response.js?v=20261025-review" defer></script>
     <script src="/js/agent-portal/index.js?v=20261025-daily" defer></script>
     <script src="/js/agent-portal/mobile-menu.js?v=20261026-more" defer></script>
-    <script src="/js/agent-portal/report-email.js?v=20261026-verify" defer></script>
-    <% if(page==='settings') { %><script src="/js/portal-integrations.js?v=20261027" defer></script><% } %>
-    <script src="/js/agent-portal/telegram-settings.js?v=20261026-accounts" defer></script>
+    <script src="/js/agent-portal/report-email.js?v=20261027-sync" defer></script>
+    <% if(page==='settings') { %><script src="/js/portal-integrations.js?v=20261027-sync" defer></script><% } %>
+    <script src="/js/agent-portal/telegram-settings.js?v=20261027-sync" defer></script>
     <% if (page === 'finance') { %><script src="/js/agent-portal/finance.js?v=20261026-compact" defer></script><% } %>
     <% if (page === 'agency_profits') { %><script src="/js/agent-portal/customer-profits.js?v=20261026-compact" defer></script><% } %>
     <% if (page === 'customers') { %><script src="/js/agent-portal/customers.js?v=20261026-compact" defer></script><% } %>
@@ -267,6 +267,8 @@ const businessTheme = typeof clientTheme !== 'undefined' && clientTheme ? client
     <% if (page === 'staff') { %><script src="/js/agent-portal/staff.js?v=20261026-compact" defer></script><% } %>
     <% if (page === 'staff') { %><script src="/js/agent-portal/staff-permissions.js?v=20261026-limited" defer></script><% } %>
     <% if (page === 'reports') { %><script src="/js/agent-portal/reports.js?v=20261026-compact" defer></script><% } %>
-    <% if (page === 'settings') { %><script src="/js/agent-portal/push-test.js?v=20261026-test" defer></script><% } %>
+    <% if (page === 'settings') { %><script src="/js/agent-portal/push-test.js?v=20261027-sync" defer></script><% } %>
+<% if (page === 'settings') { %><script src="/js/portal-notification-device.js?v=20261027-sync" defer></script><% } %>
+<% if (page === 'settings') { %><script src="/js/portal-display-preferences.js?v=20261027-sync" defer></script><% } %>
 </body>
 </html>

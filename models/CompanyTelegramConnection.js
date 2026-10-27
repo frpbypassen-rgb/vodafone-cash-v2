@@ -1,6 +1,7 @@
 'use strict';
 const mongoose = require('mongoose');
 const schema = new mongoose.Schema({
+    ...require('../utils/portalSettingsRevision').revisionFields,
     companyId: { type: mongoose.Schema.Types.ObjectId, required: true },
     tenantId: mongoose.Schema.Types.ObjectId,
     name: { type: String, required: true, maxlength: 60 },

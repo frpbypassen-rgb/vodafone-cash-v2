@@ -3,6 +3,7 @@
 const mongoose = require('mongoose');
 
 const telegramAccountLinkSchema = new mongoose.Schema({
+    ...require('../utils/portalSettingsRevision').revisionFields,
     ownerModel: { type: String, enum: ['User', 'ClientCompany', 'SubAccount'], required: true },
     ownerId: { type: mongoose.Schema.Types.ObjectId, required: true, index: true },
     tenantId: { type: mongoose.Schema.Types.ObjectId, ref: 'Tenant', index: true },

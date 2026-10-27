@@ -26,6 +26,14 @@ exports.postUpdateSettings = async (req, res) => {
         const entity = await Model.findById(workspace.entity._id);
         if (!entity) return redirectWithMessage(res, '/client/settings', 'settingsError', 'notfound');
 
+        if (workspace.isAgent || workspace.isCompany) {
+            const rawRevision = req.body.profileRevision;
+            const revision = typeof rawRevision === 'string' && /^\d+$/.test(rawRevision) ? Number(rawRevision) : rawRevision;
+            const { withRevision, conflict } = require('../../utils/portalSettingsRevision');
+            entity.$where = withRevision({}, revision, 'profileRevision');
+            if (revision !== (entity.profileRevision || 0)) throw conflict();
+            entity.$inc('profileRevision', 1);
+        }
         entity.businessProfile = {
             contactName: cleanText(req.body.contactName, 120),
             email: cleanText(req.body.email, 160).toLowerCase(),
@@ -49,6 +57,7 @@ exports.postUpdateSettings = async (req, res) => {
         });
         return redirectWithMessage(res, '/client/settings', 'settingsSuccess', 'profile');
     } catch (error) {
+        if (error.code === 'SETTINGS_CHANGED' || error.name === 'DocumentNotFoundError') return redirectWithMessage(res, '/client/settings', 'settingsError', 'settings_changed');
         console.error('[Business Portal] settings update failed:', error.message);
         return redirectWithMessage(res, '/client/settings', 'settingsError', 'server');
     }

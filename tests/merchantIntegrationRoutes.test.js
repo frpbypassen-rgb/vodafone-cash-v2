@@ -90,7 +90,7 @@ for (const kind of ['company', 'agent']) {
         session = { ...session, isLoggedIn: true, adminRole: 'accountant' };
         expect((await post(adminPath, { apiEnabled: 'on' })).status).toBe(403);
         session = { csrfToken: csrf, isLoggedIn: true, adminRole: 'master' };
-        expect((await post(adminPath, { apiEnabled: 'on', webhooksEnabled: 'on' })).status).toBe(302);
+        expect((await post(adminPath, { apiEnabled: 'on', webhooksEnabled: 'on', revision: (await (isCompany ? Company : User).findById(entity._id)).integrationAccess.revision || 0 })).status).toBe(302);
         session = ownerSession;
         expect((await post(base + '/api/integrations/rotate', { currentPassword: 'wrong' })).status).toBe(
             400
@@ -128,7 +128,7 @@ for (const kind of ['company', 'agent']) {
         expect(list.status).toBe(200);
         expect(JSON.stringify(list.body)).not.toContain(hook.body.secret);
         session = { csrfToken: csrf, isLoggedIn: true, adminRole: 'master' };
-        expect((await post(adminPath, {})).status).toBe(302);
+        expect((await post(adminPath, { revision: (await (isCompany ? Company : User).findById(entity._id)).integrationAccess.revision || 0 })).status).toBe(302);
         expect((await readBalance(rotated.body.data.token)).status).toBe(401);
         session = ownerSession;
         expect(
@@ -143,7 +143,7 @@ for (const kind of ['company', 'agent']) {
             (await post(base + '/api/integrations/revoke', { currentPassword: 'test-password-123' })).status
         ).toBe(200);
         session = { csrfToken: csrf, isLoggedIn: true, adminRole: 'master' };
-        expect((await post(adminPath, { apiEnabled: 'on', webhooksEnabled: 'on' })).status).toBe(302);
+        expect((await post(adminPath, { apiEnabled: 'on', webhooksEnabled: 'on', revision: (await (isCompany ? Company : User).findById(entity._id)).integrationAccess.revision || 0 })).status).toBe(302);
         expect((await readBalance(rotated.body.data.token)).status).toBe(401);
         const auditEntries = logAction.mock.calls.map(([entry]) => ({
             action: entry.action,
@@ -190,7 +190,7 @@ test('integration management rejects a company session from another tenant', asy
             (await request(app).get('/client/api/integrations').set('Accept', 'application/json')).status
         ).toBe(403);
         session = { csrfToken: csrf, isLoggedIn: true, adminRole: 'master' };
-        expect((await post('/company/' + company._id + '/integrations', { apiEnabled: 'on' })).status).toBe(
+        expect((await post('/company/' + company._id + '/integrations', { apiEnabled: 'on', revision: 0 })).status).toBe(
             404
         );
         tenant = null;

@@ -72,6 +72,7 @@ const makeAccount = (overrides = {}) => {
             if (path.startsWith('businessProfile.')) this.businessProfile[field] = value;
             else this[path] = value;
         },
+        $inc(path, amount) { this[path] = (this[path] || 0) + amount; },
         save: jest.fn(),
         ...overrides
     };

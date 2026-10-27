@@ -45,6 +45,7 @@
     <section class="bw-settings-panel active" id="identity">
         <header class="bw-settings-panel-head"><span class="bw-settings-panel-icon tone-blue"><i class="fa-solid fa-address-card"></i></span><div><span>الحساب والملف الشخصي</span><h2>بيانات <%= workspace.entityLabel %></h2><p>معلومات التواصل المستخدمة داخل المنظومة.</p></div></header>
         <form method="POST" action="<%= portalBasePath %>/settings/profile" class="bw-form bw-form-grid">
+            <input type="hidden" name="profileRevision" value="<%= workspace.entity.profileRevision || 0 %>">
             <label class="bw-field span-2"><span>اسم <%= workspace.entityLabel %></span><input type="text" value="<%= workspace.entity.name %>" disabled><small>يتم تعديل الاسم القانوني عن طريق الإدارة.</small></label>
             <label class="bw-field"><span>اسم مسؤول التواصل</span><input type="text" name="contactName" value="<%= settingsData.profile.contactName || '' %>" maxlength="120" <%= canEdit ? '' : 'disabled' %>></label><label class="bw-field"><span>رقم التواصل</span><input type="tel" name="phone" value="<%= workspace.entity.phone || '' %>" dir="ltr" maxlength="32" <%= canEdit ? '' : 'disabled' %>></label>
             <label class="bw-field"><span>البريد الإلكتروني</span><input type="text" inputmode="email" autocapitalize="none" spellcheck="false" name="email" value="<%= settingsData.profile.email || '' %>" dir="ltr" maxlength="254" data-account-email="profile" <%= canEdit ? '' : 'disabled' %>></label>
@@ -63,7 +64,7 @@
             <label class="bw-field"><span>مظهر بوابة العملاء</span><select id="workspaceThemeSelect" data-preference="client-theme"><option value="day">نهاري</option><option value="night">ليلي</option><option value="pharaonic">فرعوني</option></select></label>
             <% } %>
             <% if (!workspace.isCompany) { %>
-            <label class="bw-field"><span>كثافة الجداول</span><select id="workspaceDensitySelect" data-preference="density"><option value="comfortable">مريحة</option><option value="compact">مضغوطة</option></select></label>
+            <label class="bw-field"><span>كثافة الجداول</span><select id="workspaceDensitySelect" <% if (workspace.isAgent) { %>data-server-density<% } else { %>data-preference="density"<% } %> data-base="<%= portalBasePath %>" data-revision="<%= workspace.actor.displayRevision || 0 %>"><option value="comfortable" <%= workspace.actor.preferences?.density !== 'compact' ? 'selected' : '' %>>مريحة</option><option value="compact" <%= workspace.actor.preferences?.density === 'compact' ? 'selected' : '' %>>مضغوطة</option></select></label>
             <% } %>
         </div>
         <div class="bw-setting-note"><i class="fa-solid fa-display"></i><span><strong>تفضيل الحساب</strong><small>يُطبّق مظهر حسابك عند تسجيل الدخول، ويمكنك تغييره في أي وقت.</small></span></div>
@@ -72,8 +73,8 @@
     <section class="bw-settings-panel" id="notifications">
         <header class="bw-settings-panel-head"><span class="bw-settings-panel-icon tone-gold"><i class="fa-solid fa-bell"></i></span><div><span>الإشعارات</span><h2>تنبيهات هذا الجهاز</h2><p>اختر القنوات التي تريد استخدامها للتنبيهات التشغيلية.</p></div></header>
         <div class="bw-notification-choices">
-            <label><span><i class="fa-solid fa-mobile-screen"></i><b><%= 'إشعارات ويب' %></b><small>العمليات وتغير الأسعار</small></span><input type="checkbox" data-notification-preference="push" checked></label>
-            <% if (workspace.isAgent || workspace.isCompany) { %><div class="agent-push-test" data-agent-push-test-controls hidden><button type="button" class="bw-button ghost compact" data-agent-push-test><i class="fa-solid fa-bell" aria-hidden="true"></i>اختبار الإشعارات</button><span data-agent-push-test-status role="status" aria-live="polite"></span></div><% } %>
+            <label><span><i class="fa-solid fa-mobile-screen"></i><b><%= 'إشعارات ويب' %></b><small>العمليات وتغير الأسعار</small></span><input type="checkbox" <% if (workspace.isAgent || workspace.isCompany) { %>data-server-notifications<% } else { %>data-notification-preference="push" checked<% } %> data-base="<%= portalBasePath %>"></label>
+            <% if (workspace.isAgent || workspace.isCompany) { %><p data-notification-device-result role="status" aria-live="polite"></p><div class="agent-push-test" data-agent-push-test-controls hidden><button type="button" class="bw-button ghost compact" data-agent-push-test><i class="fa-solid fa-bell" aria-hidden="true"></i>اختبار الإشعارات</button><span data-agent-push-test-status role="status" aria-live="polite"></span></div><% } %>
             <% if (!workspace.isAgent && !workspace.isCompany) { %>
             <label><span><i class="fa-solid fa-envelope"></i><b>البريد الإلكتروني</b><small>التقارير والتنبيهات المهمة</small></span><input type="checkbox" data-notification-preference="email"></label>
             <% } %>

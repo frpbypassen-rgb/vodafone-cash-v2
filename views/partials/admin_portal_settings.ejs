@@ -1,0 +1,19 @@
+<section id="merchant-integration-access" class="aps-panel" data-admin-portal-settings data-url="/admin/accounts/<%= integrationAccountType %>/<%= integrationAccount._id %>/portal-settings" data-csrf="<%= typeof csrfToken !== 'undefined' ? csrfToken : '' %>">
+    <header class="aps-header"><div><h3>إعدادات البوابة والتكاملات</h3><p>نفس إعدادات حساب <%= integrationAccountType === 'company' ? 'الشركة' : 'الوكيل' %>. التغييرات تظهر للطرفين.</p></div><button type="button" class="btn btn-outline-secondary" data-aps-refresh>تحديث الحالة</button></header>
+    <form data-aps-integrations method="POST" action="<%= integrationAccountType === 'company' ? '/company/' : '/user/' %><%= integrationAccount._id %>/integrations">
+        <input type="hidden" name="_csrf" value="<%= typeof csrfToken !== 'undefined' ? csrfToken : '' %>">
+        <input type="hidden" name="revision" value="<%= integrationAccount.integrationAccess?.revision || 0 %>">
+        <h4>API وWebhooks</h4>
+        <div class="aps-controls"><label><input type="checkbox" name="apiEnabled" <%= integrationAccount.integrationAccess?.apiEnabled ? 'checked' : '' %>> تفعيل API</label><label><input type="checkbox" name="webhooksEnabled" <%= integrationAccount.integrationAccess?.webhooksEnabled ? 'checked' : '' %>> تفعيل Webhooks</label><button class="btn btn-primary" type="submit">حفظ التفعيل</button></div>
+        <p data-aps-key>حالة المفتاح: جارٍ التحقق…</p>
+    </form>
+    <p class="aps-result" role="status" aria-live="polite" data-aps-result></p>
+    <details open><summary>البريد والكشف اليومي</summary><p>يُفعّل البريد المؤكّد فقط. إضافة عنوان أو تغييره تتطلب تأكيده من البوابة.</p><div data-aps-emails></div></details>
+    <details open><summary>حسابات Telegram المرتبطة</summary><p>الحسابات نفسها الظاهرة في البوابة. الربط الجديد يتطلب فتح البوت من البوابة.</p><div data-aps-telegram></div></details>
+    <details><summary>متصفحات إشعارات الويب</summary><p>لا يمكن إنشاء اشتراك أو منح إذن المتصفح من الإدارة. يمكنك إدارة الاشتراكات المسجلة.</p><div data-aps-push></div></details>
+    <details><summary>بيانات الحساب والأمان وWebhooks</summary><div data-aps-profile></div><div data-aps-actors></div><div data-aps-webhooks></div></details>
+</section>
+<style>
+.aps-panel{margin:16px 0;padding:18px;border:1px solid var(--glass-border,var(--border-glass,#dce3ee));border-radius:12px;background:var(--card-bg,#fff);color:var(--text-main,#15263c);font-size:14px}.aps-header,.aps-controls,.aps-row{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}.aps-header h3{font-size:18px;margin:0 0 6px}.aps-panel p{font-size:12px;opacity:.8;margin:8px 0}.aps-panel h4{font-size:15px;margin:16px 0 12px}.aps-controls label{display:flex;align-items:center;gap:8px}.aps-panel input[type=checkbox]{width:19px;height:19px;accent-color:#1967e8}.aps-panel details{border-top:1px solid var(--glass-border,var(--border-glass,#dce3ee));padding:12px 0}.aps-panel summary{cursor:pointer;font-weight:700}.aps-row{padding:12px 0;border-bottom:1px solid var(--glass-border,var(--border-glass,#dce3ee));overflow-wrap:anywhere}.aps-row>div:first-child{flex:1;min-width:140px}.aps-row small{display:block;font-size:11px;opacity:.8;margin-top:4px}.aps-result.is-error{color:#ef4444;opacity:1}.aps-panel button{min-height:40px}.aps-panel input[type=text]{max-width:100%;background:var(--input-bg,#f5f7fc);color:inherit;border:1px solid var(--glass-border,var(--border-glass,#dce3ee));padding:8px;border-radius:6px}.aps-panel [hidden]{display:none!important}@media(max-width:600px){.aps-panel{padding:12px}.aps-header{align-items:flex-start}.aps-controls{justify-content:flex-start}.aps-header h3{font-size:16px}}
+</style>
+<script src="/js/admin-portal-settings.js?v=20261027-sync" defer></script>

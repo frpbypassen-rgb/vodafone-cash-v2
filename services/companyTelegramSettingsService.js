@@ -1,5 +1,6 @@
 'use strict';
 const crypto = require('crypto');
+const { withRevision, conflict, revisionOf, actorLabel } = require('../utils/portalSettingsRevision');
 const mongoose = require('mongoose');
 const Link = require('../models/TelegramAccountLink');
 const Connection = require('../models/CompanyTelegramConnection');
@@ -20,6 +21,7 @@ const cleanName = value => {
     return value.trim();
 };
 const publicConnection = (row, legacy = false) => ({
+    revision: revisionOf(row), updatedBy: row.settingsUpdatedBy || '', updatedAt: row.updatedAt || null,
     id: legacy ? 'legacy' : String(row._id), name: row.name || row.displayName || 'حساب تيليجرام الحالي',
     username: row.username || '', telegramName: row.telegramName || '',
     linked: Boolean(row.chatId && row.linkedAt),
@@ -40,7 +42,7 @@ const status = async workspace => {
         chatHint: connections.find(row => row.linked)?.chatHint || '',
     };
 };
-const requestLink = async (workspace, name, id) => {
+const requestLink = async (workspace, name, id, revision) => {
     assertAccess(workspace);
     let existing = null;
     if (id) {
@@ -58,7 +60,7 @@ const requestLink = async (workspace, name, id) => {
         requestedById: workspace.actor._id, requestedByModel: workspace.actorModel,
         codeHash: crypto.createHash('sha256').update(code).digest('hex'), codeExpiresAt: new Date(Date.now() + 600000),
     };
-    const row = existing ? await Connection.findOneAndUpdate({ ...scope(workspace), _id: existing._id, chatId: { $exists: false } }, { $set: values }, { returnDocument: 'after' }) : await Connection.create(values);
+    const row = existing ? await Connection.findOneAndUpdate(withRevision({ ...scope(workspace), _id: existing._id, chatId: { $exists: false } }, revision === undefined ? revisionOf(existing) : revision), { $set: { ...values, settingsUpdatedBy: actorLabel(workspace) }, $inc: { settingsRevision: 1 } }, { returnDocument: 'after' }) : await Connection.create(values);
     if (!row) throw fail('SETTINGS_CHANGED', 'تغيرت حالة الربط. حدّث القائمة.', 409);
     return { ...await status(workspace), connectionId: String(row._id), code, expiresAt: row.codeExpiresAt,
         botUrl: 'https://t.me/' + BOT_USERNAME + '?start=' + encodeURIComponent(code) };
@@ -80,7 +82,15 @@ const target = async (workspace, id) => {
     if (!row) throw fail('NOT_FOUND', 'الحساب غير موجود.', 404);
     return { row, legacy: false };
 };
-const setEnabled = async (workspace, enabled, id) => {
+const saveTarget = async (workspace, row, legacy, revision) => {
+    const changes = row.$getChanges();
+    changes.$set = { ...changes.$set, settingsUpdatedBy: actorLabel(workspace) };
+    changes.$inc = { ...changes.$inc, settingsRevision: 1 };
+    const Model = legacy ? Link : Connection;
+    const updated = await Model.findOneAndUpdate(withRevision({ ...(legacy ? legacyScope(workspace) : scope(workspace)), _id: row._id }, revision === undefined ? revisionOf(row) : revision), changes, { returnDocument: 'after' });
+    if (!updated) throw conflict();
+};
+const setEnabled = async (workspace, enabled, id, revision) => {
     if (typeof enabled !== 'boolean') throw fail('INVALID_PREFERENCE', 'إعداد غير صالح.');
     const { row, legacy } = await target(workspace, id);
     if (!row.chatId || !row.linkedAt) throw fail('TELEGRAM_NOT_LINKED', 'أكمل ربط هذا الحساب أولاً.');
@@ -89,22 +99,24 @@ const setEnabled = async (workspace, enabled, id) => {
         row.deliveryMode = enabled ? (whatsappEnabled ? 'both' : 'telegram') : (whatsappEnabled ? 'whatsapp' : 'off');
         row.active = row.deliveryMode !== 'off'; row.codeExpiresAt = new Date(0); row.activateOnLink = false;
     } else row.enabled = enabled;
-    await row.save();
+    await saveTarget(workspace, row, legacy, revision);
     return status(workspace);
 };
-const rename = async (workspace, id, name) => {
+const rename = async (workspace, id, name, revision) => {
     const label = cleanName(name);
     const { row, legacy } = await target(workspace, id);
     row[legacy ? 'displayName' : 'name'] = label;
-    await row.save();
+    await saveTarget(workspace, row, legacy, revision);
     return status(workspace);
 };
-const unlink = async (workspace, id) => {
+const unlink = async (workspace, id, revision) => {
     const { row, legacy } = await target(workspace, id);
     if (legacy) {
-        await Link.updateOne({ _id: row._id }, { $set: { deliveryMode: ['whatsapp', 'both'].includes(row.deliveryMode) ? 'whatsapp' : 'off', active: false, linkedAt: null, codeExpiresAt: new Date(0), activateOnLink: false }, $unset: { chatId: 1, requestedById: 1, requestedByModel: 1 } });
+        const result = await Link.updateOne(withRevision({ ...legacyScope(workspace), _id: row._id }, revision === undefined ? revisionOf(row) : revision), { $set: { deliveryMode: ['whatsapp', 'both'].includes(row.deliveryMode) ? 'whatsapp' : 'off', active: ['whatsapp', 'both'].includes(row.deliveryMode), linkedAt: null, settingsUpdatedBy: actorLabel(workspace), codeExpiresAt: new Date(0), activateOnLink: false }, $inc: { settingsRevision: 1 }, $unset: { chatId: 1, requestedById: 1, requestedByModel: 1 } });
+        if (!result.matchedCount) throw conflict();
     } else {
-        await Connection.updateOne({ ...scope(workspace), _id: row._id }, { $set: { enabled: false, deletedAt: new Date(), codeExpiresAt: new Date(0) }, $unset: { codeHash: 1 } });
+        const result = await Connection.updateOne(withRevision({ ...scope(workspace), _id: row._id }, revision === undefined ? revisionOf(row) : revision), { $set: { enabled: false, deletedAt: new Date(), codeExpiresAt: new Date(0), settingsUpdatedBy: actorLabel(workspace) }, $inc: { settingsRevision: 1 }, $unset: { codeHash: 1 } });
+        if (!result.matchedCount) throw conflict();
     }
     return status(workspace);
 };
@@ -131,7 +143,7 @@ const confirmLink = async ({ code, chatId, telegramUser = {} }) => {
     const telegramName = [telegramUser.first_name, telegramUser.last_name].filter(value => typeof value === 'string').join(' ').slice(0, 120);
     if (await Link.exists({ ownerModel: 'ClientCompany', ownerId: pending.companyId, tenantId: pending.tenantId || null, chatId: String(chatId), linkedAt: { $ne: null } })) return { success: false, code: 'CHAT_ALREADY_LINKED' };
     try {
-        const row = await Connection.findOneAndUpdate(filter, { $set: { chatId: String(chatId), username, telegramName, enabled: true, linkedAt: new Date(), lastInteractionAt: new Date() }, $unset: { codeHash: 1, codeExpiresAt: 1 } }, { returnDocument: 'after' });
+        const row = await Connection.findOneAndUpdate(filter, { $set: { chatId: String(chatId), username, telegramName, enabled: true, linkedAt: new Date(), lastInteractionAt: new Date() }, $inc: { settingsRevision: 1 }, $unset: { codeHash: 1, codeExpiresAt: 1 } }, { returnDocument: 'after' });
         return row ? { success: true, link: row } : { success: false, code: 'CODE_NOT_FOUND' };
     } catch (error) { if (error.code === 11000) return { success: false, code: 'CHAT_ALREADY_LINKED' }; throw error; }
 };

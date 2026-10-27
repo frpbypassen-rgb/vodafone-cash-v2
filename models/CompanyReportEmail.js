@@ -1,6 +1,7 @@
 'use strict';
 const mongoose = require('mongoose');
 const schema = new mongoose.Schema({
+    ...require('../utils/portalSettingsRevision').revisionFields,
     actorId: { type: mongoose.Schema.Types.ObjectId, required: true },
     actorModel: { type: String, enum: ['ClientEmployee'], required: true },
     companyId: { type: mongoose.Schema.Types.ObjectId, required: true },

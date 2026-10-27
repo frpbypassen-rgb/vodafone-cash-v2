@@ -85,10 +85,10 @@ const apiKeyFingerprint = (value) => crypto
     .digest('hex')
     .slice(0, 12);
 
-const rotateIntegrationApiKey = async (account, field) => {
+const rotateIntegrationApiKey = async (account, field, actorName = 'الإدارة') => {
     const previousKey = String(account[field] || '');
     const result = await require('../services/merchantIntegrationService').rotateKey({
-        isCompany: field === 'token', isAgent: field !== 'token', entity: account, permissions: { owner: true }
+        isCompany: field === 'token', isAgent: field !== 'token', entity: account, actor: { name: actorName }, permissions: { owner: true }
     });
     return { token: result.token, previousFingerprint: previousKey ? apiKeyFingerprint(previousKey) : null,
         currentFingerprint: apiKeyFingerprint(result.token) };
@@ -410,7 +410,7 @@ router.post('/company/:id/rotate-api-token', requireAuth, requireMaster, async (
         const company = await ClientCompany.findOne(adminAccountFindQuery(req, { _id: req.params.id }));
         if (!company) return res.redirect('/clients?section=companies&apiTokenError=notfound');
 
-        const rotation = await rotateIntegrationApiKey(company, 'token');
+        const rotation = await rotateIntegrationApiKey(company, 'token', req.session.adminName || 'الإدارة');
         await logAction({
             action: 'MERCHANT_API_KEY_ROTATED',
             req,

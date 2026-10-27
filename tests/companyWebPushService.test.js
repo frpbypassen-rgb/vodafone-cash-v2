@@ -83,5 +83,13 @@ describe('company web push service', () => {
         });
         expect(webpush.sendNotification).toHaveBeenCalled();
         expect(result).toMatchObject({ configured: true, attempted: 1, sent: 1, failed: 0 });
+        expect(WebPushSubscription.updateOne.mock.calls[0][1].$set).not.toHaveProperty('active');
+    });
+
+    test('a transient delivery failure cannot reactivate a browser disabled during delivery', async () => {
+        WebPushSubscription.find.mockReturnValue({ lean: jest.fn().mockResolvedValue([{ _id: 'sub-1', subscription: { endpoint: 'https://push.example/1' } }]) });
+        webpush.sendNotification.mockRejectedValue({ statusCode: 503, message: 'temporary' });
+        await service.sendCompanyWebPush({ userIds: ['employee-1'] });
+        expect(WebPushSubscription.updateOne.mock.calls[0][1].$set).not.toHaveProperty('active');
     });
 });

@@ -39,6 +39,7 @@ router.post('/api/rate-alerts/subscribe', requireClientAuth, async (req, res) =>
         await WebPushSubscription.findOneAndUpdate(
             { endpoint },
             {
+                $inc: { settingsRevision: 1 },
                 $set: {
                     subscription,
                     userId: String(req.session.clientId),

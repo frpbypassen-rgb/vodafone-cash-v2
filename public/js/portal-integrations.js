@@ -124,5 +124,7 @@
         get('secret-box').hidden = true;
         form.reset();
     });
+    document.addEventListener('visibilitychange', () => { if (!document.hidden && !busy) sync().catch(() => {}); });
+    window.addEventListener('focus', () => { if (!busy) sync().catch(() => {}); });
     sync().catch((error) => tell(error.message, true));
 })();

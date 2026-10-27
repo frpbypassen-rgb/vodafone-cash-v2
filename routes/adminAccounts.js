@@ -94,6 +94,7 @@ const accountToFormData = (account, submitted = null, extras = {}) => {
         ? account.businessProfile.toObject()
         : { ...(account.businessProfile || {}) };
     const base = {
+        profileRevision: account.profileRevision || 0,
         name: account.name || '',
         phone: account.phone || '',
         webUsername: account.webUsername || '',
@@ -204,6 +205,7 @@ router.post('/admin/accounts/:type/:id/telegram-code', requireAuth, requireMaste
 
 router.post('/admin/accounts/:type/:id/telegram-settings', requireAuth, requireMaster, async (req, res) => {
     const { definition, account } = await findEditableAccount(req.params.type, req.params.id);
+    if (['agent', 'company'].includes(definition.type)) return res.status(409).send('استخدم لوحة إعدادات البوابة لإدارة حسابات Telegram والحالة الحالية.');
     const deliveryMode = ['off', 'whatsapp', 'telegram', 'both'].includes(req.body?.deliveryMode) ? req.body.deliveryMode : 'off';
     await TelegramAccountLink.findOneAndUpdate({ ownerModel: definition.modelName, ownerId: account._id }, { $set: { deliveryMode, active: deliveryMode !== 'off' } }, { upsert: true, setDefaultsOnInsert: true });
     return res.redirect(`/admin/accounts/${definition.type}/${account._id}/edit?telegramSaved=1`);
@@ -278,6 +280,10 @@ router.post('/admin/accounts/:type/:id/edit', requireAuth, requireMaster, accoun
     { name: 'businessLicense', maxCount: 1 }
 ]), verifyUploadedDocuments, verifyMultipartCsrf, async (req, res) => {
     try {
+        if (['agent', 'company'].includes(req.params.type)) {
+            const value = req.body.profileRevision;
+            require('../utils/portalSettingsRevision').withRevision({}, typeof value === 'string' && /^\d+$/.test(value) ? Number(value) : value, 'profileRevision');
+        }
         const result = await updateEditableAccount({
             type: req.params.type,
             id: req.params.id,

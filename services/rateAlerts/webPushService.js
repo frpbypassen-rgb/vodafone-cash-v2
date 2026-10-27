@@ -53,7 +53,7 @@ const sendRateAlertWebPush = async ({ payload, audience = [] }) => {
             const expired = [404, 410].includes(Number(error.statusCode));
             await WebPushSubscription.updateOne(
                 { _id: row._id },
-                { $set: { active: !expired, lastError: String(error.message || 'PUSH_FAILED').slice(0, 500) } }
+                { $set: { ...(expired ? { active: false } : {}), lastError: String(error.message || 'PUSH_FAILED').slice(0, 500) }, ...(expired ? { $inc: { settingsRevision: 1 } } : {}) }
             );
             return false;
         }

@@ -10,9 +10,9 @@
     const message = (text, error = false) => { result.textContent = text; result.classList.toggle('is-error', error); };
     const request = async (action = '', data) => {
         const response = await fetch(`/client/api/report-email${action}`, {
-            method: data === undefined ? 'GET' : 'POST', credentials: 'same-origin',
+            method: data === undefined ? 'GET' : 'POST', credentials: 'same-origin', cache: 'no-store',
             headers: { 'Accept': 'application/json', ...(data === undefined ? {} : { 'Content-Type': 'application/json', 'X-CSRF-Token': window.businessPortal?.csrfToken || '' }) },
-            ...(data === undefined ? {} : { body: JSON.stringify(data) }),
+            ...(data === undefined ? {} : { body: JSON.stringify({ ...data, revision: status?.revision ?? 0 }) }),
         });
         if (!(response.headers.get('content-type') || '').includes('application/json')) throw new Error('انتهت الجلسة أو تعذر الاتصال. حدّث الصفحة.');
         const payload = await response.json();
@@ -46,7 +46,7 @@
         root.querySelectorAll('button, input').forEach(element => { element.disabled = true; });
         message('جارٍ تنفيذ الطلب…');
         try { await action(); }
-        catch (error) { message(error.message, true); }
+        catch (error) { try { render(await request()); } catch (_) {} message(error.message, true); }
         finally {
             busy = false;
             root.querySelectorAll('button, input').forEach(element => { element.disabled = false; });
@@ -95,5 +95,9 @@
         render(await request());
         message('تم إرسال الكشف التجريبي إلى بريدك المؤكّد.');
     }); });
+    const refreshState = () => { if (!busy && setup.hidden && document.visibilityState === 'visible') request().then(render).catch(() => {}); };
+    window.setInterval(refreshState, 15000);
+    document.addEventListener('visibilitychange', refreshState);
+    window.addEventListener('focus', refreshState);
     void perform(async () => { render(await request()); if (status.available) message(''); });
 })();

@@ -7,7 +7,7 @@
     let state = null, pending = null, busy = false, pollTimer, editingId = null;
     const tell = (text, error = false) => { result.textContent = text; result.classList.toggle('is-error', error); };
     const api = async (path = '', body) => {
-        const response = await fetch('/client/api/telegram' + path, { method: body === undefined ? 'GET' : 'POST', credentials: 'same-origin', headers: { Accept: 'application/json', ...(body === undefined ? {} : { 'Content-Type': 'application/json', 'X-CSRF-Token': window.businessPortal?.csrfToken || '' }) }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
+        const response = await fetch('/client/api/telegram' + path, { method: body === undefined ? 'GET' : 'POST', credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/json', ...(body === undefined ? {} : { 'Content-Type': 'application/json', 'X-CSRF-Token': window.businessPortal?.csrfToken || '' }) }, ...(body === undefined ? {} : { body: JSON.stringify({ ...body, revision: state?.connections?.find(row => row.id === decodeURIComponent(path.split('/')[2] || body?.id || ''))?.revision }) }) });
         if (!(response.headers.get('content-type') || '').includes('application/json')) throw new Error('انتهت الجلسة. حدّث الصفحة.');
         const payload = await response.json();
         if (!response.ok || !payload.success) throw new Error(payload.error || 'تعذر تنفيذ طلب تيليجرام.');
@@ -66,7 +66,7 @@
     const perform = async action => {
         if (busy) return;
         busy = true; root.querySelectorAll('button, input').forEach(node => { node.disabled = true; }); tell('جارٍ تنفيذ الطلب…');
-        try { await action(); } catch (error) { tell(error.message, true); }
+        try { await action(); } catch (error) { editingId = null; try { render(await api()); } catch (_) {} tell(error.message, true); }
         finally { busy = false; root.querySelectorAll('button, input').forEach(node => { node.disabled = false; }); }
     };
     const poll = async () => {
@@ -117,5 +117,9 @@
     });
     document.addEventListener('visibilitychange', () => { if (document.hidden) clearTimeout(pollTimer); else void poll(); });
     window.addEventListener('pagehide', () => clearTimeout(pollTimer));
+    const refreshState = () => { if (!busy && !editingId && addForm.hidden && !document.hidden) api().then(render).catch(() => {}); };
+    window.setInterval(refreshState, 15000);
+    window.addEventListener('focus', refreshState);
+    document.addEventListener('visibilitychange', refreshState);
     void perform(async () => { render(await api()); tell(''); });
 })();
