@@ -1,31 +1,45 @@
-<section class="mfa-security-panel" data-mfa-panel>
+<% const compactMfaPanel = typeof workspace !== 'undefined' && (workspace.isCompany || workspace.isAgent); %>
+<section class="mfa-security-panel<%= compactMfaPanel ? ' mfa-compact' : '' %>" data-mfa-panel>
     <div class="mfa-panel-heading">
         <div>
-            <span class="mfa-kicker"><i class="fa-solid fa-shield-halved"></i> أمان الحساب</span>
-            <h2>حماية الحساب الاختيارية</h2>
-            <p>أداة الحماية المتاحة لهذا الحساب هي <b>Authenticator</b>. تفعيلها اختياري، وعند تفعيلها يُطلب الرمز عند كل دخول.</p>
+            <% if (compactMfaPanel) { %>
+            <h2><i class="fa-solid fa-shield-halved" aria-hidden="true"></i> التحقق الثنائي</h2>
+            <% } else { %><span class="mfa-kicker"><i class="fa-solid fa-shield-halved"></i> أمان الحساب</span><h2>حماية الحساب الاختيارية</h2><% } %>
         </div>
-        <span class="mfa-state" data-mfa-state>جاري الفحص</span>
+        <span class="mfa-state" data-mfa-state role="status" aria-live="polite">جارٍ الفحص</span>
     </div>
 
-    <div class="mfa-device-summary">
+    <p class="mfa-description">أضف رمزًا من تطبيق <b dir="ltr">Authenticator</b> لحماية تسجيل الدخول.</p>
+    <% if (compactMfaPanel) { %>
+    <p class="mfa-login-summary"><span>عند الدخول:</span> <strong data-mfa-login-rule>جارٍ الفحص</strong></p>
+    <% } else { %><div class="mfa-device-summary">
         <div><span>حالة Authenticator</span><strong data-mfa-enabled>جاري الفحص</strong></div>
         <div><span>عند تسجيل الدخول</span><strong data-mfa-login-rule>جاري الفحص</strong></div>
-    </div>
+    </div><% } %>
 
-    <div class="mfa-message" data-mfa-message hidden></div>
+    <div class="mfa-message" data-mfa-message role="status" aria-live="polite" hidden></div>
 
     <div class="mfa-actions">
         <button type="button" class="mfa-button primary" data-mfa-start>
             <i class="fa-solid fa-lock"></i> تفعيل Authenticator
         </button>
+        <% if (compactMfaPanel) { %>
+        <button type="button" class="mfa-button primary" data-mfa-manage aria-expanded="false" aria-controls="mfaAccountManagement" hidden><i class="fa-solid fa-sliders" aria-hidden="true"></i> إدارة التحقق الثنائي</button>
+        <% } else { %>
         <button type="button" class="mfa-button danger" data-mfa-disable hidden>
             <i class="fa-solid fa-shield-slash"></i> إيقاف الحماية
         </button>
         <a class="mfa-button" href="/security/sessions">
             <i class="fa-solid fa-display"></i> الأجهزة والجلسات
         </a>
+        <% } %>
     </div>
+    <% if (compactMfaPanel) { %>
+    <div class="mfa-management" id="mfaAccountManagement" data-mfa-management hidden>
+        <p>لإيقاف الحماية، ستحتاج رمز التطبيق أو أحد رموز الاسترداد.</p>
+        <button type="button" class="mfa-button danger" data-mfa-disable hidden><i class="fa-solid fa-shield-halved" aria-hidden="true"></i> إيقاف الحماية</button>
+    </div>
+    <% } %>
 
     <div class="mfa-setup" data-mfa-setup hidden>
         <div class="mfa-notice">
@@ -33,81 +47,80 @@
             <span>أضف المفتاح يدويًا في Google Authenticator أو Microsoft Authenticator. هذه البيانات تظهر أثناء الإعداد فقط.</span>
         </div>
         <div class="mfa-qr" data-mfa-qr hidden aria-label="رمز QR لإعداد تطبيق المصادقة"></div>
-        <label class="mfa-secret-label">مفتاح الإعداد</label>
+        <div class="mfa-secret-label">مفتاح الإعداد</div>
         <div class="mfa-secret-row"><code data-mfa-secret></code><button type="button" data-mfa-copy-secret title="نسخ"><i class="fa-regular fa-copy"></i></button></div>
-        <label class="mfa-secret-label">رابط الإعداد</label>
+        <div class="mfa-secret-label">رابط الإعداد</div>
         <div class="mfa-uri-row"><code data-mfa-uri></code><button type="button" data-mfa-copy-uri title="نسخ"><i class="fa-regular fa-copy"></i></button></div>
         <div class="mfa-recovery-box"><strong>رموز الاسترداد</strong><div data-mfa-recovery></div></div>
         <div class="mfa-confirm-row">
-            <input type="text" inputmode="numeric" maxlength="6" data-mfa-confirm-token placeholder="رمز Authenticator المكون من 6 أرقام">
+            <input type="text" inputmode="numeric" maxlength="6" autocomplete="one-time-code" aria-label="رمز Authenticator المكون من 6 أرقام" data-mfa-confirm-token placeholder="رمز التحقق من 6 أرقام">
             <button type="button" class="mfa-button primary" data-mfa-confirm>تأكيد التفعيل</button>
         </div>
     </div>
 </section>
 
 <style>
-    .mfa-security-panel { padding: 20px; border: 1px solid color-mix(in srgb, #2563eb 18%, #cbd5e1); border-radius: 14px; background: color-mix(in srgb, #fff 92%, #eff6ff); box-shadow: 0 12px 30px rgba(15, 23, 42, .06); }
-    .mfa-panel-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; }
-    .mfa-kicker { display: block; margin-bottom: 5px; color: #2563eb; font-size: .76rem; font-weight: 900; }
-    .mfa-panel-heading h2 { margin: 0; color: #0f172a; font-size: 1.06rem; font-weight: 900; }
-    .mfa-panel-heading p { margin: 7px 0 0; color: #64748b; font-size: .78rem; line-height: 1.6; }
-    .mfa-state { flex: 0 0 auto; padding: 6px 10px; border-radius: 999px; color: #64748b; background: #f1f5f9; font-size: .72rem; font-weight: 900; }
-    .mfa-state.ready { color: #047857; background: #d1fae5; }
-    .mfa-state.warn { color: #b45309; background: #fef3c7; }
-    .mfa-device-summary { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 18px 0 14px; }
-    .mfa-device-summary > div { padding: 12px; border: 1px solid #e2e8f0; border-radius: 10px; background: rgba(255,255,255,.72); }
+    .mfa-security-panel {
+        --mfa-bg: var(--bw-surface, #fff); --mfa-soft: var(--bw-surface-soft, #f8fafc);
+        --mfa-line: var(--bw-border, #dce5f3); --mfa-ink: var(--bw-text, #0f172a); --mfa-muted: var(--bw-muted, #52647d);
+        --mfa-ready: #047857; --mfa-ready-bg: #dcfce7; --mfa-warn: #92400e; --mfa-warn-bg: #fef3c7;
+        --mfa-error: #b91c1c; --mfa-error-bg: #fef2f2; --mfa-info: #1d4ed8; --mfa-info-bg: #eff6ff;
+        min-width: 0; padding: 18px; border: 1px solid var(--mfa-line); border-radius: 16px;
+        color: var(--mfa-ink); background: var(--mfa-bg);
+    }
+    :is([data-theme="dark"], [data-theme="night"]) .mfa-security-panel {
+        --mfa-bg: var(--bw-surface, #182333); --mfa-soft: var(--bw-surface-soft, #202d3e);
+        --mfa-line: var(--bw-border, #34465b); --mfa-ink: var(--bw-text, #f3f7fb); --mfa-muted: var(--bw-muted, #b2c2d5);
+        --mfa-ready: #86efac; --mfa-ready-bg: #173c30; --mfa-warn: #fcd68d; --mfa-warn-bg: #40331c;
+        --mfa-error: #ffb0b7; --mfa-error-bg: #44242e; --mfa-info: #b8d4ff; --mfa-info-bg: #1a3153;
+    }
+    .mfa-security-panel [hidden] { display: none !important; }
+    .mfa-panel-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+    .mfa-panel-heading > div { min-width: 0; }
+    .mfa-kicker { display: block; margin-bottom: 5px; color: var(--mfa-info); font-size: 12px; font-weight: 700; }
+    .mfa-panel-heading h2 { margin: 0; color: var(--mfa-ink); font-size: 16px; line-height: 1.5; font-weight: 800; }
+    .mfa-panel-heading h2 i { color: var(--mfa-info); margin-inline-end: 4px; }
+    .mfa-description, .mfa-management p { margin: 10px 0; color: var(--mfa-muted); font-size: 13px; line-height: 1.7; }
+    .mfa-state { flex: 0 0 auto; padding: 5px 9px; border-radius: 999px; color: var(--mfa-muted); background: var(--mfa-soft); font-size: 11px; font-weight: 700; }
+    .mfa-state.ready { color: var(--mfa-ready); background: var(--mfa-ready-bg); }
+    .mfa-state.warn { color: var(--mfa-warn); background: var(--mfa-warn-bg); }
+    .mfa-device-summary { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 16px 0; }
+    .mfa-device-summary > div { padding: 12px; border: 1px solid var(--mfa-line); border-radius: 10px; background: var(--mfa-soft); }
     .mfa-device-summary span, .mfa-device-summary strong { display: block; }
-    .mfa-device-summary span { color: #64748b; font-size: .7rem; }
-    .mfa-device-summary strong { margin-top: 5px; color: #0f172a; font-size: .82rem; }
+    .mfa-device-summary span { color: var(--mfa-muted); font-size: 12px; }
+    .mfa-device-summary strong { margin-top: 5px; color: var(--mfa-ink); font-size: 13px; }
+    .mfa-login-summary { display: flex; flex-wrap: wrap; gap: 4px; margin: 12px 0; color: var(--mfa-muted); font-size: 12px; line-height: 1.7; }
+    .mfa-login-summary strong { color: var(--mfa-ink); font-weight: 600; }
     .mfa-actions, .mfa-confirm-row { display: flex; flex-wrap: wrap; gap: 8px; }
-    .mfa-button { min-height: 38px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 9px; color: #1e3a8a; background: #fff; font-weight: 900; font-size: .76rem; cursor: pointer; text-decoration: none; }
+    .mfa-button { min-height: 44px; box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; gap: 7px; padding: 9px 12px; border: 1px solid var(--mfa-line); border-radius: 10px; color: var(--mfa-ink); background: var(--mfa-soft); font: inherit; font-weight: 700; font-size: 13px; cursor: pointer; text-decoration: none; }
     .mfa-button.primary { color: #fff; border-color: #2563eb; background: #2563eb; }
-    .mfa-button.danger { color: #b91c1c; }
+    .mfa-button.danger { color: var(--mfa-error); border-color: var(--mfa-error); background: transparent; }
     .mfa-button:disabled { opacity: .55; cursor: wait; }
-    .mfa-message { margin: 12px 0; padding: 10px 12px; border-radius: 9px; color: #1d4ed8; background: #eff6ff; font-size: .76rem; font-weight: 800; }
-    .mfa-message.error { color: #b91c1c; background: #fef2f2; }
-    .mfa-setup { margin-top: 16px; padding-top: 16px; border-top: 1px solid #e2e8f0; }
-    .mfa-qr { width: 168px; height: 168px; margin: 0 auto 14px; padding: 8px; background: #fff; border-radius: 8px; }
+    .mfa-security-panel :is(button, input):focus-visible { outline: 3px solid var(--mfa-info); outline-offset: 3px; }
+    .mfa-compact .mfa-actions > .mfa-button { width: 100%; }
+    .mfa-management { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--mfa-line); }
+    .mfa-message { margin: 12px 0; padding: 10px 12px; border-radius: 9px; color: var(--mfa-info); background: var(--mfa-info-bg); font-size: 12px; line-height: 1.7; }
+    .mfa-message.error { color: var(--mfa-error); background: var(--mfa-error-bg); }
+    .mfa-setup { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--mfa-line); min-width: 0; }
+    .mfa-qr { box-sizing: content-box; width: 152px; height: 152px; margin: 0 auto 14px; padding: 8px; background: #fff; border-radius: 8px; }
     .mfa-qr img, .mfa-qr canvas { display: block; width: 152px; height: 152px; }
-    .mfa-notice { display: grid; gap: 4px; padding: 11px 12px; margin-bottom: 14px; border-radius: 9px; color: #92400e; background: #fffbeb; font-size: .76rem; line-height: 1.6; }
-    .mfa-notice strong { font-weight: 900; }
-    .mfa-secret-label { display: block; margin: 9px 0 5px; color: #475569; font-size: .72rem; font-weight: 900; }
-    .mfa-secret-row, .mfa-uri-row { display: flex; align-items: center; gap: 8px; }
-    .mfa-secret-row code, .mfa-uri-row code { min-width: 0; flex: 1; overflow: auto; padding: 9px 10px; border: 1px solid #e2e8f0; border-radius: 8px; color: #0f172a; background: #f8fafc; direction: ltr; font-size: .72rem; white-space: nowrap; }
-    .mfa-secret-row button, .mfa-uri-row button { width: 38px; height: 38px; border: 1px solid #cbd5e1; border-radius: 8px; color: #1d4ed8; background: #fff; cursor: pointer; }
-    .mfa-recovery-box { margin: 14px 0; padding: 12px; border: 1px dashed #94a3b8; border-radius: 9px; background: #f8fafc; }
-    .mfa-recovery-box strong { display: block; margin-bottom: 8px; color: #0f172a; font-size: .76rem; }
-    .mfa-recovery-box div { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; direction: ltr; }
-    .mfa-recovery-box code { padding: 5px; color: #1e3a8a; background: #fff; border-radius: 5px; text-align: center; font-size: .72rem; }
-    .mfa-confirm-row input { min-width: 230px; flex: 1; padding: 9px 10px; border: 1px solid #cbd5e1; border-radius: 9px; direction: ltr; text-align: center; }
-    [data-theme="dark"] .mfa-security-panel { border-color: #34465b; background: #182333; box-shadow: 0 16px 34px rgba(0, 0, 0, .24); }
-    [data-theme="dark"] .mfa-panel-heading h2,
-    [data-theme="dark"] .mfa-device-summary strong,
-    [data-theme="dark"] .mfa-recovery-box strong { color: #f3f7fb; }
-    [data-theme="dark"] .mfa-panel-heading p,
-    [data-theme="dark"] .mfa-device-summary span,
-    [data-theme="dark"] .mfa-secret-label { color: #aebdcd; }
-    [data-theme="dark"] .mfa-state { color: #c1cedc; background: #263446; }
-    [data-theme="dark"] .mfa-state.ready { color: #7ee2bb; background: #163d32; }
-    [data-theme="dark"] .mfa-state.warn { color: #f4c56d; background: #493916; }
-    [data-theme="dark"] .mfa-device-summary > div { border-color: #34465b; background: rgba(255, 255, 255, .035); }
-    [data-theme="dark"] .mfa-button { color: #d6e4f5; border-color: #43566c; background: #202d3e; }
-    [data-theme="dark"] .mfa-button.primary { color: #fff; border-color: #4f8df7; background: #2563eb; }
-    [data-theme="dark"] .mfa-button.danger { color: #ff9a9f; }
-    [data-theme="dark"] .mfa-message { color: #a9c9ff; background: #1a3158; }
-    [data-theme="dark"] .mfa-message.error { color: #ffadb2; background: #4a2328; }
-    [data-theme="dark"] .mfa-setup { border-top-color: #34465b; }
-    [data-theme="dark"] .mfa-notice { color: #f6d68a; background: #47391c; }
-    [data-theme="dark"] .mfa-secret-row code,
-    [data-theme="dark"] .mfa-uri-row code,
-    [data-theme="dark"] .mfa-recovery-box { color: #dce8f5; border-color: #43566c; background: #202d3e; }
-    [data-theme="dark"] .mfa-secret-row code,
-    [data-theme="dark"] .mfa-uri-row code { color: #e8f0fa; }
-    [data-theme="dark"] .mfa-recovery-box code { color: #c4d9ff; background: #2a3a4d; }
-    [data-theme="dark"] .mfa-secret-row button,
-    [data-theme="dark"] .mfa-uri-row button { color: #9fc1ff; border-color: #43566c; background: #202d3e; }
-    [data-theme="dark"] .mfa-confirm-row input { color: #f3f7fb; border-color: #43566c; background: #202d3e; }
-    @media (max-width: 620px) { .mfa-device-summary { grid-template-columns: 1fr; } .mfa-panel-heading { display: block; } .mfa-state { display: inline-block; margin-top: 10px; } .mfa-recovery-box div { grid-template-columns: repeat(2, minmax(0, 1fr)); } .mfa-confirm-row input, .mfa-confirm-row .mfa-button { width: 100%; } }
+    .mfa-notice { display: grid; gap: 4px; padding: 11px 12px; margin-bottom: 14px; border-radius: 9px; color: var(--mfa-warn); background: var(--mfa-warn-bg); font-size: 12px; line-height: 1.7; }
+    .mfa-secret-label { display: block; margin: 9px 0 5px; color: var(--mfa-muted); font-size: 12px; font-weight: 700; }
+    .mfa-secret-row, .mfa-uri-row { display: flex; align-items: center; gap: 8px; min-width: 0; }
+    .mfa-secret-row code, .mfa-uri-row code { min-width: 0; flex: 1; overflow: auto; padding: 9px 10px; border: 1px solid var(--mfa-line); border-radius: 8px; color: var(--mfa-ink); background: var(--mfa-soft); direction: ltr; font-size: 12px; white-space: nowrap; }
+    .mfa-secret-row button, .mfa-uri-row button { flex: 0 0 44px; width: 44px; height: 44px; border: 1px solid var(--mfa-line); border-radius: 8px; color: var(--mfa-info); background: var(--mfa-soft); cursor: pointer; }
+    .mfa-recovery-box { margin: 14px 0; padding: 12px; border: 1px dashed var(--mfa-line); border-radius: 9px; background: var(--mfa-soft); }
+    .mfa-recovery-box > strong { display: block; margin-bottom: 8px; color: var(--mfa-ink); font-size: 12px; }
+    .mfa-recovery-box > div { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; direction: ltr; }
+    .mfa-recovery-box code { padding: 5px; overflow-wrap: anywhere; color: var(--mfa-ink); background: var(--mfa-bg); border-radius: 5px; text-align: center; font-size: 12px; }
+    .mfa-confirm-row input { box-sizing: border-box; min-width: 0; min-height: 44px; flex: 1; padding: 9px 10px; border: 1px solid var(--mfa-line); border-radius: 9px; color: var(--mfa-ink); background: var(--mfa-soft); direction: ltr; text-align: center; font-size: 16px; }
+    @media (max-width: 620px) {
+        .mfa-security-panel { padding: 14px; }
+        .mfa-panel-heading h2 { font-size: 15px; }
+        .mfa-device-summary { grid-template-columns: 1fr; }
+        .mfa-recovery-box > div { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .mfa-confirm-row input, .mfa-confirm-row .mfa-button { width: 100%; flex-basis: 100%; }
+    }
 </style>
 
 <script>
@@ -127,12 +140,18 @@
     const setBusy = (busy) => panel.querySelectorAll('button').forEach((button) => { button.disabled = busy; });
     const render = (data) => {
         const enabled = data.enabled === true;
-        find('[data-mfa-enabled]').textContent = enabled ? 'مفعّل' : 'غير مفعّل';
-        find('[data-mfa-login-rule]').textContent = enabled ? 'رمز مطلوب' : 'دخول مباشر';
-        const state = find('[data-mfa-state]'); state.textContent = enabled ? 'حماية نشطة' : 'غير مفعّل'; state.classList.toggle('ready', enabled); state.classList.toggle('warn', false);
+        const enabledLabel = find('[data-mfa-enabled]'); if (enabledLabel) enabledLabel.textContent = enabled ? 'مفعّل' : 'غير مفعّل';
+        find('[data-mfa-login-rule]').textContent = enabled ? 'كلمة المرور + رمز تحقق' : 'بدون رمز Authenticator';
+        const state = find('[data-mfa-state]'); state.textContent = enabled ? 'مفعّل' : 'غير مفعّل'; state.classList.toggle('ready', enabled); state.classList.toggle('warn', !enabled);
         find('[data-mfa-start]').hidden = enabled;
         find('[data-mfa-disable]').hidden = !enabled;
+        const manage = find('[data-mfa-manage]');
+        if (manage) { manage.hidden = !enabled; manage.setAttribute('aria-expanded', 'false'); find('[data-mfa-management]').hidden = true; }
     };
+    find('[data-mfa-manage]')?.addEventListener('click', () => {
+        const management = find('[data-mfa-management]'); management.hidden = !management.hidden;
+        find('[data-mfa-manage]').setAttribute('aria-expanded', String(!management.hidden));
+    });
     const refresh = async () => { try { render(await request('/security/mfa/status', { method: 'GET', headers: {} })); } catch (error) { setMessage(error.message, true); } };
     const copy = async (value) => { await navigator.clipboard.writeText(value); setMessage('تم نسخ البيانات.'); setTimeout(() => setMessage(''), 1800); };
     find('[data-mfa-copy-secret]').addEventListener('click', () => copy(find('[data-mfa-secret]').textContent));
