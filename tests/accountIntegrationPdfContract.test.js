@@ -32,9 +32,17 @@ describe('Account integration PDF download contract', () => {
         expect(userView).toContain('/user/<%= user._id %>/integration-guide.pdf');
     });
 
-    test('shows API test document downloads on registered company and agent cards', () => {
-        expect(clientsView).toContain('/company/<%= c._id %>/sandbox-api-guide.pdf');
-        expect(clientsView).toContain('/user/<%= agent._id %>/sandbox-api-guide.pdf');
-        expect(clientsView).toContain('تحميل ملف اختبار API');
+    test('shows protected API test document downloads in the compact company and agent menus', async () => {
+        expect(clientsView).toContain("include('partials/admin_merchant_list')");
+        const ejs = require('ejs');
+        for (const section of ['companies', 'agents']) {
+            const locals = { activeSection: section, companies: [], agents: [], isMaster: true };
+            locals[section] = [{ _id: 'test-account', name: 'Test', balance: 0 }];
+            const html = await ejs.renderFile(path.join(__dirname, '../views/partials/admin_merchant_list.ejs'), locals);
+            expect(html).toContain((section === 'companies' ? '/company/' : '/user/') + 'test-account/sandbox-api-guide.pdf');
+            expect(html).toContain('تحميل ملف اختبار API');
+            const restricted = await ejs.renderFile(path.join(__dirname, '../views/partials/admin_merchant_list.ejs'), { ...locals, isMaster: false });
+            expect(restricted).not.toContain('sandbox-api-guide.pdf');
+        }
     });
 });

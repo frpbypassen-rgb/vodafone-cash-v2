@@ -239,7 +239,7 @@ async function main() {
         fullPage: true,
       });
       await adminPage.goto(
-        base + (isCompany ? "/company/" : "/user/") + entity._id,
+        base + (isCompany ? "/company/" : "/user/") + entity._id + "?tab=settings",
         { waitUntil: "domcontentloaded" },
       );
       await adminPage.waitForSelector('[data-aps-toggle="email"]');

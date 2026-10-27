@@ -46,16 +46,19 @@ const modelForSection = ({ User, ClientCompany }, section) => {
 };
 
 const fieldsForSection = (section) => {
-    if (section === 'companies') return 'name phone tier balance accountCode token status createdAt';
+    if (section === 'companies') return 'name phone tier balance accountCode status createdAt';
     return 'name phone tier balance accountCode agentCode webUsername role status createdAt';
 };
 
-const loadAdminAccountDirectory = async ({ User, ClientCompany }, query = {}) => {
+const loadAdminAccountDirectory = async ({ User, ClientCompany }, query = {}, scope = {}) => {
     const activeSection = normalizeSection(query.section);
     const search = normalizeSearch(query.search);
     const requestedPage = normalizePage(query.page);
-    const visible = { status: { $ne: 'deleted' } };
-    const sectionFilter = buildSectionFilter(activeSection, search);
+    const visible = { ...scope, status: { $ne: 'deleted' } };
+    const activeStatus = ['active', 'stopped'].includes(query.status) ? query.status : 'all';
+    const sectionFilter = { ...scope, ...buildSectionFilter(activeSection, search) };
+    if (activeStatus === 'active') sectionFilter.status = 'active';
+    if (activeStatus === 'stopped') sectionFilter.status = { $nin: ['active', 'deleted'] };
 
     const model = modelForSection({ User, ClientCompany }, activeSection);
     const [usersCount, companiesCount, agentsCount, filteredCount] = await Promise.all([
@@ -80,6 +83,7 @@ const loadAdminAccountDirectory = async ({ User, ClientCompany }, query = {}) =>
         agents: [],
         subAccounts: [],
         activeSection,
+        activeStatus,
         search,
         directoryCounts: {
             users: usersCount,

@@ -299,11 +299,29 @@ const reversibleSettlementIds = async ({ transactions, entityModel, entityId }) 
     return [...new Set(ledgers.map((entry) => entry.transactionId))];
 };
 
+const renderMerchantAccount = async (req, res, account, kind) => {
+    const data = await require('../services/adminMerchantDetailService').loadMerchantTab(req, account, kind);
+    const isMaster = req.session.adminRole === 'master';
+    const reversibleSettlements = data.tab === 'ledger' ? await reversibleSettlementIds({ transactions: data.rows, entityModel: kind === 'company' ? 'ClientCompany' : 'User', entityId: account._id }) : [];
+    const companyOwner = kind === 'company' && data.tab === 'profile' && isMaster ? await findCompanyLoginOwner(account._id) : null;
+    const settings = kind === 'company' && data.tab === 'finance' ? await Settings.findOne({}).lean() : null;
+    return res.render('admin_merchant_details', {
+        ...data, account, kind, isMaster, companyOwner, reversibleSettlements,
+        accountCodeLength: kind === 'company' ? CODE_LENGTHS.company : CODE_LENGTHS.agent,
+        rateServices: kind === 'company' && data.tab === 'finance' ? getAdminRateServices() : [],
+        companyRateConfig: kind === 'company' && data.tab === 'finance' ? getCompanyRateConfig(account, settings || {}) : null,
+        query: req.query || {},
+        formatDate: require('../config/systemTime').formatSystemDateTime,
+        auditLabel: action => ({ ADMIN_ACCOUNT_UPDATED:'تعديل بيانات الحساب', ADMIN_PORTAL_SETTINGS_CHANGED:'تعديل إعدادات البوابة', MERCHANT_INTEGRATION_ACCESS_CHANGED:'تعديل صلاحيات API وWebhooks', MERCHANT_API_KEY_ROTATED:'تغيير مفتاح API', MERCHANT_API_KEY_REVOKED:'إيقاف مفتاح API', SETTINGS_UPDATED:'تعديل بيانات المنشأة', ADMIN_TELEGRAM_CODE_REGENERATED:'تجديد ربط Telegram', USER_PASSWORD_CHANGED:'تغيير كلمة المرور' })[action] || 'إجراء على الحساب'
+    });
+};
+
 router.get('/clients', requireAuth, async (req, res) => {
     try {
         const directory = await loadAdminAccountDirectory(
             { User, ClientCompany, SubAccount },
-            req.query
+            req.query,
+            adminAccountScope(req)
         );
         res.render('clients', {
             ...directory,
@@ -319,7 +337,8 @@ router.get('/clients', requireAuth, async (req, res) => {
 router.get('/user/:id', requireAuth, async (req, res) => {
     const user = await User.findOne(adminAccountFindQuery(req, { _id: req.params.id }));
     if (!user) return res.redirect(`/clients?section=${req.query.section === 'agents' ? 'agents' : 'users'}&deleteError=notfound`);
-    const kind = user.role === 'agent' ? 'agent' : 'user';
+    if (user.role === 'agent') return renderMerchantAccount(req, res, user, 'agent');
+    const kind = 'user';
     const { transactions } = await loadAdminAccountHistory(
         { Transaction },
         { kind, account: user, tenant: adminAccountScope(req), limit: 50 }
@@ -343,36 +362,7 @@ router.get('/user/:id', requireAuth, async (req, res) => {
 router.get('/company/:id', requireAuth, async (req, res) => {
     const company = await ClientCompany.findOne(adminAccountFindQuery(req, { _id: req.params.id }));
     if (!company) return res.redirect('/clients?section=companies&deleteError=notfound');
-    const [{ transactions }, settings] = await Promise.all([
-        loadAdminAccountHistory(
-            { Transaction },
-            { kind: 'company', account: company, tenant: adminAccountScope(req), limit: 50 }
-        ),
-        Settings.findOne({}).lean()
-    ]);
-    const reversibleSettlements = await reversibleSettlementIds({
-        transactions,
-        entityModel: 'ClientCompany',
-        entityId: company._id
-    });
-    const companyOwnerAccount = await findCompanyLoginOwner(company._id).catch(() => null);
-    const companyOwner = companyOwnerAccount ? {
-        name: companyOwnerAccount.name || '',
-        webUsername: companyOwnerAccount.webUsername || '',
-        email: companyOwnerAccount.email || '',
-        otpDeliveryChannel: companyOwnerAccount.otpDeliveryChannel === 'email' ? 'email' : 'whatsapp'
-    } : null;
-    res.render('company_details', {
-        company,
-        companyOwner,
-        transactions,
-        reversibleSettlements,
-        accountCodeLength: CODE_LENGTHS.company,
-        rateServices: getAdminRateServices(),
-        companyRateConfig: getCompanyRateConfig(company, settings || {}),
-        query: req.query,
-        isMaster: req.session.adminRole === 'master'
-    });
+    return renderMerchantAccount(req, res, company, 'company');
 });
 
 router.get('/company/:id/integration-guide.pdf', requireAuth, requireMaster, async (req, res) => {

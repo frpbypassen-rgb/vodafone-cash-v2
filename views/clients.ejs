@@ -447,8 +447,9 @@
     <meta name="apple-mobile-web-app-title" content="Al-Ahram">
     <!-- End PWA Setup -->
 <%- include('partials/admin_modern_head') %>
+<link rel="stylesheet" href="/css/admin-merchants.css?v=20261027-mobile">
 </head>
-<body>
+<body class="am-merchant-body">
 
 <%- include('partials/sidebar', { activePage: 'clients' }) %>
 
@@ -457,6 +458,7 @@
         const params = new URLSearchParams({ section });
         if (includeSearch && search) params.set('search', search);
         if (page > 1) params.set('page', String(page));
+        if (typeof activeStatus !== 'undefined' && activeStatus !== 'all') params.set('status', activeStatus);
         return `/clients?${params.toString()}`;
     };
     const firstVisiblePage = Math.max(1, pagination.page - 2);
@@ -469,14 +471,14 @@
 %>
 
 <div class="main-content am-directory-page">
-    <div class="container-fluid clients-page">
+    <div class="container-fluid clients-page <%= activeSection !== 'users' ? 'am-directory-compact' : '' %>">
         <div class="admin-nav mb-4 d-flex flex-column gap-3">
             <div class="clients-header">
                 <div class="clients-title">
 
-                    <div><span class="am-eyebrow">الحسابات والتنفيذ</span><h1 class="fw-bold text-dark">دليل الحسابات</h1><p class="am-description">العملاء والشركات والوكلاء وأرصدة حساباتهم</p></div>
+                    <div><span class="am-eyebrow">الحسابات والتنفيذ</span><h1 class="fw-bold text-dark"><%= activeSection === 'companies' ? 'الشركات' : activeSection === 'agents' ? 'الوكلاء' : 'دليل الحسابات' %></h1><p class="am-description">العملاء والشركات والوكلاء وأرصدة حساباتهم</p></div>
                 </div>
-                <div class="clients-total-pill">
+                <% if (isMaster && activeSection !== 'users') { %><a class="am-button" href="/registration-requests">طلبات التسجيل</a><% } %><div class="clients-total-pill">
                     <i class="fa-solid fa-database text-primary"></i>
                     <span>الإجمالي</span>
                     <strong class="mono-num" style="font-size: 1rem;"><%= directoryCounts.total %></strong>
@@ -504,6 +506,7 @@
 
             <form class="search-container" method="GET" action="/clients" role="search" data-directory-search>
                 <input type="hidden" name="section" value="<%= activeSection %>">
+                <% if (typeof activeStatus !== 'undefined') { %><input type="hidden" name="status" value="<%= activeStatus %>"><% } %>
                 <input type="search" name="search" class="search-input-3d" value="<%= search %>" placeholder="ابحث في القسم الحالي بالاسم، الهاتف، ID أو اسم المستخدم..." autocomplete="off">
                 <i class="fa-solid fa-magnifying-glass search-icon-3d"></i>
                 <div class="search-actions">
@@ -513,7 +516,7 @@
                         </a>
                     <% } %>
                     <button type="submit" class="search-action search-submit" title="تنفيذ البحث" aria-label="تنفيذ البحث">
-                        <i class="fa-solid fa-arrow-left"></i>
+                        <% if (activeSection === 'users') { %><i class="fa-solid fa-arrow-left"></i><% } else { %>بحث<% } %>
                     </button>
                 </div>
             </form>
@@ -537,13 +540,16 @@
                 </li>
             </ul>
             </nav>
-            <div class="directory-summary">
+            <% if (activeSection !== 'users') { %><nav class="am-status-filters" aria-label="حالة الحساب">
+                <% [['all','الكل'],['active','نشط'],['stopped','متوقف']].forEach(([status,label]) => { const params = new URLSearchParams({section:activeSection,status}); if(search) params.set('search',search); %><a href="/clients?<%= params.toString() %>" data-directory-nav <%= (typeof activeStatus === 'undefined' ? 'all' : activeStatus) === status ? 'aria-current=page' : '' %>><%= label %></a><% }); %>
+            </nav><% } %><div class="directory-summary">
                 <span><i class="fa-solid fa-layer-group me-1"></i> <%= sectionLabels[activeSection] %></span>
                 <span>عرض <strong><%= pagination.startItem %></strong> - <strong><%= pagination.endItem %></strong> من <strong><%= pagination.totalItems %></strong></span>
             </div>
         </div>
 
         <div class="tab-content mt-4">
+            <% if (activeSection === 'users') { %>
             <!-- Direct Clients Tab -->
             <div class="tab-pane fade <%= activeSection === 'users' ? 'show active' : '' %>" id="users-tab">
                 <div class="row g-4 pb-5">
@@ -616,163 +622,8 @@
                 </div>
             </div>
 
-            <!-- Companies Tab -->
-            <div class="tab-pane fade <%= activeSection === 'companies' ? 'show active' : '' %>" id="companies-tab">
-                <div class="row g-4 pb-5">
-                    <% if(companies.length === 0) { %>
-                        <div class="col-12 text-center py-5 system-empty-placeholder">
-                            <i class="fa-solid <%= search ? 'fa-magnifying-glass-minus' : 'fa-building-circle-xmark' %> fa-4x text-muted opacity-25 mb-3"></i>
-                            <h5 class="text-muted fw-bold"><%= search ? 'لا توجد نتائج مطابقة في الشركات.' : 'لا توجد شركات مسجلة في المنظومة.' %></h5>
-                        </div>
-                    <% } %>
-
-                    <% companies.forEach(c => { %>
-                        <div class="col-xl-4 col-lg-6 col-md-6 client-card-item" data-name="<%= c.name %>" data-phone="<%= c.phone || '' %>" data-username="<%= c.webUsername || '' %>" data-code="<%= c.accountCode || '' %>" data-master="">
-                            <div class="card-3d-wrapper">
-                                <div class="client-card-3d" style="border-top: 5px solid #8b5cf6;">
-                                    <div>
-                                        <div class="d-flex justify-content-between align-items-start mb-4">
-                                            <div class="d-flex align-items-center gap-3 w-100">
-                                                <div class="profile-icon company-icon">
-                                                    <i class="fa-solid fa-building"></i>
-                                                </div>
-                                                <div style="width: calc(100% - 80px);">
-                                                    <h5 class="client-name fw-bold m-0 text-dark mb-1" title="<%= c.name %>"><%= c.name %></h5>
-                                                    <span class="badge <%= c.status === 'active' ? 'bg-success' : 'bg-danger' %> bg-opacity-10 text-<%= c.status === 'active' ? 'success' : 'danger' %> border rounded-pill px-2 py-1 mt-1" style="font-size:0.75rem;">
-                                                        <i class="fa-solid <%= c.status === 'active' ? 'fa-check-circle' : 'fa-ban' %> me-1"></i><%= c.status === 'active' ? 'يعمل' : 'مغلق' %>
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        <div class="d-flex justify-content-between align-items-center text-muted small fw-bold mb-2 px-1">
-                                            <span dir="ltr"><i class="fa-solid fa-phone me-1 opacity-50" style="color: #8b5cf6;"></i> <%= c.phone %></span>
-                                            <span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary rounded-pill px-2">مستوى <%= c.tier || 1 %></span>
-                                        </div>
-
-                                        <div class="text-muted small fw-bold mb-3 px-1 text-truncate" title="<%= c.token %>">
-                                            <i class="fa-solid fa-key me-1 opacity-50" style="color: #8b5cf6;"></i> <code class="text-muted" style="filter: blur(2px); transition: 0.3s; cursor: pointer;" onmouseover="this.style.filter='none'" onmouseout="this.style.filter='blur(2px)'"><%= c.token %></code>
-                                        </div>
-
-                                        <div class="text-muted small fw-bold mb-2 px-1 text-truncate">
-                                            <i class="fa-solid fa-id-badge me-1 opacity-50" style="color: #8b5cf6;"></i> ID:
-                                            <code class="text-dark mono-num"><%= c.accountCode || 'غير محدد' %></code>
-                                        </div>
-
-                                        <div class="balance-box">
-                                            <div class="text-muted small fw-bold mb-2"><i class="fa-solid fa-wallet me-1 opacity-50"></i> ميزانية الشركة (LYD)</div>
-                                            <div class="mono-num <%= c.balance < 0 ? 'text-danger' : 'text-success' %>" dir="ltr">
-                                                <%= c.balance.toFixed(2) %>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div class="client-actions">
-                                        <a href="/company/<%= c._id %>" class="btn-3d company-btn">
-                                            <i class="fa-solid fa-folder-open me-2"></i> إدارة ملف الشركة
-                                        </a>
-                                        <% if (typeof isMaster !== 'undefined' && isMaster) { %>
-                                            <a href="/company/<%= c._id %>#owner-email-otp" class="btn-3d" style="color:#087f74; border-color:rgba(8,127,116,.35);">
-                                                <i class="fa-solid fa-envelope-circle-check me-2"></i> بريد صاحب الحساب
-                                            </a>
-                                            <a href="/admin/accounts/company/<%= c._id %>/edit#owner-email-otp" class="btn-3d" style="color:#087f74; border-color:rgba(8,127,116,.35);">
-                                                <i class="fa-solid fa-pen-to-square me-2"></i> تعديل بيانات الشركة
-                                            </a>
-                                            <a href="/company/<%= c._id %>/sandbox-api-guide.pdf" class="btn-3d" style="color:#5b21b6; border-color:rgba(91,33,182,.35);" title="تنزيل وثيقة بيئة الاختبار API الخاصة بالشركة">
-                                                <i class="fa-solid fa-flask me-2"></i> تحميل ملف اختبار API
-                                            </a>
-                                        <% } %>
-                                        <form action="/company/<%= c._id %>/delete" method="POST" class="delete-account-form" onsubmit="return confirm('هل أنت متأكد من حذف هذه الشركة؟ سيتم إيقاف دخول موظفيها وإخفاؤها من القائمة مع حفظ العمليات السابقة.');">
-                                            <button type="submit" class="btn-3d btn-delete-account">
-                                                <i class="fa-solid fa-trash-can me-2"></i> حذف الحساب
-                                            </button>
-                                        </form>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    <% }) %>
-                </div>
-            </div>
-
-            <!-- Agents Tab -->
-            <div class="tab-pane fade <%= activeSection === 'agents' ? 'show active' : '' %>" id="agents-tab">
-                <div class="row g-4 pb-5">
-                    <% if(agents.length === 0) { %>
-                        <div class="col-12 text-center py-5 system-empty-placeholder">
-                            <i class="fa-solid <%= search ? 'fa-magnifying-glass-minus' : 'fa-user-tie' %> fa-4x text-muted opacity-25 mb-3"></i>
-                            <h5 class="text-muted fw-bold"><%= search ? 'لا توجد نتائج مطابقة في الوكلاء.' : 'لا يوجد وكلاء مسجلون في المنظومة.' %></h5>
-                        </div>
-                    <% } %>
-
-                    <% agents.forEach(agent => { %>
-                        <div class="col-xl-4 col-lg-6 col-md-6 client-card-item" data-name="<%= agent.name %>" data-phone="<%= agent.phone || '' %>" data-username="<%= agent.webUsername || '' %>" data-code="<%= agent.accountCode || '' %>" data-master="">
-                            <div class="card-3d-wrapper">
-                                <div class="client-card-3d" style="border-top: 5px solid #f59e0b;">
-                                    <div>
-                                        <div class="d-flex justify-content-between align-items-start mb-4">
-                                            <div class="d-flex align-items-center gap-3 w-100">
-                                                <div class="profile-icon agent-icon">
-                                                    <i class="fa-solid fa-user-tie"></i>
-                                                </div>
-                                                <div style="width: calc(100% - 80px);">
-                                                    <h5 class="client-name fw-bold m-0 text-dark mb-1" title="<%= agent.name %>"><%= agent.name %></h5>
-                                                    <span class="badge <%= agent.status === 'active' ? 'bg-success' : 'bg-danger' %> bg-opacity-10 text-<%= agent.status === 'active' ? 'success' : 'danger' %> border rounded-pill px-2 py-1 mt-1" style="font-size:0.75rem;">
-                                                        <i class="fa-solid <%= agent.status === 'active' ? 'fa-check-circle' : 'fa-ban' %> me-1"></i><%= agent.status === 'active' ? 'نشط ومفعل' : 'محظور/مغلق' %>
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        <div class="d-flex justify-content-between align-items-center text-muted small fw-bold mb-2 px-1">
-                                            <span dir="ltr"><i class="fa-solid fa-phone me-1 opacity-50" style="color: #f59e0b;"></i> <%= agent.phone %></span>
-                                            <span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary rounded-pill px-2">مستوى <%= agent.tier || 1 %></span>
-                                        </div>
-
-                                        <div class="text-muted small fw-bold mb-3 px-1 text-truncate">
-                                            <i class="fa-solid fa-user-tag me-1 opacity-50" style="color: #f59e0b;"></i> نوع الحساب: <span class="badge bg-warning text-dark">وكيل معتمد</span>
-                                        </div>
-
-                                        <div class="text-muted small fw-bold mb-2 px-1 text-truncate">
-                                            <i class="fa-solid fa-id-badge me-1 opacity-50" style="color: #f59e0b;"></i> ID:
-                                            <code class="text-dark mono-num"><%= agent.accountCode || 'غير محدد' %></code>
-                                        </div>
-
-                                        <div class="balance-box">
-                                            <div class="text-muted small fw-bold mb-2"><i class="fa-solid fa-wallet me-1 opacity-50"></i> الرصيد الحالي (LYD)</div>
-                                            <div class="mono-num <%= agent.balance < 0 ? 'text-danger' : 'text-success' %>" dir="ltr">
-                                                <%= agent.balance.toFixed(2) %>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div class="client-actions">
-                                        <a href="/user/<%= agent._id %>" class="btn-3d agent-btn">
-                                            <i class="fa-solid fa-folder-open me-2"></i> إدارة ملف الوكيل
-                                        </a>
-                                        <% if (typeof isMaster !== 'undefined' && isMaster) { %>
-                                            <a href="/user/<%= agent._id %>#owner-email-otp" class="btn-3d" style="color:#087f74; border-color:rgba(8,127,116,.35);">
-                                                <i class="fa-solid fa-envelope-circle-check me-2"></i> بريد صاحب الحساب
-                                            </a>
-                                            <a href="/admin/accounts/agent/<%= agent._id %>/edit#owner-email-otp" class="btn-3d" style="color:#087f74; border-color:rgba(8,127,116,.35);">
-                                                <i class="fa-solid fa-pen-to-square me-2"></i> تعديل بيانات الوكيل
-                                            </a>
-                                            <a href="/user/<%= agent._id %>/sandbox-api-guide.pdf" class="btn-3d" style="color:#92400e; border-color:rgba(146,64,14,.35);" title="تنزيل وثيقة بيئة الاختبار API الخاصة بالوكيل">
-                                                <i class="fa-solid fa-flask me-2"></i> تحميل ملف اختبار API
-                                            </a>
-                                        <% } %>
-                                        <form action="/user/<%= agent._id %>/delete" method="POST" class="delete-account-form" onsubmit="return confirm('هل أنت متأكد من حذف هذا الوكيل؟ سيتم إيقاف الحساب والعملاء التابعين له مع حفظ العمليات السابقة.');">
-                                            <button type="submit" class="btn-3d btn-delete-account">
-                                                <i class="fa-solid fa-trash-can me-2"></i> حذف الحساب
-                                            </button>
-                                        </form>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    <% }) %>
-                </div>
-            </div>
+            <% } %>
+            <% if (activeSection !== 'users') { %><%- include('partials/admin_merchant_list') %><% } %>
         </div>
 
         <% if (pagination.totalPages > 1) { %>

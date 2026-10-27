@@ -1,0 +1,3 @@
+<form action="/company/<%= company._id %>/rotate-api-token" method="POST" onsubmit="return confirm('سيتم إيقاف مفتاح API الحالي فوراً وإصدار مفتاح جديد. هل تريد المتابعة؟');">
+                                                <button type="submit" class="btn btn-danger w-100 fw-bold unified-height justify-content-center"><i class="fa-solid fa-arrows-rotate me-1"></i> تبديل المفتاح</button>
+                                            <input type="hidden" name="_csrf" value="<%= csrfToken %>"></form>

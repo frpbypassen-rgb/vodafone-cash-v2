@@ -1,0 +1,37 @@
+<section class="am-control-card " id="balance"><h3>إيداع / خصم الرصيد</h3><form action="/user/<%= user._id %>/add-balance" method="POST" class="row g-2 align-items-center">
+                                    <div class="col-md-4">
+                                        <div class="input-group shadow-sm">
+                                            <input type="number" step="any" name="amount" class="form-control mono-num fw-bold text-center unified-height border-0" placeholder="المبلغ..." required>
+                                            <span class="input-group-text border-0 fw-bold px-2" style="background: #fcd34d; color:#000;">LYD</span>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-5">
+                                        <div class="input-group shadow-sm">
+                                            <span class="input-group-text border-0 bg-light text-muted px-2"><i class="fa-solid fa-pen"></i></span>
+                                            <input type="text" name="notes" class="form-control fw-bold unified-height border-0" placeholder="ملاحظة للتسوية...">
+                                        </div>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <button type="submit" class="btn btn-warning w-100 fw-bold text-dark btn-3d-hover unified-height justify-content-center shadow-sm"><i class="fa-solid fa-floppy-disk me-1"></i> تنفيذ</button>
+                                    </div>
+                                <input type="hidden" name="_csrf" value="<%= csrfToken %>"></form></section>
+<section class="am-control-card " id="limit"><h3>الحد الائتماني</h3><form action="/user/<%= user._id %>/update-limit" method="POST" class="row g-2 align-items-center">
+                                    <div class="col-8">
+                                        <input type="number" step="any" name="creditLimit" class="form-control text-center fw-bold mono-num unified-height border-0 shadow-sm" value="<%= user.creditLimit || 0 %>" placeholder="المبلغ" required>
+                                    </div>
+                                    <div class="col-4">
+                                        <button type="submit" class="btn btn-danger w-100 fw-bold btn-3d-hover unified-height justify-content-center shadow-sm">تحديث</button>
+                                    </div>
+                                <input type="hidden" name="_csrf" value="<%= csrfToken %>"></form></section>
+<section class="am-control-card " id="tier"><h3>مستوى التسعير</h3><form action="/user/<%= user._id %>/change-level" method="POST" class="row g-2 align-items-center">
+                                    <div class="col-8">
+                                        <select name="tier" class="form-select fw-bold text-center unified-height border-0 shadow-sm">
+                                            <option value="1" <%= user.tier === 1 ? 'selected' : '' %>>مستوى 1 (أساسي)</option>
+                                            <option value="2" <%= user.tier === 2 ? 'selected' : '' %>>مستوى 2 (متوسط)</option>
+                                            <option value="3" <%= user.tier === 3 ? 'selected' : '' %>>مستوى 3 (VIP)</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-4">
+                                        <button type="submit" class="btn btn-info text-white w-100 fw-bold btn-3d-hover unified-height justify-content-center shadow-sm">تغيير</button>
+                                    </div>
+                                <input type="hidden" name="_csrf" value="<%= csrfToken %>"></form></section>

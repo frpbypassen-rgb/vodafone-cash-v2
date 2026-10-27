@@ -1,0 +1,16 @@
+<% if(isMaster) { %><section class="am-control-card"><h3>رقم الحساب</h3><form action="/company/<%= company._id %>/update-account-code" method="POST" class="row g-2 align-items-center">
+                                    <div class="col-md-8">
+                                        <input type="text" name="accountCode" class="form-control text-center fw-bold mono-num unified-height border-0 shadow-sm" value="<%= company.accountCode || '' %>" placeholder="<%= '0'.repeat(accountCodeLength) %>" pattern="\d{<%= accountCodeLength %>}" maxlength="<%= accountCodeLength %>" inputmode="numeric">
+                                    </div>
+                                    <div class="col-md-4">
+                                        <button type="submit" class="btn text-white w-100 fw-bold btn-3d-hover unified-height justify-content-center shadow-sm" style="background: var(--brand-primary);">حفظ ID</button>
+                                    </div>
+                                <input type="hidden" name="_csrf" value="<%= csrfToken %>"></form></section><details class="am-control-card"><summary>حالة الحساب وإجراءات إضافية</summary><div class="am-heading-actions" style="margin-top:12px"><form action="/company/<%= company._id %>/toggle-status" method="POST" class="m-0" onsubmit="return confirm('تأكيد تعديل حالة الشركة؟');">
+                                <button type="submit" class="btn btn-<%= company.status === 'active' ? 'danger' : 'success' %> w-100 fw-bold unified-height justify-content-center rounded-3 shadow-sm btn-3d-hover d-flex align-items-center gap-2">
+                                    <i class="fa-solid fa-power-off"></i> <span><%= company.status === 'active' ? 'إيقاف الحساب' : 'إعادة التفعيل' %></span>
+                                </button>
+                            <input type="hidden" name="_csrf" value="<%= csrfToken %>"></form><form action="/company/<%= company._id %>/delete" method="POST" class="m-0" onsubmit="return confirm('هل أنت متأكد من حذف هذه الشركة؟ سيتم إيقاف دخول موظفيها والعملاء التابعين لها مع حفظ العمليات السابقة.');">
+                                <button type="submit" class="btn btn-outline-danger w-100 fw-bold unified-height justify-content-center rounded-3 shadow-sm btn-3d-hover d-flex align-items-center gap-2">
+                                    <i class="fa-solid fa-trash-can"></i> <span>حذف الحساب</span>
+                                </button>
+                            <input type="hidden" name="_csrf" value="<%= csrfToken %>"></form></div></details><% } %>

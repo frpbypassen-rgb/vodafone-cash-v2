@@ -39,6 +39,16 @@ const createModels = ({ users = [], companies = [], subAccounts = [] } = {}) => 
 };
 
 describe('Admin account directory service', () => {
+    test('filters account status inside the administrator tenant scope and omits API tokens', async () => {
+        const models = createModels({ companies: [] });
+        const result = await loadAdminAccountDirectory(models, { section: 'companies', status: 'stopped' }, { tenantId: 'tenant-a' });
+        expect(models.ClientCompany.find).toHaveBeenCalledWith({ tenantId: 'tenant-a', status: { $nin: ['active', 'deleted'] } });
+        expect(result.activeStatus).toBe('stopped');
+        expect(models.ClientCompany.find.mock.results[0].value.select.mock.calls[0][0]).not.toMatch(/\btoken\b/);
+        const active = await loadAdminAccountDirectory(models, { section: 'agents', status: 'active' });
+        expect(models.User.find).toHaveBeenLastCalledWith({ status: 'active', role: 'agent' });
+        expect(active.activeStatus).toBe('active');
+    });
     test('classifies accounts by their explicit type instead of sub-account ownership', () => {
         expect(DIRECTORY_SECTIONS).toEqual(['users', 'companies', 'agents']);
         expect(buildSectionFilter('users')).toEqual({

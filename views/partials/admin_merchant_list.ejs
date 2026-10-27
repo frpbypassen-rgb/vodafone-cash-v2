@@ -1,0 +1,23 @@
+<% const companyList = activeSection === 'companies'; const rows = companyList ? companies : agents; const type = companyList ? 'company' : 'agent'; const path = companyList ? '/company/' : '/user/'; %>
+<div class="am-account-list am-keep-table" data-merchant-list>
+    <table><caption class="am-sr-only">حسابات <%= companyList ? 'الشركات' : 'الوكلاء' %></caption>
+        <thead><tr><th>الحساب</th><th>رقم الحساب</th><th>الهاتف</th><th>الرصيد · د.ل</th><th>الحالة</th><th>الإجراءات</th></tr></thead>
+        <tbody>
+        <% if (!rows.length) { %><tr><td colspan="6" class="am-empty">لا توجد حسابات مطابقة. جرّب تغيير البحث أو الفلتر.</td></tr><% } %>
+        <% rows.forEach(account => { const balance = Number(account.balance || 0); %>
+            <tr>
+                <td class="am-cell-name"><a href="<%= path + account._id %>"><strong><%= account.name %></strong><small><%= companyList ? 'شركة' : 'وكيل' %> · مستوى <%= account.tier || 1 %></small></a></td>
+                <td class="am-cell-code"><span class="am-mobile-label">رقم الحساب </span><bdi><%= account.accountCode || account.agentCode || '—' %></bdi></td>
+                <td class="am-cell-phone"><bdi><%= account.phone || '—' %></bdi></td>
+                <td class="am-cell-balance <%= balance > 0 ? 'am-positive' : balance < 0 ? 'am-negative' : '' %>"><bdi><%= balance.toFixed(2) %></bdi><small class="am-mobile-label"> د.ل</small></td>
+                <td class="am-cell-status"><span class="am-status <%= account.status === 'active' ? 'is-active' : '' %>"><%= account.status === 'active' ? 'نشط' : 'متوقف' %></span></td>
+                <td class="am-cell-actions"><a class="am-open" href="<%= path + account._id %>">فتح</a><details class="am-actions"><summary aria-label="إجراءات <%= account.name %>">⋮</summary><div>
+                    <a href="<%= path + account._id %>?tab=ledger">السجل المالي</a>
+                    <a href="<%= path + account._id %>?tab=staff">الموظفون</a>
+                    <% if (isMaster) { %><a href="/admin/accounts/<%= type %>/<%= account._id %>/edit">تعديل البيانات</a><a href="<%= path + account._id %>?tab=settings">إعدادات البوابة</a><a href="<%= path + account._id %>/sandbox-api-guide.pdf">تحميل ملف اختبار API</a><% } %>
+                </div></details></td>
+            </tr>
+        <% }) %>
+        </tbody>
+    </table>
+</div>
