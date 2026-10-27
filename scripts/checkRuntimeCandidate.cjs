@@ -56,6 +56,138 @@ const applyProbeSessionFix = (candidate, source) => {
     return 'APPLIED_TO_CANDIDATE';
 };
 
+const resolveRuntimeImport = (candidate, file, specifier) => {
+    const fileRequire = createRequire(path.join(candidate, file));
+    let resolved;
+    try {
+        resolved = fileRequire.resolve(specifier);
+    } catch (error) {
+        // app.js registers ts-node before loading routes. Resolve TS without executing/registering it here.
+        if (
+            error.code !== 'MODULE_NOT_FOUND' ||
+            !/^\.\.?\//.test(specifier) ||
+            path.extname(specifier)
+        )
+            throw error;
+        for (const suffix of ['.ts', '/index.ts']) {
+            try {
+                resolved = fileRequire.resolve(specifier + suffix);
+                break;
+            } catch {
+                /* Try the next supported TS entry. */
+            }
+        }
+        if (!resolved) throw error;
+    }
+    if (!path.isAbsolute(resolved)) return resolved;
+    const relative = path.relative(candidate, resolved);
+    const first = relative.split(path.sep)[0];
+    if (
+        ![
+            'node_modules',
+            'models',
+            'utils',
+            'services',
+            'middlewares',
+            'config',
+            'controllers',
+            'routes',
+            'src',
+        ].includes(first)
+    )
+        throw new Error('IMPORT_OUTSIDE_RUNTIME_MODULES');
+    return resolved;
+};
+
+const repairCanvasArtifacts = (candidate, source) => {
+    if (process.platform !== 'win32')
+        throw new Error('CANVAS_REPAIR_WINDOWS_ONLY');
+    ({ candidate, source } = separateRoots(candidate, source));
+    const from = path.join(source, 'node_modules/canvas');
+    const to = path.join(candidate, 'node_modules/canvas');
+    if (!fs.existsSync(path.join(from, 'package.json')))
+        throw new Error('CANVAS_SOURCE_NOT_INSTALLED');
+    const regular = (file) => {
+        const stat = fs.lstatSync(file);
+        if (!stat.isFile() || stat.isSymbolicLink())
+            throw new Error('CANVAS_ARTIFACT_PATH_UNSAFE');
+        return fs.readFileSync(file);
+    };
+    if (fs.realpathSync(from) !== from || fs.realpathSync(to) !== to)
+        throw new Error('CANVAS_ARTIFACT_PATH_UNSAFE');
+    const a = JSON.parse(regular(path.join(from, 'package.json')));
+    const b = JSON.parse(regular(path.join(to, 'package.json')));
+    if (a.name !== 'canvas' || b.name !== 'canvas' || a.version !== b.version)
+        throw new Error('CANVAS_VERSION_OR_SOURCE_MISMATCH');
+    for (const file of ['index.js', 'lib/bindings.js']) {
+        if (
+            !regular(path.join(from, file)).equals(regular(path.join(to, file)))
+        )
+            throw new Error('CANVAS_VERSION_OR_SOURCE_MISMATCH');
+    }
+    try {
+        const sourceCanvas = createRequire(path.join(source, 'package.json'))(
+            'canvas',
+        );
+        if (!sourceCanvas.createCanvas(1, 1).toBuffer('image/png').length)
+            throw new Error('CANVAS_SOURCE_NATIVE_CHECK_FAILED');
+    } catch {
+        throw new Error('CANVAS_SOURCE_NATIVE_UNAVAILABLE');
+    }
+    const sourceRelease = path.join(from, 'build/Release');
+    const targetRelease = path.join(to, 'build/Release');
+    if (fs.realpathSync(sourceRelease) !== sourceRelease)
+        throw new Error('CANVAS_ARTIFACT_PATH_UNSAFE');
+    if (
+        fs.existsSync(path.join(to, 'build')) &&
+        fs.realpathSync(path.join(to, 'build')) !== path.join(to, 'build')
+    )
+        throw new Error('CANVAS_ARTIFACT_PATH_UNSAFE');
+    if (
+        fs.existsSync(targetRelease) &&
+        fs.realpathSync(targetRelease) !== targetRelease
+    )
+        throw new Error('CANVAS_ARTIFACT_PATH_UNSAFE');
+    const files = fs
+        .readdirSync(sourceRelease)
+        .filter((file) => /\.(?:node|dll)$/i.test(file));
+    if (!files.includes('canvas.node'))
+        throw new Error('CANVAS_SOURCE_NATIVE_MISSING');
+    const snapshots = new Map();
+    // Validate all files before copying anything; existing conflicting binaries are never replaced.
+    for (const file of files) {
+        const bytes = regular(path.join(sourceRelease, file));
+        snapshots.set(file, bytes);
+        const destination = path.join(targetRelease, file);
+        if (fs.existsSync(destination) && !regular(destination).equals(bytes))
+            throw new Error('CANVAS_TARGET_ARTIFACT_CONFLICT');
+    }
+    fs.mkdirSync(targetRelease, { recursive: true });
+    let copied = 0;
+    for (const [file, bytes] of snapshots) {
+        const destination = path.join(targetRelease, file);
+        if (!fs.existsSync(destination)) {
+            fs.copyFileSync(
+                path.join(sourceRelease, file),
+                destination,
+                fs.constants.COPYFILE_EXCL,
+            );
+            copied++;
+        }
+        if (
+            !regular(destination).equals(bytes) ||
+            !regular(path.join(sourceRelease, file)).equals(bytes)
+        )
+            throw new Error('CANVAS_ARTIFACT_VERIFICATION_FAILED');
+    }
+    return {
+        status: 'COPIED_VERIFIED_NATIVE_ARTIFACTS',
+        version: a.version,
+        copiedFiles: copied,
+        sourceUnchanged: true,
+    };
+};
+
 const inspectModuleLoad = (source, ts, resolveRequire) => {
     const file = ts.createSourceFile(
         'candidate.js',
@@ -294,7 +426,12 @@ const main = async () => {
         throw new Error('CANDIDATE_ENV_DIFFERS_FROM_SOURCE');
     const sessionStoreFix = applyProbeSessionFix(candidate, source);
     const load = createRequire(path.join(candidate, 'package.json'));
-    const dependencies = inspectPackages(load);
+    let dependencies = inspectPackages(load);
+    let canvasRepair;
+    if (process.argv.includes('--repair-canvas') && !dependencies.canvas.ok) {
+        canvasRepair = repairCanvasArtifacts(candidate, source);
+        dependencies = inspectPackages(load);
+    }
     const moduleReview = [];
     if (dependencies.typescript.ok) {
         const ts = load('typescript');
@@ -303,31 +440,10 @@ const main = async () => {
                 name.endsWith('.js') &&
                 fs.existsSync(path.join(candidate, name)),
         )) {
-            const fileRequire = createRequire(path.join(candidate, file));
             const issues = inspectModuleLoad(
                 fs.readFileSync(path.join(candidate, file), 'utf8'),
                 ts,
-                (specifier) => {
-                    const resolved = fileRequire.resolve(specifier);
-                    if (!path.isAbsolute(resolved)) return resolved; // Node builtins do not load application code.
-                    const relative = path.relative(candidate, resolved);
-                    const first = relative.split(path.sep)[0];
-                    if (
-                        ![
-                            'node_modules',
-                            'models',
-                            'utils',
-                            'services',
-                            'middlewares',
-                            'config',
-                            'controllers',
-                            'routes',
-                            'src',
-                        ].includes(first)
-                    )
-                        throw new Error('IMPORT_OUTSIDE_RUNTIME_MODULES');
-                    return resolved;
-                },
+                (specifier) => resolveRuntimeImport(candidate, file, specifier),
             );
             if (issues.length) moduleReview.push({ file, issues });
         }
@@ -354,6 +470,7 @@ const main = async () => {
     process.stdout.write(
         JSON.stringify(
             {
+                timestampUtc: new Date().toISOString(),
                 candidatePath: candidate,
                 preflightOnly: true,
                 applicationStarted: false,
@@ -361,6 +478,7 @@ const main = async () => {
                 environmentFileMatchesSource,
                 sessionStoreFix,
                 dependencies,
+                canvasRepair,
                 productionEnvironment: {
                     valid: policy.valid,
                     errors: policy.errors,
@@ -380,11 +498,17 @@ const main = async () => {
     );
 };
 
-module.exports = { inspectModuleLoad, inspectPackages, applyProbeSessionFix };
+module.exports = {
+    inspectModuleLoad,
+    inspectPackages,
+    applyProbeSessionFix,
+    resolveRuntimeImport,
+    repairCanvasArtifacts,
+};
 if (require.main === module)
     main().catch((error) => {
         const safe =
-            /^(?:ARGUMENT_REQUIRED|CANDIDATE_MUST_BE_SEPARATE|UNEXPECTED_[A-Z_]+|CANDIDATE_[A-Z_]+|UNREVIEWED_[A-Z_]+|SESSION_STORE_BLOB_MISMATCH)$/.test(
+            /^(?:ARGUMENT_REQUIRED|CANDIDATE_MUST_BE_SEPARATE|UNEXPECTED_[A-Z_]+|CANDIDATE_[A-Z_]+|CANVAS_[A-Z_]+|UNREVIEWED_[A-Z_]+|SESSION_STORE_BLOB_MISMATCH)$/.test(
                 error.message,
             )
                 ? error.message
