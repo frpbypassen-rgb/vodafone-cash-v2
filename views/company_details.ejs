@@ -240,7 +240,7 @@
                     <div class="info-box py-2 px-3">
                         <span class="small text-muted fw-bold"><i class="fa-solid fa-key me-1"></i> مفتاح ربط API</span>
                         <% if (typeof isMaster !== 'undefined' && isMaster) { %>
-                            <span class="fw-bold text-dark mono-num small" dir="ltr" style="filter: blur(3px); transition: 0.3s; cursor: pointer;" onmouseover="this.style.filter='none'" onmouseout="this.style.filter='blur(3px)'"><%= company.token %></span>
+                            <span class="fw-bold text-dark mono-num small" dir="ltr" style="filter: blur(3px); transition: 0.3s; cursor: pointer;" onmouseover="this.style.filter='none'" onmouseout="this.style.filter='blur(3px)'"><%= company.integrationAccess?.keyHint ? '…' + company.integrationAccess.keyHint : company.token ? '…' + company.token.slice(-6) : '—' %></span>
                         <% } else { %>
                             <span class="small fw-bold text-muted">محمي — متاح للإدارة فقط</span>
                         <% } %>
@@ -269,16 +269,17 @@
                                     missingOwner: !(typeof companyOwner !== 'undefined' && companyOwner)
                                 }
                             }) %>
+                            <div class="col-12"><%- include('partials/merchant_integration_access', { integrationAccount: company, integrationAccountType: 'company' }) %></div>
                             <div class="col-12" id="company-api-integration">
                                 <div class="info-box border-0 m-0 shadow-sm control-card-3d d-block" style="background: rgba(14, 165, 233, 0.06); border-right: 4px solid #0ea5e9 !important;">
                                     <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
                                         <label class="form-label fw-bold text-dark mb-0"><i class="fa-solid fa-plug-circle-bolt text-info me-1"></i> إدارة ربط API للشركة</label>
-                                        <span class="badge bg-info text-dark">المفتاح الحالي نشط</span>
+                                        <span class="badge bg-info text-dark"><%= company.integrationAccess?.apiEnabled && !company.integrationAccess?.keyDisabled ? 'خدمة API مفعلة' : 'خدمة API متوقفة' %></span>
                                     </div>
                                     <div class="row g-2 align-items-center">
                                         <div class="col-lg-5">
                                             <div class="small text-muted fw-bold mb-1">المفتاح الحالي</div>
-                                            <code class="d-block p-2 rounded bg-dark text-light text-break" dir="ltr" style="font-size:.75rem; filter: blur(3px); cursor:pointer;" onmouseover="this.style.filter='none'" onmouseout="this.style.filter='blur(3px)'"><%= company.token || 'سيتم إنشاؤه عند تنزيل الوثيقة' %></code>
+                                            <code class="d-block p-2 rounded bg-dark text-light text-break" dir="ltr" style="font-size:.75rem; filter: blur(3px); cursor:pointer;" onmouseover="this.style.filter='none'" onmouseout="this.style.filter='blur(3px)'"><%= company.integrationAccess?.keyHint ? '…' + company.integrationAccess.keyHint : company.integrationAccess?.keyDisabled ? 'متوقف' : company.token ? '…' + company.token.slice(-6) : 'غير منشأ' %></code>
                                         </div>
                                         <div class="col-lg-4">
                                             <a href="/company/<%= company._id %>/integration-guide.pdf" class="btn btn-outline-info w-100 fw-bold unified-height justify-content-center"><i class="fa-solid fa-file-pdf me-1"></i> تحميل وثيقة الربط</a>
@@ -289,7 +290,7 @@
                                             </form>
                                         </div>
                                     </div>
-                                    <small class="d-block text-muted mt-2"><i class="fa-solid fa-shield-halved me-1"></i> عند تبديل المفتاح يتوقف القديم فوراً. حمّل الوثيقة الجديدة وأرسل المفتاح الجديد عبر قناة آمنة فقط.</small>
+                                    <small class="d-block text-muted mt-2"><i class="fa-solid fa-shield-halved me-1"></i> عند تبديل المفتاح يتوقف القديم فوراً. احفظ المفتاح عند إصداره وأرسله عبر قناة آمنة فقط.</small>
                                 </div>
                             </div>
                         <% } %>

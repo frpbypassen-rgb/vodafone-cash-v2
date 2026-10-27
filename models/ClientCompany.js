@@ -3,6 +3,7 @@ const crypto = require('crypto');
 
 const clientCompanySchema = new mongoose.Schema({
     name: { type: String, required: true },
+    ...require('./schemas/merchantIntegrationFields'),
     phone: { type: String },
     // 🟢 تم التعديل: جعل المستوى الافتراضي 3 للشركات الجديدة
     tier: { type: Number, default: 3 },

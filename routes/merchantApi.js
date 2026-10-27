@@ -30,6 +30,7 @@ const { normalizeWhatsAppPhone } = require('../services/whatsappService');
 const { sanitizeStatementText } = require('../utils/accountStatementPrivacy');
 const { normalizeStoredBank } = require('../utils/egyptianBanks');
 const logger = require('../utils/logger');
+const { apiKeyQuery } = require('../utils/merchantIntegrationPolicy');
 
 const MERCHANT_TRANSFER_MIN_AMOUNT = 100;
 const MERCHANT_TRANSFER_MAX_AMOUNT = 50000;
@@ -190,11 +191,11 @@ const withOptionalTransaction = async (work) => {
 const merchantApiAuth = async (req, res, next) => {
     try {
         const apiKey = req.headers['x-api-key'];
-        if (!apiKey) {
+        if (typeof apiKey !== 'string' || !apiKey || apiKey.length > 256) {
             return res.status(401).json({ status: 'failed', message: 'مفتاح المصادقة x-api-key مفقود' });
         }
 
-        const company = await ClientBot.findOne({ token: apiKey, status: 'active' }).lean();
+        const company = await ClientBot.findOne(apiKeyQuery(apiKey, 'token')).lean();
         if (company) {
             req.merchant = {
                 ...company,
@@ -206,9 +207,8 @@ const merchantApiAuth = async (req, res, next) => {
         }
 
         const agent = await User.findOne({
-            apiToken: apiKey,
-            role: 'agent',
-            status: 'active'
+            ...apiKeyQuery(apiKey, 'apiToken'),
+            role: 'agent'
         }).lean();
         if (!agent) {
             return res.status(401).json({ status: 'failed', message: 'مفتاح المصادقة غير صحيح أو الحساب موقوف' });

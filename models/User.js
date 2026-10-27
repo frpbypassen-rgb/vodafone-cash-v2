@@ -3,6 +3,7 @@ const bcrypt = require('bcryptjs');
 
 const userSchema = new mongoose.Schema({
     name: { type: String },
+    ...require('./schemas/merchantIntegrationFields'),
     phone: { type: String, unique: true, sparse: true },
     balance: { type: Number, default: 0 },
     tier: { type: Number, default: 3 },

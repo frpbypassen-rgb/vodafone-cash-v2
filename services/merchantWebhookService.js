@@ -3,6 +3,7 @@
 const crypto = require('crypto');
 const dns = require('dns').promises;
 const net = require('net');
+const https = require('https');
 const axios = require('axios');
 const MerchantWebhookEndpoint = require('../models/MerchantWebhookEndpoint');
 const MerchantWebhookDelivery = require('../models/MerchantWebhookDelivery');
@@ -12,6 +13,7 @@ const logger = require('../utils/logger');
 const { tenantMode } = require('../middlewares/tenantResolver');
 const { isMerchantWebhookWorkerEnabled } = require('../utils/runtimeControls');
 const { LOCK_TIMEOUT_MS, pendingWebhookFilter } = require('../utils/merchantWebhookDeliveryQuery');
+const { webhooksAllowed } = require('./merchantIntegrationService');
 
 const EVENTS = Object.freeze(['transfer.created', 'transfer.completed', 'transfer.cancelled']);
 const MAX_ATTEMPTS = 6;
@@ -19,18 +21,22 @@ const RETRY_DELAYS_MS = [60_000, 5 * 60_000, 30 * 60_000, 2 * 60 * 60_000, 6 * 6
 
 const isPrivateAddress = (address) => {
     if (!address) return true;
-    if (address === '::1' || address.startsWith('fe80:') || address.startsWith('fc') || address.startsWith('fd')) return true;
+    address = address.replace(/^\[|\]$/g, '').toLowerCase();
+    // Only global unicast IPv6 destinations; reject mapped IPv4 and local ranges.
+    if (net.isIPv6(address)) return !/^[23]/.test(address) || address.includes('.');
     if (!net.isIPv4(address)) return false;
     const parts = address.split('.').map(Number);
     return parts[0] === 10
         || parts[0] === 127
+        || (parts[0] === 100 && parts[1] >= 64 && parts[1] <= 127)
+        || parts[0] >= 224
         || (parts[0] === 169 && parts[1] === 254)
         || (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31)
         || (parts[0] === 192 && parts[1] === 168)
         || parts[0] === 0;
 };
 
-const validateWebhookUrl = async (value) => {
+const resolveWebhookTarget = async (value) => {
     let parsed;
     try { parsed = new URL(String(value || '').trim()); } catch (_) { throw new Error('INVALID_WEBHOOK_URL'); }
     if (parsed.protocol !== 'https:') throw new Error('WEBHOOK_HTTPS_REQUIRED');
@@ -41,8 +47,9 @@ const validateWebhookUrl = async (value) => {
     try { addresses = await dns.lookup(hostname, { all: true, verbatim: true }); } catch (_) { throw new Error('WEBHOOK_HOST_UNRESOLVED'); }
     if (!addresses.length || addresses.some((item) => isPrivateAddress(item.address))) throw new Error('WEBHOOK_PRIVATE_ADDRESS');
     parsed.hash = '';
-    return parsed.toString();
+    return { url: parsed.toString(), addresses };
 };
+const validateWebhookUrl = async value => (await resolveWebhookTarget(value)).url;
 
 const normalizeEvents = (events) => {
     const values = Array.isArray(events) ? events : [events];
@@ -120,11 +127,25 @@ const deliverWebhook = async (deliveryId) => {
     }
 
     try {
-        const safeUrl = await validateWebhookUrl(endpoint.url);
+        const target = await resolveWebhookTarget(endpoint.url);
+        if (!await webhooksAllowed(endpoint)) {
+            await MerchantWebhookDelivery.updateOne({ _id: delivery._id }, { $set: {
+                status: 'failed', lastError: 'WEBHOOK_DISABLED_BY_ADMIN', lockedAt: null, nextAttemptAt: null
+            } });
+            return { delivered: false, reason: 'WEBHOOK_DISABLED_BY_ADMIN' };
+        }
         const rawBody = JSON.stringify(delivery.payload);
         const timestamp = Math.floor(Date.now() / 1000).toString();
         const signature = signPayload(decrypt(endpoint.secretEncrypted), timestamp, rawBody);
-        const response = await axios.post(safeUrl, rawBody, {
+        // Pin the connection to the addresses just validated, preventing a second
+        // DNS resolution from rebinding a public hostname to a private service.
+        const httpsAgent = new https.Agent({ lookup: (_hostname, options, callback) => {
+            const address = target.addresses[0];
+            if (options?.all) callback(null, [address]);
+            else callback(null, address.address, address.family);
+        } });
+        const response = await axios.post(target.url, rawBody, {
+            httpsAgent, proxy: false,
             timeout: 10_000, maxRedirects: 0, maxContentLength: 256 * 1024,
             headers: {
                 'content-type': 'application/json',
@@ -175,6 +196,7 @@ const enqueueTransactionWebhook = async (eventType, transaction) => {
     if (!EVENTS.includes(eventType) || !transaction) return [];
     const owner = await resolveOwner(transaction);
     if (!owner) return [];
+    if (!await webhooksAllowed({ ...owner, tenantId: transaction.tenantId })) return [];
     const endpointQuery = { ...owner, enabled: true, events: eventType };
     // Single-tenant production often resolves a new DEFAULT_TENANT while the
     // endpoint still carries an older tenantId or none. ownerModel + ownerId

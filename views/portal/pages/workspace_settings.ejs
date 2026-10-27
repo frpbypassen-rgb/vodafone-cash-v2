@@ -99,14 +99,7 @@
     <% if (workspace.isCompany || workspace.isAgent) { %>
     <section class="bw-settings-panel" id="integrations">
         <header class="bw-settings-panel-head"><span class="bw-settings-panel-icon tone-violet"><i class="fa-solid fa-plug"></i></span><div><span>التكاملات</span><h2>ربط أنظمتك الخارجية</h2><p>إدارة استقبال أحداث العمليات ومراجعة سجل التسليم من مكان واحد.</p></div></header>
-        <div class="bw-integration-grid">
-            <% if (workspace.isCompany) { %>
-            <a href="<%= portalBasePath %>/integrations/webhooks"><span><i class="fa-solid fa-code-branch"></i></span><div><strong>Webhooks</strong><small>الروابط، الأحداث، المحاولات وإعادة الإرسال</small></div><i class="fa-solid fa-chevron-left"></i></a>
-            <% } else { %>
-            <div><span><i class="fa-solid fa-code-branch"></i></span><div><strong>Webhooks</strong><small>تواصل مع الإدارة لإعداد الربط ومتابعة أحداث العمليات</small></div><i class="fa-solid fa-lock"></i></div>
-            <% } %>
-            <div><span><i class="fa-solid fa-key"></i></span><div><strong>مفتاح API</strong><small>يصدر ويُدوّر من الإدارة لحماية التكامل المالي</small></div><i class="fa-solid fa-lock"></i></div>
-        </div>
+        <%- include('../partials/merchant_integrations') %>
     </section>
     <% } %>
 

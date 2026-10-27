@@ -447,6 +447,8 @@ const { syncBotBalance } = require('./services/balanceService');
 // ==========================================
 // 🔗 ربط المسارات المنفصلة
 // ==========================================
+app.use('/', require('./routes/merchantIntegrations'));
+app.use('/', require('./routes/merchantWebhooks'));
 app.use('/agent-portal', require('./routes/agentPortal'));
 app.use('/client', require('./middlewares/legacyAgentPortal'));
 app.use('/client', require('./routes/clientPortal'));
@@ -457,7 +459,6 @@ app.use('/executor-portal', require('./routes/executorReports')); // Reports for
 app.use('/api/mobile', require('./routes/mobileApi'));
 app.use('/api/v1/mobile', require('./routes/mobileApi'));
 app.use('/api/v1/merchant', require('./routes/merchantApi'));
-app.use('/', require('./routes/merchantWebhooks'));
 
 app.use('/', require('./routes/auth'));
 app.use('/', require('./routes/adminAliases'));

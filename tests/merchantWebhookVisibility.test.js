@@ -19,6 +19,7 @@ const mongoose = require('mongoose');
 const { MongoMemoryReplSet } = require('mongodb-memory-server');
 const axios = require('axios');
 const ClientEmployee = require('../models/ClientEmployee');
+const ClientCompany = require('../models/ClientCompany');
 const Ledger = require('../models/Ledger');
 const MerchantWebhookDelivery = require('../models/MerchantWebhookDelivery');
 const MerchantWebhookEndpoint = require('../models/MerchantWebhookEndpoint');
@@ -53,6 +54,7 @@ const trackedEnv = [
 
 const indexedModels = () => [
     ClientEmployee,
+    ClientCompany,
     Ledger,
     MerchantWebhookDelivery,
     MerchantWebhookEndpoint,
@@ -101,6 +103,7 @@ beforeEach(async () => {
     process.env.NODE_ENV = 'test';
     await Promise.all([
         ClientEmployee.deleteMany({}),
+        ClientCompany.deleteMany({}),
         MerchantWebhookEndpoint.deleteMany({}),
         MerchantWebhookDelivery.deleteMany({}),
         Transaction.deleteMany({}),
@@ -109,13 +112,19 @@ beforeEach(async () => {
     ]);
 });
 
-const createEndpoint = (fields) => MerchantWebhookEndpoint.create({
+const createEndpoint = async (fields) => {
+    const Model = fields.ownerModel === 'ClientCompany' ? ClientCompany : User;
+    await Model.updateOne({ _id: fields.ownerId }, { $setOnInsert: { name: 'Webhook owner', status: 'active',
+        ...(fields.ownerModel === 'User' ? { role: 'agent', webUsername: String(fields.ownerId), webPassword: 'test-password' } : {}),
+        'integrationAccess.webhooksEnabled': true, tenantId: fields.tenantId } }, { upsert: true });
+    return MerchantWebhookEndpoint.create({
     url: 'https://hooks.example.test/pay',
     secretEncrypted: encrypt('webhook-secret'),
     events: ['transfer.completed'],
     enabled: true,
     ...fields
-});
+    });
+};
 
 const createCompletedTx = (fields) => Transaction.create({
     customId: `ATT-WH-${new mongoose.Types.ObjectId().toString().slice(-8)}`,
@@ -376,12 +385,10 @@ describe('enqueue tenant matching', () => {
 
         const bare = await createCompletedTx({ companyId: ownerId });
         const bareIds = await enqueueTransactionWebhook('transfer.completed', bare.toObject());
-        expect(bareIds).toHaveLength(1);
-        const bareDelivery = await MerchantWebhookDelivery.findById(bareIds[0]).lean();
-        expect(String(bareDelivery.endpointId)).toBe(String(unscoped._id));
+        expect(bareIds).toHaveLength(0);
         expect(await MerchantWebhookDelivery.countDocuments({ endpointId: endpointB._id })).toBe(0);
         // Finish background deliveries before the next test resets the HTTP mock.
-        await Promise.all([waitForTerminal(ids[0]), waitForTerminal(bareIds[0])]);
+        await waitForTerminal(ids[0]);
     });
 });
 
@@ -698,8 +705,7 @@ describe('company webhook routes', () => {
         });
         signInCompany(operator);
         const allowed = await request(app).get('/client/api/webhooks');
-        expect(allowed.status).toBe(200);
-        expect(endpointIds(allowed.body)).toEqual([String(ownHere._id)]);
+        expect(allowed.status).toBe(403);
 
         requestTenantId = null;
         const unscopedEmployee = await createCompanyEmployee({

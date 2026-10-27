@@ -23,6 +23,8 @@ describe('merchant webhook service', () => {
         await expect(validateWebhookUrl('http://example.com/hook')).rejects.toThrow('WEBHOOK_HTTPS_REQUIRED');
         await expect(validateWebhookUrl('https://127.0.0.1/hook')).rejects.toThrow('WEBHOOK_PRIVATE_ADDRESS');
         await expect(validateWebhookUrl('https://localhost/hook')).rejects.toThrow('WEBHOOK_PRIVATE_ADDRESS');
+        await expect(validateWebhookUrl('https://[::ffff:127.0.0.1]/hook')).rejects.toThrow('WEBHOOK_PRIVATE_ADDRESS');
+        await expect(validateWebhookUrl('https://100.64.0.1/hook')).rejects.toThrow('WEBHOOK_PRIVATE_ADDRESS');
     });
 
     test('builds a stable public transaction payload without executor credentials', () => {

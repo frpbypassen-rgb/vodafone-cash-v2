@@ -103,6 +103,7 @@ const provisionSandboxMerchant = async ({ account, accountType }) => {
             tier: Number(account.tier) || 3,
             status: 'active',
             token: createSandboxKey(),
+            integrationAccess: { apiEnabled: true, webhooksEnabled: false },
             sandboxSource: {
                 reference: sourceKey,
                 productionAccountId: sourceId,
@@ -128,6 +129,11 @@ const provisionSandboxMerchant = async ({ account, accountType }) => {
         }
     }
 
+    // This administrative action grants only the isolated sandbox account.
+    if (!merchant.integrationAccess?.apiEnabled) {
+        merchant.set('integrationAccess.apiEnabled', true);
+        await merchant.save();
+    }
     return {
         apiKey: merchant.token,
         apiOrigin: config.apiOrigin,

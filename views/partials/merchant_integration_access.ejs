@@ -1,0 +1,11 @@
+<section class="card p-3 mb-3" id="merchant-integration-access">
+    <h3 class="h5">تفعيل التكاملات الخارجية</h3>
+    <p class="small">الإيقاف يمنع طلبات API أو تسليم Webhooks من الخادم. إعادة التفعيل لا تُعيد مفتاحًا ألغاه صاحب الحساب.</p>
+    <% if (typeof query !== 'undefined' && query.integrationsSaved) { %><p role="status">تم حفظ صلاحيات التكامل.</p><% } %>
+    <form method="POST" action="<%= integrationAccountType === 'company' ? '/company/' : '/user/' %><%= integrationAccount._id %>/integrations" class="d-flex flex-wrap gap-3 align-items-center">
+        <input type="hidden" name="_csrf" value="<%= typeof csrfToken !== 'undefined' ? csrfToken : '' %>">
+        <label><input type="checkbox" name="apiEnabled" <%= integrationAccount.integrationAccess?.apiEnabled ? 'checked' : '' %>> تفعيل API</label>
+        <label><input type="checkbox" name="webhooksEnabled" <%= integrationAccount.integrationAccess?.webhooksEnabled ? 'checked' : '' %>> تفعيل Webhooks</label>
+        <button type="submit" class="btn btn-primary">حفظ التفعيل</button>
+    </form>
+</section>

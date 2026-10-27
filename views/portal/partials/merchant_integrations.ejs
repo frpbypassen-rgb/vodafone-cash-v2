@@ -1,0 +1,26 @@
+<% if (workspace.permissions.owner) { %>
+<div class="merchant-integrations" data-merchant-integrations data-base="<%= portalBasePath %>">
+    <article class="mi-card">
+        <header><h3><i class="fa-solid fa-key" aria-hidden="true"></i> مفتاح API</h3><span data-mi-api-state>جارٍ التحقق…</span></header>
+        <p data-mi-api-description>جاري التحقق من تفعيل الخدمة من الإدارة.</p>
+        <form method="POST" data-mi-key-form hidden>
+            <p data-mi-key-meta></p>
+            <label class="bw-field"><span>كلمة المرور الحالية لتأكيد الإجراء</span><input type="password" name="currentPassword" autocomplete="current-password" maxlength="128" required></label>
+            <div class="mi-actions"><button type="submit" class="bw-button primary" data-mi-rotate>إنشاء / تغيير المفتاح</button><button type="button" class="bw-button ghost" data-mi-revoke>إيقاف المفتاح</button></div>
+        </form>
+        <div data-mi-secret-box hidden>
+            <p>احفظ المفتاح الآن؛ لن يظهر كاملًا مرة أخرى. المفتاح السابق متوقف.</p>
+            <label class="bw-field"><span>المفتاح الجديد</span><textarea readonly dir="ltr" rows="3" data-mi-secret autocomplete="off"></textarea></label>
+            <button type="button" class="bw-button secondary" data-mi-copy>نسخ المفتاح</button>
+        </div>
+        <details class="mi-guide"><summary>دليل الربط السريع</summary><p>أرسل المفتاح في ترويسة <code dir="ltr">x-api-key</code> عبر HTTPS. احتفظ به على خادمك.</p><dl><dt>قراءة الرصيد</dt><dd><code>GET /api/v1/merchant/balance</code></dd><dt>إنشاء تحويل</dt><dd><code>POST /api/v1/merchant/transfer</code></dd><dt>متابعة التحويل</dt><dd><code>GET /api/v1/merchant/status/:reference_id</code></dd></dl><p>حقول التحويل: <code>target_number</code>، <code>amount</code>، <code>transfer_type</code>. راجع وثيقة الربط من الإدارة لتفاصيل الخدمات والحدود.</p></details>
+    </article>
+    <article class="mi-card">
+        <header><h3><i class="fa-solid fa-code-branch" aria-hidden="true"></i> Webhooks</h3><span data-mi-webhook-state>جارٍ التحقق…</span></header>
+        <p data-mi-webhook-description>تسليم أحداث التحويل بتوقيع آمن، مع سجل المحاولات وإعادة الإرسال.</p>
+        <a class="bw-button secondary" href="<%= portalBasePath %>/integrations/webhooks" data-mi-webhook-link hidden>إدارة Webhooks <i class="fa-solid fa-arrow-left" aria-hidden="true"></i></a>
+    </article>
+    <div class="mi-actions"><button type="button" class="bw-button ghost" data-mi-refresh>تحديث حالة التفعيل</button></div>
+    <p role="status" aria-live="polite" data-mi-result></p>
+</div>
+<% } else { %><p>إدارة API وWebhooks متاحة لصاحب حساب الشركة أو الوكيل فقط.</p><% } %>

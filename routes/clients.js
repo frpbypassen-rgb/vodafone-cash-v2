@@ -62,6 +62,7 @@ const visibleAccountFilter = { status: { $ne: 'deleted' } };
 const createIntegrationApiKey = () => crypto.randomBytes(24).toString('hex');
 
 const ensureIntegrationApiKey = async (account, field) => {
+    if (account.merchantApiKeyHash || account.integrationAccess?.keyDisabled) return 'CREATE_OR_ROTATE_KEY_IN_PORTAL';
     if (account[field]) return account[field];
 
     for (let attempt = 0; attempt < 3; attempt += 1) {
@@ -86,22 +87,11 @@ const apiKeyFingerprint = (value) => crypto
 
 const rotateIntegrationApiKey = async (account, field) => {
     const previousKey = String(account[field] || '');
-
-    for (let attempt = 0; attempt < 3; attempt += 1) {
-        account[field] = createIntegrationApiKey();
-        try {
-            await account.save();
-            return {
-                previousFingerprint: previousKey ? apiKeyFingerprint(previousKey) : null,
-                currentFingerprint: apiKeyFingerprint(account[field])
-            };
-        } catch (error) {
-            if (error && error.code === 11000 && attempt < 2) continue;
-            throw error;
-        }
-    }
-
-    throw new Error('INTEGRATION_KEY_ROTATION_FAILED');
+    const result = await require('../services/merchantIntegrationService').rotateKey({
+        isCompany: field === 'token', isAgent: field !== 'token', entity: account, permissions: { owner: true }
+    });
+    return { token: result.token, previousFingerprint: previousKey ? apiKeyFingerprint(previousKey) : null,
+        currentFingerprint: apiKeyFingerprint(result.token) };
 };
 
 const safeIntegrationFileReference = (value) => String(value || 'account')
@@ -387,7 +377,7 @@ router.get('/company/:id', requireAuth, async (req, res) => {
 
 router.get('/company/:id/integration-guide.pdf', requireAuth, requireMaster, async (req, res) => {
     try {
-        const company = await ClientCompany.findOne(adminAccountFindQuery(req, { _id: req.params.id }));
+        const company = await ClientCompany.findOne(adminAccountFindQuery(req, { _id: req.params.id })).select('+merchantApiKeyHash');
         if (!company) return res.status(404).send('الحساب غير موجود.');
         return await sendIntegrationDocument(req, res, { account: company, accountType: 'company' });
     } catch (error) {
@@ -401,7 +391,7 @@ router.get('/company/:id/integration-guide.pdf', requireAuth, requireMaster, asy
 
 router.get('/user/:id/integration-guide.pdf', requireAuth, requireMaster, async (req, res) => {
     try {
-        const agent = await User.findOne(adminAccountFindQuery(req, { _id: req.params.id, role: 'agent' })).select('+apiToken');
+        const agent = await User.findOne(adminAccountFindQuery(req, { _id: req.params.id, role: 'agent' })).select('+apiToken +merchantApiKeyHash');
         if (!agent) return res.status(404).send('حساب الوكيل غير موجود.');
         return await sendIntegrationDocument(req, res, { account: agent, accountType: 'agent' });
     } catch (error) {
@@ -443,7 +433,8 @@ router.post('/company/:id/rotate-api-token', requireAuth, requireMaster, async (
 
         const io = req.app?.get('io');
         if (io) io.emit('update_data');
-        return res.redirect(`/company/${company._id}?apiTokenRotated=1#company-api-integration`);
+        res.set('Cache-Control', 'private, no-store');
+        return res.render('merchant_key_issued', { token: rotation.token, returnHref: '/company/' + company._id });
     } catch (error) {
         console.error('[clients/rotate-company-api-token] failed:', error.message);
         return res.redirect(`/company/${req.params.id}?apiTokenError=failed#company-api-integration`);

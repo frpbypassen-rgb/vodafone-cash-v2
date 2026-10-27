@@ -95,7 +95,7 @@ describe('Merchant API agent authentication', () => {
             exchange_rate: expect.any(Number)
         }));
         expect(User.findOne).toHaveBeenCalledWith({
-            apiToken: 'agent-private-api-key',
+            ...require('../utils/merchantIntegrationPolicy').apiKeyQuery('agent-private-api-key', 'apiToken'),
             role: 'agent',
             status: 'active'
         });

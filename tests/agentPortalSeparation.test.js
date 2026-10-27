@@ -187,10 +187,14 @@ test('agency staff report links use the supported report scope', async () => {
 });
 
 test.each(['owner', 'manager', 'accountant', 'employee'])(
-    'agency %s settings do not link to unsupported webhook administration',
+    'agency %s settings expose integration management only to the owner',
     async (role) => {
         const html = await renderAgentPage('settings', role);
-        expect(html).not.toContain('/agent-portal/integrations/webhooks');
+        if (role === 'owner') {
+            expect(html).toContain('/agent-portal/integrations/webhooks');
+            expect(html).toContain('data-mi-webhook-link hidden');
+            expect(html).toContain('/js/portal-integrations.js');
+        } else expect(html).not.toContain('/agent-portal/integrations/webhooks');
         expect(html).toContain('/agent-portal/security');
     }
 );

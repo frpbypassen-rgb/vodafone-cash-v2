@@ -4,7 +4,6 @@ const crypto = require('crypto');
 const express = require('express');
 const router = express.Router();
 const ClientEmployee = require('../models/ClientEmployee');
-const AgentEmployee = require('../models/AgentEmployee');
 const User = require('../models/User');
 const MerchantWebhookEndpoint = require('../models/MerchantWebhookEndpoint');
 const MerchantWebhookDelivery = require('../models/MerchantWebhookDelivery');
@@ -12,14 +11,20 @@ const { requireAuth, requirePermission } = require('../middlewares/auth');
 const { tenantMode } = require('../middlewares/tenantResolver');
 const { encrypt } = require('../utils/encryption');
 const { adminAccountScope, tenantWriteId } = require('../utils/tenantScope');
+const { webhooksAllowed } = require('../services/merchantIntegrationService');
+const { resolveCanonicalRole } = require('../services/companyAccessService');
+const { requireClientAuth } = require('../middlewares/clientPortalAuth');
+const clientPaths = suffix => ['/client' + suffix, '/agent-portal' + suffix];
+const testLimiter = require('express-rate-limit')({ windowMs: 900000, max: 5, standardHeaders: true, legacyHeaders: false,
+    keyGenerator: req => `${req.session.accountType}:${req.session.clientId}` });
 const {
     EVENTS, deliverWebhook, normalizeEvents, publicEndpoint, validateWebhookUrl
 } = require('../services/merchantWebhookService');
+router.use([...clientPaths('/api/webhooks'), ...clientPaths('/api/webhook-deliveries')], (_req, res, next) => {
+    res.set('Cache-Control', 'private, no-store');
+    next();
+});
 
-const requireClientAuth = (req, res, next) => {
-    if (req.session?.isClientLoggedIn && req.session?.clientId) return next();
-    return res.status(401).json({ success: false, error: 'AUTH_REQUIRED' });
-};
 
 const requestTenantId = (req) => req.tenantId || (req.tenant && req.tenant._id) || null;
 
@@ -36,20 +41,24 @@ const clientIdentityScope = (req, id) => {
     return query;
 };
 
-const resolveClientOwner = async (req) => {
+const resolveClientIdentity = async (req) => {
     if (req.session.accountType === 'company') {
-        const employee = await ClientEmployee.findOne(clientIdentityScope(req, req.session.clientId)).select('companyId role canManageCompany name').lean();
-        if (!employee || !['owner'].includes(employee.role) && !employee.canManageCompany) throw new Error('WEBHOOK_ACCESS_DENIED');
+        const employee = await ClientEmployee.findOne(clientIdentityScope(req, req.session.clientId)).lean();
+        if (!employee || employee.status !== 'active' || resolveCanonicalRole(employee) !== 'owner') throw new Error('WEBHOOK_ACCESS_DENIED');
         return { ownerModel: 'ClientCompany', ownerId: employee.companyId, actorName: employee.name || 'شركة' };
     }
     if (req.session.accountType === 'agent_staff') {
-        const employee = await AgentEmployee.findOne(clientIdentityScope(req, req.session.clientId)).select('agentId canManageAgent name').lean();
-        if (!employee?.canManageAgent) throw new Error('WEBHOOK_ACCESS_DENIED');
-        return { ownerModel: 'User', ownerId: employee.agentId, actorName: employee.name || 'وكالة' };
+        throw new Error('WEBHOOK_ACCESS_DENIED');
     }
-    const agent = await User.findOne({ ...clientIdentityScope(req, req.session.clientId), role: 'agent' }).select('_id name').lean();
+    if (req.session.accountType !== 'user') throw new Error('WEBHOOK_ACCESS_DENIED');
+    const agent = await User.findOne({ ...clientIdentityScope(req, req.session.clientId), role: 'agent', status: 'active' }).select('_id name').lean();
     if (!agent) throw new Error('WEBHOOK_ACCESS_DENIED');
     return { ownerModel: 'User', ownerId: agent._id, actorName: agent.name || 'وكالة' };
+};
+const resolveClientOwner = async req => {
+    const owner = { ...await resolveClientIdentity(req), tenantId: requestTenantId(req) };
+    if (!await webhooksAllowed(owner)) throw new Error('WEBHOOK_DISABLED_BY_ADMIN');
+    return owner;
 };
 
 // Single mode: company ownership is the boundary, including a legacy or
@@ -67,16 +76,17 @@ const endpointScope = (req, owner) => {
     return query;
 };
 
-router.get('/client/integrations/webhooks', requireClientAuth, async (req, res) => {
+router.get(clientPaths('/integrations/webhooks'), requireClientAuth, async (req, res) => {
     try {
         await resolveClientOwner(req);
-        return res.render('client/webhooks', { csrfToken: res.locals.csrfToken || '', events: EVENTS });
+        res.set('Cache-Control', 'private, no-store');
+        return res.render('client/webhooks', { csrfToken: res.locals.csrfToken || '', events: EVENTS, portalBase: req.path.startsWith('/agent-portal') ? '/agent-portal' : '/client' });
     } catch (_) {
         return res.status(403).send('هذه الصفحة متاحة لمدير الشركة أو الوكالة فقط.');
     }
 });
 
-router.get('/client/api/webhooks', requireClientAuth, async (req, res) => {
+router.get(clientPaths('/api/webhooks'), requireClientAuth, async (req, res) => {
     try {
         const owner = await resolveClientOwner(req);
         const endpointQuery = endpointScope(req, owner);
@@ -90,7 +100,7 @@ router.get('/client/api/webhooks', requireClientAuth, async (req, res) => {
     }
 });
 
-router.post('/client/api/webhooks', requireClientAuth, async (req, res) => {
+router.post(clientPaths('/api/webhooks'), requireClientAuth, async (req, res) => {
     try {
         const owner = await resolveClientOwner(req);
         const url = await validateWebhookUrl(req.body.url);
@@ -109,15 +119,19 @@ router.post('/client/api/webhooks', requireClientAuth, async (req, res) => {
     }
 });
 
-router.patch('/client/api/webhooks/:id', requireClientAuth, async (req, res) => {
+router.patch(clientPaths('/api/webhooks/:id'), requireClientAuth, async (req, res) => {
     try {
         const owner = await resolveClientOwner(req);
         const update = {};
         if (req.body.name !== undefined) update.name = String(req.body.name).trim().slice(0, 100);
         if (req.body.url !== undefined) update.url = await validateWebhookUrl(req.body.url);
         if (req.body.events !== undefined) update.events = normalizeEvents(req.body.events);
-        if (req.body.enabled !== undefined) update.enabled = Boolean(req.body.enabled);
+        if (req.body.enabled !== undefined) {
+            if (typeof req.body.enabled !== 'boolean') throw new Error('INVALID_WEBHOOK_STATE');
+            update.enabled = req.body.enabled;
+        }
         let secret;
+        if (req.body.rotateSecret !== undefined && typeof req.body.rotateSecret !== 'boolean') throw new Error('INVALID_WEBHOOK_STATE');
         if (req.body.rotateSecret) {
             secret = crypto.randomBytes(32).toString('hex');
             update.secretEncrypted = encrypt(secret);
@@ -133,7 +147,7 @@ router.patch('/client/api/webhooks/:id', requireClientAuth, async (req, res) => 
     }
 });
 
-router.delete('/client/api/webhooks/:id', requireClientAuth, async (req, res) => {
+router.delete(clientPaths('/api/webhooks/:id'), requireClientAuth, async (req, res) => {
     const owner = await resolveClientOwner(req).catch(() => null);
     if (!owner) return res.status(403).json({ success: false, error: 'WEBHOOK_ACCESS_DENIED' });
     const endpoint = await MerchantWebhookEndpoint.findOneAndDelete({ _id: req.params.id, ...endpointScope(req, owner) });
@@ -142,7 +156,7 @@ router.delete('/client/api/webhooks/:id', requireClientAuth, async (req, res) =>
     return res.json({ success: true });
 });
 
-router.post('/client/api/webhook-deliveries/:id/retry', requireClientAuth, async (req, res) => {
+router.post(clientPaths('/api/webhook-deliveries/:id/retry'), requireClientAuth, async (req, res) => {
     const owner = await resolveClientOwner(req).catch(() => null);
     if (!owner) return res.status(403).json({ success: false, error: 'WEBHOOK_ACCESS_DENIED' });
     const endpointIds = await MerchantWebhookEndpoint.find(endpointScope(req, owner)).distinct('_id');
@@ -154,6 +168,18 @@ router.post('/client/api/webhook-deliveries/:id/retry', requireClientAuth, async
     if (!delivery) return res.status(404).json({ success: false, error: 'DELIVERY_NOT_FOUND' });
     const result = await deliverWebhook(delivery._id);
     return res.json({ success: true, result });
+});
+
+router.post(clientPaths('/api/webhooks/:id/test'), requireClientAuth, testLimiter, async (req, res) => {
+    try {
+        const owner = await resolveClientOwner(req);
+        const endpoint = await MerchantWebhookEndpoint.findOne({ _id: req.params.id, ...endpointScope(req, owner), enabled: true }).lean();
+        if (!endpoint) return res.status(404).json({ success: false, error: 'WEBHOOK_NOT_FOUND_OR_DISABLED' });
+        const delivery = await MerchantWebhookDelivery.create({ ...owner, tenantId: endpoint.tenantId,
+            endpointId: endpoint._id, eventId: 'test:' + crypto.randomUUID(), eventType: 'transfer.created',
+            payload: { type: 'transfer.created', test: true, created_at: new Date().toISOString(), data: { message: 'AhramPay webhook connection test' } } });
+        return res.json({ success: true, result: await deliverWebhook(delivery._id) });
+    } catch (_) { return res.status(403).json({ success: false, error: 'WEBHOOK_TEST_DENIED' }); }
 });
 
 router.get('/admin/webhooks', requireAuth, requirePermission('reports.read'), (_req, res) => res.render('admin_webhooks'));

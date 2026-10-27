@@ -60,6 +60,7 @@
     <% const companyPageStyles={overview:['home'],services:['services'],service_workbench:['services'],smart_transfer:['services'],transactions:['transactions'],finance:['finance'],reports:['customer-balances','reports'],staff:['customer-balances','staff','customers'],settings:['report-email','telegram-settings'],support:['support']}; %>
     <% for(const asset of ['mobile-menu',...(companyPageStyles[typeof page === 'string' ? page : ''] || [])]) { %><link rel="stylesheet" href="/css/company-mobile/<%= asset %>.css?v=20261027"><% } %>
     <link rel="stylesheet" href="/css/company-mobile/layout.css?v=20261027">
+    <% if(typeof page === 'string' && page === 'settings') { %><link rel="stylesheet" href="/css/portal-integrations.css?v=20261027"><% } %>
     <link rel="stylesheet" href="/css/rate-alert-overlay.css?v=20260816-3">
     <script src="/socket.io/socket.io.js"></script>
     <script src="/js/rate-alert-overlay.js?v=20260902-rate2" defer></script>
