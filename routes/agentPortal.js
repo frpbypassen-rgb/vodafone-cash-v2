@@ -1,7 +1,7 @@
 'use strict';
 
 const express = require('express');
-const rateLimit = require('express-rate-limit');
+const rateLimit = require('../utils/requestRateLimit');
 const requireAgentPortal = require('../middlewares/requireAgentPortal');
 const requireOperationPin = require('../middlewares/requireOperationPin');
 const upload = require('../middlewares/clientDocumentUpload');

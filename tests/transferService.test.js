@@ -377,7 +377,7 @@ describe('Transfer Service Deep Tests', () => {
             expect(ClientCompany.findByIdAndUpdate).toHaveBeenCalledWith(
                 'company-123',
                 { $inc: { balance: 500 } },
-                { new: true, session: mockSession }
+                { returnDocument: 'after', session: mockSession }
             );
             expect(mockSession.commitTransaction).toHaveBeenCalled();
         });
@@ -441,7 +441,7 @@ describe('Transfer Service Deep Tests', () => {
             expect(User.findByIdAndUpdate).toHaveBeenCalledWith(
                 'user-123',
                 { $inc: { balance: 500 } },
-                { new: true, session: mockSession }
+                { returnDocument: 'after', session: mockSession }
             );
             expect(mockSession.commitTransaction).toHaveBeenCalled();
         });

@@ -46,7 +46,7 @@ const nextBalanceTransferId = async (session) => {
     const counter = await Counter.findOneAndUpdate(
         { name: 'balance_transfer' },
         { $inc: { value: 1 } },
-        { upsert: true, new: true, ...(session ? { session } : {}) }
+        { upsert: true, returnDocument: 'after', ...(session ? { session } : {}) }
     );
     const yy = new Date().getFullYear().toString().slice(-2);
     const mm = String(new Date().getMonth() + 1).padStart(2, '0');
@@ -256,14 +256,14 @@ const executeBalanceTransfer = async ({
         sourceAfter = await SourceModel.findOneAndUpdate(
             { _id: source.doc._id, balance: { $gte: normalizedAmount } },
             { $inc: { balance: -normalizedAmount } },
-            { new: true, ...options }
+            { returnDocument: 'after', ...options }
         );
         if (!sourceAfter) throw new Error('INSUFFICIENT_BALANCE');
 
         targetAfter = await TargetModel.findByIdAndUpdate(
             target.doc._id,
             { $inc: { balance: normalizedAmount } },
-            { new: true, ...options }
+            { returnDocument: 'after', ...options }
         );
         if (!targetAfter) throw new Error('TARGET_NOT_FOUND');
 

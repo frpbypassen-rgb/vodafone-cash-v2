@@ -65,7 +65,7 @@ const updateBalanceWithLedger = async (entityModel, entityId, amount, type, tran
         const account = await Model.findOneAndUpdate(
             filter,
             { $inc: { balance: amount } },
-            { new: true, session }
+            { returnDocument: 'after', session }
         );
 
         if (!account) {
@@ -157,7 +157,7 @@ const executeFallback = async (
     const account = await Model.findOneAndUpdate(
         filter,
         { $inc: { balance: amount } },
-        { new: true }
+        { returnDocument: 'after' }
     );
 
     if (!account) {

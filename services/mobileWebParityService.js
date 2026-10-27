@@ -191,7 +191,7 @@ const nextDepositRequestId = async (session) => {
     const counter = await Counter.findOneAndUpdate(
         { name: 'deposit_request' },
         { $inc: { value: 1 } },
-        { upsert: true, new: true, ...(session ? { session } : {}) }
+        { upsert: true, returnDocument: 'after', ...(session ? { session } : {}) }
     );
     const yy = new Date().getFullYear().toString().slice(-2);
     const mm = String(new Date().getMonth() + 1).padStart(2, '0');
@@ -209,7 +209,7 @@ const updateBalanceWithCreditLimit = async ({ Model, id, diff, session }) => {
         const updated = await Model.findOneAndUpdate(
             { _id: id, balance: { $gte: minBalance } },
             { $inc: { balance: -diff } },
-            { new: true, session }
+            { returnDocument: 'after', session }
         );
         if (!updated) throw new Error('INSUFFICIENT_BALANCE');
         return updated;
@@ -218,7 +218,7 @@ const updateBalanceWithCreditLimit = async ({ Model, id, diff, session }) => {
     return await Model.findByIdAndUpdate(
         id,
         { $inc: { balance: Math.abs(diff) } },
-        { new: true, session }
+        { returnDocument: 'after', session }
     );
 };
 
@@ -1068,7 +1068,7 @@ async function executeZaynPayIdempotent({ executorId, taskId, req }) {
                 const parentUpdated = await ExecutorGroup.findOneAndUpdate(
                     { _id: parentGroupId, balance: { $gte: executorDebit } },
                     { $inc: ledgerInc },
-                    { new: true, session }
+                    { returnDocument: 'after', session }
                 );
                 if (!parentUpdated) throw new Error('INSUFFICIENT_EXECUTOR_BALANCE');
             }
@@ -1076,7 +1076,7 @@ async function executeZaynPayIdempotent({ executorId, taskId, req }) {
             const groupUpdated = await ExecutorGroup.findOneAndUpdate(
                 { _id: emp.groupId._id, balance: { $gte: executorDebit } },
                 { $inc: ledgerInc },
-                { new: true, session }
+                { returnDocument: 'after', session }
             );
             if (!groupUpdated) throw new Error('INSUFFICIENT_EXECUTOR_BALANCE');
 
@@ -2139,7 +2139,7 @@ async function updateCompanyExecutionPolicy({ executorId, body }) {
     const group = await ExecutorGroup.findByIdAndUpdate(
         manager.groupId,
         { $set: updates },
-        { new: true }
+        { returnDocument: 'after' }
     );
     if (!group) throw new Error('NOT_FOUND');
     const members = await Employee.find({

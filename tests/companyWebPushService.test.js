@@ -54,7 +54,7 @@ describe('company web push service', () => {
                     subscription
                 })
             }),
-            expect.objectContaining({ upsert: true, new: true })
+            expect.objectContaining({ upsert: true, returnDocument: 'after' })
         );
     });
 

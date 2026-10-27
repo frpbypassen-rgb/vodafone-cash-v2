@@ -1,6 +1,6 @@
 'use strict';
 const router = require('express').Router();
-const rateLimit = require('express-rate-limit');
+const rateLimit = require('../utils/requestRateLimit');
 const { resolveWorkspace } = require('../services/agentPortalWorkspaceService');
 const service = require('../services/agentTelegramSettingsService');
 const limit = rateLimit({ windowMs: 600000, max: 5, keyGenerator: req => `${req.session.accountType}:${req.session.clientId}`, standardHeaders: true, legacyHeaders: false, message: { success: false, error: 'انتظر قبل طلب ربط جديد.' } });

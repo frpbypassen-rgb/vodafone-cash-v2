@@ -111,7 +111,7 @@ const setPartProofState = async (transactionId, partId, fields) => {
     return Transaction.findOneAndUpdate(
         { _id: transactionId, 'executorSenderEntries.partId': String(partId) },
         { $set: set },
-        { new: true }
+        { returnDocument: 'after' }
     );
 };
 
@@ -138,7 +138,7 @@ const claimPartProof = async (transactionId, partId, proofKey, fromStatuses, { s
             }
         },
         claimUpdate,
-        { new: true }
+        { returnDocument: 'after' }
     );
     if (claimed || !staleGenerating) return claimed;
     return Transaction.findOneAndUpdate(
@@ -156,7 +156,7 @@ const claimPartProof = async (transactionId, partId, proofKey, fromStatuses, { s
             }
         },
         claimUpdate,
-        { new: true }
+        { returnDocument: 'after' }
     );
 };
 

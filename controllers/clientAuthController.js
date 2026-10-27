@@ -353,7 +353,7 @@ exports.postVerify = async (req, res) => {
                 const updated = await AccountModel.findOneAndUpdate(
                     { _id: account._id, otpChallengeId },
                     { $inc: { otpAttempts: 1 } },
-                    { new: true }
+                    { returnDocument: 'after' }
                 ).lean();
                 if (Number(updated?.otpAttempts || 0) >= 5) {
                     await AccountModel.updateOne(
@@ -378,7 +378,7 @@ exports.postVerify = async (req, res) => {
                 $set: { lastOtpDate: todayStr },
                 $unset: { otpCode: 1, otpExpires: 1, otpChallengeId: 1, otpIssuedAt: 1, otpAttempts: 1 }
             },
-            { new: true }
+            { returnDocument: 'after' }
         ).lean();
         if (!consumedAccount) {
             return res.render('client/verify', { error: 'تم استخدام الرمز أو انتهت صلاحيته. سجل الدخول من جديد.' });

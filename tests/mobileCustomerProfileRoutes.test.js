@@ -79,7 +79,7 @@ describe('mobile customer profile routes', () => {
         expect(User.findByIdAndUpdate).toHaveBeenCalledWith(
             account._id,
             { $set: { name: 'محمد أحمد إبراهيم', 'businessProfile.address': 'بنغازي' } },
-            { new: true, runValidators: true }
+            { returnDocument: 'after', runValidators: true }
         );
     });
 });

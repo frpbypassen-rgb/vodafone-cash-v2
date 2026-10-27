@@ -32,7 +32,7 @@ const activateRateAlertCampaign = async (reference) => {
     const campaign = await RateAlertCampaign.findOneAndUpdate(
         { reference, status: 'scheduled' },
         { $set: { status: 'active', activatedAt: new Date() } },
-        { new: true }
+        { returnDocument: 'after' }
     );
     // The campaign is only needed while a price is pending. Once active, do
     // not retain a catalogue of prior prices in notification records.
@@ -55,7 +55,7 @@ const recordWhatsAppDeliverySummary = async (reference, summary) => {
                 'whatsapp.lastAttemptAt': new Date()
             }
         },
-        { new: true }
+        { returnDocument: 'after' }
     );
 };
 
@@ -64,7 +64,7 @@ const recordTargetedAccounts = async (reference, targetedAccounts) => {
     return RateAlertCampaign.findOneAndUpdate(
         { reference },
         { $set: { targetedAccounts: Number(targetedAccounts || 0) } },
-        { new: true }
+        { returnDocument: 'after' }
     );
 };
 

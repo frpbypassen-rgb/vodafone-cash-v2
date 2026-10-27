@@ -1,4 +1,5 @@
 'use strict';
+const { allowsBackgroundWork } = require('./runtimeRole');
 
 // Switch values use the same tokens as utils/passwordResetAvailability.js.
 // Outside staging, unset stays enabled and only false/0/no/off disables.
@@ -26,15 +27,15 @@ const isSwitchEnabled = (value, env = process.env) => {
 };
 
 const isMerchantWebhookWorkerEnabled = (env = process.env) => (
-    isSwitchEnabled(env.MERCHANT_WEBHOOK_WORKER_ENABLED, env)
+    allowsBackgroundWork(env) && isSwitchEnabled(env.MERCHANT_WEBHOOK_WORKER_ENABLED, env)
 );
 
 const isExternalApiEnabled = (env = process.env) => isSwitchEnabled(env.EXTERNAL_API_ENABLED, env);
 
-const isBullmqWorkersEnabled = (env = process.env) => isSwitchEnabled(env.BULLMQ_WORKERS_ENABLED, env);
+const isBullmqWorkersEnabled = (env = process.env) => allowsBackgroundWork(env) && isSwitchEnabled(env.BULLMQ_WORKERS_ENABLED, env);
 
 const isFinancialSchedulersEnabled = (env = process.env) => (
-    isSwitchEnabled(env.FINANCIAL_SCHEDULERS_ENABLED, env)
+    allowsBackgroundWork(env) && isSwitchEnabled(env.FINANCIAL_SCHEDULERS_ENABLED, env)
 );
 
 const disabledSubsystemFlags = (env = process.env) => {

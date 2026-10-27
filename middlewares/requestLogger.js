@@ -19,6 +19,13 @@ const QUIET_ENDPOINTS = new Set([
     '/client/api/notifications/unread'
 ]);
 const SENSITIVE_QUERY_KEY_RE = /(?:token|secret|api[_-]?key|authorization|signature|sig)/i;
+const MOBILE_AUTH_CODES = new Set([
+    'TOKEN_MISSING', 'TOKEN_EXPIRED', 'TOKEN_INVALID', 'UNAUTHORIZED',
+    'SESSION_REVOKED', 'SECURITY_SESSION_EXPIRED', 'TOKEN_REUSE_DETECTED',
+    'TENANT_ACCESS_DENIED', 'TENANT_TOKEN_MISMATCH', 'TENANT_CREDENTIAL_INVALID',
+    'ACCOUNT_BANNED', 'ACCOUNT_LOCKED', 'DEVICE_APPROVAL_REQUIRED',
+    'DEVICE_NOT_APPROVED', 'DEVICE_BINDING_MISMATCH', 'SECURITY_VERIFICATION_REQUIRED'
+]);
 
 const redactRequestUrl = (requestUrl = '') => {
     try {
@@ -58,6 +65,15 @@ const requestLogger = (req, res, next) => {
 
     const startTime = process.hrtime.bigint();
     const startTimestamp = new Date().toISOString();
+    let authErrorCode;
+    const mobilePath = /^\/api\/(?:v1\/)?mobile(?:\/|$)/.test(String(req.originalUrl || req.url).split('?')[0]);
+    if (mobilePath && typeof res.json === 'function') {
+        const originalJson = res.json;
+        res.json = function (body) {
+            if ([401, 403].includes(res.statusCode) && MOBILE_AUTH_CODES.has(body?.code)) authErrorCode = body.code;
+            return originalJson.apply(this, arguments);
+        };
+    }
 
     // تسجيل بداية الطلب
     const requestInfo = {
@@ -76,6 +92,8 @@ const requestLogger = (req, res, next) => {
 
         const logData = {
             ...requestInfo,
+            pid: process.pid,
+            ...([401, 403].includes(res.statusCode) && authErrorCode ? { authErrorCode } : {}),
             statusCode: res.statusCode,
             durationMs: Math.round(durationMs * 100) / 100,
             contentLength: res.getHeader('content-length') || 0,

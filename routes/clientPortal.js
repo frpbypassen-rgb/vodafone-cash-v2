@@ -8,7 +8,7 @@ const { isWalletHubSession, canRequestRetailDeposit } = require('../utils/wallet
 
 
 
-const rateLimit = require('express-rate-limit');
+const rateLimit = require('../utils/requestRateLimit');
 
 const requireOperationPin = require('../middlewares/requireOperationPin');
 

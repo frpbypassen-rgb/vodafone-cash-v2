@@ -52,7 +52,7 @@ const loadAdminVisibleTransaction = async (transactionId, session) => {
 
 const incrementBalance = async ({ Model, filter, amount, session, modelName }) => {
     if (!amount) return null;
-    const options = { new: true, ...(session ? { session } : {}) };
+    const options = { returnDocument: 'after', ...(session ? { session } : {}) };
     const record = await Model.findOneAndUpdate(filter, { $inc: { balance: amount } }, options);
     if (!record) throw new Error('FINANCIAL_OWNER_NOT_FOUND');
     return { model: modelName, id: record._id };
@@ -121,7 +121,7 @@ const repriceTransaction = async ({ transactionId, newRate, adminName, noteDetai
                 updatedAt: new Date()
             }
         },
-        { new: true, ...(session ? { session } : {}), timestamps: false }
+        { returnDocument: 'after', ...(session ? { session } : {}), timestamps: false }
     );
     if (!updated) throw new Error('TRANSACTION_UPDATE_CONFLICT');
 
@@ -226,7 +226,7 @@ const editTransactionAmount = async ({
     const updated = await Transaction.findOneAndUpdate(
         { _id: transaction._id },
         { $set: transactionUpdate },
-        { new: true, ...(session ? { session } : {}), timestamps: false }
+        { returnDocument: 'after', ...(session ? { session } : {}), timestamps: false }
     );
     if (!updated) throw new Error('TRANSACTION_UPDATE_CONFLICT');
 
@@ -315,7 +315,7 @@ const reassignTransactionExecutor = async ({ transactionId, newGroupId, routedBy
                 ...routedActor
             }
         },
-        { new: true, ...(session ? { session } : {}), timestamps: false }
+        { returnDocument: 'after', ...(session ? { session } : {}), timestamps: false }
     );
     if (!updated) throw new Error('TRANSACTION_UPDATE_CONFLICT');
 

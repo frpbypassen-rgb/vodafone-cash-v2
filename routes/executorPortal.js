@@ -1,5 +1,5 @@
 ﻿const express = require('express');
-const { rateLimit } = require('express-rate-limit');
+const { rateLimit } = require('../utils/requestRateLimit');
 const { emitSupportTicketUpdate } = require('../services/supportRealtimeService');
 const router = express.Router();
 const settingsPasswordLimiter = rateLimit({

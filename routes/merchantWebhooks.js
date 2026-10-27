@@ -15,7 +15,7 @@ const { webhooksAllowed } = require('../services/merchantIntegrationService');
 const { resolveCanonicalRole } = require('../services/companyAccessService');
 const { requireClientAuth } = require('../middlewares/clientPortalAuth');
 const clientPaths = suffix => ['/client' + suffix, '/agent-portal' + suffix];
-const testLimiter = require('express-rate-limit')({ windowMs: 900000, max: 5, standardHeaders: true, legacyHeaders: false,
+const testLimiter = require('../utils/requestRateLimit')({ windowMs: 900000, max: 5, standardHeaders: true, legacyHeaders: false,
     keyGenerator: req => `${req.session.accountType}:${req.session.clientId}` });
 const {
     EVENTS, deliverWebhook, normalizeEvents, publicEndpoint, validateWebhookUrl

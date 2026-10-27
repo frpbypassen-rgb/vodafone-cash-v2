@@ -1,6 +1,6 @@
 const express = require('express');
 const mongoose = require('mongoose');
-const rateLimit = require('express-rate-limit');
+const rateLimit = require('../utils/requestRateLimit');
 const crypto = require('crypto');
 const { emitSupportTicketUpdate } = require('../services/supportRealtimeService');
 const User = require('../models/User');
@@ -1594,7 +1594,7 @@ router.post('/executor/task-routing-mode', authenticateJWT, async (req, res) => 
         const group = await ExecutorGroup.findByIdAndUpdate(
             employee.groupId._id || employee.groupId,
             { $set: { manualTaskRoutingEnabled: Boolean(req.body?.enabled) } },
-            { new: true }
+            { returnDocument: 'after' }
         );
         return res.json({ success: true, manualTaskRoutingEnabled: Boolean(group?.manualTaskRoutingEnabled) });
     } catch (error) {
@@ -1838,7 +1838,7 @@ router.patch('/client/profile', authenticateJWT, customerProfileValidator, async
         const updated = await Model.findByIdAndUpdate(
             account._id,
             { $set: update },
-            { new: true, runValidators: true }
+            { returnDocument: 'after', runValidators: true }
         );
         await logAction({
             action: 'CUSTOMER_PROFILE_UPDATED',

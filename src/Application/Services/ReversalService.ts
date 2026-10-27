@@ -60,7 +60,7 @@ export class ReversalService {
             return TargetModel.findByIdAndUpdate(
                 targetId,
                 { $inc: { [balanceKey]: amount } },
-                { new: true, ...(session ? { session } : {}) }
+                { returnDocument: 'after', ...(session ? { session } : {}) }
             );
         }
 
@@ -84,7 +84,7 @@ export class ReversalService {
         const counter = await Counter.findOneAndUpdate(
             { name: `cancellation-${year}${month}` },
             { $inc: { value: 1 } },
-            { upsert: true, new: true, setDefaultsOnInsert: true, ...(session ? { session } : {}) }
+            { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true, ...(session ? { session } : {}) }
         );
 
         return `CAN-${year}${month}-${String(counter.value).padStart(5, '0')}`;
@@ -213,7 +213,7 @@ export class ReversalService {
             const updatedSub = await SubAccount.findByIdAndUpdate(
                 tx.subAccountId,
                 { $inc: { balance: tx.subAccountCostLYD || 0 } },
-                { new: true, ...(session ? { session } : {}) }
+                { returnDocument: 'after', ...(session ? { session } : {}) }
             );
             if (!updatedSub) throw new Error('SUB_ACCOUNT_NOT_FOUND');
             if (!session) {
@@ -385,7 +385,7 @@ export class ReversalService {
                     cancelledAt
                 }
             },
-            { new: true, strict: false }
+            { returnDocument: 'after', strict: false }
         );
 
         if (!tx) {
@@ -569,7 +569,7 @@ export class ReversalService {
                 const updatedSub = await SubAccount.findByIdAndUpdate(
                     tx.subAccountId,
                     { $inc: { balance: tx.subAccountCostLYD } },
-                    { new: true, session }
+                    { returnDocument: 'after', session }
                 );
                 if (!updatedSub) {
                     await session.abortTransaction();

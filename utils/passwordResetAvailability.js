@@ -1,6 +1,6 @@
 'use strict';
 
-const rateLimit = require('express-rate-limit');
+const rateLimit = require('./requestRateLimit');
 const { getBrandContact } = require('./brandContact');
 
 const LRM = '\u200E';

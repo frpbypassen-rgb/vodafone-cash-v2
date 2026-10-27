@@ -29,7 +29,7 @@ const cron = require('node-cron');
 const https = require('https'); 
 const http = require('http'); // 🟢 للإقلاع مع الـ Sockets
 const { Server } = require('socket.io'); // 🟢 خادم الزمن الفعلي
-const rateLimit = require('express-rate-limit'); // 🟢 جدار الحماية
+const rateLimit = require('./utils/requestRateLimit'); // 🟢 جدار الحماية
 const helmet = require('helmet'); // 🟢 حماية الهيدرز
 const cors = require('cors');
 const multer = require('multer');
@@ -98,15 +98,18 @@ const { ensureUnifiedReportInfrastructure } = require('./services/unifiedReportS
 // 🟢 استدعاء طابور المهام الجديد (Queue System)
 
 const { startupGate, startBoundHttpServer } = require('./services/httpStartupService');
+const { readRuntimeRole, allowsBackgroundWork, runtimeBindHost, runtimeRoleGate } = require('./utils/runtimeRole');
+const runtimeRole = readRuntimeRole(process.env);
 const app = express();
 app.locals.startupReady = false;
+app.use(runtimeRoleGate(process.env));
 app.use(startupGate(() => app.locals.startupReady === true));
 const isProduction = process.env.NODE_ENV === 'production';
 app.locals.systemTimeZone = SYSTEM_TIME_ZONE;
 app.locals.sessionStoreHealthy = true;
 app.locals.isShuttingDown = false;
 
-app.set('trust proxy', 1); 
+app.set('trust proxy', require('./config/trustedProxy').readTrustProxy(process.env));
 app.use(require('./middlewares/trustedProxyHttps').normalizeTrustedProxyHttps({
     enabled: isProduction && process.env.TRUST_PROXY_HTTPS === 'true'
 }));
@@ -135,6 +138,7 @@ const allowedOrigins = getAllowedOrigins();
 const mobileAllowedOrigins = getMobileAllowedOrigins();
 
 const io = new Server(server, {
+    allowRequest: (_req, callback) => callback(null, runtimeRole !== 'probe'),
     cors: {
         origin: (origin, callback) => {
             // السماح للطلبات بدون origin (تطبيقات الموبايل، Postman، إلخ)
@@ -288,6 +292,8 @@ app.get('/health', (req, res) => {
     res.json({
         status: 'ok',
         pid: process.pid,
+        runtimeRole,
+        acceptingMutations: runtimeRole === 'full',
         startupReady: app.locals.startupReady === true,
         uptime: process.uptime(),
         timestamp: new Date().toISOString(),
@@ -307,6 +313,8 @@ app.get('/health/ready', async (req, res) => {
         res.status(ready ? 200 : 503).json({
             status: ready ? 'ok' : 'degraded',
             pid: process.pid,
+            runtimeRole,
+            acceptingMutations: runtimeRole === 'full',
             startupReady: app.locals.startupReady === true,
             db: dbStatus,
             sessionStore: app.locals.sessionStoreHealthy ? 'connected' : 'degraded',
@@ -512,7 +520,7 @@ app.use(errorHandler);
 
 const PORT = process.env.PORT || 3000;
 Promise.all([connectDB(), initRedis()]).then(() => startBoundHttpServer({
-    server, port: PORT,
+    server, port: PORT, host: runtimeBindHost(process.env),
     initialize: async () => {
         logDisabledRuntimeSubsystems(logger);
         await assertStagingStartupSafe({
@@ -520,6 +528,10 @@ Promise.all([connectDB(), initRedis()]).then(() => startBoundHttpServer({
             db: mongoose.connection && mongoose.connection.db,
             processTitle: process.title
         });
+        if (!allowsBackgroundWork(process.env)) {
+            logger.info('Probe runtime: background initialization skipped');
+            return;
+        }
         const { initBullMQ } = require('./services/bullQueueService');
         if (isBullmqWorkersEnabled() && !initBullMQ()) {
             logger.warn('BullMQ API transfer worker is not ready; API routing will use in-process queue');

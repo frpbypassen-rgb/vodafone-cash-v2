@@ -157,7 +157,7 @@ describe('Merchant API agent authentication', () => {
                 balance: { $gte: 68.067 }
             }),
             { $inc: { balance: -168.067 } },
-            expect.objectContaining({ new: true, session })
+            expect.objectContaining({ returnDocument: 'after', session })
         );
         expect(Transaction.create).toHaveBeenCalledWith(
             [expect.objectContaining({

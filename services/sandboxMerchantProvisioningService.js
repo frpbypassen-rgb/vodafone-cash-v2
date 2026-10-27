@@ -85,7 +85,7 @@ const provisionSandboxMerchant = async ({ account, accountType }) => {
                 'features.enableMobileAPI': false
             }
         },
-        { upsert: true, new: true, setDefaultsOnInsert: true }
+        { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }
     );
 
     let merchant = await SandboxCompany.findOne({

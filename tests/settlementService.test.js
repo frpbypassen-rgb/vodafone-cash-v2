@@ -195,7 +195,7 @@ describe('Settlement Service Tests', () => {
                         approvedByName: 'Admin Mohamed'
                     })
                 }),
-                { new: true }
+                { returnDocument: 'after' }
             );
         });
     });

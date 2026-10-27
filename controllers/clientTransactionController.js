@@ -363,7 +363,7 @@ exports.postTransfer = async (req, res) => {
         const counter = await Counter.findOneAndUpdate(
             { name: 'transaction' },
             { $inc: { value: 1 } },
-            { upsert: true, new: true, ...sessionOpts }
+            { upsert: true, returnDocument: 'after', ...sessionOpts }
         );
         const yy = new Date().getFullYear().toString().slice(-2);
         const mm = (new Date().getMonth() + 1).toString().padStart(2, '0');
@@ -411,7 +411,7 @@ exports.postTransfer = async (req, res) => {
             const updatedSub = await SubAccount.findOneAndUpdate(
                 { _id: account._id, balance: { $gte: minSubBalance } },
                 { $inc: { balance: -subCostLYD } },
-                { new: true, ...sessionOpts }
+                { returnDocument: 'after', ...sessionOpts }
             );
             if (!updatedSub) throw new Error('SUB_INSUFFICIENT_BALANCE');
             if (!useTransaction) {
@@ -433,7 +433,7 @@ exports.postTransfer = async (req, res) => {
             const updatedMaster = await MasterModel.findOneAndUpdate(
                 { _id: masterObj._id, balance: { $gte: minMasterBalance } },
                 { $inc: { balance: -masterCostLYD } },
-                { new: true, ...sessionOpts }
+                { returnDocument: 'after', ...sessionOpts }
             );
 
             if (!updatedMaster) throw new Error('MASTER_INSUFFICIENT_BALANCE');
@@ -490,7 +490,7 @@ exports.postTransfer = async (req, res) => {
             const updatedClient = await BModel.findOneAndUpdate(
                 { _id: balanceModel._id, balance: { $gte: minBalance } },
                 { $inc: { balance: -masterCostLYD } },
-                { new: true, ...sessionOpts }
+                { returnDocument: 'after', ...sessionOpts }
             );
 
             if (!updatedClient) throw new Error('INSUFFICIENT_BALANCE');

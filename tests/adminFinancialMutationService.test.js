@@ -73,19 +73,19 @@ describe('adminFinancialMutationService', () => {
         expect(ClientCompany.findOneAndUpdate).toHaveBeenCalledWith(
             { _id: 'company-1' },
             { $inc: { balance: -20 } },
-            { new: true, session }
+            { returnDocument: 'after', session }
         );
         expect(ExecutorGroup.findOneAndUpdate).toHaveBeenNthCalledWith(
             1,
             { _id: 'executor-1' },
             { $inc: { balance: -40 } },
-            { new: true, session }
+            { returnDocument: 'after', session }
         );
         expect(ExecutorGroup.findOneAndUpdate).toHaveBeenNthCalledWith(
             2,
             { _id: 'manager-1' },
             { $inc: { balance: -40 } },
-            { new: true, session }
+            { returnDocument: 'after', session }
         );
         expect(result.newCostLYD).toBe(70);
         expect(session.commitTransaction).toHaveBeenCalledTimes(1);
@@ -109,7 +109,7 @@ describe('adminFinancialMutationService', () => {
         expect(ClientCompany.findOneAndUpdate).toHaveBeenCalledWith(
             { _id: 'company-2' },
             { $inc: { balance: 25 } },
-            { new: true, session }
+            { returnDocument: 'after', session }
         );
         expect(result.syncGroupIds).toEqual([]);
     });
@@ -140,16 +140,16 @@ describe('adminFinancialMutationService', () => {
         const result = await reassignTransactionExecutor({ transactionId: 'tx-3', newGroupId: 'new-executor' });
 
         expect(ExecutorGroup.findOneAndUpdate).toHaveBeenNthCalledWith(
-            1, { _id: 'old-executor' }, { $inc: { balance: 80 } }, { new: true, session }
+            1, { _id: 'old-executor' }, { $inc: { balance: 80 } }, { returnDocument: 'after', session }
         );
         expect(ExecutorGroup.findOneAndUpdate).toHaveBeenNthCalledWith(
-            2, { _id: 'old-manager' }, { $inc: { balance: 80 } }, { new: true, session }
+            2, { _id: 'old-manager' }, { $inc: { balance: 80 } }, { returnDocument: 'after', session }
         );
         expect(ExecutorGroup.findOneAndUpdate).toHaveBeenNthCalledWith(
-            3, { _id: 'new-executor' }, { $inc: { balance: -80 } }, { new: true, session }
+            3, { _id: 'new-executor' }, { $inc: { balance: -80 } }, { returnDocument: 'after', session }
         );
         expect(ExecutorGroup.findOneAndUpdate).toHaveBeenNthCalledWith(
-            4, { _id: 'new-manager' }, { $inc: { balance: -80 } }, { new: true, session }
+            4, { _id: 'new-manager' }, { $inc: { balance: -80 } }, { returnDocument: 'after', session }
         );
         expect(result.oldExecutorName).toBe('Old executor');
     });

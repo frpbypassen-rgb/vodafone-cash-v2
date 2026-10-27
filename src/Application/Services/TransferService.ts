@@ -499,7 +499,7 @@ export class TransferService {
                 const updatedSub = await SubAccount.findOneAndUpdate(
                     { _id: subAccount._id, balance: { $gte: minSubBalance } },
                     { $inc: { balance: -subCostLYD } },
-                    { new: true, session }
+                    { returnDocument: 'after', session }
                 );
                 if (!updatedSub) {
                     await abortSession(session);
@@ -516,7 +516,7 @@ export class TransferService {
                 updatedMaster = await MasterModel.findOneAndUpdate(
                     { _id: masterObj._id, balance: { $gte: minMasterBalance } },
                     { $inc: { balance: -masterCostLYD } },
-                    { new: true, session }
+                    { returnDocument: 'after', session }
                 );
                 if (!updatedMaster) {
                     await abortSession(session);
@@ -541,7 +541,7 @@ export class TransferService {
                 updatedClient = await TargetModel.findOneAndUpdate(
                     { _id: targetId, [balanceKey]: { $gte: minRequiredBalance } },
                     { $inc: { [balanceKey]: -costLYD } },
-                    { new: true, session }
+                    { returnDocument: 'after', session }
                 );
 
                 if (!updatedClient) {
@@ -558,7 +558,7 @@ export class TransferService {
 
             // 7. توليد رقم العملية (ATT Invoice ID)
             const counter = await Counter.findOneAndUpdate(
-                { name: 'transaction' }, { $inc: { value: 1 } }, { upsert: true, new: true, session }
+                { name: 'transaction' }, { $inc: { value: 1 } }, { upsert: true, returnDocument: 'after', session }
             );
             const now = new Date();
             const yy = now.getFullYear().toString().slice(-2);
@@ -878,7 +878,7 @@ export class TransferService {
                 const updatedSub = await SubAccount.findByIdAndUpdate(
                     tx.subAccountId,
                     { $inc: { balance: tx.subAccountCostLYD } },
-                    { new: true, session }
+                    { returnDocument: 'after', session }
                 );
                 if (!updatedSub) throw new Error('SUB_ACCOUNT_NOT_FOUND');
 
@@ -923,7 +923,7 @@ export class TransferService {
                 const updatedMaster = await TargetModel.findByIdAndUpdate(
                     targetId,
                     { $inc: { [balanceKey]: tx.costLYD } },
-                    { new: true, session }
+                    { returnDocument: 'after', session }
                 );
                 if (!updatedMaster) throw new Error('CLIENT_NOT_FOUND');
                 const masterRefundedBalance = this.getWalletBalance(updatedMaster, currency);
@@ -969,7 +969,7 @@ export class TransferService {
                 // إرجاع الرصيد
                 const balanceKey = this.balancePath(targetDoc, currency);
                 const updatedClient = await TargetModel.findByIdAndUpdate(
-                    targetId, { $inc: { [balanceKey]: tx.costLYD } }, { new: true, session }
+                    targetId, { $inc: { [balanceKey]: tx.costLYD } }, { returnDocument: 'after', session }
                 );
                 if (!updatedClient) throw new Error('CLIENT_NOT_FOUND');
                 const refundedBalance = this.getWalletBalance(updatedClient, currency);

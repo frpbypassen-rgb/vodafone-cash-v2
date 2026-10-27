@@ -54,7 +54,7 @@ const upsertCompanySubscription = async ({ userId, accountType = 'company', subs
                 lastError: ''
             }
         },
-        { upsert: true, new: true, setDefaultsOnInsert: true }
+        { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }
     );
 };
 

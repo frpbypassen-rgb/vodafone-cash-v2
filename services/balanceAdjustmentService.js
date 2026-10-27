@@ -89,7 +89,7 @@ const voidBalanceAdjustment = async ({ transactionId, performedBy, performedById
                     'balanceAdjustment.voidStartedAt': voidStartedAt
                 }
             },
-            { new: true, ...(session ? { session } : {}) }
+            { returnDocument: 'after', ...(session ? { session } : {}) }
         ), session);
 
         if (!claimed) {
@@ -160,7 +160,7 @@ const voidBalanceAdjustment = async ({ transactionId, performedBy, performedById
                     'balanceAdjustment.voidStartedAt': 1
                 }
             },
-            { new: true, ...(session ? { session } : {}) }
+            { returnDocument: 'after', ...(session ? { session } : {}) }
         ), session);
         if (!finalized) throw new Error('ADJUSTMENT_VOID_CONFLICT');
 

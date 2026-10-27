@@ -238,7 +238,7 @@ const approveSettlement = async (settlementId, adminId, adminName) => {
             approvedByName: adminName,
             approvedAt: new Date()
         }
-    }, { new: true });
+    }, { returnDocument: 'after' });
 };
 
 /**

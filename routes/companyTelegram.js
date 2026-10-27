@@ -1,6 +1,6 @@
 'use strict';
 const router = require('express').Router();
-const rateLimit = require('express-rate-limit');
+const rateLimit = require('../utils/requestRateLimit');
 const { requireClientAuth } = require('../middlewares/clientPortalAuth');
 router.use('/api/telegram',requireClientAuth);
 const { resolveWorkspace } = require('../services/businessPortalService');

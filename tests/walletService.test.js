@@ -86,7 +86,7 @@ describe('Wallet Service Deep Tests', () => {
         expect(mockModel.findOneAndUpdate).toHaveBeenCalledWith(
             expect.any(Object),
             expect.any(Object),
-            { new: true } // بدون session
+            { returnDocument: 'after' } // بدون session
         );
     });
 
@@ -145,7 +145,7 @@ describe('Wallet Service Deep Tests', () => {
         expect(mockModel.findOneAndUpdate).toHaveBeenCalledWith(
             { _id: 'user1' },
             { $inc: { balance: 200 } },
-            { new: true, session: externalSession }
+            { returnDocument: 'after', session: externalSession }
         );
         // لا يجب إنهاء الجلسة الخارجية برمجياً داخل الخدمة
         expect(mongoose.startSession).not.toHaveBeenCalled();
@@ -197,7 +197,7 @@ describe('Wallet Service Deep Tests', () => {
         expect(mockModel.findOneAndUpdate).toHaveBeenCalledWith(
             { _id: 'user1' },
             { $inc: { balance: -150 } },
-            { new: true, session: mockSession }
+            { returnDocument: 'after', session: mockSession }
         );
     });
 });

@@ -16,7 +16,7 @@ const nextCancellationNumber = async () => {
     const counter = await Counter.findOneAndUpdate(
         { name: `cancellation-${year}${month}` },
         { $inc: { value: 1 } },
-        { upsert: true, new: true, setDefaultsOnInsert: true }
+        { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }
     );
     return `CAN-${year}${month}-${String(counter.value).padStart(5, '0')}`;
 };

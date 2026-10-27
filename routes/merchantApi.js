@@ -303,7 +303,7 @@ router.post('/transfer', merchantApiAuth, async (req, res) => {
             }
 
             const costLYD = Number((amountValue / exchangeRate).toFixed(3));
-            const merchantUpdateOptions = { new: true };
+            const merchantUpdateOptions = { returnDocument: 'after' };
             if (session) merchantUpdateOptions.session = session;
 
             const isAgentMerchant = req.merchant.merchantType === 'agent';
@@ -329,7 +329,7 @@ router.post('/transfer', merchantApiAuth, async (req, res) => {
             const now = new Date();
             const yy = now.getFullYear().toString().slice(-2);
             const mm = (now.getMonth() + 1).toString().padStart(2, '0');
-            const counterOptions = { upsert: true, new: true };
+            const counterOptions = { upsert: true, returnDocument: 'after' };
             if (session) counterOptions.session = session;
 
             const counter = await Counter.findOneAndUpdate(

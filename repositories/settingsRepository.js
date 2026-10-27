@@ -31,7 +31,7 @@ const getSettings = async (forceRefresh = false) => {
  * @param {Object} updates
  */
 const updateSettings = async (updates) => {
-    const result = await Settings.findOneAndUpdate({}, { $set: updates }, { new: true });
+    const result = await Settings.findOneAndUpdate({}, { $set: updates }, { returnDocument: 'after' });
     _cachedSettings = null; // إبطال الكاش
     return result;
 };

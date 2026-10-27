@@ -1,6 +1,6 @@
 'use strict';
 const router = require('express').Router();
-const rateLimit = require('express-rate-limit');
+const rateLimit = require('../utils/requestRateLimit');
 const { resolveWorkspace } = require('../services/agentPortalWorkspaceService');
 const service = require('../services/agentReportEmailService');
 const { sendTest } = require('../services/agentReportEmailWorker');

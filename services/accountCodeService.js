@@ -93,7 +93,7 @@ const reserveAccountCode = async (code, current, options = {}) => {
                     ...(tenantId ? { tenantId } : {})
                 }
             },
-            { upsert: true, new: true, runValidators: true, setDefaultsOnInsert: true, ...(options.session ? { session: options.session } : {}) }
+            { upsert: true, returnDocument: 'after', runValidators: true, setDefaultsOnInsert: true, ...(options.session ? { session: options.session } : {}) }
         );
     } catch (error) {
         if (error.code === 11000) throw duplicateReservationError();

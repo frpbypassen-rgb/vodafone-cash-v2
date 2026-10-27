@@ -1,7 +1,7 @@
 'use strict';
 const router = require('express').Router();
 const bcrypt = require('bcryptjs');
-const rateLimit = require('express-rate-limit');
+const rateLimit = require('../utils/requestRateLimit');
 const { requireClientAuth } = require('../middlewares/clientPortalAuth');
 const { requireAuth, requireMaster } = require('../middlewares/auth');
 const { resolveWorkspace } = require('../services/businessPortalService');

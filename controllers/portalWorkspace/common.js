@@ -121,7 +121,7 @@ const nextSettlementId = async (session) => {
     const counter = await Counter.findOneAndUpdate(
         { name: 'portal_customer_settlement' },
         { $inc: { value: 1 } },
-        { upsert: true, new: true, ...(session ? { session } : {}) }
+        { upsert: true, returnDocument: 'after', ...(session ? { session } : {}) }
     );
     const now = new Date();
     return `SET-${String(now.getFullYear()).slice(-2)}${String(now.getMonth() + 1).padStart(2, '0')}-${String(counter.value).padStart(5, '0')}`;

@@ -48,7 +48,7 @@ const approveAgentRegistration = async ({ req, actor, agent, actorModel, id }) =
                         reviewedAt: new Date(),
                     },
                 },
-                { session, new: true }
+                { session, returnDocument: 'after' }
             );
             if (!request) throw notFound();
             await prepareRegistrationIdentityForApproval({
@@ -130,7 +130,7 @@ const rejectAgentRegistration = async ({ req, actor, agent, actorModel, id }) =>
                 },
             },
         ],
-        { new: true, updatePipeline: true }
+        { returnDocument: 'after', updatePipeline: true }
     );
     if (!request) throw notFound();
     await logAction({

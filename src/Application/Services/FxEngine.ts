@@ -76,7 +76,7 @@ export class FxEngine {
         FxRate.findOneAndUpdate(
             { pair },
             { fromCurrency: from, toCurrency: to, rate },
-            { upsert: true, new: true }
+            { upsert: true, returnDocument: 'after' }
         ).catch(err => {
             logger.error(`Failed to save FX rate update to DB for ${pair}`, { error: err.message });
         });

@@ -254,7 +254,7 @@ const acquireBulkLock = async () => {
     const stolen = await BulkJobLock.findOneAndUpdate(
         { _id: LOCK_KEY, expiresAt: { $lte: now } },
         { $set: { ownerId, expiresAt } },
-        { new: true }
+        { returnDocument: 'after' }
     );
     if (stolen) return { ownerId };
     try {
@@ -340,7 +340,7 @@ const retryOne = async (delivery, maxAttempts) => {
             $set: { status: 'sending' },
             $inc: { 'metadata.manualRetryCount': 1 }
         },
-        { new: true }
+        { returnDocument: 'after' }
     );
     if (!claimed) return { attempted: false, claimed: false, skipped: deliveryPublic(delivery, { reason: 'CLAIM_LOST' }) };
 

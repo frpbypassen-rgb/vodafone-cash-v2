@@ -4,7 +4,7 @@ const webMfaEnrollment = require('../services/webMfaEnrollmentService');
 router.use('/security/mfa', (_req, res, next) => { res.set('Cache-Control', 'private, no-store'); next(); });
 const bcrypt = require('bcryptjs');
 const { randomUUID } = require('crypto');
-const rateLimit = require('express-rate-limit');
+const rateLimit = require('../utils/requestRateLimit');
 const { escapeRegex, verifyAndUpgradePassword, getTodayString } = require('../utils/helpers');
 const { normalizeSubmittedOtp, verifyOtp } = require('../utils/otp');
 const {
@@ -1451,7 +1451,7 @@ router.post('/admin/verify', adminOtpVerifyLimiter, async (req, res) => {
                 const updated = await Admin.findOneAndUpdate(
                     { _id: account._id, otpChallengeId },
                     { $inc: { otpAttempts: 1 } },
-                    { new: true }
+                    { returnDocument: 'after' }
                 ).lean();
                 if (Number(updated?.otpAttempts || 0) >= 5) {
                     await Admin.updateOne(
@@ -1477,7 +1477,7 @@ router.post('/admin/verify', adminOtpVerifyLimiter, async (req, res) => {
                 $set: { lastOtpDate: getTodayString() },
                 $unset: { otpCode: 1, otpExpires: 1, otpChallengeId: 1, otpIssuedAt: 1, otpAttempts: 1 }
             },
-            { new: true }
+            { returnDocument: 'after' }
         ).lean();
         if (!consumedAccount) {
             return renderAdminVerify(req, res, 'تم استخدام الرمز أو انتهت صلاحيته. سجل الدخول من جديد.');

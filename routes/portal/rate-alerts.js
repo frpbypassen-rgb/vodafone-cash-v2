@@ -48,7 +48,7 @@ router.post('/api/rate-alerts/subscribe', requireClientAuth, async (req, res) =>
                     lastError: '',
                 },
             },
-            { upsert: true, new: true, setDefaultsOnInsert: true }
+            { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }
         );
         return res.json({ success: true });
     } catch (_error) {

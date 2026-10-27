@@ -1,7 +1,7 @@
 'use strict';
 
 const express = require('express');
-const rateLimit = require('express-rate-limit');
+const rateLimit = require('../utils/requestRateLimit');
 const bcrypt = require('bcryptjs');
 const router = express.Router();
 const Admin = require('../models/Admin');

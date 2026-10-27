@@ -149,7 +149,7 @@ describe('Reversal Service Tests', () => {
         expect(mockCounterFindOneAndUpdate).toHaveBeenCalledWith(
             { name: `cancellation-${expectedPeriod}` },
             { $inc: { value: 1 } },
-            { upsert: true, new: true, setDefaultsOnInsert: true, session: mockSession }
+            { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true, session: mockSession }
         );
         expect(mockLedgerSave).toHaveBeenCalled();
         expect(mockEventSave).toHaveBeenCalled();
@@ -187,7 +187,7 @@ describe('Reversal Service Tests', () => {
                     cancellationReason: 'Standalone Mongo fallback'
                 })
             }),
-            { new: true, strict: false }
+            { returnDocument: 'after', strict: false }
         );
         expect(Transaction.updateOne).toHaveBeenCalledWith(
             expect.objectContaining({ _id: mockTx._id }),

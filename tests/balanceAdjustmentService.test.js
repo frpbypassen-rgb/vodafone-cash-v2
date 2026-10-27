@@ -98,7 +98,7 @@ describe('Balance adjustment reversal service', () => {
                     'balanceAdjustment.reversible': false
                 })
             }),
-            { new: true }
+            { returnDocument: 'after' }
         );
         expect(Transaction.findOneAndUpdate.mock.calls[1][1].$unset).toEqual({
             'balanceAdjustment.voidToken': 1,

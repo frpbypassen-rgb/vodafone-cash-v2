@@ -557,7 +557,7 @@ router.post('/executor/:id/balance-audit/:auditId/review', requireAuth, async (r
                     reviewNotes: normalizeText(req.body.notes)
                 }
             },
-            { new: true }
+            { returnDocument: 'after' }
         );
         if (!audit) return res.status(404).json({ success: false, message: 'سجل المطابقة غير موجود' });
 
@@ -583,7 +583,7 @@ router.post('/executor/:id/provider-return/:returnId/review', requireAuth, async
                     reviewNotes: normalizeText(req.body.notes)
                 }
             },
-            { new: true }
+            { returnDocument: 'after' }
         );
         if (!item) return res.status(404).json({ success: false, message: 'سجل العملية المسترجعة غير موجود' });
         await Notification.updateMany(

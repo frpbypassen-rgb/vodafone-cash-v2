@@ -25,7 +25,7 @@ const create = async (data, session = null) => {
  * @private
  */
 const _generateCustomId = async (session = null) => {
-    const options = { upsert: true, new: true };
+    const options = { upsert: true, returnDocument: 'after' };
     if (session) options.session = session;
 
     const counter = await Counter.findOneAndUpdate(
@@ -67,7 +67,7 @@ const findByStatus = async (status, filters = {}, options = {}) => {
  * تحديث حالة عملية بشكل ذري
  */
 const updateStatus = async (id, status, additionalData = {}, session = null) => {
-    const options = { new: true };
+    const options = { returnDocument: 'after' };
     if (session) options.session = session;
 
     return Transaction.findOneAndUpdate(
@@ -91,7 +91,7 @@ const acceptTask = async (taskId, operatorId, executorName) => {
                 emergencyAlert: undefined
             }
         },
-        { new: true }
+        { returnDocument: 'after' }
     );
 };
 

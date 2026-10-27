@@ -119,7 +119,7 @@ exports.postUpdatePermissions = async (req, res) => {
             $set: { staffPermissions, canManageAgent: false, canCreateAgentStaff: false, canViewAllReports: staffPermissions.canViewAllReports },
             $inc: { sessionVersion: 1 },
             $unset: { refreshToken: '', otpCode: '', otpExpires: '', otpChallengeId: '', otpIssuedAt: '', otpAttempts: '' }
-        }, { new: true, runValidators: true });
+        }, { returnDocument: 'after', runValidators: true });
         if (!updated) return res.status(409).json({ success: false, code: 'changed' });
         await logAction({ action: 'USER_UPDATED', req, performedById: actor._id, performedByModel: actorModel, performedByName: actor.name, targetId: target._id, targetModel: 'AgentEmployee', result: 'ناجح', metadata: { agentId: agent._id, staffPermissions } });
         return res.json({ success: true, code: 'permissions_updated' });

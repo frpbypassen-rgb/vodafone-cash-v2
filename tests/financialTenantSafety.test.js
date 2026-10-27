@@ -883,12 +883,12 @@ describe('financial tenant safety', () => {
             const updatedSub = await SubAccount.findOneAndUpdate(
                 { _id: sub._id, balance: { $gte: subCost } },
                 { $inc: { balance: -subCost } },
-                { new: true, session }
+                { returnDocument: 'after', session }
             );
             const updatedMaster = await User.findOneAndUpdate(
                 { _id: master._id, balance: { $gte: masterCost } },
                 { $inc: { balance: -masterCost } },
-                { new: true, session }
+                { returnDocument: 'after', session }
             );
             await Ledger.create([
                 {

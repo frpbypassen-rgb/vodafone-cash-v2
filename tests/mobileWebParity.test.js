@@ -606,12 +606,12 @@ describe('📱 Spec 014: Mobile Web Parity Bridge Tests', () => {
             expect(SubAccount.findOneAndUpdate).toHaveBeenCalledWith(
                 expect.objectContaining({ _id: 'sub-id', balance: expect.any(Object) }),
                 { $inc: { balance: -12.5 } },
-                expect.objectContaining({ new: true })
+                expect.objectContaining({ returnDocument: 'after' })
             );
             expect(User.findOneAndUpdate).toHaveBeenCalledWith(
                 expect.objectContaining({ _id: 'master-id', balance: expect.any(Object) }),
                 { $inc: { balance: -10 } },
-                expect.objectContaining({ new: true })
+                expect.objectContaining({ returnDocument: 'after' })
             );
         });
 
