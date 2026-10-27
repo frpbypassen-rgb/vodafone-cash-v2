@@ -1,0 +1,4 @@
+<header class="am-executor-heading">
+    <div><a class="am-detail-back" href="/executors">← منفذو وبوتات التنفيذ</a><h1><%= bot.name %></h1><p><%= bot.isManagerBot ? 'منفذ إداري' : 'منفذ يدوي' %> <span class="am-status <%= bot.status === 'active' ? 'is-active' : '' %>"><%= bot.status === 'active' ? 'نشط' : 'متوقف' %></span></p></div>
+    <details class="am-detail-heading-menu"><summary aria-label="خيارات ملف المنفذ">⋮</summary><div><% if(isMaster) { %><a href="/admin/accounts/executor/<%= bot._id %>/edit">تعديل البيانات</a><% } %><a href="<%= detailUrl('settings') %>#executor-status">حالة استقبال الطلبات</a><a href="/executors">دليل المنفذين والأرشيف</a></div></details>
+</header>

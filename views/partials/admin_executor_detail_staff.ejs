@@ -1,0 +1,6 @@
+<section class="am-detail-panel"><h2>الموظفون <small>(<%= teamEmployees.length %>)</small></h2><div class="am-detail-team">
+<% teamEmployees.forEach(member => { %><article><div><h3><%= member.name %></h3><p><%= {manager:'مدير',accountant:'محاسب',external:'منفذ خارجي',operator:'موظف تنفيذ'}[member.role] || member.role %> · <%= member.status==='active'?'نشط':'متوقف' %></p><bdi><%= member.phone || '—' %></bdi></div><% if(isMaster) { %><a class="am-button" href="/admin/accounts/executor-employee/<%= member._id %>/edit">تعديل</a><% } %></article><% }); %>
+<% if(!teamEmployees.length) { %><p class="am-empty">لا يوجد موظفون مسجلون لهذا المنفذ.</p><% } %>
+</div></section>
+<details class="am-detail-panel"><summary>توزيع الرصيد والمنفذون الخارجيون</summary><%- include('admin_executor_balance_distribution') %></details>
+<% if(isMaster && !bot.isManagerBot) { %><details class="am-detail-panel"><summary>صلاحيات التنفيذ للموظفين</summary><%- include('admin_executor_employee_policies') %></details><% } %>

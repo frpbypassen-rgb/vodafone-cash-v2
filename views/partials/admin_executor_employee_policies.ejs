@@ -1,0 +1,60 @@
+        <% if (typeof isMaster !== 'undefined' && isMaster && !bot.isApiBot && !bot.isManagerBot && typeof teamEmployees !== 'undefined' && Array.isArray(teamEmployees)) { %>
+        <h5 class="fw-bold mb-3" style="color: var(--text-main);"><i class="fa-solid fa-shield-halved text-primary me-2"></i> صلاحيات التنفيذ لكل منفذ</h5>
+        <p class="text-muted small mb-3">تجاوز سياسة الشركة لمنفذ محدد يتم من الإدارة فقط. مدير التنفيذ يمكنه تعديل افتراضي الشركة من إعدادات البوابة، ولا يستطيع حفظ تجاوز على موظف.</p>
+        <div class="row g-3 mb-4">
+            <% const policyMembers = (teamEmployees || []).filter((member) => member.role !== 'manager'); %>
+            <% if (!policyMembers.length) { %>
+                <div class="col-12"><div class="glass-card text-muted fw-bold">لا يوجد موظفون لتخصيص صلاحياتهم.</div></div>
+            <% } %>
+            <% policyMembers.forEach((member) => { %>
+                <% const policy = member.executionPolicy || {}; %>
+                <% const inherited = policy.inherited || {}; %>
+                <% const inheritAll = inherited.proofRequired !== false && inherited.allowedPhoneLengths !== false && inherited.maxConcurrentDevices !== false && inherited.sessionTtl !== false; %>
+                <% const mode = policy.phoneLengthMode || 'all'; %>
+                <% const hours = Math.max(1, Math.round(Number(policy.sessionTtlSeconds || 28800) / 3600)); %>
+                <div class="col-xl-6">
+                    <div class="glass-card h-100">
+                        <div class="d-flex justify-content-between align-items-start mb-3">
+                            <div>
+                                <h6 class="fw-bold m-0"><%= member.name %></h6>
+                                <small class="text-muted"><%= member.role === 'external' ? 'منفّذ خارجي' : (member.role === 'accountant' ? 'محاسب' : 'موظف تنفيذ') %> · <span dir="ltr"><%= member.webUsername %></span></small>
+                            </div>
+                            <a class="btn btn-sm btn-outline-primary fw-bold" href="/admin/accounts/executor-employee/<%= member._id %>/edit">تعديل الحساب</a>
+                        </div>
+                        <form action="/executor/<%= bot._id %>/employees/<%= member._id %>/execution-policy" method="POST" class="row g-2">
+                            <div class="col-12">
+                                <label class="form-check fw-bold small">
+                                    <input class="form-check-input js-inherit-company" type="checkbox" name="inheritCompanyPolicy" value="true" <%= inheritAll ? 'checked' : '' %>>
+                                    استخدام إعداد الشركة
+                                </label>
+                            </div>
+                            <div class="col-12 js-override-fields <%= inheritAll ? 'd-none' : '' %>">
+                                <div class="fw-bold small mb-2">أرقام إثبات المرسل</div>
+                                <div class="d-flex flex-wrap gap-3 mb-2">
+                                    <label class="form-check small"><input class="form-check-input" type="radio" name="phoneLengthMode" value="3" <%= mode === '3' ? 'checked' : '' %>> 3 فقط</label>
+                                    <label class="form-check small"><input class="form-check-input" type="radio" name="phoneLengthMode" value="4" <%= mode === '4' ? 'checked' : '' %>> 4 فقط</label>
+                                    <label class="form-check small"><input class="form-check-input" type="radio" name="phoneLengthMode" value="11" <%= mode === '11' ? 'checked' : '' %>> 11 فقط</label>
+                                    <label class="form-check small"><input class="form-check-input" type="radio" name="phoneLengthMode" value="all" <%= mode === 'all' ? 'checked' : '' %>> الثلاثة</label>
+                                </div>
+                                <label class="form-check fw-bold small mb-2">
+                                    <input class="form-check-input" type="checkbox" name="proofRequired" value="true" <%= policy.proofRequired ? 'checked' : '' %>>
+                                    صورة الإثبات إجبارية
+                                </label>
+                                <label class="form-label fw-bold small">أقصى أجهزة متزامنة</label>
+                                <input class="form-control mb-2" type="number" min="1" max="20" name="maxConcurrentDevices" value="<%= Number(policy.maxConcurrentDevices || 1) %>">
+                                <label class="form-check fw-bold small">
+                                    <input class="form-check-input js-session-ttl" type="checkbox" name="sessionTtlEnabled" value="true" <%= policy.sessionTtlEnabled ? 'checked' : '' %>>
+                                    حد مدة الجلسة
+                                </label>
+                                <label class="form-label fw-bold small">مدة الجلسة (ساعات)</label>
+                                <input class="form-control js-session-hours" type="number" min="1" max="720" name="sessionTtlHours" value="<%= hours %>" <%= policy.sessionTtlEnabled ? '' : 'disabled' %>>
+                            </div>
+                            <div class="col-12 d-grid d-md-flex justify-content-md-end">
+                                <button type="submit" class="btn btn-primary fw-bold"><i class="fa-solid fa-floppy-disk me-1"></i> حفظ صلاحيات المنفذ</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            <% }); %>
+        </div>
+        <% } %>

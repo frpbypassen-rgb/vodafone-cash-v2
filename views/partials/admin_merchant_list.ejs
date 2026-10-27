@@ -1,23 +1,39 @@
-<% const companyList = activeSection === 'companies'; const rows = companyList ? companies : agents; const type = companyList ? 'company' : 'agent'; const path = companyList ? '/company/' : '/user/'; %>
-<div class="am-account-list am-keep-table" data-merchant-list>
-    <table><caption class="am-sr-only">حسابات <%= companyList ? 'الشركات' : 'الوكلاء' %></caption>
-        <thead><tr><th>الحساب</th><th>رقم الحساب</th><th>الهاتف</th><th>الرصيد · د.ل</th><th>الحالة</th><th>الإجراءات</th></tr></thead>
-        <tbody>
-        <% if (!rows.length) { %><tr><td colspan="6" class="am-empty">لا توجد حسابات مطابقة. جرّب تغيير البحث أو الفلتر.</td></tr><% } %>
-        <% rows.forEach(account => { const balance = Number(account.balance || 0); %>
-            <tr>
-                <td class="am-cell-name"><a href="<%= path + account._id %>"><strong><%= account.name %></strong><small><%= companyList ? 'شركة' : 'وكيل' %> · مستوى <%= account.tier || 1 %></small></a></td>
-                <td class="am-cell-code"><span class="am-mobile-label">رقم الحساب </span><bdi><%= account.accountCode || account.agentCode || '—' %></bdi></td>
-                <td class="am-cell-phone"><bdi><%= account.phone || '—' %></bdi></td>
-                <td class="am-cell-balance <%= balance > 0 ? 'am-positive' : balance < 0 ? 'am-negative' : '' %>"><bdi><%= balance.toFixed(2) %></bdi><small class="am-mobile-label"> د.ل</small></td>
-                <td class="am-cell-status"><span class="am-status <%= account.status === 'active' ? 'is-active' : '' %>"><%= account.status === 'active' ? 'نشط' : 'متوقف' %></span></td>
-                <td class="am-cell-actions"><a class="am-open" href="<%= path + account._id %>">فتح</a><details class="am-actions"><summary aria-label="إجراءات <%= account.name %>">⋮</summary><div>
-                    <a href="<%= path + account._id %>?tab=ledger">السجل المالي</a>
-                    <a href="<%= path + account._id %>?tab=staff">الموظفون</a>
-                    <% if (isMaster) { %><a href="/admin/accounts/<%= type %>/<%= account._id %>/edit">تعديل البيانات</a><a href="<%= path + account._id %>?tab=settings">إعدادات البوابة</a><a href="<%= path + account._id %>/sandbox-api-guide.pdf">تحميل ملف اختبار API</a><% } %>
-                </div></details></td>
-            </tr>
-        <% }) %>
-        </tbody>
-    </table>
+<%
+const companyList = activeSection === 'companies';
+const directList = activeSection === 'users';
+const rows = companyList ? companies : directList ? users : agents;
+const type = companyList ? 'company' : directList ? 'user' : 'agent';
+const path = companyList ? '/company/' : '/user/';
+const label = companyList ? 'شركة' : directList ? 'عميل مباشر' : 'وكيل';
+const icon = companyList ? 'fa-building' : directList ? 'fa-user' : 'fa-user-tie';
+%>
+<div class="am-account-grid" data-merchant-list role="list" aria-label="<%= companyList ? 'الشركات' : directList ? 'العملاء المباشرون' : 'الوكلاء' %>">
+    <% if (!rows.length) { %>
+    <div class="am-directory-empty" role="status"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><h2>لا توجد حسابات مطابقة</h2><p>جرّب تغيير البحث أو حالة الحساب.</p><a class="am-button" href="/clients?section=<%= activeSection %>" data-directory-nav>عرض جميع الحسابات</a></div>
+    <% } %>
+    <% rows.forEach(account => { const balance = Number(account.balance || 0); const url = path + account._id; const code = account.accountCode || account.agentCode; %>
+    <article class="am-account-card is-<%= type %>" role="listitem" aria-label="<%= label %>: <%= account.name %>">
+        <header class="am-card-heading">
+            <span class="am-card-avatar"><i class="fa-solid <%= icon %>" aria-hidden="true"></i></span>
+            <div class="am-card-identity"><h2><a href="<%= url %>"><%= account.name || 'حساب بدون اسم' %></a></h2><span><%= label %> · مستوى <%= account.tier || 1 %></span></div>
+            <span class="am-status <%= account.status === 'active' ? 'is-active' : '' %>"><i class="fa-solid <%= account.status === 'active' ? 'fa-circle-check' : 'fa-circle-pause' %>" aria-hidden="true"></i> <%= account.status === 'active' ? 'نشط' : 'متوقف' %></span>
+        </header>
+        <div class="am-card-balance"><span>الرصيد المتاح</span><strong class="<%= balance > 0 ? 'am-positive' : balance < 0 ? 'am-negative' : '' %>"><bdi><%= balance.toLocaleString('en-US', {minimumFractionDigits:3, maximumFractionDigits:3}) %></bdi> <small>د.ل</small></strong></div>
+        <dl class="am-card-info">
+            <div><dt>رقم الحساب</dt><dd><bdi><%= code || '—' %></bdi><% if(code) { %><button class="am-copy-code" type="button" data-copy-code="<%= code %>" aria-label="نسخ رقم حساب <%= account.name %>"><i class="fa-regular fa-copy" aria-hidden="true"></i></button><% } %></dd></div>
+            <div><dt>الهاتف</dt><dd><% if(account.phone && /^\+?\d+$/.test(account.phone)) { %><a href="tel:<%= account.phone %>"><bdi><%= account.phone %></bdi></a><% } else { %>—<% } %></dd></div>
+            <div><dt>المدينة</dt><dd><%= account.businessProfile && account.businessProfile.city || '—' %></dd></div>
+        </dl>
+        <footer class="am-card-footer">
+            <a class="am-card-open" href="<%= url %>">عرض الحساب <i class="fa-solid fa-arrow-left" aria-hidden="true"></i></a>
+            <% if(isMaster) { %><a class="am-card-finance" href="<%= url %><%= directList ? '#account-balance' : '?tab=finance#balance' %>">إيداع / خصم</a><% } %>
+            <details class="am-actions"><summary aria-label="إجراءات <%= account.name %>">⋮</summary><div>
+                <a href="<%= url %><%= directList ? '' : '?tab=ledger' %>">السجل المالي</a>
+                <% if(!directList) { %><a href="<%= url %>?tab=staff">الموظفون</a><% } %>
+                <% if(isMaster) { %><a href="/admin/accounts/<%= type %>/<%= account._id %>/edit">تعديل البيانات</a><% if(!directList) { %><a href="<%= url %>?tab=settings">إعدادات البوابة</a><a href="<%= url %>/sandbox-api-guide.pdf">تحميل ملف اختبار API</a><% } %><% } %>
+            </div></details>
+        </footer>
+    </article>
+    <% }); %>
 </div>
+<span class="am-sr-only" role="status" aria-live="polite" data-directory-feedback></span>

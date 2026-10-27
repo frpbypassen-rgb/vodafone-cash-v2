@@ -19,157 +19,6 @@
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     
     <style>
-        /* =========================================
-           ✨ 3D Modern Cards - التصميم ثلاثي الأبعاد
-           ========================================= */
-        .card-3d-wrapper {
-            perspective: 1000px;
-            height: 100%;
-        }
-
-        .bot-card-3d {
-            background: var(--card-bg);
-            border-radius: 24px;
-            padding: 25px;
-            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-            display: flex;
-            flex-direction: column;
-            justify-content: space-between;
-            height: 100%;
-            position: relative;
-            overflow: hidden;
-            border: 1px solid var(--border-glass);
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
-            z-index: 1;
-        }
-
-        /* توهج خلفي (Glass Glow) */
-        .bot-card-3d::before {
-            content: '';
-            position: absolute;
-            top: -50%;
-            right: -50%;
-            width: 200%;
-            height: 200%;
-            background: radial-gradient(circle, rgba(255,255,255,0.05) 0%, transparent 60%);
-            transform: rotate(45deg);
-            pointer-events: none;
-            z-index: -1;
-        }
-
-        [data-theme="dark"] .bot-card-3d {
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
-        }
-
-        /* 🚀 تأثير الرفع والدوران (Tilt) */
-        .bot-card-3d:hover {
-            transform: translateY(-10px) rotateX(2deg) rotateY(-2deg);
-            box-shadow: 0 25px 50px rgba(0, 0, 0, 0.15);
-        }
-
-        [data-theme="dark"] .bot-card-3d:hover {
-            box-shadow: 0 25px 50px rgba(0, 0, 0, 0.6), inset 0 0 0 1px rgba(255, 255, 255, 0.1);
-        }
-
-        /* 🌟 الأيقونة المتوهجة */
-        .bot-icon-3d {
-            width: 65px;
-            height: 65px;
-            border-radius: 20px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 30px;
-            color: white;
-            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
-            position: relative;
-        }
-
-        .bot-icon-3d::after {
-            content: '';
-            position: absolute;
-            width: 100%;
-            height: 100%;
-            border-radius: inherit;
-            background: inherit;
-            filter: blur(12px);
-            z-index: -1;
-            opacity: 0.6;
-            transition: 0.3s;
-        }
-
-        .bot-card-3d:hover .bot-icon-3d::after {
-            filter: blur(18px);
-            opacity: 0.9;
-        }
-
-        .manager-bot-icon { background: linear-gradient(135deg, #3b82f6, #2563eb); }
-        .normal-bot-icon { background: linear-gradient(135deg, #10b981, #059669); }
-        .api-bot-icon { background: linear-gradient(135deg, #f59e0b, #d97706); }
-
-        /* 💰 مربع الرصيد العميق */
-        .balance-box {
-            background: var(--input-bg);
-            border-radius: 20px;
-            padding: 20px;
-            margin: 25px 0;
-            border: 1px solid var(--border-glass);
-            position: relative;
-            overflow: hidden;
-            box-shadow: inset 0 4px 10px rgba(0,0,0,0.02);
-        }
-
-        [data-theme="dark"] .balance-box {
-            box-shadow: inset 0 4px 10px rgba(0,0,0,0.2);
-        }
-
-        .balance-box::after {
-            content: '\f0d6';
-            font-family: 'Font Awesome 6 Free';
-            font-weight: 900;
-            position: absolute;
-            left: -15px;
-            bottom: -20px;
-            font-size: 90px;
-            opacity: 0.04;
-            transform: rotate(-15deg);
-            color: var(--text-main);
-            pointer-events: none;
-        }
-
-        .mono-num { font-family: 'JetBrains Mono', monospace; font-size: 2.2rem; font-weight: 900; line-height: 1; }
-
-        /* 🔘 الزر التفاعلي */
-        .btn-3d {
-            background: var(--input-bg);
-            border: 1px solid var(--border-glass);
-            color: var(--text-main);
-            border-radius: 16px;
-            padding: 14px;
-            font-weight: 800;
-            transition: all 0.3s;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.02);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            text-decoration: none;
-        }
-
-        .btn-3d:hover {
-            background: var(--brand-primary);
-            color: white;
-            transform: translateY(-3px);
-            box-shadow: 0 10px 25px rgba(0, 26, 77, 0.3);
-            border-color: var(--brand-primary);
-        }
-
-        [data-theme="dark"] .btn-3d:hover {
-            background: var(--brand-gold);
-            color: black;
-            border-color: var(--brand-gold);
-            box-shadow: 0 10px 25px rgba(212, 175, 55, 0.3);
-        }
-
         .executor-access-bar {
             display: grid;
             grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
@@ -223,102 +72,12 @@
             font-family: 'JetBrains Mono', monospace;
             font-size: 0.7rem;
         }
-        .executor-archive-btn {
-            width: 40px;
-            height: 40px;
-            display: inline-grid;
-            place-items: center;
-            flex: 0 0 40px;
-            padding: 0;
-            color: #dc2626;
-            background: rgba(220, 38, 38, 0.08);
-            border: 1px solid rgba(220, 38, 38, 0.28);
-            border-radius: 6px;
-            cursor: pointer;
-        }
-        .executor-archive-btn:hover,
-        .executor-archive-btn:focus-visible {
-            color: #fff;
-            background: #dc2626;
-            outline: none;
-        }
-        .executor-archive-btn.is-locked {
-            color: var(--text-muted);
-            background: var(--input-bg);
-            border-color: var(--border-glass);
-        }
-        .archive-card {
-            height: 100%;
-            padding: 20px;
-            background: var(--card-bg);
-            border: 1px solid var(--border-glass);
-            border-right: 4px solid #64748b;
-            border-radius: 8px;
-            box-shadow: var(--shadow-soft);
-        }
-        .archive-card-header {
-            display: flex;
-            align-items: flex-start;
-            justify-content: space-between;
-            gap: 14px;
-        }
-        .archive-identity { display: flex; align-items: center; gap: 12px; min-width: 0; }
-        .archive-icon {
-            width: 48px;
-            height: 48px;
-            display: grid;
-            place-items: center;
-            flex: 0 0 48px;
-            color: #64748b;
-            background: rgba(100, 116, 139, 0.12);
-            border-radius: 6px;
-            font-size: 1.1rem;
-        }
-        .archive-metrics {
-            display: grid;
-            grid-template-columns: repeat(3, minmax(0, 1fr));
-            margin: 18px 0;
-            padding: 14px 0;
-            border-top: 1px solid var(--border-glass);
-            border-bottom: 1px solid var(--border-glass);
-        }
-        .archive-metric { min-width: 0; padding: 0 10px; text-align: center; }
-        .archive-metric + .archive-metric { border-right: 1px solid var(--border-glass); }
-        .archive-metric span { display: block; color: var(--text-muted); font-size: 0.68rem; font-weight: 800; }
-        .archive-metric strong { display: block; margin-top: 5px; color: var(--text-main); font-size: 0.86rem; overflow-wrap: anywhere; }
-        .archive-reason {
-            min-height: 44px;
-            margin-bottom: 15px;
-            color: var(--text-muted);
-            font-size: 0.78rem;
-            font-weight: 700;
-            line-height: 1.7;
-        }
-        .archive-meta { color: var(--text-muted); font-size: 0.72rem; font-weight: 700; }
-        .archive-open-btn {
-            min-height: 42px;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-            width: 100%;
-            margin-top: 14px;
-            color: var(--text-main);
-            background: var(--input-bg);
-            border: 1px solid var(--border-glass);
-            border-radius: 6px;
-            text-decoration: none;
-            font-size: 0.8rem;
-            font-weight: 900;
-        }
-        .archive-open-btn:hover { color: #fff; background: #475569; border-color: #475569; }
         @media (max-width: 767px) {
             .executor-access-bar { grid-template-columns: 1fr; padding: 14px; }
             .admin-nav { align-items: stretch !important; gap: 12px; }
             .admin-nav .btn { width: 100%; }
             .executor-tabs { width: 100%; }
             .executor-tab { flex: 1; padding: 0 10px; }
-            .archive-metric { padding: 0 5px; }
         }
     </style>
 
@@ -330,22 +89,25 @@
     <meta name="apple-mobile-web-app-title" content="Al-Ahram">
     <!-- End PWA Setup -->
 <%- include('partials/admin_modern_head') %>
+<link rel="stylesheet" href="/css/admin-merchants.css?v=20261027-cards">
+<link rel="stylesheet" href="/css/admin-directory-cards.css?v=20261027-cards">
+<link rel="stylesheet" href="/css/admin-executor-cards.css?v=20261027">
 </head>
-<body>
+<body class="am-merchant-body">
 
 <button class="mobile-nav-toggle" onclick="toggleSidebar()"><i class="fa-solid fa-bars"></i></button>
 <div class="sidebar-overlay" onclick="toggleSidebar()"></div>
 
 <%- include('partials/sidebar', { activePage: 'executors' }) %>
 
-<div class="main-content">
-    <div class="container-fluid">
+<div class="main-content am-executor-directory">
+    <div class="container-fluid am-directory-cards" data-executor-directory>
         <div class="admin-nav mb-4">
-            <h1 class="fw-bold m-0 text-dark"><i class="fa-solid fa-network-wired text-primary me-2"></i> منفذو العمليات</h1>
+            <h1 class="fw-bold m-0 text-dark"><i class="fa-solid fa-network-wired text-primary me-2"></i> منفذو وبوتات التنفيذ</h1>
             <button type="button" class="btn btn-primary fw-bold shadow-sm px-4" data-bs-toggle="modal" data-bs-target="#createExecutorModal"><i class="fa-solid fa-user-plus me-1"></i> إضافة منفذ يدوياً</button>
         </div>
 
-        <div class="executor-access-bar" aria-label="روابط المنفذين">
+        <details class="am-executor-access"><summary><i class="fa-solid fa-link" aria-hidden="true"></i> روابط التسجيل والدخول</summary><div class="executor-access-bar" aria-label="روابط المنفذين">
             <div>
                 <div class="executor-link-label"><i class="fa-solid fa-user-pen me-1"></i> رابط تقديم طلب منفذ جديد</div>
                 <div class="input-group">
@@ -363,6 +125,7 @@
                 </div>
             </div>
         </div>
+        </details>
 
         <% if (typeof query !== 'undefined' && query.created) { %>
             <div class="alert alert-success fw-bold rounded-4 border-0 shadow-sm">
@@ -421,161 +184,26 @@
             </button>
         </div>
 
+
+        <div class="am-executor-filters" role="search" aria-label="البحث في منفذي التنفيذ">
+            <label class="am-executor-search"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><input type="search" data-executor-search aria-label="البحث باسم المنفذ أو الخدمة" placeholder="ابحث باسم المنفذ أو الخدمة…"></label>
+            <select data-executor-status aria-label="حالة المنفذ"><option value="all">كل الحالات</option><option value="active">نشط</option><option value="stopped">متوقف</option></select>
+            <select data-executor-kind aria-label="نوع المنفذ"><option value="all">كل الأنواع</option><option value="manual">يدوي</option><option value="api">API</option><option value="manager">إداري</option></select>
+        </div>
+        <p class="am-executor-result" role="status" aria-live="polite" data-executor-result></p>
         <div class="tab-content pb-5">
             <section class="tab-pane fade <%= showArchiveTab ? '' : 'show active' %>" id="current-executors-pane" role="tabpanel" aria-labelledby="current-executors-tab" tabindex="0">
-                <div class="row g-4 mt-2">
-                    <% if (bots.length === 0) { %>
-                        <div class="col-12 text-center py-5">
-                            <i class="fa-solid fa-robot fa-4x text-muted opacity-25 mb-3"></i>
-                            <h5 class="text-muted fw-bold">لا توجد حسابات منفذين حالية.</h5>
-                        </div>
-                    <% } %>
-
-                    <% bots.forEach(bot => { %>
-                        <div class="col-xl-4 col-md-6">
-                            <div class="card-3d-wrapper">
-                                <div class="bot-card-3d" style="border-top: 5px solid <%= bot.isApiBot ? '#f59e0b' : (bot.isManagerBot ? '#3b82f6' : '#10b981') %>;">
-                                    <div>
-                                        <div class="d-flex justify-content-between align-items-start gap-2 mb-3">
-                                            <div class="d-flex align-items-center gap-3 min-w-0">
-                                                <div class="bot-icon-3d <%= bot.isApiBot ? 'api-bot-icon' : (bot.isManagerBot ? 'manager-bot-icon' : 'normal-bot-icon') %>">
-                                                    <i class="fa-solid <%= bot.isApiBot ? 'fa-plug-circle-bolt' : (bot.isManagerBot ? 'fa-building' : 'fa-robot') %>"></i>
-                                                </div>
-                                                <div class="min-w-0">
-                                                    <h5 class="fw-bold m-0 text-dark mb-1 text-break"><%= bot.name %></h5>
-                                                    <span class="badge <%= bot.status === 'active' ? 'bg-success text-success border-success' : 'bg-danger text-danger border-danger' %> bg-opacity-10 border rounded-pill px-3 py-1 mt-1" style="font-size:0.75rem;">
-                                                        <i class="fa-solid <%= bot.status === 'active' ? 'fa-check-circle' : 'fa-ban' %> me-1"></i><%= bot.status === 'active' ? 'مفعل ونشط' : 'متوقف' %>
-                                                    </span>
-                                                    <div class="text-primary small fw-bold mt-2"><i class="fa-solid fa-layer-group me-1"></i><%= bot.serviceLabel %></div>
-                                                    <% if (bot.isApiBot) { %>
-                                                        <div class="text-muted small fw-bold mt-2"><i class="fa-solid fa-plug me-1"></i><%= bot.apiProviderKey === 'zayn_external_aggregator' ? 'Zayn External Aggregator' : (bot.apiProviderKey || 'API Provider') %></div>
-                                                        <% if (bot.lastApiTestAt) { %>
-                                                            <div class="small mt-2 <%= bot.lastApiTestStatus === 'success' ? 'text-success' : 'text-danger' %>">
-                                                                <i class="fa-solid <%= bot.lastApiTestStatus === 'success' ? 'fa-circle-check' : 'fa-triangle-exclamation' %> me-1"></i>آخر اختبار: <%= new Date(bot.lastApiTestAt).toLocaleString('ar-LY', { timeZone: 'Africa/Tripoli' }) %>
-                                                            </div>
-                                                        <% } %>
-                                                    <% } %>
-                                                </div>
-                                            </div>
-                                            <% if (isMaster) { %>
-                                                <button type="button" class="executor-archive-btn <%= bot.status === 'active' ? 'is-locked' : '' %>" data-executor-id="<%= bot._id %>" data-executor-name="<%= bot.name %>" data-executor-status="<%= bot.status %>" onclick="archiveExecutor(this)" title="<%= bot.status === 'active' ? 'أوقف المنفذ أولاً قبل حذفه' : 'حذف الحساب ونقله إلى الأرشيف' %>" aria-label="حذف حساب <%= bot.name %>">
-                                                    <i class="fa-solid fa-box-archive"></i>
-                                                </button>
-                                            <% } %>
-                                        </div>
-
-                                        <div class="balance-box text-center">
-                                            <% const hasLiveApiServiceCredit = bot.isApiBot && bot.liveApiServiceCredit !== null && bot.liveApiServiceCredit !== undefined; %>
-                                            <div class="text-muted small fw-bold mb-2"><i class="fa-solid <%= bot.isApiBot ? 'fa-satellite-dish' : 'fa-wallet' %> me-1 opacity-50"></i> <%= bot.isApiBot ? 'آخر رصيد خدمة لدى المزود' : 'الأرصدة حسب الخدمة' %></div>
-                                            <% if (bot.isApiBot && !hasLiveApiServiceCredit) { %>
-                                                <div class="small text-muted fw-bold">لا يوجد رصيد محفوظ من المزود</div>
-                                            <% } else if (bot.isApiBot) { %>
-                                                <% const displayedBalance = Number(bot.liveApiServiceCredit); %>
-                                                <div class="mono-num <%= displayedBalance < 0 ? 'text-danger' : 'text-success' %>" dir="ltr"><%= displayedBalance.toFixed(2) %> <span class="fs-6 text-muted">EGP</span></div>
-                                            <% } else if (Array.isArray(bot.serviceBalances) && bot.multiService) { %>
-                                                <div class="d-grid gap-2 text-start">
-                                                    <% bot.serviceBalances.forEach((row) => { %>
-                                                        <div class="d-flex justify-content-between align-items-center">
-                                                            <span class="small fw-bold text-muted"><%= row.appliesPoolModel ? row.totalLabel : row.singleLabel %></span>
-                                                            <strong class="mono-num <%= Number(row.appliesPoolModel ? row.totalBalance : row.privateBalance) < 0 ? 'text-danger' : 'text-success' %>" dir="ltr"><%= Number(row.appliesPoolModel ? row.totalBalance : row.privateBalance).toFixed(2) %></strong>
-                                                        </div>
-                                                    <% }); %>
-                                                </div>
-                                            <% } else { %>
-                                                <% const displayedBalance = Number(bot.balance || 0); %>
-                                                <div class="mono-num <%= displayedBalance < 0 ? 'text-danger' : 'text-success' %>" dir="ltr"><%= displayedBalance.toFixed(2) %> <span class="fs-6 text-muted">EGP</span></div>
-                                            <% } %>
-                                            <% if (hasLiveApiServiceCredit && bot.liveApiBalanceCheckedAt) { %>
-                                                <div class="small text-muted fw-bold mt-2"><i class="fa-solid fa-clock me-1"></i>آخر فحص: <%= new Date(bot.liveApiBalanceCheckedAt).toLocaleString('ar-LY', { timeZone: 'Africa/Tripoli' }) %></div>
-                                            <% } %>
-                                            <% if (bot.isApiBot) { %>
-                                                <% if (bot.liveApiBalanceError) { %><div class="small text-warning mt-2"><%= bot.liveApiBalanceError %></div><% } %>
-                                                <a class="small d-inline-block mt-2" href="/executor/<%= bot._id %>">فتح التفاصيل للاستعلام عن الرصيد الحالي</a>
-                                            <% } %>
-                                        </div>
-                                    </div>
-
-                                    <div>
-                                        <% if (isMaster && !bot.isManagerBot) { %>
-                                            <form action="/executor/<%= bot._id %>/service" method="POST" class="input-group mb-2" onsubmit="return confirm('سيتم إزالة تعيينات التوجيه التلقائي القديمة لهذا المنفذ. متابعة؟');">
-                                                <span class="input-group-text" title="خدمة المنفذ"><i class="fa-solid fa-layer-group"></i></span>
-                                                <select name="serviceKey" class="form-select fw-bold" aria-label="خدمة المنفذ">
-                                                    <% (executorServiceOptions || []).forEach((service) => { %>
-                                                        <option value="<%= service.key %>" <%= bot.serviceKey === service.key ? 'selected' : '' %>><%= service.label %></option>
-                                                    <% }) %>
-                                                </select>
-                                                <button type="submit" class="btn btn-primary" title="حفظ خدمة المنفذ" aria-label="حفظ خدمة المنفذ"><i class="fa-solid fa-floppy-disk"></i></button>
-                                            </form>
-                                            <form action="/executor/<%= bot._id %>/enabled-services" method="POST" class="mb-2 p-2 rounded-3 border" style="background: rgba(0,0,0,0.02);">
-                                                <div class="small fw-bold text-muted mb-2">خدمات إضافية</div>
-                                                <input type="hidden" name="enabledServices" value="<%= bot.serviceKey %>">
-                                                <div class="d-flex flex-wrap gap-2">
-                                                    <% (executorServiceOptions || []).forEach((service) => { %>
-                                                        <label class="form-check small fw-bold m-0">
-                                                            <input class="form-check-input" type="checkbox" name="enabledServices" value="<%= service.key %>" <%= (bot.serviceKeys || [bot.serviceKey]).includes(service.key) ? 'checked' : '' %> <%= service.key === bot.serviceKey ? 'disabled' : '' %>>
-                                                            <%= service.shortLabel || service.label %>
-                                                        </label>
-                                                    <% }); %>
-                                                </div>
-                                                <button type="submit" class="btn btn-sm btn-outline-primary fw-bold mt-2 w-100">حفظ الخدمات</button>
-                                            </form>
-                                        <% } %>
-                                        <div class="d-flex justify-content-between align-items-center p-3 rounded-4 mb-3 border" style="background: rgba(0,0,0,0.02);">
-                                            <span class="fw-bold small text-muted"><i class="fa-solid fa-check-double me-1 opacity-50"></i> إجمالي العمليات المنجزة</span>
-                                            <span class="badge bg-primary fs-6 rounded-pill px-3 shadow-sm"><%= bot.txCount %> طلب</span>
-                                        </div>
-                                        <% if (bot.isApiBot) { %>
-                                            <button type="button" class="btn-3d w-100 mb-2 api-test-btn" data-api-bot-id="<%= bot._id %>" onclick="testApiExecutor(this)"><i class="fa-solid fa-signal me-2"></i> فحص الاتصال والرصيد</button>
-                                            <a href="/executor/<%= bot._id %>#connection-test" class="btn-3d w-100 mb-2" style="color:#087f74; border:1px solid rgba(8,127,116,.35);"><i class="fa-solid fa-vial me-2"></i> اختبار تنفيذ تحويل آمن</a>
-                                        <% } %>
-                                        <% if (isMaster) { %>
-                                            <a href="/admin/accounts/executor/<%= bot._id %>/edit" class="btn-3d w-100 mb-2" style="color:#087f74; border:1px solid rgba(8,127,116,.35);"><i class="fa-solid fa-pen-to-square me-2"></i> تعديل بيانات المنفذ</a>
-                                        <% } %>
-                                        <a href="/executor/<%= bot._id %>" class="btn-3d w-100"><i class="fa-solid fa-folder-open me-2"></i> إدارة التفاصيل والملف المحاسبي</a>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    <% }) %>
+                <div class="am-account-grid" role="list" aria-label="المنفذون الحاليون">
+                    <% bots.forEach(bot => { %><%- include('partials/admin_executor_card', {bot, archived:false}) %><% }); %>
                 </div>
+                <div class="am-directory-empty" data-executor-empty hidden><h2>لا توجد حسابات مطابقة</h2><p>جرّب تغيير البحث أو الفلاتر.</p></div>
             </section>
 
             <section class="tab-pane fade <%= showArchiveTab ? 'show active' : '' %>" id="archived-executors-pane" role="tabpanel" aria-labelledby="archived-executors-tab" tabindex="0">
-                <div class="row g-3 mt-2">
-                    <% if (archivedBots.length === 0) { %>
-                        <div class="col-12 text-center py-5">
-                            <i class="fa-solid fa-box-open fa-4x text-muted opacity-25 mb-3"></i>
-                            <h5 class="text-muted fw-bold">أرشيف المنفذين فارغ.</h5>
-                        </div>
-                    <% } %>
-                    <% archivedBots.forEach(bot => { %>
-                        <div class="col-xl-4 col-md-6">
-                            <article class="archive-card">
-                                <div class="archive-card-header">
-                                    <div class="archive-identity">
-                                        <div class="archive-icon"><i class="fa-solid fa-box-archive"></i></div>
-                                        <div class="min-w-0">
-                                            <h5 class="fw-bold text-dark m-0 text-break"><%= bot.name %></h5>
-                                            <div class="text-muted small mt-1"><%= bot.isApiBot ? 'منفذ API' : (bot.isManagerBot ? 'وكالة إدارية' : 'منفذ يدوي') %></div>
-                                        </div>
-                                    </div>
-                                    <span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary">مؤرشف</span>
-                                </div>
-                                <div class="archive-metrics">
-                                    <div class="archive-metric"><span>العمليات</span><strong><%= bot.txCount || 0 %></strong></div>
-                                    <div class="archive-metric"><span>الحسابات</span><strong><%= bot.archiveEmployeeCount || 0 %></strong></div>
-                                    <div class="archive-metric"><span>الرصيد الختامي</span><strong dir="ltr"><%= Number(bot.balance || 0).toFixed(2) %></strong></div>
-                                </div>
-                                <div class="archive-reason"><i class="fa-solid fa-note-sticky me-1"></i><%= bot.archiveReason || 'لم تسجل ملاحظة للأرشفة.' %></div>
-                                <div class="archive-meta">
-                                    <i class="fa-regular fa-calendar me-1"></i><%= bot.archivedAt ? new Date(bot.archivedAt).toLocaleString('ar-LY', { timeZone: 'Africa/Tripoli' }) : '---' %>
-                                    <span class="mx-1">•</span><%= bot.archivedBy || 'الإدارة' %>
-                                </div>
-                                <a class="archive-open-btn" href="/executor/<%= bot._id %>"><i class="fa-solid fa-clock-rotate-left"></i> فتح العمليات المحفوظة</a>
-                            </article>
-                        </div>
-                    <% }) %>
+                <div class="am-account-grid" role="list" aria-label="المنفذون المؤرشفون">
+                    <% archivedBots.forEach(bot => { %><%- include('partials/admin_executor_card', {bot, archived:true}) %><% }); %>
                 </div>
+                <div class="am-directory-empty" data-executor-empty hidden><h2>لا توجد حسابات مؤرشفة مطابقة</h2><p>تُحفظ هنا حسابات المنفذين وعملياتهم بعد الأرشفة.</p></div>
             </section>
         </div>
     </div>
@@ -913,6 +541,8 @@
         }
     });
 </script>
+<script src="/js/admin-account-directory.js?v=20261027-cards"></script>
+<script src="/js/admin-executor-directory.js?v=20261027"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

@@ -1,0 +1,2 @@
+<nav class="am-detail-tabs" aria-label="أقسام ملف المنفذ"><% Object.entries(detailLabels).forEach(([key,label]) => { %><a href="<%= detailUrl(key) %>" <%= history.filters.tab===key?'aria-current=page':'' %>><%= label %></a><% }); %></nav>
+<label class="am-detail-tab-select">القسم<select data-executor-detail-tab aria-label="قسم ملف المنفذ"><% Object.entries(detailLabels).forEach(([key,label])=> { %><option value="<%= detailUrl(key) %>" <%= history.filters.tab===key?'selected':'' %>><%= label %></option><% }); %></select></label>

@@ -1,0 +1,24 @@
+<% if (isMaster && !bot.isManagerBot) { %>
+                                            <form action="/executor/<%= bot._id %>/service" method="POST" class="input-group mb-2" onsubmit="return confirm('سيتم إزالة تعيينات التوجيه التلقائي القديمة لهذا المنفذ. متابعة؟');">
+                                                <span class="input-group-text" title="خدمة المنفذ"><i class="fa-solid fa-layer-group"></i></span>
+                                                <select name="serviceKey" class="form-select fw-bold" aria-label="خدمة المنفذ">
+                                                    <% (executorServiceOptions || []).forEach((service) => { %>
+                                                        <option value="<%= service.key %>" <%= bot.serviceKey === service.key ? 'selected' : '' %>><%= service.label %></option>
+                                                    <% }) %>
+                                                </select>
+                                                <button type="submit" class="btn btn-primary" title="حفظ خدمة المنفذ" aria-label="حفظ خدمة المنفذ"><i class="fa-solid fa-floppy-disk"></i></button>
+                                            </form>
+                                            <form action="/executor/<%= bot._id %>/enabled-services" method="POST" class="mb-2 p-2 rounded-3 border" style="background: rgba(0,0,0,0.02);">
+                                                <div class="small fw-bold text-muted mb-2">خدمات إضافية</div>
+                                                <input type="hidden" name="enabledServices" value="<%= bot.serviceKey %>">
+                                                <div class="d-flex flex-wrap gap-2">
+                                                    <% (executorServiceOptions || []).forEach((service) => { %>
+                                                        <label class="form-check small fw-bold m-0">
+                                                            <input class="form-check-input" type="checkbox" name="enabledServices" value="<%= service.key %>" <%= (bot.serviceKeys || [bot.serviceKey]).includes(service.key) ? 'checked' : '' %> <%= service.key === bot.serviceKey ? 'disabled' : '' %>>
+                                                            <%= service.shortLabel || service.label %>
+                                                        </label>
+                                                    <% }); %>
+                                                </div>
+                                                <button type="submit" class="btn btn-sm btn-outline-primary fw-bold mt-2 w-100">حفظ الخدمات</button>
+                                            </form>
+                                        <% } %>

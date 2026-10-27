@@ -1,0 +1,25 @@
+<% const financeTab=history.filters.tab==='ledger'; %>
+<% if(financeTab) { %><details class="am-detail-panel am-settlement-panel" data-settlement-panel><summary>＋ إيداع / خصم الرصيد</summary><%- include('admin_executor_settlement') %></details><% } %>
+<section class="am-detail-panel">
+<header class="am-detail-section-head"><h2><%= detailLabels[history.filters.tab] %></h2><span><%= history.total %> حركة</span></header>
+<form method="get" class="am-detail-filters" role="search" aria-label="تصفية حركات المنفذ">
+    <input type="hidden" name="tab" value="<%= history.filters.tab %>">
+    <label class="am-detail-query">البحث<input type="search" name="q" value="<%= history.filters.q %>" placeholder="رقم العملية أو المستفيد" aria-label="البحث في حركات المنفذ"></label>
+    <button class="am-button primary" type="submit">بحث</button><% if(history.filters.q || history.filters.status || history.filters.service || history.filters.from || history.filters.to) { %><a class="am-button am-detail-clear" href="/executor/<%= bot._id %>?tab=<%= history.filters.tab %>">مسح</a><% } %>
+    <details class="am-detail-advanced" <%= history.filters.status || history.filters.service || (!history.filters.period && (history.filters.from || history.filters.to)) ? 'open' : '' %>><summary>خيارات التصفية · الحالة والخدمة والفترة</summary><div>    <label><%= financeTab?'نوع الحركة':'الحالة' %><select name="status"><option value="">الكل</option><% Object.entries(detailStatuses).filter(([key])=>!financeTab || ['completed','deposit','deduction'].includes(key)).forEach(([key,label])=> { %><option value="<%= key %>" <%= history.filters.status===key?'selected':'' %>><%= label %></option><% }); %></select></label>
+    <label>الخدمة<select name="service"><option value="">كل الخدمات</option><% executorServiceOptions.forEach(s=>{ %><option value="<%= s.key %>" <%= history.filters.service===s.key?'selected':'' %>><%= s.label %></option><% }); %></select></label>
+    <label>من<input type="date" name="from" value="<%= history.filters.from %>"></label><label>إلى<input type="date" name="to" value="<%= history.filters.to %>"></label>
+</div></details>
+</form>
+<nav class="am-detail-periods" aria-label="الفترة"><% [['','كل الفترات'],['today','اليوم'],['week','أسبوع'],['month','الشهر']].forEach(([key,label])=> { %><a href="<%= detailUrl(history.filters.tab,{period:key,from:'',to:'',page:''}) %>" <%= history.filters.period===key?'aria-current=page':'' %>><%= label %></a><% }); %></nav>
+<% if(history.filters.error) { %><p class="alert alert-danger" role="alert"><%= history.filters.error %></p><% } %>
+<% if(financeTab) { %><details class="am-detail-ledger-help"><summary>كيف يُحسب الرصيد؟</summary><p class="am-detail-help">الرصيد قبل الحركة وبعدها يخص الخدمة المحددة، ويشمل الأرصدة الموزعة على المنفذين الخارجيين.</p></details><% } %>
+<div class="am-detail-records">
+<% history.rows.forEach(tx=> { const serviceOption=executorServiceOptions.find(s=>s.key===tx.service); %>
+<details class="am-detail-record"><summary><div><strong><bdi><%= tx.customId || tx._id %></bdi></strong><span><%= detailStatuses[tx.status] || tx.status %> · <%= serviceOption?serviceOption.shortLabel||serviceOption.label:tx.service %></span><time><%= new Date(tx.at).toLocaleString('ar-LY',{timeZone:'Africa/Tripoli'}) %></time></div><div class="am-detail-record-money"><strong class="<%= financeTab?detailColor(tx.movement):'' %>"><bdi><%= financeTab && tx.movement>0?'+':'' %><%= detailMoney(financeTab?tx.movement:tx.amount) %></bdi> <small>ج.م</small></strong><% if(financeTab) { %><span>الرصيد بعدها: <bdi><%= detailMoney(tx.balanceAfter) %></bdi></span><% } %><span>التفاصيل⌄</span></div></summary>
+    <dl><% if(financeTab) { %><div><dt>الرصيد قبل الحركة</dt><dd><bdi><%= detailMoney(tx.balanceBefore) %></bdi> ج.م</dd></div><div><dt>الرصيد بعد الحركة</dt><dd><bdi><%= detailMoney(tx.balanceAfter) %></bdi> ج.م</dd></div><% } %><div><dt>المستفيد / الحساب</dt><dd><%= tx.accountName || tx.vodafoneNumber || tx.accountNumber || '—' %></dd></div><div><dt>رقم المحفظة / الحساب</dt><dd><bdi><%= tx.vodafoneNumber || tx.accountNumber || '—' %></bdi></dd></div><div><dt>الموظف المنفذ</dt><dd><%= tx.executorName || tx.employeeName || '—' %></dd></div><div><dt>الملاحظة</dt><dd><%= tx.notes || '—' %></dd></div></dl>
+</details><% }); %>
+<% if(!history.rows.length) { %><p class="am-empty" role="status">لا توجد حركات مطابقة للفترة والبحث.</p><% } %>
+</div>
+<% if(history.totalPages>1) { %><nav class="am-detail-pagination" aria-label="صفحات الحركات"><% if(history.page>1) { %><a class="am-button" href="<%= detailUrl(history.filters.tab,{page:history.page-1}) %>">السابق</a><% } %><span><%= history.page %> / <%= history.totalPages %></span><% if(history.page<history.totalPages) { %><a class="am-button" href="<%= detailUrl(history.filters.tab,{page:history.page+1}) %>">التالي</a><% } %></nav><% } %>
+</section>

@@ -1,0 +1,43 @@
+<%
+const kind = bot.isApiBot ? 'api' : bot.isManagerBot ? 'manager' : 'manual';
+const kindLabel = kind === 'api' ? 'بوت API' : kind === 'manager' ? 'منفذ إداري' : 'منفذ يدوي';
+const colorFor = value => Number(value) > 0 ? 'am-positive' : Number(value) < 0 ? 'am-negative' : '';
+const formatBalance = value => Number(value || 0).toLocaleString('en-US', {minimumFractionDigits:2,maximumFractionDigits:2});
+const providerBalance = bot.liveApiServiceCredit !== null && bot.liveApiServiceCredit !== undefined;
+%>
+<article class="am-account-card am-executor-card" role="listitem" data-executor-card data-kind="<%= kind %>" data-status="<%= archived ? 'archived' : bot.status %>" data-search="<%= [bot.name, bot.serviceLabel, kindLabel, bot.apiProviderKey || ''].join(' ') %>">
+    <header class="am-card-heading">
+        <span class="am-card-avatar"><i class="fa-solid <%= kind === 'api' ? 'fa-plug' : kind === 'manager' ? 'fa-building' : 'fa-robot' %>" aria-hidden="true"></i></span>
+        <div class="am-card-identity"><h2><a href="/executor/<%= bot._id %>"><%= bot.name %></a></h2><span><%= kindLabel %></span></div>
+        <span class="am-status <%= !archived && bot.status === 'active' ? 'is-active' : '' %>"><i class="fa-solid <%= archived ? 'fa-box-archive' : bot.status === 'active' ? 'fa-circle-check' : 'fa-circle-pause' %>" aria-hidden="true"></i> <%= archived ? 'مؤرشف' : bot.status === 'active' ? 'نشط' : 'متوقف' %></span>
+    </header>
+    <div class="am-executor-service"><i class="fa-solid fa-layer-group" aria-hidden="true"></i> <%= bot.serviceLabel || 'خدمات التنفيذ' %></div>
+    <div class="am-card-balance">
+        <span><%= archived ? 'الرصيد الختامي' : kind === 'api' ? 'آخر رصيد محفوظ لدى المزود' : bot.multiService ? 'الأرصدة حسب الخدمة' : 'الرصيد المتاح' %></span>
+        <% if(!archived && kind === 'api' && !providerBalance) { %><p class="am-provider-empty">لا يوجد رصيد محفوظ من المزود</p>
+        <% } else if(!archived && kind === 'api') { %><strong class="<%= colorFor(bot.liveApiServiceCredit) %>"><bdi><%= formatBalance(bot.liveApiServiceCredit) %></bdi> <small>ج.م</small></strong>
+        <% } else if(!archived && bot.multiService && Array.isArray(bot.serviceBalances)) { %>
+            <div class="am-executor-balances"><% bot.serviceBalances.forEach(row => { const amount = row.appliesPoolModel ? row.totalBalance : row.privateBalance; %><div><span><%= row.appliesPoolModel ? row.totalLabel : row.singleLabel %></span><strong class="<%= colorFor(amount) %>"><bdi><%= formatBalance(amount) %></bdi> <small>ج.م</small></strong></div><% }); %></div>
+        <% } else { %><strong class="<%= colorFor(bot.balance) %>"><bdi><%= formatBalance(bot.balance) %></bdi> <small>ج.م</small></strong><% } %>
+    </div>
+    <dl class="am-card-info">
+        <div><dt>العمليات المنجزة</dt><dd><bdi><%= bot.txCount || 0 %></bdi> عملية</dd></div>
+        <% if(kind === 'api' && !archived) { %>
+        <div><dt>المزود</dt><dd><%= bot.apiProviderKey === 'zayn_external_aggregator' ? 'Zayn External Aggregator' : bot.apiProviderKey || '—' %></dd></div>
+        <div><dt>آخر فحص</dt><dd><%= bot.liveApiBalanceCheckedAt ? new Date(bot.liveApiBalanceCheckedAt).toLocaleString('ar-LY', {timeZone:'Africa/Tripoli'}) : 'لم يُفحص بعد' %></dd></div>
+        <% } %>
+        <% if(archived) { %><div><dt>الحسابات المحفوظة</dt><dd><%= bot.archiveEmployeeCount || 0 %></dd></div><div><dt>تاريخ الأرشفة</dt><dd><%= bot.archivedAt ? new Date(bot.archivedAt).toLocaleDateString('ar-LY', {timeZone:'Africa/Tripoli'}) : '—' %></dd></div><% } %>
+    </dl>
+    <% if(!archived && kind === 'api' && bot.liveApiBalanceError) { %><p class="am-executor-warning"><%= bot.liveApiBalanceError %></p><% } %>
+    <% if(archived) { %><p class="am-executor-note"><%= bot.archiveReason || 'لم تسجل ملاحظة للأرشفة.' %> · <%= bot.archivedBy || 'الإدارة' %></p><% } %>
+    <% if(!archived && isMaster && !bot.isManagerBot) { %><details class="am-executor-services"><summary>إدارة خدمات المنفذ</summary><div><%- include('admin_executor_services') %></div></details><% } %>
+    <footer class="am-card-footer">
+        <a class="am-card-open" href="/executor/<%= bot._id %>"><%= archived ? 'عرض العمليات المحفوظة' : 'عرض الحساب' %> <i class="fa-solid fa-arrow-left" aria-hidden="true"></i></a>
+        <% if(!archived && isMaster) { %><a class="am-card-finance" href="/executor/<%= bot._id %>#settlementForm">إيداع / خصم</a><% } %>
+        <% if(!archived) { %><details class="am-actions"><summary aria-label="إجراءات <%= bot.name %>">⋮</summary><div>
+            <% if(kind === 'api') { %><button type="button" data-api-bot-id="<%= bot._id %>" onclick="testApiExecutor(this)">فحص الاتصال والرصيد</button><a href="/executor/<%= bot._id %>#connection-test">اختبار تنفيذ تحويل آمن</a><% } %>
+            <% if(isMaster) { %><a href="/admin/accounts/executor/<%= bot._id %>/edit">تعديل بيانات المنفذ</a><button class="am-executor-archive" type="button" data-executor-id="<%= bot._id %>" data-executor-name="<%= bot.name %>" data-executor-status="<%= bot.status %>" onclick="archiveExecutor(this)"><%= bot.status === 'active' ? 'الأرشفة تتطلب إيقاف المنفذ' : 'نقل إلى الأرشيف' %></button><% } %>
+            <a href="/executor/<%= bot._id %>">التفاصيل والسجل المالي</a>
+        </div></details><% } %>
+    </footer>
+</article>

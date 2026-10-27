@@ -203,7 +203,9 @@ describe('admin-only per-executor policy and per-service balances', () => {
     test('executor-portal team UI no longer saves per-employee overrides', () => {
         const employeesView = read('views/executor/employees.ejs');
         const portalRoutes = read('routes/executorPortal.js');
-        const detailsView = read('views/executor_details.ejs');
+        const detailsShell = read('views/executor_details.ejs');
+        expect(detailsShell).toContain("include('partials/admin_executor_detail_staff'");
+        const detailsView = detailsShell + read('views/partials/admin_executor_detail_staff.ejs') + read('views/partials/admin_executor_employee_policies.ejs');
         const adminEdit = read('views/admin_account_edit.ejs');
         expect(employeesView).not.toContain('editExecutionPolicy');
         expect(employeesView).not.toContain('/execution-policy');

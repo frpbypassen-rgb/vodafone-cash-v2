@@ -1,0 +1,148 @@
+<div id="executor-status" class="switch-container mt-2">
+                        <div>
+                            <h2 class="fw-bold m-0 mb-1 small" style="color: var(--text-main);">حالة استقبال الطلبات</h2>
+                            <small id="statusText" class="<%= bot.status === 'active' ? 'text-success' : 'text-danger' %> fw-bold" style="font-size: 0.7rem;">
+                                <%= bot.status === 'active' ? '🟢 يعمل ويستقبل الطلبات' : '🔴 متوقف عن العمل' %>
+                            </small>
+                        </div>
+                        <form id="toggleForm" action="/executor/<%= bot._id %>/toggle-status" method="POST" class="m-0">
+                            <button type="button" aria-label="تغيير حالة استقبال الطلبات" id="cyberSwitch" class="cyber-switch <%= bot.status === 'active' ? 'active' : '' %>" onclick="confirmToggle()"></button>
+                        </form>
+                    </div>
+                <div class="glass-card h-100 border-start border-4" style="border-left-color: #f59e0b;">
+                    <div class="d-flex align-items-center mb-3 pb-2 border-bottom" style="border-color: var(--glass-border) !important;">
+                        <i class="fa-solid fa-gears text-warning fs-4 me-2"></i>
+                        <h2 class="fw-bold m-0" style="color: var(--text-main);">إعدادات المنفذ</h2>
+                    </div>
+
+                    <div class="row g-3">
+                        <% if (!bot.isApiBot && typeof isMaster !== 'undefined' && isMaster) { %>
+                            <div class="col-12">
+                                <details class="am-setting-section info-box border-0 m-0 shadow-sm control-card-3d d-block" style="background: rgba(59, 130, 246, 0.06); border-right: 4px solid #3b82f6 !important;">
+                                    <summary class="form-label fw-bold text-dark small mb-2"><i class="fa-solid fa-sliders text-primary me-1"></i> صلاحيات إتمام العملية للمنفذ اليدوي</summary>
+                                    <form action="/executor/<%= bot._id %>/manual-policy" method="POST" class="row g-3">
+                                        <div class="col-md-4">
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="checkbox" id="manualProofRequired" name="manualProofRequired" <%= bot.manualProofRequired ? 'checked' : '' %>>
+                                                <label class="form-check-label fw-bold small" for="manualProofRequired">إرفاق الصورة إجباري</label>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="checkbox" id="manualQuickExecuteEnabled" name="manualQuickExecuteEnabled" <%= bot.manualQuickExecuteEnabled ? 'checked' : '' %>>
+                                                <label class="form-check-label fw-bold small" for="manualQuickExecuteEnabled">تنفيذ سريع (USSD)</label>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="checkbox" id="manualSplitRequiresFullPhone" name="manualSplitRequiresFullPhone" <%= bot.manualSplitRequiresFullPhone !== false ? 'checked' : '' %>>
+                                                <label class="form-check-label fw-bold small" for="manualSplitRequiresFullPhone">عند تقسيم العملية: 11 رقم كاملة</label>
+                                            </div>
+                                        </div>
+                                        <div class="col-12">
+                                            <div class="fw-bold small mb-2">أرقام إثبات المرسل</div>
+                                            <div class="d-flex flex-wrap gap-3">
+                                                <% const allowedLengths = Array.isArray(bot.manualAllowedPhoneLengths) ? bot.manualAllowedPhoneLengths : [3,4,11]; %>
+                                                <% const phoneMode = allowedLengths.length === 1 ? String(allowedLengths[0]) : 'all'; %>
+                                                <div class="form-check">
+                                                    <input class="form-check-input" type="radio" id="phoneLength3" name="phoneLengthMode" value="3" <%= phoneMode === '3' ? 'checked' : '' %>>
+                                                    <label class="form-check-label fw-bold small" for="phoneLength3">3 أرقام فقط</label>
+                                                </div>
+                                                <div class="form-check">
+                                                    <input class="form-check-input" type="radio" id="phoneLength4" name="phoneLengthMode" value="4" <%= phoneMode === '4' ? 'checked' : '' %>>
+                                                    <label class="form-check-label fw-bold small" for="phoneLength4">4 أرقام فقط</label>
+                                                </div>
+                                                <div class="form-check">
+                                                    <input class="form-check-input" type="radio" id="phoneLength11" name="phoneLengthMode" value="11" <%= phoneMode === '11' ? 'checked' : '' %>>
+                                                    <label class="form-check-label fw-bold small" for="phoneLength11">11 رقماً فقط</label>
+                                                </div>
+                                                <div class="form-check">
+                                                    <input class="form-check-input" type="radio" id="phoneLengthAll" name="phoneLengthMode" value="all" <%= phoneMode === 'all' ? 'checked' : '' %>>
+                                                    <label class="form-check-label fw-bold small" for="phoneLengthAll">الثلاثة مسموحة (3 أو 4 أو 11)</label>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <label class="form-label fw-bold small" for="maxConcurrentDevices">أقصى أجهزة متزامنة</label>
+                                            <input class="form-control" type="number" min="1" max="20" id="maxConcurrentDevices" name="maxConcurrentDevices" value="<%= Number(bot.maxConcurrentDevices || 1) %>">
+                                            <small class="text-muted d-block mt-1">1 = الدخول الجديد يُخرج الجهاز السابق.</small>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <div class="form-check form-switch mt-4">
+                                                <input class="form-check-input" type="checkbox" role="switch" id="sessionTtlEnabled" name="sessionTtlEnabled" <%= bot.sessionTtlEnabled ? 'checked' : '' %>>
+                                                <label class="form-check-label fw-bold small" for="sessionTtlEnabled">حد مدة الجلسة</label>
+                                            </div>
+                                            <small class="text-muted d-block">عند الإيقاف تبقى الجلسة مفتوحة ويُحدَّث التوكن تلقائياً.</small>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <label class="form-label fw-bold small" for="sessionTtlHours">مدة الجلسة (ساعات)</label>
+                                            <input class="form-control" type="number" min="1" max="720" id="sessionTtlHours" name="sessionTtlHours" value="<%= Math.max(1, Math.round(Number(bot.sessionTtlSeconds || 28800) / 3600)) %>" <%= bot.sessionTtlEnabled ? '' : 'disabled' %>>
+                                            <small class="text-muted d-block mt-1">عند تفعيل الحد تُغلق الجلسة بعد هذه المدة. عند الإيقاف لا يوجد تسجيل خروج بسبب الخمول.</small>
+                                        </div>
+                                        <div class="col-12 d-grid d-md-flex justify-content-md-end">
+                                            <button type="submit" class="btn btn-primary fw-bold"><i class="fa-solid fa-floppy-disk me-1"></i> حفظ الصلاحيات</button>
+                                        </div>
+                                    </form>
+                                </details>
+                            </div>
+                            <div class="col-12">
+                                <details class="am-setting-section info-box border-0 m-0 shadow-sm control-card-3d d-block" style="background: rgba(99, 102, 241, 0.06); border-right: 4px solid #6366f1 !important;">
+                                    <summary class="form-label fw-bold text-dark small mb-2"><i class="fa-solid fa-layer-group text-primary me-1"></i> خدمات شركة التنفيذ</summary>
+                                    <p class="small text-muted mb-3">الخدمة الأساسية تبقى للتوجيه المحاسبي. تفعيل خدمة إضافية (مثل التحويل البنكي مع الكاش) يفتح رصيداً منفصلاً بدون خلط الإجمالي.</p>
+                                    <form action="/executor/<%= bot._id %>/enabled-services" method="POST" class="row g-2">
+                                        <input type="hidden" name="returnTo" value="/executor/<%= bot._id %>">
+                                        <input type="hidden" name="enabledServices" value="<%= bot.serviceKey || 'vodafone' %>">
+                                        <% const currentEnabled = Array.isArray(enabledServiceKeys) ? enabledServiceKeys : [bot.serviceKey]; %>
+                                        <% (executorServiceOptions || []).forEach((service) => { %>
+                                            <div class="col-md-6">
+                                                <label class="form-check fw-bold small">
+                                                    <input class="form-check-input" type="checkbox" name="enabledServices" value="<%= service.key %>" <%= currentEnabled.includes(service.key) ? 'checked' : '' %> <%= service.key === bot.serviceKey ? 'disabled' : '' %>>
+                                                    <%= service.label %><% if (service.key === bot.serviceKey) { %> <span class="text-muted">(الأساسية)</span><% } %>
+                                                </label>
+                                            </div>
+                                        <% }); %>
+                                        <div class="col-12 d-grid d-md-flex justify-content-md-end">
+                                            <button type="submit" class="btn btn-outline-primary fw-bold"><i class="fa-solid fa-floppy-disk me-1"></i> حفظ الخدمات</button>
+                                        </div>
+                                    </form>
+                                </details>
+                            </div>
+                            <div class="col-12">
+                                <details class="am-setting-section info-box border-0 m-0 shadow-sm control-card-3d d-block" style="background: rgba(16, 185, 129, 0.06); border-right: 4px solid #10b981 !important;">
+                                    <summary class="form-label fw-bold text-dark small mb-2"><i class="fa-solid fa-receipt text-success me-1"></i> رمز مرجع الإيصالات اليدوية</summary>
+                                    <form action="/executor/<%= bot._id %>/receipt-prefix" method="POST" class="row g-2 align-items-center">
+                                        <div class="col-md-7">
+                                            <input type="text" name="manualReceiptPrefix" class="form-control fw-bold text-center font-monospace" value="<%= bot.manualReceiptPrefix || '' %>" placeholder="مثال: 999" inputmode="numeric" pattern="\d{3}" maxlength="3" required dir="ltr">
+                                            <small class="text-muted d-block mt-1">يظهر المرجع بهذه الصيغة: <span dir="ltr"><%= bot.manualReceiptPrefix || '999' %>001</span> ثم يتسلسل تلقائياً لكل عملية.</small>
+                                        </div>
+                                        <div class="col-md-5 d-grid">
+                                            <button type="submit" class="btn btn-success fw-bold"><i class="fa-solid fa-floppy-disk me-1"></i> حفظ الرمز</button>
+                                        </div>
+                                    </form>
+                                </details>
+                            </div>
+                        <% } %>
+
+
+                        <% if(!bot.isManagerBot) { %>
+                        <div class="col-12">
+                            <details class="am-setting-section info-box border-0 m-0 shadow-sm d-block control-card-3d" style="background: rgba(14, 165, 233, 0.05); border-right: 4px solid #0ea5e9 !important;">
+                                <summary class="form-label fw-bold text-dark small mb-2"><i class="fa-solid fa-link text-info me-1"></i> ربط بوكالة إدارية مركزية</summary>
+                                <form action="/executor/<%= bot._id %>/link-manager" method="POST" class="row g-2 align-items-center">
+                                    <div class="col-md-9">
+                                        <select name="parentGroupId" class="form-select fw-bold text-center unified-height border-0 shadow-sm">
+                                            <option value="none">-- فك الارتباط (جعله مستقلاً) --</option>
+                                            <% managerBots.forEach(m => { %>
+                                                <option value="<%= m._id %>" <%= ((bot.parentGroupId || bot.parentBotId) && (bot.parentGroupId || bot.parentBotId)._id.toString() === m._id.toString()) ? 'selected' : '' %>><%= m.name %></option>
+                                            <% }) %>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <button type="submit" class="btn btn-info text-white w-100 fw-bold btn-3d-hover unified-height justify-content-center shadow-sm">تنفيذ الربط</button>
+                                    </div>
+                                </form>
+                            </details>
+                        </div>
+                        <% } %>
+                    </div>
+                </div>

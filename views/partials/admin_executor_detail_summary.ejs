@@ -1,0 +1,9 @@
+<% const summarySnapshot = companyBalances || null; const summaryServices = summarySnapshot && summarySnapshot.multiService ? summarySnapshot.byService : null; const summaryBalance = summarySnapshot ? summarySnapshot.totalBalance : Number(bot.balance || 0) + (externalEmployees || []).reduce((s,e)=>s+Number(e.workingBalance || e.balance || 0),0); %>
+<section class="am-executor-overview <%= summaryServices ? 'is-multi' : '' %>" aria-label="ملخص حساب المنفذ">
+    <div class="am-detail-wallet">
+        <% if(summaryServices && summaryServices.length) { %><span>أرصدة الخدمات · ج.م</span><div class="am-detail-service-balances"><% summaryServices.forEach(row => { const balance=row.appliesPoolModel ? row.totalBalance : row.privateBalance; %><div><span><%= row.label %></span><strong class="<%= detailColor(balance) %>"><bdi><%= detailMoney(balance) %></bdi></strong></div><% }); %></div>
+        <% } else { %><span><%= (executorServiceOptions.find(s=>s.key===bot.serviceKey) || {}).shortLabel || 'الخدمة' %> · إجمالي الرصيد</span><strong class="<%= detailColor(summaryBalance) %>"><bdi><%= detailMoney(summaryBalance) %></bdi> <small>ج.م</small></strong><% } %>
+    </div>
+    <div class="am-detail-stat"><span>مكتملة</span><strong><%= (detailCounts.find(r=>r._id==='completed') || {}).count || 0 %></strong></div>
+    <div class="am-detail-stat"><span>قيد المتابعة</span><strong><%= detailCounts.filter(r=>['pending','accepted','processing'].includes(r._id)).reduce((s,r)=>s+r.count,0) %></strong></div>
+</section>

@@ -279,7 +279,7 @@
                         <div class="col-12">
                             <div class="info-box border-0 m-0 shadow-sm control-card-3d d-block" style="background: rgba(245, 158, 11, 0.05); border-right: 4px solid #f59e0b !important;">
                                 <label class="form-label fw-bold text-dark small mb-2"><i class="fa-solid fa-money-bill-transfer text-warning me-1"></i> تسوية الرصيد (موجب للإيداع / سالب للخصم)</label>
-                                <form action="/user/<%= user._id %>/add-balance" method="POST" class="row g-2 align-items-center">
+                                <form id="account-balance" action="/user/<%= user._id %>/add-balance" method="POST" class="row g-2 align-items-center">
                                     <div class="col-md-4">
                                         <div class="input-group shadow-sm">
                                             <input type="number" step="any" name="amount" class="form-control mono-num fw-bold text-center unified-height border-0" placeholder="المبلغ..." required>

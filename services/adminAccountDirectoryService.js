@@ -46,8 +46,8 @@ const modelForSection = ({ User, ClientCompany }, section) => {
 };
 
 const fieldsForSection = (section) => {
-    if (section === 'companies') return 'name phone tier balance accountCode status createdAt';
-    return 'name phone tier balance accountCode agentCode webUsername role status createdAt';
+    if (section === 'companies') return 'name phone tier balance accountCode status businessProfile.city createdAt';
+    return 'name phone tier balance accountCode agentCode webUsername role status businessProfile.city createdAt';
 };
 
 const loadAdminAccountDirectory = async ({ User, ClientCompany }, query = {}, scope = {}) => {

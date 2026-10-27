@@ -447,7 +447,8 @@
     <meta name="apple-mobile-web-app-title" content="Al-Ahram">
     <!-- End PWA Setup -->
 <%- include('partials/admin_modern_head') %>
-<link rel="stylesheet" href="/css/admin-merchants.css?v=20261027-mobile">
+<link rel="stylesheet" href="/css/admin-merchants.css?v=20261027-cards">
+<link rel="stylesheet" href="/css/admin-directory-cards.css?v=20261027-cards">
 </head>
 <body class="am-merchant-body">
 
@@ -470,15 +471,15 @@
     };
 %>
 
-<div class="main-content am-directory-page">
-    <div class="container-fluid clients-page <%= activeSection !== 'users' ? 'am-directory-compact' : '' %>">
+<div class="main-content am-directory-page am-card-directory-page">
+    <div class="container-fluid clients-page am-directory-compact am-directory-cards">
         <div class="admin-nav mb-4 d-flex flex-column gap-3">
             <div class="clients-header">
                 <div class="clients-title">
 
-                    <div><span class="am-eyebrow">الحسابات والتنفيذ</span><h1 class="fw-bold text-dark"><%= activeSection === 'companies' ? 'الشركات' : activeSection === 'agents' ? 'الوكلاء' : 'دليل الحسابات' %></h1><p class="am-description">العملاء والشركات والوكلاء وأرصدة حساباتهم</p></div>
+                    <div><span class="am-eyebrow">الحسابات والتنفيذ</span><h1 class="fw-bold text-dark">دليل الحسابات</h1><p class="am-description">العملاء والشركات والوكلاء وأرصدة حساباتهم</p></div>
                 </div>
-                <% if (isMaster && activeSection !== 'users') { %><a class="am-button" href="/registration-requests">طلبات التسجيل</a><% } %><div class="clients-total-pill">
+                <% if (isMaster) { %><a class="am-button" href="/registration-requests">طلبات التسجيل</a><% } %><div class="clients-total-pill">
                     <i class="fa-solid fa-database text-primary"></i>
                     <span>الإجمالي</span>
                     <strong class="mono-num" style="font-size: 1rem;"><%= directoryCounts.total %></strong>
@@ -507,7 +508,7 @@
             <form class="search-container" method="GET" action="/clients" role="search" data-directory-search>
                 <input type="hidden" name="section" value="<%= activeSection %>">
                 <% if (typeof activeStatus !== 'undefined') { %><input type="hidden" name="status" value="<%= activeStatus %>"><% } %>
-                <input type="search" name="search" class="search-input-3d" value="<%= search %>" placeholder="ابحث في القسم الحالي بالاسم، الهاتف، ID أو اسم المستخدم..." autocomplete="off">
+                <input type="search" name="search" class="search-input-3d" value="<%= search %>" placeholder="ابحث بالاسم، الهاتف أو رقم الحساب" autocomplete="off" aria-label="البحث في دليل الحسابات">
                 <i class="fa-solid fa-magnifying-glass search-icon-3d"></i>
                 <div class="search-actions">
                     <% if (search) { %>
@@ -524,106 +525,32 @@
             <nav aria-label="أقسام دليل الحسابات">
             <ul class="nav nav-pills d-inline-flex m-0 p-1 rounded-4 border data-card">
                 <li class="nav-item">
-                    <a class="nav-link <%= activeSection === 'users' ? 'active' : '' %>" href="<%= directoryUrl('users') %>" data-directory-nav>
-                        <i class="fa-solid fa-user me-1"></i> عملاء مباشرون <span class="section-count"><%= directoryCounts.users %></span>
+                    <a class="nav-link <%= activeSection === 'users' ? 'active' : '' %>" href="<%= directoryUrl('users') %>" <%= activeSection === 'users' ? 'aria-current=page' : '' %> data-directory-nav>
+                        <i class="fa-solid fa-user me-1"></i> العملاء <span class="section-count"><%= directoryCounts.users %></span>
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link <%= activeSection === 'companies' ? 'active' : '' %>" href="<%= directoryUrl('companies') %>" data-directory-nav>
+                    <a class="nav-link <%= activeSection === 'companies' ? 'active' : '' %>" href="<%= directoryUrl('companies') %>" <%= activeSection === 'companies' ? 'aria-current=page' : '' %> data-directory-nav>
                         <i class="fa-solid fa-building me-1"></i> شركات <span class="section-count"><%= directoryCounts.companies %></span>
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link <%= activeSection === 'agents' ? 'active' : '' %>" href="<%= directoryUrl('agents') %>" data-directory-nav>
+                    <a class="nav-link <%= activeSection === 'agents' ? 'active' : '' %>" href="<%= directoryUrl('agents') %>" <%= activeSection === 'agents' ? 'aria-current=page' : '' %> data-directory-nav>
                         <i class="fa-solid fa-user-tie me-1"></i> وكلاء <span class="section-count"><%= directoryCounts.agents %></span>
                     </a>
                 </li>
             </ul>
             </nav>
-            <% if (activeSection !== 'users') { %><nav class="am-status-filters" aria-label="حالة الحساب">
+            <nav class="am-status-filters" aria-label="حالة الحساب">
                 <% [['all','الكل'],['active','نشط'],['stopped','متوقف']].forEach(([status,label]) => { const params = new URLSearchParams({section:activeSection,status}); if(search) params.set('search',search); %><a href="/clients?<%= params.toString() %>" data-directory-nav <%= (typeof activeStatus === 'undefined' ? 'all' : activeStatus) === status ? 'aria-current=page' : '' %>><%= label %></a><% }); %>
-            </nav><% } %><div class="directory-summary">
+            </nav><div class="directory-summary">
                 <span><i class="fa-solid fa-layer-group me-1"></i> <%= sectionLabels[activeSection] %></span>
                 <span>عرض <strong><%= pagination.startItem %></strong> - <strong><%= pagination.endItem %></strong> من <strong><%= pagination.totalItems %></strong></span>
             </div>
         </div>
 
         <div class="tab-content mt-4">
-            <% if (activeSection === 'users') { %>
-            <!-- Direct Clients Tab -->
-            <div class="tab-pane fade <%= activeSection === 'users' ? 'show active' : '' %>" id="users-tab">
-                <div class="row g-4 pb-5">
-                    <% if(users.length === 0) { %>
-                        <div class="col-12 text-center py-5 system-empty-placeholder">
-                            <i class="fa-solid <%= search ? 'fa-magnifying-glass-minus' : 'fa-user-slash' %> fa-4x text-muted opacity-25 mb-3"></i>
-                            <h5 class="text-muted fw-bold"><%= search ? 'لا توجد نتائج مطابقة في العملاء المباشرين.' : 'لا يوجد عملاء مباشرون مسجلون في المنظومة.' %></h5>
-                        </div>
-                    <% } %>
-
-                    <% users.forEach(u => { %>
-                        <div class="col-xl-4 col-lg-6 col-md-6 client-card-item" data-name="<%= u.name %>" data-phone="<%= u.phone || '' %>" data-username="<%= u.webUsername || '' %>" data-code="<%= u.accountCode || '' %>" data-master="">
-                            <div class="card-3d-wrapper">
-                                <div class="client-card-3d" style="border-top: 5px solid #3b82f6;">
-                                    <div>
-                                        <div class="d-flex justify-content-between align-items-start mb-4">
-                                            <div class="d-flex align-items-center gap-3 w-100">
-                                                <div class="profile-icon user-icon">
-                                                    <i class="fa-solid fa-user"></i>
-                                                </div>
-                                                <div style="width: calc(100% - 80px);">
-                                                     <h5 class="client-name fw-bold m-0 text-dark mb-1" title="<%= u.name %>"><%= u.name %></h5>
-                                                    <span class="badge <%= u.status === 'active' ? 'bg-success' : 'bg-danger' %> bg-opacity-10 text-<%= u.status === 'active' ? 'success' : 'danger' %> border rounded-pill px-2 py-1 mt-1" style="font-size:0.75rem;">
-                                                        <i class="fa-solid <%= u.status === 'active' ? 'fa-check-circle' : 'fa-ban' %> me-1"></i><%= u.status === 'active' ? 'نشط ومفعل' : 'محظور' %>
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        <div class="d-flex justify-content-between align-items-center text-muted small fw-bold mb-2 px-1">
-                                            <span dir="ltr"><i class="fa-solid fa-phone me-1 opacity-50 text-primary"></i> <%= u.phone %></span>
-                                            <span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary rounded-pill px-2">مستوى <%= u.tier || 1 %></span>
-                                        </div>
-
-                                        <div class="text-muted small fw-bold mb-2 px-1 text-truncate">
-                                            <i class="fa-solid fa-id-badge me-1 opacity-50 text-primary"></i> ID:
-                                            <code class="text-dark mono-num"><%= u.accountCode || 'غير محدد' %></code>
-                                        </div>
-
-                                        <div class="balance-box">
-                                            <div class="text-muted small fw-bold mb-2"><i class="fa-solid fa-wallet me-1 opacity-50"></i> الرصيد الحالي (LYD)</div>
-                                            <div class="mono-num <%= u.balance < 0 ? 'text-danger' : 'text-success' %>" dir="ltr">
-                                                <%= u.balance.toFixed(2) %>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div class="client-actions">
-                                        <a href="/user/<%= u._id %>" class="btn-3d user-btn">
-                                            <i class="fa-solid fa-folder-open me-2"></i> إدارة ملف العميل
-                                        </a>
-                                        <% if (typeof isMaster !== 'undefined' && isMaster) { %>
-                                            <a href="/user/<%= u._id %>#owner-email-otp" class="btn-3d" style="color:#087f74; border-color:rgba(8,127,116,.35);">
-                                                <i class="fa-solid fa-envelope-circle-check me-2"></i> بريد صاحب الحساب
-                                            </a>
-                                            <a href="/admin/accounts/user/<%= u._id %>/edit#owner-email-otp" class="btn-3d" style="color:#087f74; border-color:rgba(8,127,116,.35);">
-                                                <i class="fa-solid fa-pen-to-square me-2"></i> تعديل بيانات العميل
-                                            </a>
-                                        <% } %>
-                                        <form action="/user/<%= u._id %>/delete" method="POST" class="delete-account-form" onsubmit="return confirm('هل أنت متأكد من حذف هذا الحساب؟ سيتم إيقاف الدخول وإخفاؤه من القائمة مع حفظ العمليات السابقة.');">
-                                            <button type="submit" class="btn-3d btn-delete-account">
-                                                <i class="fa-solid fa-trash-can me-2"></i> حذف الحساب
-                                            </button>
-                                        </form>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    <% }) %>
-                </div>
-            </div>
-
-            <% } %>
-            <% if (activeSection !== 'users') { %><%- include('partials/admin_merchant_list') %><% } %>
+            <%- include('partials/admin_merchant_list') %>
         </div>
 
         <% if (pagination.totalPages > 1) { %>
@@ -729,6 +656,7 @@
     });
 
 </script>
+<script src="/js/admin-account-directory.js?v=20261027-cards"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

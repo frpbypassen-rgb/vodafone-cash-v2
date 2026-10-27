@@ -4,6 +4,7 @@ const router = express.Router();
 const { emitSupportTicketUpdate } = require('../services/supportRealtimeService');
 const ExecutorGroup = require('../models/ExecutorGroup');
 const Transaction = require('../models/Transaction');
+const { loadExecutorHistory } = require('../services/adminExecutorDetailService');
 const Employee = require('../models/Employee');
 const Notification = require('../models/Notification');
 const ApiBalanceAudit = require('../models/ApiBalanceAudit');
@@ -440,7 +441,7 @@ router.get('/executor/:id', requireAuth, async (req, res) => {
             }
         }
         let queryFilter = bot.isManagerBot ? { managerGroupId: bot._id } : { executorGroupId: bot._id };
-        const transactions = await Transaction.find(queryFilter).sort({ updatedAt: -1 }).limit(100);
+        const transactions = bot.isApiBot ? await Transaction.find(queryFilter).sort({ updatedAt: -1 }).limit(100) : [];
         
         const managerBots = await ExecutorGroup.find({ isManagerBot: true, status: 'active', _id: { $ne: bot._id } });
 
@@ -496,7 +497,13 @@ router.get('/executor/:id', requireAuth, async (req, res) => {
             teamEmployees = [];
         }
 
+        const [history, detailCounts] = await Promise.all([
+            loadExecutorHistory(Transaction, bot, req.query),
+            Transaction.aggregate([{$match:queryFilter},{$group:{_id:'$status',count:{$sum:1}}}])
+        ]);
         res.render('executor_details', {
+            history,
+            detailCounts,
             bot,
             transactions,
             managerBots,
