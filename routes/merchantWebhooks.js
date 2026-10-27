@@ -80,7 +80,11 @@ router.get(clientPaths('/integrations/webhooks'), requireClientAuth, async (req,
     try {
         await resolveClientOwner(req);
         res.set('Cache-Control', 'private, no-store');
-        return res.render('client/webhooks', { csrfToken: res.locals.csrfToken || '', events: EVENTS, portalBase: req.path.startsWith('/agent-portal') ? '/agent-portal' : '/client' });
+        return res.render('client/webhooks', {
+            csrfToken: res.locals.csrfToken || '', events: EVENTS,
+            portalBase: req.path.startsWith('/agent-portal') ? '/agent-portal' : '/client',
+            webhookTheme: req.session.accountType === 'company' ? req.session.companyTheme : req.session.clientTheme
+        });
     } catch (_) {
         return res.status(403).send('هذه الصفحة متاحة لمدير الشركة أو الوكالة فقط.');
     }
