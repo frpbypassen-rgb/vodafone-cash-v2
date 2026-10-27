@@ -1,4 +1,5 @@
 'use strict';
+const { readRuntimeRole } = require('../utils/runtimeRole');
 
 const DEFAULT_TOUCH_AFTER_SECONDS = 120;
 
@@ -13,7 +14,8 @@ const sessionTouchAfterSeconds = (env = process.env) => {
 const mongoSessionStoreOptions = ({ mongoUrl, ttlSeconds, env = process.env } = {}) => ({
     mongoUrl,
     ttl: ttlSeconds,
-    autoRemove: 'native',
+    // A private probe must not create TTL indexes or run session cleanup.
+    autoRemove: readRuntimeRole(env) === 'probe' ? 'disabled' : 'native',
     // rolling cookies still refresh in the browser; this stops connect-mongo
     // from rewriting the sessions collection on every authenticated request.
     touchAfter: sessionTouchAfterSeconds(env),

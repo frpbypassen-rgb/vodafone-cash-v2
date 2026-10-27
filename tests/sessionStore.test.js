@@ -9,6 +9,10 @@ const {
 } = require('../config/sessionStore');
 
 describe('Mongo session store options', () => {
+    test('probe does not create session indexes or start cleanup timers', () => {
+        expect(mongoSessionStoreOptions({ env: { RUNTIME_ROLE: 'probe' } }).autoRemove).toBe('disabled');
+        expect(mongoSessionStoreOptions({ env: { RUNTIME_ROLE: 'full' } }).autoRemove).toBe('native');
+    });
     test('throttles connect-mongo session touches to at least 30 seconds', () => {
         expect(sessionTouchAfterSeconds({})).toBe(DEFAULT_TOUCH_AFTER_SECONDS);
         expect(sessionTouchAfterSeconds({ SESSION_TOUCH_AFTER_SECONDS: '120' })).toBe(120);
