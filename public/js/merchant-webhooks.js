@@ -113,6 +113,7 @@
             WEBHOOK_NOT_FOUND: 'لم يعد هذا الرابط متاحًا. حدّث الصفحة.',
             WEBHOOK_NOT_FOUND_OR_DISABLED: 'الرابط غير متاح أو متوقف.',
             DELIVERY_NOT_FOUND: 'لم تعد المحاولة متاحة. حدّث سجل الإرسال.',
+            DELIVERY_NOT_RETRYABLE: 'لا يمكن إعادة المحاولة: الإرسال جارٍ أو مكتمل، أو بلغ الحد الأقصى للمحاولات.',
             WEBHOOK_TEST_DENIED:
                 'تعذر إجراء الاختبار. تحقق من الصلاحية وحالة الرابط.',
             SESSION_EXPIRED:

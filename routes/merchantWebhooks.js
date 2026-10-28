@@ -18,7 +18,7 @@ const clientPaths = suffix => ['/client' + suffix, '/agent-portal' + suffix];
 const testLimiter = require('../utils/requestRateLimit')({ windowMs: 900000, max: 5, standardHeaders: true, legacyHeaders: false,
     keyGenerator: req => `${req.session.accountType}:${req.session.clientId}` });
 const {
-    EVENTS, deliverWebhook, normalizeEvents, publicEndpoint, validateWebhookUrl
+    EVENTS, deliverWebhook, normalizeEvents, publicEndpoint, requestWebhookRetry, validateWebhookUrl
 } = require('../services/merchantWebhookService');
 router.use([...clientPaths('/api/webhooks'), ...clientPaths('/api/webhook-deliveries')], (_req, res, next) => {
     res.set('Cache-Control', 'private, no-store');
@@ -164,12 +164,9 @@ router.post(clientPaths('/api/webhook-deliveries/:id/retry'), requireClientAuth,
     const owner = await resolveClientOwner(req).catch(() => null);
     if (!owner) return res.status(403).json({ success: false, error: 'WEBHOOK_ACCESS_DENIED' });
     const endpointIds = await MerchantWebhookEndpoint.find(endpointScope(req, owner)).distinct('_id');
-    const delivery = await MerchantWebhookDelivery.findOneAndUpdate(
-        { _id: req.params.id, endpointId: { $in: endpointIds } },
-        { $set: { status: 'pending', attemptCount: 0, nextAttemptAt: new Date(), lockedAt: null, lastError: '' } },
-        { returnDocument: 'after' }
-    );
-    if (!delivery) return res.status(404).json({ success: false, error: 'DELIVERY_NOT_FOUND' });
+    let delivery;
+    try { delivery = await requestWebhookRetry({ _id: req.params.id, endpointId: { $in: endpointIds } }); }
+    catch(error) { return res.status(error.statusCode || 500).json({ success:false, error:error.statusCode ? error.message : 'RETRY_FAILED' }); }
     const result = await deliverWebhook(delivery._id);
     return res.json({ success: true, result });
 });
@@ -200,12 +197,9 @@ router.get('/admin/api/webhooks', requireAuth, requirePermission('reports.read')
     return res.json({ success: true, endpoints: endpoints.map(publicEndpoint), deliveries, summary: Object.fromEntries(summary.map((row) => [row._id, row.count])) });
 });
 router.post('/admin/api/webhook-deliveries/:id/retry', requireAuth, requirePermission('reports.manage'), async (req, res) => {
-    const delivery = await MerchantWebhookDelivery.findOneAndUpdate(
-        { _id: req.params.id, ...adminAccountScope(req) },
-        { $set: { status: 'pending', attemptCount: 0, nextAttemptAt: new Date(), lockedAt: null, lastError: '' } },
-        { returnDocument: 'after' }
-    );
-    if (!delivery) return res.status(404).json({ success: false, error: 'DELIVERY_NOT_FOUND' });
+    let delivery;
+    try { delivery = await requestWebhookRetry({ _id: req.params.id, ...adminAccountScope(req) }); }
+    catch(error) { return res.status(error.statusCode || 500).json({ success:false, error:error.statusCode ? error.message : 'RETRY_FAILED' }); }
     return res.json({ success: true, result: await deliverWebhook(delivery._id) });
 });
 

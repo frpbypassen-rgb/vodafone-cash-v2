@@ -115,6 +115,16 @@ const claimDelivery = (id) => MerchantWebhookDelivery.findOneAndUpdate({
 }, { returnDocument: 'after' });
 
 const webhookHttpDisabled = () => !isMerchantWebhookWorkerEnabled();
+const requestWebhookRetry = async (scope) => {
+    const delivery = await MerchantWebhookDelivery.findOneAndUpdate(
+        { ...scope, status: 'failed', attemptCount: { $lt: MAX_ATTEMPTS } },
+        { $set: { status: 'pending', nextAttemptAt: new Date(), lockedAt: null, lastError: '' } },
+        { returnDocument: 'after' }
+    );
+    if (delivery) return delivery;
+    const exists = await MerchantWebhookDelivery.exists(scope);
+    throw Object.assign(new Error(exists ? 'DELIVERY_NOT_RETRYABLE' : 'DELIVERY_NOT_FOUND'), { statusCode: exists ? 409 : 404 });
+};
 
 const deliverWebhook = async (deliveryId) => {
     if (webhookHttpDisabled()) return { skipped: true, reason: 'MERCHANT_WEBHOOK_DISABLED' };
@@ -250,6 +260,6 @@ const startMerchantWebhookWorker = () => {
 module.exports = {
     EVENTS, MAX_ATTEMPTS, buildPayload, deliverWebhook, enqueueTransactionWebhook,
     ensureMerchantWebhookIndexes,
-    normalizeEvents, processPendingWebhooks, publicEndpoint, signPayload,
+    normalizeEvents, processPendingWebhooks, publicEndpoint, requestWebhookRetry, signPayload,
     startMerchantWebhookWorker, validateWebhookUrl
 };

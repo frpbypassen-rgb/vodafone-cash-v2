@@ -174,8 +174,30 @@ const createDelivery = (endpoint, fields) => MerchantWebhookDelivery.create({
     attemptCount: 1,
     ...fields
 });
+const { MAX_ATTEMPTS, requestWebhookRetry } = require('../services/merchantWebhookService');
 
 describe('admin webhook visibility', () => {
+    test('two concurrent manual retries claim a failed delivery only once and preserve its attempt counter', async () => {
+        const endpoint=await createEndpoint({ownerModel:'User',ownerId:new mongoose.Types.ObjectId()});
+        const delivery=await createDelivery(endpoint,{attemptCount:3});
+        const results=await Promise.allSettled([requestWebhookRetry({_id:delivery._id}),requestWebhookRetry({_id:delivery._id})]);
+        expect(results.filter(r=>r.status==='fulfilled')).toHaveLength(1);
+        expect(results.find(r=>r.status==='rejected').reason.statusCode).toBe(409);
+        expect((await MerchantWebhookDelivery.findById(delivery._id).lean()).attemptCount).toBe(3);
+    });
+    test('manual retry rejects pending, sending and delivered rows and does not reset attempt budgets', async () => {
+        process.env.TENANT_MODE='single';
+        const endpoint=await createEndpoint({ownerModel:'User',ownerId:new mongoose.Types.ObjectId()});
+        for(const status of ['pending','sending','delivered']){
+            const delivery=await createDelivery(endpoint,{status,lockedAt:status==='sending'?new Date():null});
+            const response=await request(app).post(`/admin/api/webhook-deliveries/${delivery._id}/retry`);
+            expect(response.status).toBe(409);
+            const after=await MerchantWebhookDelivery.findById(delivery._id).lean();
+            expect(after.status).toBe(status);expect(after.attemptCount).toBe(1);
+        }
+        const exhausted=await createDelivery(endpoint,{attemptCount:MAX_ATTEMPTS});
+        expect((await request(app).post(`/admin/api/webhook-deliveries/${exhausted._id}/retry`)).status).toBe(409);
+    });
     test('single mode lists a legacy tenant endpoint and a no-tenant endpoint', async () => {
         process.env.TENANT_MODE = 'single';
         const current = new mongoose.Types.ObjectId();
