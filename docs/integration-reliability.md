@@ -17,7 +17,7 @@ The key is hashed with account model, account ID and tenant. The normalized reci
 
 MongoDB replica-set/sharded transactions and the unique index are required. Do not build or alter an index on production financial data without a separate reviewed migration and duplicate audit. Replay continues to require a currently valid token and current IP/admin permissions, including after token rotation. Records are retained with their transactions; deleting them removes the replay guarantee. Never reuse a key for a new transfer.
 
-This guarantees one committed financial operation for a retained key, not exactly-once external delivery. Existing post-commit event/routing notifications remain best effort; a committed response can be replayed after a notification error without redispatch. Durable downstream recovery remains a separate concern.
+This guarantees one committed financial operation for a retained key, not exactly-once external delivery. Webhook lifecycle events now use the embedded atomic Outbox described in `merchant-webhook-outbox.md`; recovery is independent of the post-commit in-memory listener. Other post-commit routing/notification side effects retain their existing behavior and are not covered by the Webhook Outbox guarantee.
 
 ## Webhook retry protection
 

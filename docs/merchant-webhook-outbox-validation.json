@@ -1,0 +1,14 @@
+{
+  "uniqueTransfers": 600,
+  "successfulReplays": 1200,
+  "httpRequests": 2778,
+  "transientConflicts": 978,
+  "ledgerRows": 600,
+  "webhookEvents": 1200,
+  "retriedLostAcknowledgements": 120,
+  "receiverReceipts": 1200,
+  "receiverStates": 600,
+  "duplicateFinancialWrites": 0,
+  "externalProviderCalls": 0,
+  "elapsedMs": 50077
+}
