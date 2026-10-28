@@ -1,5 +1,6 @@
 'use strict';
 const nodemailer = require('nodemailer');
+const {codeEmail,statementEmail}=require('./reportEmailTemplate');
 const { getSmtpConfig, getMissingSmtpSettings } = require('./emailOtpMailer');
 const configured = () => getMissingSmtpSettings(getSmtpConfig()).length === 0;
 const send = async (message) => {
@@ -16,13 +17,6 @@ const send = async (message) => {
         return info;
     } finally { transport.close(); }
 };
-const sendCode = (email, code) => send({
-    to: email, subject: 'تأكيد بريد كشف الحساب — أهرام باي',
-    text: `رمز تأكيد بريد كشف الحساب: ${code}\nصالح لمدة 10 دقائق. لا تشارك الرمز مع أحد.\nهذا الرمز خاص بالاشتراك في الكشوف اليومية، ولا يغير بيانات تسجيل الدخول.`,
-});
-const sendStatement = ({ email, day, pdf, test = false }) => send({
-    to: email, subject: `${test ? 'كشف تجريبي' : 'كشف الحساب اليومي'} — ${day} — أهرام باي`,
-    text: `مرفق كشف حساب الشركة من التقارير الشاملة للإدارة ليوم ${day} حسب توقيت ليبيا.\nالكشف يستخدم نفس مصدر البيانات والحسابات وقالب PDF الخاص بتقارير الإدارة.\nيمكنك إيقاف الكشوف أو تغيير البريد من الإعدادات ← الإشعارات.`,
-    attachments: [{ filename: `Ahram-statement-${day}.pdf`, content: pdf, contentType: 'application/pdf' }],
-});
+const sendCode = (email, code, {accountName=''}={}) => send({to:email,...codeEmail({code,kind:'company',accountName})});
+const sendStatement = options => send({to:options.email,...statementEmail({...options,kind:'company'})});
 module.exports = { configured, sendCode, sendStatement };

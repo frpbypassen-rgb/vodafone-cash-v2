@@ -52,7 +52,7 @@ const deliver = async (id, now = new Date()) => {
         const freshWorkspace = await loadWorkspace(current);
         if (JSON.stringify(freshWorkspace.permissions) !== JSON.stringify(workspace.permissions)) throw fail('REPORT_FORBIDDEN', 'REPORT_FORBIDDEN', 403);
         smtpStarted = true;
-        await sendStatement({ email: current.email, day: job.day, pdf, test: job.kind === 'test' });
+        await sendStatement({ email: current.email, day: job.day, pdf, test: job.kind === 'test', accountName:freshWorkspace.entity.name });
         await Delivery.updateOne({ _id: job._id, status: 'processing' }, { $set: { status: 'sent', sentAt: new Date() }, $unset: { errorCode: 1 } });
         await Subscription.updateOne({ _id: current._id, email: current.email, verifiedAt: current.verifiedAt }, { $set: { lastSentAt: new Date(), lastReportDay: job.day, lastDeliveryStatus: job.kind === 'test' ? 'test_sent' : 'sent' } });
         return { status: 'sent' };

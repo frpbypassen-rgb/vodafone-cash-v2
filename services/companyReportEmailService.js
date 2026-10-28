@@ -49,7 +49,7 @@ const requestCode = async (workspace, address, now = new Date(), revision) => {
     } }, { returnDocument: 'after' });
     if (!row && revision !== undefined && revisionOf(await Subscription.findOne(filter).lean()) !== revision) throw conflict();
     if (!row) throw fail('RESEND_COOLDOWN', 'انتظر دقيقة قبل طلب رمز آخر.', 429);
-    try { await mailer.sendCode(email, code); }
+    try { await mailer.sendCode(email, code, {accountName:workspace.entity.name}); }
     catch (_error) {
         await Subscription.updateOne({ ...filter, challengeId }, { $unset: { challengeHash: 1, challengeId: 1, challengeExpiresAt: 1, pendingEmail: 1 } });
         throw fail('EMAIL_SEND_FAILED', 'تعذر إرسال الرمز. حاول لاحقاً.', 503);

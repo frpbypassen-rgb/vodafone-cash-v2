@@ -55,3 +55,11 @@ download for the same date.
 
 Local static previews do not send real mail. Verify an actual delivery on the
 configured server before considering the SMTP integration operational.
+
+## Shared email design (2026-10-28)
+
+Company and agency mailers now use `services/reportEmailTemplate.js` and the RTL table-based `views/emails/report-email.ejs`. Both send HTML plus a plain-text alternative and a local CID logo, with no external image fetch. Verification messages show the six-digit code in left-to-right order, its existing ten-minute validity and the account name; the inbox preheader does not reveal the code. Daily messages identify the report day in Libya, the company/agency account and the PDF attachment filename. Test deliveries are explicitly labelled.
+
+The attachment remains the exact administration PDF buffer; no totals, dates, schedule or consent checks were replaced. The CTA opens the relevant account's notification settings over HTTPS; the PDF is opened through the mail application's actual attachment control, not a fabricated download URL. Dynamic HTML is escaped and invalid codes/dates are rejected. Account names come from the authorized workspace, including its final pre-send permission check.
+
+Validation: 35 tests in five suites passed with SMTP mocked, plus browser previews at 320/390/1366px without horizontal overflow. No real messages were sent. A browser preview does not establish rendering in every mail client or actual SMTP deliverability.
