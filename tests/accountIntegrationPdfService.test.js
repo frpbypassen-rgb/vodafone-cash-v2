@@ -60,6 +60,8 @@ describe('Account integration PDF document data', () => {
         expect(documentData.examples.transferCurl).toContain('x-api-key: <API_KEY>');
         expect(documentData.examples.transferCurl).not.toContain('company-private-key-123');
         expect(documentData.examples.transferCurl).toContain('whatsapp_number');
+        for (const key of ['balanceCurl', 'transferCurl', 'statusCurl'])
+            expect(documentData.examples[key]).not.toMatch(/\n\+/);
         expect(documentData.examples.transferResponse).toContain('executor_number');
         expect(documentData.examples.statusResponse).toContain('executed_numbers');
         expect(documentData.examples.cancelledStatusResponse).toContain('cancellation_reason');

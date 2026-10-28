@@ -72,6 +72,36 @@ const handle = (action) => async (req, res) => {
 };
 router.get(paths(''), requireClientAuth, handle(service.getStatus));
 router.get(paths('/activity'), requireClientAuth, handle(service.getActivity));
+router.get(['/client/integrations/api/guide.pdf', '/agent-portal/integrations/api/guide.pdf'], requireClientAuth, async (req, res) => {
+    res.set('Cache-Control', 'private, no-store, max-age=0');
+    try {
+        const workspace = await authorizedWorkspace(req);
+        const { buildIntegrationDocumentData, generateAccountIntegrationPdf, resolvePublicApiOrigin } = require('../services/accountIntegrationPdfService');
+        const settings = await require('../models/Settings').findOne({}).lean() || {};
+        const documentData = buildIntegrationDocumentData({
+            account: workspace.entity,
+            accountType: workspace.isCompany ? 'company' : 'agent',
+            // Downloading documentation must never provision, reveal or rotate a credential.
+            apiKey: '<API_KEY>',
+            apiOrigin: resolvePublicApiOrigin(req),
+            serviceRates: require('../utils/rateHelper').getCompanyRateConfig(workspace.entity, settings).effectiveRates
+        });
+        const pdf = await generateAccountIntegrationPdf(req.app, documentData);
+        await logAction({
+            action: 'MERCHANT_API_DOCUMENT_EXPORTED', req,
+            performedById: workspace.actor._id, performedByModel: workspace.actorModel,
+            performedByName: workspace.actor.name, targetId: workspace.entity._id,
+            targetModel: workspace.entityModel, result: 'نجاح', metadata: { credentialsIncluded: false }
+        }).catch(() => {});
+        const reference = String(documentData.account.accountCode).replace(/[^a-zA-Z0-9_-]/g, '').slice(0,40) || 'account';
+        res.set('Content-Type', 'application/pdf');
+        res.set('Content-Disposition', `attachment; filename="api-integration-${workspace.isCompany ? 'company' : 'agent'}-${reference}.pdf"`);
+        return res.send(pdf);
+    } catch (error) {
+        return res.status(error.statusCode || (error.code === 'PDF_BROWSER_NOT_FOUND' ? 503 : 500))
+            .send(error.statusCode ? error.message : 'تعذر تحميل وثيقة API. أعد المحاولة لاحقًا.');
+    }
+});
 router.get(['/client/integrations/api', '/agent-portal/integrations/api'], requireClientAuth, async (req, res) => {
     res.set('Cache-Control', 'private, no-store');
     try {

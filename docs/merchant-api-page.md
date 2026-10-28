@@ -18,3 +18,9 @@ Company and agency owners reach a dedicated `/integrations/api` page from Settin
 - Mobile widths 320/390 and desktop width 1366 rendered without horizontal overflow; day, night, and pharaonic themes were checked. The actual local company page and its Settings navigation were verified, including the password confirmation dialog and documentation link, with no browser errors.
 
 The production runtime, transfer workers, and rollout remain unchanged by this local implementation.
+
+## Account document download
+
+The **تحميل الوثيقة** button downloads `/integrations/api/guide.pdf` for the authenticated owner. Company and agency routes use the same account-specific PDF template as administration, with account details, effective service rates, and API examples. They do not accept an account ID from the caller and enforce owner/tenant scope. The exported document uses `<API_KEY>` as a placeholder: downloading never reveals, creates, rotates, or re-enables a key. The separate inline API guide was removed as requested; the small connection example remains.
+
+20 focused tests passed after this addition, including download headers, account identity, non-owner/tenant denial, unchanged credential state, and continued old-key rejection. A real browser download produced the account-named PDF; its six pages were rendered for inspection. The template's orphan closing paragraph and stray patch markers in curl examples were corrected.

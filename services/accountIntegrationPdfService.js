@@ -103,9 +103,9 @@ const buildIntegrationDocumentData = ({
             rate: formatRate(serviceRates[key])
         })),
         examples: {
-            balanceCurl: `curl --request GET "${basePath}/balance" \\\n+  --header "x-api-key: <API_KEY>" \\\n+  --header "Accept: application/json"`,
-            transferCurl: `curl --request POST "${basePath}/transfer" \\\n+  --header "x-api-key: <API_KEY>" \\\n+  --header "Content-Type: application/json" \\\n+  --header "Accept: application/json" \\\n+  --data '{\n+    "target_number": "01012345678",\n+    "amount": 1000,\n+    "transfer_type": "vodafone",\n+    "whatsapp_number": "01108172258"\n+  }'`,
-            statusCurl: `curl --request GET "${basePath}/status/ATT-2608-0001" \\\n+  --header "x-api-key: <API_KEY>" \\\n+  --header "Accept: application/json"`,
+            balanceCurl: `curl --request GET "${basePath}/balance" \\\n  --header "x-api-key: <API_KEY>" \\\n  --header "Accept: application/json"`,
+            transferCurl: `curl --request POST "${basePath}/transfer" \\\n  --header "x-api-key: <API_KEY>" \\\n  --header "Content-Type: application/json" \\\n  --header "Accept: application/json" \\\n  --data '{\n    "target_number": "01012345678",\n    "amount": 1000,\n    "transfer_type": "vodafone",\n    "whatsapp_number": "01108172258"\n  }'`,
+            statusCurl: `curl --request GET "${basePath}/status/ATT-2608-0001" \\\n  --header "x-api-key: <API_KEY>" \\\n  --header "Accept: application/json"`,
             transferJson: JSON.stringify({
                 target_number: '01012345678',
                 amount: 1000,

@@ -318,9 +318,6 @@
         });
     };
     get('rotate').addEventListener('click', () => confirmAction('/rotate'));
-    root.querySelector('a[href="#api-guide"]').addEventListener('click', () => {
-        document.getElementById('api-guide').open = true;
-    });
     get('revoke').addEventListener('click', () => confirmAction('/revoke'));
     get('refresh').addEventListener('click', async () => {
         if (busy) return;

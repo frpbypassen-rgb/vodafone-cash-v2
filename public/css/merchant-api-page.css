@@ -63,9 +63,19 @@
     font-size: 12px;
     text-underline-offset: 4px;
 }
+.api-download {
+    font-size: 12px;
+    white-space: nowrap;
+    color: var(--wh-primary);
+    background: var(--wh-primary-soft);
+    text-decoration: none;
+}
 .api-webhooks {
     display: block;
     margin-top: 16px;
+}
+.api-webhooks.wh-button {
+    display: inline-flex;
 }
 .api-guide {
     margin-top: 16px;

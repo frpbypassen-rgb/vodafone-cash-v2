@@ -6,8 +6,8 @@
     <title>مفتاح API | الأهرام</title>
     <script>(()=>{let stored;try{stored=localStorage.getItem(<%- JSON.stringify(portalBase === '/client' ? 'ahram_company_theme' : 'ahram_client_theme') %>);}catch(_){}const server=<%- JSON.stringify(savedTheme) %>;document.documentElement.dataset.theme=server||(['day','night','pharaonic'].includes(stored)?stored:matchMedia('(prefers-color-scheme: dark)').matches?'night':'day');})();</script>
     <link rel="stylesheet" href="/css/merchant-webhooks.css?v=20261028-1">
-    <link rel="stylesheet" href="/css/merchant-api-page.css?v=20261028-1">
-    <script src="/js/merchant-api-page.js?v=20261028-1" defer></script>
+    <link rel="stylesheet" href="/css/merchant-api-page.css?v=20261028-2">
+    <script src="/js/merchant-api-page.js?v=20261028-2" defer></script>
 </head>
 <body>
 <main class="wh-page api-page" data-api-page>
@@ -24,21 +24,16 @@
             <div class="api-actions"><button type="button" class="wh-button wh-primary" data-api-rotate disabled>إنشاء مفتاح</button><button type="button" class="wh-button wh-danger-button" data-api-revoke hidden>إيقاف المفتاح</button></div>
         </section>
         <section class="wh-panel" aria-labelledby="api-start-title">
-            <div class="wh-section-head"><h2 id="api-start-title">ابدأ الربط</h2><a class="api-link" href="#api-guide">دليل API</a></div>
+            <div class="wh-section-head"><h2 id="api-start-title">ابدأ الربط</h2><a class="wh-button api-download" href="<%= portalBase %>/integrations/api/guide.pdf" download>تحميل الوثيقة</a></div>
             <label class="api-caption" for="api-address">عنوان الخدمة</label>
             <div class="api-address-row"><input id="api-address" class="wh-input" readonly dir="ltr" value="<%= apiBase %>"><button class="wh-button" type="button" data-api-copy-base>نسخ</button></div>
             <p class="api-caption">أرسل المفتاح في ترويسة <code dir="ltr">x-api-key</code> من خادمك عبر HTTPS.</p>
             <details class="api-guide" id="api-example"><summary>عرض مثال الربط</summary><pre class="api-code" dir="ltr" data-api-example></pre><button type="button" class="wh-button" data-api-copy-example>نسخ المثال</button></details>
-            <a class="api-link api-webhooks" href="<%= portalBase %>/integrations/webhooks" data-api-webhooks hidden>إدارة Webhooks ←</a>
+            <a class="wh-button api-download api-webhooks" href="<%= portalBase %>/integrations/webhooks" data-api-webhooks hidden>إدارة Webhooks ←</a>
             <span class="api-caption api-webhooks" data-api-webhooks-locked hidden>Webhooks غير مفعّلة من الإدارة.</span>
         </section>
     </div>
     <section class="wh-panel api-history" aria-labelledby="api-history-title"><div class="wh-section-head"><h2 id="api-history-title">آخر عمليات API</h2><span class="api-caption">آخر 5 عمليات</span></div><div data-api-history aria-live="polite"><p class="api-caption">جارٍ التحميل…</p></div></section>
-    <details class="wh-panel api-guide" id="api-guide"><summary>دليل API المختصر</summary>
-        <dl class="api-docs"><dt>قراءة الرصيد</dt><dd><code dir="ltr">GET /api/v1/merchant/balance</code></dd><dt>إنشاء تحويل</dt><dd><code dir="ltr">POST /api/v1/merchant/transfer</code></dd><dt>متابعة العملية</dt><dd><code dir="ltr">GET /api/v1/merchant/status/:reference_id</code></dd></dl>
-        <p class="api-caption">حقول التحويل: <code>target_number</code>، <code>amount</code>، <code>transfer_type</code>. القيمة المقبولة من 100 إلى 50000. راجع وثيقة حسابك من الإدارة للخدمات والأسعار.</p>
-        <p class="api-caption">عند انقطاع الاتصال بعد إرسال تحويل، تحقّق من حالته قبل تكراره. احتفظ بالمفتاح على خادمك ولا تضعه في الواجهة أو رابط الطلب.</p>
-    </details>
     <dialog class="wh-dialog" data-api-dialog aria-labelledby="api-dialog-title"></dialog>
     <noscript><p class="wh-notice">فعّل JavaScript لإدارة مفتاح API.</p></noscript>
 </main>

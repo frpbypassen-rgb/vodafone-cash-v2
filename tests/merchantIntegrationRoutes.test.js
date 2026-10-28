@@ -1,5 +1,9 @@
 'use strict';
 jest.mock('../services/auditService', () => ({ logAction: jest.fn(async () => {}) }));
+jest.mock('../services/accountIntegrationPdfService', () => ({
+    ...jest.requireActual('../services/accountIntegrationPdfService'),
+    generateAccountIntegrationPdf: jest.fn(async () => Buffer.from('%PDF-fixture'))
+}));
 jest.mock('dns', () => ({
     promises: { lookup: jest.fn(async () => [{ address: '203.0.113.10', family: 4 }]) },
 }));
@@ -124,6 +128,21 @@ for (const kind of ['company', 'agent']) {
         expect(rotated.status).toBe(200);
         expect((await readBalance(token)).status).toBe(401);
         expect((await readBalance(rotated.body.data.token)).status).toBe(200);
+        const keyBeforeDownload = await (isCompany ? Company : User).findById(entity._id).select('+merchantApiKeyHash +apiToken').lean();
+        const guide = await request(app).get(base + '/integrations/api/guide.pdf');
+        expect(guide.status).toBe(200);
+        expect(guide.headers['content-type']).toContain('application/pdf');
+        expect(guide.headers['content-disposition']).toContain('attachment;');
+        expect(guide.headers['cache-control']).toContain('no-store');
+        const documentData = require('../services/accountIntegrationPdfService').generateAccountIntegrationPdf.mock.calls.at(-1)[1];
+        expect(documentData.account.name).toBe(entity.name);
+        expect(documentData.account.apiKey).toBe('<API_KEY>');
+        expect(JSON.stringify(documentData)).not.toContain(rotated.body.data.token);
+        const keyAfterDownload = await (isCompany ? Company : User).findById(entity._id).select('+merchantApiKeyHash +apiToken').lean();
+        expect(keyAfterDownload.merchantApiKeyHash).toBe(keyBeforeDownload.merchantApiKeyHash);
+        expect(keyAfterDownload.integrationAccess).toEqual(keyBeforeDownload.integrationAccess);
+        expect((await readBalance(token)).status).toBe(401);
+        expect((await readBalance(rotated.body.data.token)).status).toBe(200);
         await Transaction.create([
             { customId: `${kind}-api-own`, companyId: isCompany ? entity._id : undefined,
               clientActorId: String(entity._id), clientActorModel: isCompany ? 'ClientCompany' : 'User',
@@ -195,6 +214,7 @@ test('an operational manager cannot administer integration credentials', async (
         (await post('/client/api/integrations/rotate', { currentPassword: 'test-password-123' })).status
     ).toBe(403);
     expect((await request(app).get('/client/integrations/api')).status).toBe(403);
+    expect((await request(app).get('/client/integrations/api/guide.pdf')).status).toBe(403);
     expect((await request(app).get('/client/api/integrations/activity').set('Accept','application/json')).status).toBe(403);
 });
 test('integration management rejects a company session from another tenant', async () => {
@@ -216,6 +236,7 @@ test('integration management rejects a company session from another tenant', asy
             (await request(app).get('/client/api/integrations').set('Accept', 'application/json')).status
         ).toBe(403);
         expect((await request(app).get('/client/integrations/api')).status).toBe(403);
+        expect((await request(app).get('/client/integrations/api/guide.pdf')).status).toBe(403);
         expect((await request(app).get('/client/api/integrations/activity').set('Accept','application/json')).status).toBe(403);
         session = { csrfToken: csrf, isLoggedIn: true, adminRole: 'master' };
         expect((await post('/company/' + company._id + '/integrations', { apiEnabled: 'on', revision: 0 })).status).toBe(

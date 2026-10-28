@@ -24,6 +24,7 @@ test.each(['/client', '/agent-portal'])(
             },
         );
         expect(html).toContain(portalBase + '/settings#integrations');
+        expect(html).toContain(portalBase + '/integrations/api/guide.pdf" download');
         expect(html).toContain('data-theme="night"');
         expect(html).not.toContain('</script><script>bad()');
         const config = JSON.parse(
