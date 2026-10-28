@@ -10,21 +10,6 @@
             (!panel || window.location.hash === '#' + panel.id)
         );
     };
-    const labels = {
-        IP_NOT_ALLOWED: 'طلب مرفوض بسبب IP',
-        WEBHOOK_DELIVERY_FAILED: 'فشل تسليم Webhook',
-        WEBHOOK_ADMIN_DISABLED: 'أوقفت الإدارة تسليم Webhooks',
-        IDEMPOTENCY_CONFLICT: 'مفتاح منع تكرار مستخدم لطلب مختلف',
-        IDEMPOTENCY_IN_PROGRESS: 'طلب مكرر ما زال قيد التحقق',
-        FINANCIAL_TRANSACTIONS_UNAVAILABLE: 'المعاملات المالية غير جاهزة',
-        IDEMPOTENCY_INDEX_UNAVAILABLE: 'فهرس منع تكرار التحويل غير جاهز',
-    };
-    const operation = {
-        balance: 'الرصيد',
-        transfer: 'إنشاء تحويل',
-        status: 'حالة تحويل',
-        webhook: 'Webhooks',
-    };
     const date = (value) =>
         value && Number.isFinite(new Date(value).getTime())
             ? new Date(value).toLocaleString('ar-LY', {
@@ -41,11 +26,6 @@
         controller,
         lastAttempt = 0,
         delay = 30000;
-    const node = (tag, text) => {
-        const element = document.createElement(tag);
-        element.textContent = text;
-        return element;
-    };
     const badge = (name, label, state) => {
         const element = get(name);
         element.textContent = label;
@@ -106,55 +86,7 @@
                 ? ''
                 : 'غير متاح: الخدمة موقوفة من الإدارة.',
         );
-        get('last-check').textContent =
-            'آخر تحقق ناجح: ' + date(data.checkedAt);
-        get('check-list').replaceChildren(
-            ...data.checks.map((check) => {
-                const li = node('li', '');
-                li.append(
-                    node('strong', (check.ok ? '✓ ' : '! ') + check.label),
-                    node('span', check.message),
-                );
-                return li;
-            }),
-        );
-        get('events').replaceChildren(
-            ...(data.eventsAvailable
-                ? data.events.length
-                    ? data.events.map((event) => {
-                          const li = node('li', '');
-                          li.append(
-                              node(
-                                  'strong',
-                                  labels[event.code] || 'خطأ في الربط',
-                              ),
-                              node(
-                                  'span',
-                                  [
-                                      operation[event.operation] || '',
-                                      date(event.lastSeenAt),
-                                      event.httpStatus
-                                          ? 'HTTP ' + event.httpStatus
-                                          : '',
-                                      event.sourceIp
-                                          ? 'IP ' + event.sourceIp
-                                          : '',
-                                      'تكرار: ' + event.count,
-                                  ]
-                                      .filter(Boolean)
-                                      .join(' · '),
-                              ),
-                          );
-                          return li;
-                      })
-                    : [node('li', 'لا توجد أخطاء مسجلة خلال آخر 7 أيام.')]
-                : [
-                      node(
-                          'li',
-                          'السجل غير متاح حاليًا؛ لا يؤثر ذلك على صلاحية التوكن.',
-                      ),
-                  ]),
-        );
+
     };
     const stale = (message, clear = false) => {
         if (clear) {
@@ -169,10 +101,7 @@
                 'queue-age',
             ])
                 get(key).textContent = '—';
-            get('events').replaceChildren(
-                node('li', 'سجّل الدخول لعرض السجل.'),
-            );
-            get('check-list').replaceChildren();
+
         }
         root.setAttribute('data-stale', 'true');
         badge('api-state', 'تعذر التحقق', 'error');
@@ -186,26 +115,21 @@
         get('notice').className = 'mi-notice is-error';
         get('notice').textContent =
             message + (data ? ' البيانات المعروضة أدناه سابقة.' : '');
-        get('last-check').textContent = data
-            ? 'آخر تحقق ناجح: ' + date(data.checkedAt)
-            : 'لم يكتمل تحقق ناجح بعد.';
+
     };
     const schedule = () => {
         clearTimeout(timer);
         if (active()) timer = setTimeout(() => load(), delay);
     };
-    const load = async ({ force = false, showChecks = false } = {}) => {
+    const load = async () => {
         if (
             loading ||
             !active() ||
-            (!force && Date.now() - lastAttempt < 10000)
+            Date.now() - lastAttempt < 10000
         )
             return;
         loading = true;
         lastAttempt = Date.now();
-        get('refresh').disabled = true;
-        get('check').disabled = true;
-        get('result').textContent = showChecks ? 'جارٍ فحص الإعدادات…' : '';
         controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 10000);
         try {
@@ -243,10 +167,6 @@
             data = payload.data;
             render();
             delay = 30000;
-            get('result').textContent = showChecks
-                ? 'اكتمل فحص الإعدادات دون إنشاء تحويل أو إرسال إشعار.'
-                : '';
-            if (showChecks) get('checks').open = true;
         } catch (error) {
             delay = Math.min(delay * 2, 120000);
             if (active()) {
@@ -258,21 +178,14 @@
                           : 'تعذر التحقق من الحالة. أعد المحاولة.',
                     error.clear,
                 );
-                get('result').textContent = '';
             }
         } finally {
             clearTimeout(timeout);
             loading = false;
             controller = null;
-            get('refresh').disabled = false;
-            get('check').disabled = false;
             schedule();
         }
     };
-    get('refresh').addEventListener('click', () => load({ force: true }));
-    get('check').addEventListener('click', () =>
-        load({ force: true, showChecks: true }),
-    );
     const activate = () => {
         if (active()) load();
         else {

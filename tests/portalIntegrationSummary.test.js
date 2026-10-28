@@ -2,22 +2,29 @@
 const fs=require('fs'),path=require('path'),vm=require('vm');
 const sample={access:{apiEnabled:true,keyActive:true,keyHint:'hint01',ipAllowlistEnabled:true,allowedIps:['192.0.2.1'],webhooksEnabled:true},api:{label:'متاح',state:'ready',proxyReady:true},webhooks:{label:'جاهز',state:'ready',enabled:1,total:1,lastSuccessAt:'2026-10-28T00:00:00Z',lastFailureAt:null,reason:'تسليم مؤكد',queue:{available:true,pendingEvents:3,pendingDeliveries:1,oldestAgeSeconds:45,delayed:false}},checks:[{ok:true,label:'التوكن',message:'نشط'}],events:[],eventsAvailable:true,readOnly:true,checkedAt:'2026-10-28T00:00:00Z'};
 const response=(status=200)=>({ok:status===200,status,headers:{get:()=> 'application/json'},json:async()=>({success:true,data:sample})});
-test('summary exposes stale state and reasons without hiding controls, clears private metadata on auth failure, and readiness is GET-only',async()=>{
+test('automatic summary refresh works without diagnostic controls and clears private metadata on auth failure',async()=>{
  const nodes=new Map();
+ const removed=new Set(['check','refresh','last-check','checks','check-list','events','result'].map(name=>'[data-mi-'+name+']'));
+ let now=Date.now();const Clock=class extends Date {static now(){return now;}};
  const make=()=>({textContent:'',hidden:false,disabled:false,open:false,children:[],attributes:{},listeners:{},append(...items){this.children.push(...items);},replaceChildren(...items){this.children=items;},setAttribute(k,v){this.attributes[k]=v;},getAttribute(k){return this.attributes[k];},removeAttribute(k){delete this.attributes[k];},addEventListener(k,fn){this.listeners[k]=fn;}});
- const root={...make(),dataset:{base:'/client'},closest:()=>({id:'integrations'}),querySelector(selector){if(!nodes.has(selector))nodes.set(selector,make());return nodes.get(selector);}};
+ const root={...make(),dataset:{base:'/client'},closest:()=>({id:'integrations'}),querySelector(selector){if(removed.has(selector))return null;if(!nodes.has(selector))nodes.set(selector,make());return nodes.get(selector);}};
  const get=name=>root.querySelector('[data-mi-'+name+']');
  const fetch=jest.fn().mockResolvedValue(response());
- const context={document:{hidden:false,querySelector:()=>root,createElement:make,addEventListener:jest.fn()},window:{location:{hash:'#integrations'},addEventListener:jest.fn()},fetch,AbortController,setTimeout:jest.fn(),clearTimeout:jest.fn(),Date};
+ const context={document:{hidden:false,querySelector:()=>root,createElement:make,addEventListener:jest.fn()},window:{location:{hash:'#integrations'},addEventListener:jest.fn()},fetch,AbortController,setTimeout:jest.fn(),clearTimeout:jest.fn(),Date:Clock};
  vm.runInNewContext(fs.readFileSync(path.join(__dirname,'../public/js/portal-integrations.js'),'utf8'),context);
  await new Promise(setImmediate);
+ const refresh=async()=>{now+=120000;const callbacks=context.setTimeout.mock.calls.filter(([,delay])=>delay>=30000);await callbacks[callbacks.length-1][0]();};
  expect(get('queue-pending').textContent).toContain('3 حدث');expect(get('queue-age').textContent).toContain('45');expect(get('api-state').textContent).toBe('متاح');expect(get('api-link').getAttribute('aria-disabled')).toBe('false');
  fetch.mockRejectedValueOnce(new Error('offline'));
- await get('refresh').listeners.click();
+ await refresh();
  expect(get('api-state').textContent).toBe('تعذر التحقق');expect(get('webhook-state').textContent).toBe('تعذر التحقق');
- expect(get('api-link').hidden).toBe(false);expect(get('api-link').getAttribute('aria-disabled')).toBe('true');expect(get('notice').textContent).toContain('البيانات المعروضة أدناه سابقة');expect(get('last-check').textContent).toContain('آخر تحقق ناجح');
- fetch.mockResolvedValueOnce(response(401));await get('refresh').listeners.click();expect(get('key-meta').textContent).toBe('—');
+ expect(get('api-link').hidden).toBe(false);expect(get('api-link').getAttribute('aria-disabled')).toBe('true');expect(get('notice').textContent).toContain('البيانات المعروضة أدناه سابقة');
+ fetch.mockResolvedValueOnce(response(401));await refresh();expect(get('key-meta').textContent).toBe('—');
  expect(get('queue-pending').textContent).toBe('—');expect(get('queue-age').textContent).toBe('—');
- fetch.mockResolvedValueOnce(response());await get('check').listeners.click();expect(get('checks').open).toBe(true);expect(get('api-state').textContent).toBe('متاح');
+ fetch.mockResolvedValueOnce(response());await refresh();expect(get('api-state').textContent).toBe('متاح');
+ for(const selector of removed)expect(root.querySelector(selector)).toBeNull();
+ const template=fs.readFileSync(path.join(__dirname,'../views/portal/partials/merchant_integrations.ejs'),'utf8');
+ for(const selector of removed)expect(template).not.toContain(selector.slice(1,-1));
+ expect(template).toContain('data-mi-api-link');expect(template).toContain('data-mi-webhook-link');
  expect(fetch.mock.calls.every(([url,options])=>url.endsWith('/overview')&&(!options.method||options.method==='GET'))).toBe(true);
 });
