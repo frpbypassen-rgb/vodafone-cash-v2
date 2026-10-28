@@ -31,6 +31,7 @@ const { sanitizeStatementText } = require('../utils/accountStatementPrivacy');
 const { normalizeStoredBank } = require('../utils/egyptianBanks');
 const logger = require('../utils/logger');
 const { apiKeyQuery } = require('../utils/merchantIntegrationPolicy');
+const merchantIdempotency = require('../services/merchantIdempotencyService');
 
 const MERCHANT_TRANSFER_MIN_AMOUNT = 100;
 const MERCHANT_TRANSFER_MAX_AMOUNT = 50000;
@@ -161,7 +162,7 @@ const customerFacingNotes = (notes) => {
         .trim();
 };
 
-const withOptionalTransaction = async (work) => {
+const withOptionalTransaction = async (work, required = false) => {
     let session;
     try {
         session = await mongoose.startSession();
@@ -174,7 +175,7 @@ const withOptionalTransaction = async (work) => {
             try { await session.abortTransaction(); } catch (_) {}
         }
         const transactionUnavailable = !session || isMongoTransactionFallbackError(error);
-        if (transactionUnavailable && requiresMongoTransactions()) {
+        if (transactionUnavailable && (required || requiresMongoTransactions())) {
             throw financialTransactionsUnavailableError(error);
         }
         if (isMongoTransactionFallbackError(error)) {
@@ -187,6 +188,16 @@ const withOptionalTransaction = async (work) => {
         }
     }
 };
+const transferResponse = (result, receiptWhatsAppNumber) => ({
+    status: 'success', message: 'تم استلام الطلب بنجاح وهو الآن قيد المعالجة',
+    data: {
+        transaction_id: result.tx._id, invoice_number: result.tx.customId, status: result.tx.status,
+        amount_egp: result.tx.amount, exchange_rate: result.exchangeRate, cost_lyd: result.tx.costLYD,
+        balance: result.balanceAfter, receipt_whatsapp_number: receiptWhatsAppNumber || null,
+        ...resolveMerchantExecutorData(result.tx, result.autoRouteExecutor),
+        ...resolveMerchantCancellationData(result.tx)
+    }
+});
 
 const merchantApiAuth = async (req, res, next) => {
     try {
@@ -246,6 +257,7 @@ router.get('/balance', merchantApiAuth, async (req, res) => {
 
 router.post('/transfer', merchantApiAuth, async (req, res) => {
     let cooldownLock = null;
+    let idempotency = null;
     try {
         const { target_number, amount, transfer_type } = req.body;
         const amountValue = Number(amount);
@@ -282,6 +294,12 @@ router.post('/transfer', merchantApiAuth, async (req, res) => {
         if (storedBank.error) {
             return res.status(400).json({ status: 'failed', code: storedBank.code, message: storedBank.error });
         }
+        idempotency = merchantIdempotency.prepare(req.merchant, req.headers['idempotency-key'], {
+            target_number:phoneStr, amount:amountValue, transfer_type:serviceKey,
+            whatsapp_number:receiptWhatsAppNumber || null, bank_code:storedBank.bank?.code || null
+        });
+        const replay = await merchantIdempotency.lookup(idempotency);
+        if (replay) return res.set('Idempotency-Replayed','true').json(replay);
 
         const cooldown = await acquireTransferCooldown({
             ownerModel: req.merchant.entityModel,
@@ -361,6 +379,7 @@ router.post('/transfer', merchantApiAuth, async (req, res) => {
                 ...cooldown.guardFields,
                 notes: '',
                 adminNotes: '[طلب وارد عبر API التاجر الخارجي]',
+                ...(idempotency ? { idempotencyKey:idempotency.key, idempotencyFingerprint:idempotency.fingerprint } : {}),
                 executorGroupId: undefined,
                 serviceDetails: (() => {
                     const details = {
@@ -392,8 +411,11 @@ router.post('/transfer', merchantApiAuth, async (req, res) => {
                 await ledgerEntry.save();
             }
 
-            return { tx, exchangeRate, balanceAfter, autoRouteExecutor };
-        });
+            const completed = { tx, exchangeRate, balanceAfter, autoRouteExecutor };
+            completed.response = transferResponse(completed, receiptWhatsAppNumber);
+            await merchantIdempotency.persist(idempotency, tx, completed.response, session);
+            return completed;
+        }, Boolean(idempotency));
 
         if (result.autoRouteExecutor) {
             enqueueAutoRouteIfNeeded(result.tx, result.autoRouteExecutor).catch((err) => {
@@ -406,23 +428,18 @@ router.post('/transfer', merchantApiAuth, async (req, res) => {
             employeeName: 'Merchant API'
         });
 
-        return res.json({
-            status: 'success',
-            message: 'تم استلام الطلب بنجاح وهو الآن قيد المعالجة',
-            data: {
-                transaction_id: result.tx._id,
-                invoice_number: result.tx.customId,
-                status: result.tx.status,
-                amount_egp: result.tx.amount,
-                exchange_rate: result.exchangeRate,
-                cost_lyd: result.tx.costLYD,
-                balance: result.balanceAfter,
-                receipt_whatsapp_number: receiptWhatsAppNumber || null,
-                ...resolveMerchantExecutorData(result.tx, result.autoRouteExecutor),
-                ...resolveMerchantCancellationData(result.tx)
-            }
-        });
+        return res.json(result.response);
     } catch (error) {
+        if (idempotency && (merchantIdempotency.concurrent(error) || error.statusCode === 429)) {
+            try {
+                const replay = await merchantIdempotency.lookup(idempotency);
+                if (replay) return res.set('Idempotency-Replayed','true').json(replay);
+                if (merchantIdempotency.concurrent(error)) {
+                    res.set('Retry-After','2');
+                    error = merchantIdempotency.error('IDEMPOTENCY_IN_PROGRESS','الطلب قيد التحقق. أعد المحاولة بالمفتاح نفسه.');
+                }
+            } catch (recoveryError) { error = recoveryError; }
+        }
         logger.error('Merchant API transfer failed', { error: error.message, code: error.code });
         if (error && error.statusCode) {
             return res.status(error.statusCode).json({
