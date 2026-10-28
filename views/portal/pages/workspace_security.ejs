@@ -37,7 +37,7 @@
                     <a class="bw-button ghost" href="/security/sessions"><i class="fa-solid fa-laptop-mobile"></i>الأجهزة والجلسات</a>
                 </div>
             </form>
-            <div id="companyMfa"><%- include('../../partials/mfa_security_panel') %></div>
+            <div id="companyMfa"><%- include('../../partials/mfa_security_panel') %><% if (workspace.isCompany || workspace.isAgent) { %><%- include('../../partials/email_login_security_panel') %><% } %></div>
         </div>
     </section>
 </div>

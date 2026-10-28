@@ -1,0 +1,37 @@
+.email-login-panel {
+    margin-top: 14px;
+    min-width: 0;
+}
+.bw-settings-security-grid #companyMfa {
+    width: 100%;
+    max-width: 760px;
+    margin-inline: auto;
+}
+.email-login-panel form {
+    display: grid;
+    gap: 12px;
+    margin-top: 14px;
+}
+.email-login-panel [hidden] {
+    display: none !important;
+}
+.email-login-panel input {
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+}
+.email-login-panel [data-email-address] {
+    overflow-wrap: anywhere;
+}
+.email-login-panel [data-email-code] input {
+    text-align: center;
+    letter-spacing: 0.4em;
+    font-size: 20px;
+}
+.email-login-panel .mfa-panel-heading {
+    flex-wrap: wrap;
+    gap: 8px;
+}
+.email-login-panel .mfa-button {
+    min-height: 44px;
+}

@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 
 const agentEmployeeSchema = new mongoose.Schema({
+    ...require('./schemas/emailLoginSecurityFields'),
     agentId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     name: { type: String, required: true },
     phone: { type: String },

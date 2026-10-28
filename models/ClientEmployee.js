@@ -3,6 +3,7 @@ const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 
 const clientEmployeeSchema = new mongoose.Schema({
+    ...require('./schemas/emailLoginSecurityFields'),
     companyId: { type: mongoose.Schema.Types.ObjectId, ref: 'ClientCompany', required: true },
     name: { type: String, required: true },
     phone: { type: String },

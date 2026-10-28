@@ -27,7 +27,8 @@
                     <span>إرسال رمز التحقق عبر البريد</span>
                 </label>
                 <% } %>
-                <div class="small text-muted mt-1">عند التفعيل يُرسل OTP إلى هذا البريد. عند إيقافه يكون الدخول بكلمة المرور فقط، ولا يُرسل OTP عبر واتساب.</div>
+                <% if (ownerOtp.verified) { %><div class="small text-success mt-1">تم تأكيد البريد بكود من صاحب الحساب.</div><% } %>
+                <div class="small text-muted mt-1">الحالة متزامنة مع حساب صاحب المنشأة. عند التفعيل يُطلب كود البريد عند الدخول. Authenticator يظل مطلوبًا إذا كان مفعّلًا.</div>
             </div>
         </form>
     </div>

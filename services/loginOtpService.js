@@ -260,7 +260,7 @@ const issueLoginOtp = async ({ account, accountType, session = {}, attempt = nul
     await clearStoredOtp(portal.Model, account._id);
     const emergencyBypass = getEmergencyClientOtpBypassState();
     const code = delivery?.code || 'WHATSAPP_OTP_FAILED';
-    if (emergencyBypass.active) {
+    if (emergencyBypass.active && !account.emailOtpVerifiedAt) {
         return {
             status: 'emergency_bypass',
             portal,

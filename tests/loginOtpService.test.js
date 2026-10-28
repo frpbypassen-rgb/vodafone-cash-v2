@@ -40,6 +40,18 @@ const productionOtpEnv = {
 };
 
 describe('login OTP service', () => {
+    test.each(['user', 'company', 'agent_staff'])('verified email remains required on every new %s login', async accountType => {
+        sendLoginOtpEmail.mockResolvedValue({ success: true, provider: 'smtp' });
+        const account = { _id: 'verified-owner', role: 'agent', otpDeliveryChannel: 'email', emailOtpVerifiedAt: new Date(), emailOtpVerifiedEmail: 'verified@example.com', email: 'other@example.com' };
+        const first = await issueLoginOtp({ account, accountType, session: {} });
+        const second = await issueLoginOtp({ account, accountType, session: {} });
+        expect(first.status).toBe('sent'); expect(second.status).toBe('sent');
+        expect(first.otpChallengeId).not.toBe(second.otpChallengeId);
+        expect(sendLoginOtpEmail).toHaveBeenLastCalledWith(expect.objectContaining({ to: 'verified@example.com' }));
+        sendLoginOtpEmail.mockResolvedValue({ success: false, code: 'EMAIL_OTP_SEND_FAILED' });
+        const failed = await issueLoginOtp({ account, accountType, session: {} });
+        expect(failed.status).toBe('failed');
+    });
     beforeEach(() => {
         jest.clearAllMocks();
         delete process.env.LOGIN_OTP_SKIP_WITHOUT_EMAIL;

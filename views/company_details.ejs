@@ -263,6 +263,7 @@
                                     id: company._id,
                                     email: (typeof companyOwner !== 'undefined' && companyOwner && companyOwner.email) || '',
                                     emailOtpEnabled: typeof companyOwner !== 'undefined' && companyOwner && companyOwner.otpDeliveryChannel === 'email',
+                                    verified: typeof companyOwner !== 'undefined' && companyOwner && Boolean(companyOwner.emailOtpVerifiedAt),
                                     ownerName: (typeof companyOwner !== 'undefined' && companyOwner && companyOwner.name) || '',
                                     ownerUsername: (typeof companyOwner !== 'undefined' && companyOwner && companyOwner.webUsername) || '',
                                     showLoginAccount: true,

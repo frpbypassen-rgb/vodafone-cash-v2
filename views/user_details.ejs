@@ -253,8 +253,9 @@
                                 ownerOtp: {
                                     type: isAgentAccount ? 'agent' : 'user',
                                     id: user._id,
-                                    email: (user.businessProfile && user.businessProfile.email) || '',
+                                    email: (user.emailOtpVerifiedAt && user.emailOtpVerifiedEmail) || (user.businessProfile && user.businessProfile.email) || '',
                                     emailOtpEnabled: user.otpDeliveryChannel === 'email',
+                                    verified: Boolean(user.emailOtpVerifiedAt),
                                     ownerName: user.name || '',
                                     ownerUsername: user.webUsername || '',
                                     showLoginAccount: false,

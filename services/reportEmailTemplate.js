@@ -35,4 +35,13 @@ const loginEmail = view => {
     if(!/^\d{6}$/.test(String(view.otp)))throw new Error('INVALID_EMAIL_CODE');
     return {html:render({...context('agent',view.accountName),mode:'login',code:view.otp,expiresPhrase:view.expiresPhrase,attemptRows:view.attemptRows||[],day:'',displayDay:'',filename:'',test:false}),attachments:[logoAttachment()]};
 };
-module.exports={codeEmail,statementEmail,loginEmail};
+const enrollmentEmail = ({code,kind='agent',accountName=''}) => {
+    if(!/^\d{6}$/.test(String(code)))throw new Error('INVALID_EMAIL_CODE');
+    return {
+        subject:'تفعيل التحقق بالبريد لتسجيل الدخول — '+getBrandContact().name,
+        text:`تفعيل التحقق بالبريد لتسجيل الدخول\nرمز التأكيد: ${code}\nصالح لمدة 5 دقائق. أدخله في أمان الحساب ← التحقق بالبريد. بعد التفعيل سيُطلب كود عند كل تسجيل دخول. لا تشارك الرمز. إذا لم تطلب التفعيل، غيّر كلمة مرورك وراجع الجلسات.`,
+        html:render({...context(kind,accountName),mode:'enrollment',code:String(code),expiresPhrase:'5 دقائق',attemptRows:[],day:'',displayDay:'',filename:'',test:false}),
+        attachments:[logoAttachment()],
+    };
+};
+module.exports={codeEmail,statementEmail,loginEmail,enrollmentEmail};

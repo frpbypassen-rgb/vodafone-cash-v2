@@ -1,0 +1,17 @@
+<section class="mfa-security-panel mfa-compact email-login-panel" data-email-login data-base="<%= portalBasePath %>" data-csrf="<%= typeof csrfToken !== 'undefined' ? csrfToken : '' %>">
+    <div class="mfa-panel-heading"><h2><i class="fa-solid fa-envelope-circle-check" aria-hidden="true"></i> التحقق عبر البريد الإلكتروني</h2><span class="mfa-state" data-email-state>جارٍ الفحص</span></div>
+    <p class="mfa-description">كود إلى بريدك عند كل تسجيل دخول، بالإضافة إلى Authenticator إذا كان مفعّلًا.</p>
+    <p class="mfa-login-summary" data-email-address></p>
+    <p class="mfa-message" data-email-message role="status" aria-live="polite" hidden></p>
+    <a class="mfa-button" data-email-profile href="<%= portalBasePath %>/settings#identity" hidden>إضافة البريد من بيانات <%= workspace.isCompany ? 'الشركة' : 'الوكيل' %></a>
+    <form data-email-password hidden>
+        <label class="bw-field"><span>كلمة المرور الحالية</span><input type="password" name="password" autocomplete="current-password" maxlength="128" required></label>
+        <button type="submit" class="mfa-button primary">إرسال كود التفعيل</button>
+    </form>
+    <form data-email-code hidden>
+        <label class="bw-field"><span>كود تأكيد البريد</span><input type="text" name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" dir="ltr" required></label>
+        <div class="mfa-actions"><button type="submit" class="mfa-button primary">تأكيد وتفعيل</button><button type="button" class="mfa-button" data-email-restart>إرسال كود جديد</button></div>
+    </form>
+</section>
+<link rel="stylesheet" href="/css/email-login-security.css?v=1">
+<script src="/js/email-login-security.js?v=1" defer></script>

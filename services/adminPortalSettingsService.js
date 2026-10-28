@@ -68,7 +68,7 @@ const actorIds = async (ctx) => {
       tenantId: ctx.entity.tenantId || null,
       status: { $ne: "deleted" },
     })
-    .select("_id name role mfaEnabled preferences email otpDeliveryChannel")
+    .select("_id name role mfaEnabled preferences email otpDeliveryChannel emailOtpVerifiedEmail emailOtpVerifiedAt")
     .lean();
   if (!ctx.company) rows.unshift(ctx.entity);
   return rows;
@@ -130,7 +130,8 @@ const snapshot = async (ctx) => {
       mfaEnabled: Boolean(actor.mfaEnabled),
       theme:
         actor.preferences?.companyTheme || actor.preferences?.clientTheme || "",
-      email: actor.email || actor.businessProfile?.email || "",
+      email: require('../utils/otpDeliveryChannel').resolveAccountOtpEmail(actor),
+      emailOtpVerified: Boolean(actor.emailOtpVerifiedAt),
       emailOtpEnabled: actor.otpDeliveryChannel === "email",
     })),
     emails: emails.map((row) => ({

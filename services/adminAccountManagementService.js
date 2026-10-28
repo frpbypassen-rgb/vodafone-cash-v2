@@ -268,6 +268,7 @@ const setLoginOtpDelivery = (type, account, payload) => {
         ? requireOtpEmail(payload.email, 'email')
         : optionalOtpEmail(payload.email, 'email');
     account.otpDeliveryChannel = emailOtpEnabled ? 'email' : 'whatsapp';
+    if (['user', 'agent', 'client-employee', 'agent-employee'].includes(type)) require('../utils/invalidateEmailLoginEnrollment')(account, { keepVerified: emailOtpEnabled && account.emailOtpVerifiedEmail === email && Boolean(account.emailOtpVerifiedAt) });
     if (type === 'user' || type === 'agent') {
         if (emailOtpEnabled) account.set('businessProfile.email', email);
     } else {
@@ -306,7 +307,9 @@ const applyCompanyOwnerEmailOtp = (companyOwner, payload = {}) => {
     const changed = (companyOwner.email || '') !== email || previousChannel !== nextChannel;
     companyOwner.email = email;
     companyOwner.otpDeliveryChannel = nextChannel;
-    return changed;
+    require('../utils/invalidateEmailLoginEnrollment')(companyOwner, { keepVerified: emailOtpEnabled && companyOwner.emailOtpVerifiedEmail === email && Boolean(companyOwner.emailOtpVerifiedAt) });
+    // Saving even an unchanged switch invalidates outstanding setup codes.
+    return changed || companyOwner.emailOtpSettingsRevision > 0;
 };
 
 const applyUploadedDocuments = (account, uploads = {}) => {

@@ -339,6 +339,14 @@ exports.postVerify = async (req, res) => {
         if (!accountId || !accountType || !otpChallengeId || !otp) return res.redirect('/login');
 
         const account = await AccountModel.findById(accountId).lean();
+        const authenticatorVerified = Boolean(account && require('../utils/emailLoginMfaProof').valid(req.session.pendingEmailMfaProof, account, accountType));
+        if (account?.mfaEnabled && account.mfaType === 'totp' && !authenticatorVerified) {
+            delete req.session.tempClientId;
+            delete req.session.tempAccountType;
+            delete req.session.otpChallengeId;
+            delete req.session.pendingEmailMfaProof;
+            return res.redirect('/login');
+        }
         const otpAccepted = Boolean(
             account
             && account.otpChallengeId === otpChallengeId
@@ -401,6 +409,7 @@ exports.postVerify = async (req, res) => {
             principal,
             accountClass: 'account',
             allowFirstDevice: true,
+            authenticatorVerified,
             verifiedLogin: true
         });
         if (!authorization.allowed) {

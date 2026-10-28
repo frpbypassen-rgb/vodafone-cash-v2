@@ -30,6 +30,8 @@ const normalizeOtpEmail = normalizeEmailAddress;
 const isValidOtpEmail = isValidEmailAddress;
 
 const resolveAccountOtpEmail = (account = {}) => {
+    // Profile edits must not silently move an already verified login factor.
+    if (account.emailOtpVerifiedAt && account.emailOtpVerifiedEmail) return normalizeOtpEmail(account.emailOtpVerifiedEmail);
     const direct = normalizeOtpEmail(account.email);
     if (direct) return direct;
     const profile = account.businessProfile || {};

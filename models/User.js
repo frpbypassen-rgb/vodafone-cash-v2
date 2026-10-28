@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 
 const userSchema = new mongoose.Schema({
+    ...require('./schemas/emailLoginSecurityFields'),
     name: { type: String },
     ...require('./schemas/merchantIntegrationFields'),
     phone: { type: String, unique: true, sparse: true },

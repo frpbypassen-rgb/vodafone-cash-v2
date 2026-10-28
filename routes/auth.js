@@ -279,13 +279,17 @@ const completeAccountMfaChallenge = async (req, res) => {
     const mfaAccount = await accountMfaService.loadAccount(canonicalType, account._id, account.tenantId || null);
     if (!mfaAccount || !accountMfaService.isEnabled(mfaAccount)) {
         delete req.session.pendingAccountMfaLogin;
-        return loginAsClient(req, res, account, pending.accountType);
+        return continueVerifiedPortalLogin(req, res, account, pending.accountType);
     }
     const token = String(req.body.mfaToken || '').trim();
     if (!token || !(await accountMfaService.verifyAccountToken(mfaAccount, token))) {
         return renderAccountMfaChallenge(res, 'رمز Authenticator غير صحيح.', pending.username);
     }
     delete req.session.pendingAccountMfaLogin;
+    if (account.otpDeliveryChannel === 'email') {
+        req.session.pendingEmailMfaProof = require('../utils/emailLoginMfaProof').create(account, pending.accountType);
+        return startClientOtp(req, res, account, pending.accountType);
+    }
     return loginAsClient(req, res, account, pending.accountType, { authenticatorVerified: true });
 };
 
@@ -878,8 +882,9 @@ const auditSkippedLoginOtp = (req, account, accountType) => logAction({
 
 const startClientOtp = async (req, res, account, accountType) => {
     const deviceId = securityControl.ensureDeviceId(req, res);
-    req.session.pendingSecurityLocation = securityControl.parseLocation(req);
-    req.session.pendingSecurityUsername = String(req.body.username || '');
+    const verifiedMfa = require('../utils/emailLoginMfaProof').valid(req.session.pendingEmailMfaProof, account, accountType);
+    req.session.pendingSecurityLocation = securityControl.parseLocation(req) || (verifiedMfa ? req.session.pendingSecurityLocation : null);
+    req.session.pendingSecurityUsername = String(req.body.username || account.webUsername || '');
     const issued = await issueLoginOtp({ account, accountType, session: req.session, attempt: readLoginOtpAttempt(req) });
     const portal = issued.portal;
     const performedByModel = portal?.performedByModel || 'User';
@@ -971,7 +976,7 @@ const startClientOtp = async (req, res, account, accountType) => {
 };
 
 const continueVerifiedPortalLogin = async (req, res, account, accountType) => {
-    if (isLoginOtpRequired()) return startClientOtp(req, res, account, accountType);
+    if (account.emailOtpVerifiedAt || isLoginOtpRequired()) return startClientOtp(req, res, account, accountType);
     return finishLoginAfterOtpBypass(req, res, account, accountType);
 };
 
