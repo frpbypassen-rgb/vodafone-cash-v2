@@ -1,0 +1,21 @@
+{
+  "uniqueTransfers": 600,
+  "successfulReplays": 1200,
+  "httpRequests": 1800,
+  "transientConflicts": 0,
+  "ledgerRows": 600,
+  "webhookEvents": 1200,
+  "retriedLostAcknowledgements": 120,
+  "receiverReceipts": 1200,
+  "receiverStates": 600,
+  "duplicateFinancialWrites": 0,
+  "externalProviderCalls": 0,
+  "elapsedMs": 52467,
+  "phases": {
+    "creationMs": 14308,
+    "replayMs": 6723,
+    "outboxAndTransitionMs": 20987,
+    "deliveryAndVerificationMs": 10444
+  },
+  "creationRequestP95Ms": 319
+}

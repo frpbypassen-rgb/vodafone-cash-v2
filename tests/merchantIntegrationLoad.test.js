@@ -56,15 +56,18 @@ afterAll(async()=>{
 });
 test('600 synthetic transfers, 1200 replays and signed HTTPS deliveries preserve every financial and receiver invariant',async()=>{
  const start=Date.now();let requests=0,conflicts=0;
+ const phases={},durations=[];
  const orders=Array.from({length:COUNT},(_,i)=>({owner:i%2,key:'load-order-'+i,body:{target_number:String(1010000000+i).padStart(11,'0'),amount:1000,transfer_type:'vodafone'}}));
  const send=order=>{requests++;return request(app).post('/api/v1/merchant/transfer').set('x-api-key',order.owner?'load-agent-test-token':'load-company-test-token').set('Idempotency-Key',order.key).send(order.body);};
  await pool(orders,6,async order=>{
   for(let attempt=0;attempt<100;attempt++){
-   const result=await send(order);if(result.status===200){order.result=result.body;return;}
+   const sentAt=Date.now();const result=await send(order);durations.push(Date.now()-sentAt);if(result.status===200){order.result=result.body;return;}
    expect(result.status).toBe(409);conflicts++;await new Promise(resolve=>setTimeout(resolve,20));
   }throw Error('LOAD_RETRY_BUDGET_EXHAUSTED');
  });
+ phases.creationMs=Date.now()-start;let phaseStart=Date.now();
  await pool(orders.flatMap(order=>[order,order]),16,async order=>{const result=await send(order);expect(result.status).toBe(200);expect(result.body).toEqual(order.result);expect(result.headers['idempotency-replayed']).toBe('true');});
+ phases.replayMs=Date.now()-phaseStart;phaseStart=Date.now();
  expect(await Transaction.countDocuments({})).toBe(COUNT);expect(await Ledger.countDocuments({})).toBe(COUNT);
  expect((await Company.findById(owners[0]._id)).balance).toBe(40000);expect((await User.findById(owners[1]._id)).balance).toBe(40000);
  expect(await Delivery.countDocuments({})).toBe(0); // No in-memory event listener is needed for recovery.
@@ -72,6 +75,7 @@ test('600 synthetic transfers, 1200 replays and signed HTTPS deliveries preserve
  await pool(txs,8,async(tx,index)=>{await Transaction.updateOne({_id:tx._id,status:'pending'},{$set:{status:index%2?'rejected':'completed',...(index%2?{cancellationReason:'SYNTHETIC TEST'}:{completedAt:new Date()})}});});
  for(let round=0;round<8;round++)await Promise.all([outbox.drain(100),outbox.drain(100)]);
  expect(await Delivery.countDocuments({})).toBe(COUNT*2);
+ phases.outboxAndTransitionMs=Date.now()-phaseStart;phaseStart=Date.now();
  // Deliver terminal events first, deliberately reversing arrival order.
  const deliveries=await Delivery.find().sort({eventType:-1}).lean();
  const terminal=deliveries.filter(d=>d.eventType!=='transfer.created'),created=deliveries.filter(d=>d.eventType==='transfer.created');
@@ -88,6 +92,7 @@ test('600 synthetic transfers, 1200 replays and signed HTTPS deliveries preserve
  for(const tx of await Transaction.find().lean()){
   const state=await receivers[0].State.findOne({transactionId:String(tx._id)}).lean();expect(state.status).toBe(tx.status);
  }
- const report={uniqueTransfers:COUNT,successfulReplays:COUNT*2,httpRequests:requests,transientConflicts:conflicts,ledgerRows:await Ledger.countDocuments({}),webhookEvents:COUNT*2,retriedLostAcknowledgements:retried,receiverReceipts:await receivers[0].Inbox.countDocuments({}),receiverStates:await receivers[0].State.countDocuments({}),duplicateFinancialWrites:0,externalProviderCalls:0,elapsedMs:Date.now()-start};
+ phases.deliveryAndVerificationMs=Date.now()-phaseStart;durations.sort((a,b)=>a-b);
+ const report={uniqueTransfers:COUNT,successfulReplays:COUNT*2,httpRequests:requests,transientConflicts:conflicts,ledgerRows:await Ledger.countDocuments({}),webhookEvents:COUNT*2,retriedLostAcknowledgements:retried,receiverReceipts:await receivers[0].Inbox.countDocuments({}),receiverStates:await receivers[0].State.countDocuments({}),duplicateFinancialWrites:0,externalProviderCalls:0,elapsedMs:Date.now()-start,phases,creationRequestP95Ms:durations[Math.ceil(durations.length*.95)-1]};
  fs.mkdirSync(path.join(__dirname,'../outputs'),{recursive:true});fs.writeFileSync(path.join(__dirname,'../outputs/merchant-integration-load-result.json'),JSON.stringify(report,null,2));
 });

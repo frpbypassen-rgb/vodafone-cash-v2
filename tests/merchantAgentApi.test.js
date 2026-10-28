@@ -38,6 +38,15 @@ const {
 const { acquireTransferCooldown, releaseTransferCooldown } = require('../services/transferCooldownService');
 const merchantApi = require('../routes/merchantApi');
 
+const transactionSession = () => {
+    const session={startTransaction:jest.fn(),commitTransaction:jest.fn(),abortTransaction:jest.fn(),endSession:jest.fn()};
+    session.withTransaction=jest.fn(async callback=>{
+        session.startTransaction();
+        try {const result=await callback(session);await session.commitTransaction();return result;}
+        catch(error){await session.abortTransaction();throw error;}
+    });
+    return session;
+};
 const leanResult = (value) => ({ lean: jest.fn().mockResolvedValue(value) });
 const sessionLeanResult = (value) => ({
     session: jest.fn().mockReturnThis(),
@@ -111,12 +120,7 @@ describe('Merchant API agent authentication', () => {
     });
 
     test('records an agent API transfer against the agent wallet and ledger', async () => {
-        const session = {
-            startTransaction: jest.fn(),
-            commitTransaction: jest.fn(),
-            abortTransaction: jest.fn(),
-            endSession: jest.fn()
-        };
+        const session = transactionSession();
         const agent = {
             _id: '66a112233445566778899002',
             name: 'وكالة الاختبار',
@@ -207,12 +211,7 @@ describe('Merchant API agent authentication', () => {
             creditLimit: 100
         };
         const postTransfer = async () => {
-            const session = {
-                startTransaction: jest.fn(),
-                commitTransaction: jest.fn(),
-                abortTransaction: jest.fn(),
-                endSession: jest.fn()
-            };
+            const session = transactionSession();
             mongoose.startSession.mockResolvedValue(session);
             ClientBot.findOne.mockReturnValue(leanResult(null));
             User.findOne.mockReturnValue(leanResult(agent));
@@ -395,12 +394,7 @@ describe('Merchant API agent authentication', () => {
     });
 
     test('stores the receipt WhatsApp number and returns the auto-routed executor for a company transfer', async () => {
-        const session = {
-            startTransaction: jest.fn(),
-            commitTransaction: jest.fn(),
-            abortTransaction: jest.fn(),
-            endSession: jest.fn()
-        };
+        const session = transactionSession();
         const company = {
             _id: '66a112233445566778899003',
             name: 'شركة الربط',

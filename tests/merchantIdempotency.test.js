@@ -273,3 +273,28 @@ test('a missing unique idempotency index rejects a new keyed transfer before any
     } finally { spy.mockRestore(); }
     expect((await send('index-guard-token', 'index-key')).status).toBe(200);
 });
+
+test('transient write conflicts are retried inside the transaction without a client conflict or repeated financial effects', async () => {
+    const merchant=await Company.create({name:'Transient retry',tier:3,balance:1000,token:'transient-token',integrationAccess:{apiEnabled:true}});
+    const error=new mongoose.mongo.MongoServerError({message:'Injected write conflict',code:112,errorLabels:['TransientTransactionError']});
+    const spy=jest.spyOn(Transaction,'updateOne').mockRejectedValueOnce(error);
+    try {expect((await send('transient-token','transient-retry')).status).toBe(200);} finally {spy.mockRestore();}
+    expect(await Transaction.countDocuments({})).toBe(1);expect(await Ledger.countDocuments({})).toBe(1);
+    expect((await Company.findById(merchant._id)).balance).toBe(800);expect(events.publish).toHaveBeenCalledTimes(1);
+});
+
+test('an uncertain commit acknowledgement retries only commit and never reexecutes the debit body',async()=>{
+    const merchant=await Company.create({name:'Commit retry',tier:3,balance:1000,token:'commit-token',integrationAccess:{apiEnabled:true}});
+    const session=await mongoose.startSession(),commit=session.commitTransaction.bind(session);
+    const commitSpy=jest.spyOn(session,'commitTransaction').mockImplementationOnce(async()=>{
+        await commit();throw new mongoose.mongo.MongoServerError({message:'Lost commit acknowledgement',code:91,errorLabels:['UnknownTransactionCommitResult']});
+    });
+    const startSpy=jest.spyOn(mongoose,'startSession').mockResolvedValueOnce(session);
+    const saveSpy=jest.spyOn(Ledger.prototype,'save');
+    try {
+        expect((await send('commit-token','commit-retry')).status).toBe(200);
+        expect(commitSpy).toHaveBeenCalledTimes(2);expect(saveSpy).toHaveBeenCalledTimes(1);
+    } finally {startSpy.mockRestore();saveSpy.mockRestore();commitSpy.mockRestore();}
+    expect(await Transaction.countDocuments({})).toBe(1);expect(await Ledger.countDocuments({})).toBe(1);
+    expect((await Company.findById(merchant._id)).balance).toBe(800);expect(events.publish).toHaveBeenCalledTimes(1);
+});

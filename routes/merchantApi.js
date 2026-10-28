@@ -170,10 +170,10 @@ const withOptionalTransaction = async (work, required = false) => {
     let session;
     try {
         session = await mongoose.startSession();
-        session.startTransaction();
-        const result = await work(session);
-        await session.commitTransaction();
-        return result;
+        // The driver retries transient transaction bodies after rollback, but
+        // retries only commit when its acknowledgement is uncertain. No HTTP,
+        // routing or event publishing is allowed inside this callback.
+        return await session.withTransaction(() => work(session), { timeoutMS: 15000 });
     } catch (error) {
         if (session) {
             try { await session.abortTransaction(); } catch (_) {}
@@ -188,7 +188,7 @@ const withOptionalTransaction = async (work, required = false) => {
         throw error;
     } finally {
         if (session) {
-            session.endSession();
+            await session.endSession();
         }
     }
 };
