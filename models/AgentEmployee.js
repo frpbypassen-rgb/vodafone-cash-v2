@@ -8,7 +8,7 @@ const agentEmployeeSchema = new mongoose.Schema({
     phone: { type: String },
     // بريد رمز الدخول. عند وجود بريد صالح يُرسل الرمز عبر البريد.
     email: { type: String, trim: true, lowercase: true, default: '' },
-    otpDeliveryChannel: { type: String, enum: ['whatsapp', 'email'], default: 'whatsapp' },
+    otpDeliveryChannel: { type: String, enum: ['whatsapp', 'email', 'telegram'], default: 'whatsapp' },
     status: { type: String, default: 'active' },
     webUsername: { type: String, unique: true, required: true },
     webPassword: { type: String, required: true },

@@ -37,14 +37,17 @@
     };
     const load = async () => {
         const state = await request();
-        find('[data-email-state]').textContent = state.enabled ? 'مفعّل' : 'غير مفعّل';
+        find('[data-email-state]').textContent = state.enabled
+            ? 'مفعّل للدخول'
+            : state.verified
+              ? 'بريد مؤكّد'
+              : 'غير مفعّل';
         find('[data-email-state]').classList.toggle('ready', state.enabled);
         find('[data-email-address]').textContent = state.enabled
             ? 'بريد الدخول: ' + state.email
             : 'بريد التفعيل: ' + (state.targetEmail || 'غير مسجل');
         find('[data-email-profile]').hidden = state.hasEmail || !state.isOwner;
-        passwordForm.hidden =
-            !state.hasEmail || !state.canSend || (state.enabled && state.verified && !state.canChangeEmail);
+        passwordForm.hidden = !state.hasEmail || !state.canSend || (state.verified && !state.canChangeEmail);
         codeForm.hidden = true;
         if (!state.canSend) message('إرسال البريد غير متاح حاليًا. تواصل مع الإدارة.');
         else if (!state.hasEmail)
@@ -61,7 +64,9 @@
                       ? 'تغير بريد بيانات الحساب. أكّد كلمة المرور والبريد الجديد هنا لتغيير بريد الدخول بأمان.'
                       : state.enabled
                         ? 'سيُطلب الكود عند كل تسجيل دخول. الحالة متزامنة مع الإدارة.'
-                        : 'أكّد كلمة مرورك ثم أدخل الكود المرسل لتفعيل الحماية.'
+                        : state.verified
+                          ? 'البريد مؤكّد. يمكنك اختياره من قائمة قناة كود الدخول أدناه.'
+                          : 'أكّد كلمة مرورك ثم أدخل الكود المرسل لتفعيل الحماية.'
             );
     };
     const run = async (task) => {
@@ -100,6 +105,7 @@
             codeForm.reset();
             await request('/confirm', { code });
             await load();
+            document.dispatchEvent(new Event('login-email-verified'));
         });
     });
     find('[data-email-restart]').addEventListener('click', () => {
@@ -117,5 +123,8 @@
     });
     document.addEventListener('visibilitychange', () => {
         if (!document.hidden && !busy && codeForm.hidden && !passwordForm.elements.password.value) run(load);
+    });
+    document.addEventListener('login-security-changed', () => {
+        if (!busy) run(load);
     });
 })();

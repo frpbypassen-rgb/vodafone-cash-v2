@@ -113,6 +113,7 @@ const ERROR_MESSAGES = Object.freeze({
     EMAIL_INVALID: 'أدخل بريداً إلكترونياً صالحاً.',
     EMAIL_TAKEN: 'هذا البريد الإلكتروني مستخدم في حساب آخر.',
     EMAIL_OTP_ADDRESS_INVALID: 'أدخل بريداً إلكترونياً صالحاً.',
+    TELEGRAM_LOGIN_NOT_VERIFIED: 'يجب ربط حساب تليجرام وتأكيده من صاحب الحساب وتهيئة بوت الأكواد أولًا.',
     COMPANY_OWNER_REQUIRED: 'لا يوجد حساب مالك لهذه الشركة. أنشئ حساب المالك قبل حفظ بريد صاحب الحساب.',
     UPDATE_FAILED: 'تعذر حفظ التعديلات. راجع البيانات وحاول مرة أخرى.'
 });
@@ -261,14 +262,27 @@ const optionalOtpEmail = (value, field) => {
 };
 
 // Login OTP is an explicit per-account opt-in controlled by administration.
+const adminOtpChannel = (account, payload) => {
+    const selected = payload.loginOtpChannel !== undefined && hasOwn(payload, 'loginOtpChannel')
+        ? (isChecked(payload.emailOtpEnabled) ? String(payload.loginOtpChannel) : 'whatsapp')
+        : (account.otpDeliveryChannel === 'telegram' && !isChecked(payload.emailOtpEnabled) ? 'telegram' : isChecked(payload.emailOtpEnabled) ? 'email' : 'whatsapp');
+    if (!['email', 'telegram', 'whatsapp'].includes(selected)) throw new AdminAccountManagementError('EMAIL_OTP_ADDRESS_INVALID');
+    if (selected === 'telegram') {
+        if (payload.loginOtpChannel === undefined && account.otpDeliveryChannel === 'telegram') return selected;
+        const bot = require('./telegramLoginTransport').config();
+        if (!bot.ready || !account.telegramLoginVerifiedAt || account.telegramLoginBotId !== bot.botId) throw new AdminAccountManagementError('TELEGRAM_LOGIN_NOT_VERIFIED');
+    }
+    return selected;
+};
 const setLoginOtpDelivery = (type, account, payload) => {
     if (!LOGIN_OTP_EDITOR_TYPES.has(type)) return;
-    const emailOtpEnabled = isChecked(payload.emailOtpEnabled);
+    const channel = adminOtpChannel(account, payload);
+    const emailOtpEnabled = channel === 'email';
     const email = emailOtpEnabled
         ? requireOtpEmail(payload.email, 'email')
         : optionalOtpEmail(payload.email, 'email');
-    account.otpDeliveryChannel = emailOtpEnabled ? 'email' : 'whatsapp';
-    if (['user', 'agent', 'client-employee', 'agent-employee'].includes(type)) require('../utils/invalidateEmailLoginEnrollment')(account, { keepVerified: emailOtpEnabled && account.emailOtpVerifiedEmail === email && Boolean(account.emailOtpVerifiedAt) });
+    account.otpDeliveryChannel = channel;
+    if (['user', 'agent', 'client-employee', 'agent-employee'].includes(type)) require('../utils/invalidateEmailLoginEnrollment')(account, { keepVerified: channel !== 'whatsapp' && account.emailOtpVerifiedEmail === email && Boolean(account.emailOtpVerifiedAt) });
     if (type === 'user' || type === 'agent') {
         if (emailOtpEnabled) account.set('businessProfile.email', email);
     } else {
@@ -298,16 +312,16 @@ const applyCompanyOwnerEmailOtp = (companyOwner, payload = {}) => {
     if (!companyOwner) {
         throw new AdminAccountManagementError('COMPANY_OWNER_REQUIRED', 'ownerEmail');
     }
-    const emailOtpEnabled = isChecked(payload.emailOtpEnabled);
+    const nextChannel = adminOtpChannel(companyOwner, payload);
+    const emailOtpEnabled = nextChannel === 'email';
     const email = emailOtpEnabled
         ? requireOtpEmail(payload.email, 'ownerEmail')
         : optionalOtpEmail(payload.email, 'ownerEmail');
     const previousChannel = companyOwner.otpDeliveryChannel === 'email' ? 'email' : 'whatsapp';
-    const nextChannel = emailOtpEnabled ? 'email' : 'whatsapp';
     const changed = (companyOwner.email || '') !== email || previousChannel !== nextChannel;
     companyOwner.email = email;
     companyOwner.otpDeliveryChannel = nextChannel;
-    require('../utils/invalidateEmailLoginEnrollment')(companyOwner, { keepVerified: emailOtpEnabled && companyOwner.emailOtpVerifiedEmail === email && Boolean(companyOwner.emailOtpVerifiedAt) });
+    require('../utils/invalidateEmailLoginEnrollment')(companyOwner, { keepVerified: nextChannel !== 'whatsapp' && companyOwner.emailOtpVerifiedEmail === email && Boolean(companyOwner.emailOtpVerifiedAt) });
     // Saving even an unchanged switch invalidates outstanding setup codes.
     return changed || companyOwner.emailOtpSettingsRevision > 0;
 };
@@ -653,14 +667,14 @@ const safeSnapshot = (type, account, context = {}) => {
             : { ...(account.businessProfile || {}) };
     }
     if (type === 'user' || type === 'agent') {
-        snapshot.otpDeliveryChannel = account.otpDeliveryChannel === 'email' ? 'email' : 'whatsapp';
+        snapshot.otpDeliveryChannel = ['email', 'telegram'].includes(account.otpDeliveryChannel) ? account.otpDeliveryChannel : 'whatsapp';
     }
     if (type === 'company' && hasOwn(context, 'companyOwner')) {
         const owner = context.companyOwner;
         snapshot.ownerId = owner ? String(owner._id || '') : '';
         snapshot.ownerName = owner?.name || '';
         snapshot.ownerEmail = owner?.email || '';
-        snapshot.ownerOtpDeliveryChannel = owner?.otpDeliveryChannel === 'email' ? 'email' : 'whatsapp';
+        snapshot.ownerOtpDeliveryChannel = ['email', 'telegram'].includes(owner?.otpDeliveryChannel) ? owner.otpDeliveryChannel : 'whatsapp';
     }
     if (type === 'subaccount') {
         snapshot.accountCode = account.accountCode || '';
@@ -670,7 +684,7 @@ const safeSnapshot = (type, account, context = {}) => {
         snapshot.masterType = account.masterType;
         snapshot.masterId = String(account.masterId || '');
         snapshot.email = account.email || '';
-        snapshot.otpDeliveryChannel = account.otpDeliveryChannel === 'email' ? 'email' : 'whatsapp';
+        snapshot.otpDeliveryChannel = ['email', 'telegram'].includes(account.otpDeliveryChannel) ? account.otpDeliveryChannel : 'whatsapp';
     }
     if (ROLE_OPTIONS[type]) {
         snapshot.role = account.role;
@@ -681,20 +695,20 @@ const safeSnapshot = (type, account, context = {}) => {
         snapshot.canManageCompany = Boolean(account.canManageCompany);
         snapshot.canCreateCompanyStaff = Boolean(account.canCreateCompanyStaff);
         snapshot.email = account.email || '';
-        snapshot.otpDeliveryChannel = account.otpDeliveryChannel === 'email' ? 'email' : 'whatsapp';
+        snapshot.otpDeliveryChannel = ['email', 'telegram'].includes(account.otpDeliveryChannel) ? account.otpDeliveryChannel : 'whatsapp';
     }
     if (type === 'agent-employee') {
         snapshot.agentId = String(account.agentId || '');
         snapshot.canManageAgent = Boolean(account.canManageAgent);
         snapshot.canCreateAgentStaff = Boolean(account.canCreateAgentStaff);
         snapshot.email = account.email || '';
-        snapshot.otpDeliveryChannel = account.otpDeliveryChannel === 'email' ? 'email' : 'whatsapp';
+        snapshot.otpDeliveryChannel = ['email', 'telegram'].includes(account.otpDeliveryChannel) ? account.otpDeliveryChannel : 'whatsapp';
     }
     if (type === 'executor-employee') {
         snapshot.groupId = String(account.groupId || '');
         snapshot.telegramId = account.telegramId || '';
         snapshot.email = account.email || '';
-        snapshot.otpDeliveryChannel = account.otpDeliveryChannel === 'email' ? 'email' : 'whatsapp';
+        snapshot.otpDeliveryChannel = ['email', 'telegram'].includes(account.otpDeliveryChannel) ? account.otpDeliveryChannel : 'whatsapp';
         snapshot.executionPolicyOverride = account.executionPolicyOverride || {};
         snapshot.inheritCompanyPolicy = !account.executionPolicyOverride
             || Object.keys(account.executionPolicyOverride.toObject ? account.executionPolicyOverride.toObject() : account.executionPolicyOverride).length === 0;
@@ -734,7 +748,8 @@ const updateAccountOwnerEmailOtp = async ({ type, id, payload }) => {
         const ownerOtpChanged = applyCompanyOwnerEmailOtp(companyOwner, {
             email: payload.email,
             emailOtpEnabled: payload.emailOtpEnabled,
-            otpDeliveryChannel: payload.otpDeliveryChannel
+            otpDeliveryChannel: payload.otpDeliveryChannel,
+            loginOtpChannel: payload.loginOtpChannel
         });
         if (ownerOtpChanged) await companyOwner.save();
         const newData = safeSnapshot('company', account, { companyOwner });

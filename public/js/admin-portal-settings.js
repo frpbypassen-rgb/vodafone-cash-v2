@@ -212,6 +212,8 @@
             (item.email || "غير مضاف") +
             " · OTP بالبريد: " +
             (item.emailOtpEnabled ? "مفعّل" : "متوقف") +
+            " · قناة الدخول: " + (item.loginOtpChannel === 'telegram' ? 'تليجرام' : item.loginOtpChannel === 'email' ? 'البريد' : 'متوقفة') +
+            " · تليجرام الدخول: " + (item.telegramLoginVerified ? 'مؤكد' : 'غير مرتبط') + (item.telegramLoginAccount ? ' @' + item.telegramLoginAccount : '') +
             (item.theme ? " · المظهر: " + item.theme : "") +
             " · كثافة العرض: " +
             (item.density === "compact" ? "مضغوطة" : "مريحة"),

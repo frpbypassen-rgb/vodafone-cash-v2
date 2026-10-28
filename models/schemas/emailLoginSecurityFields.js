@@ -5,4 +5,11 @@ module.exports = {
     emailOtpVerifiedEmail: { type: String, default: '' },
     emailOtpVerifiedAt: { type: Date, default: null },
     emailOtpSettingsRevision: { type: Number, default: 0 },
+    telegramOtpEnrollment: { type: Object, select: false },
+    loginChannelAction: { type: Object, select: false },
+    telegramLoginChatId: { type: String, select: false },
+    telegramLoginUserId: { type: String, select: false },
+    telegramLoginUsername: { type: String, default: '' },
+    telegramLoginBotId: { type: String, default: '' },
+    telegramLoginVerifiedAt: { type: Date, default: null },
 };

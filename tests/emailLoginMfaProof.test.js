@@ -2,6 +2,7 @@
 const proof = require('../utils/emailLoginMfaProof');
 const fs = require('node:fs');
 const path = require('node:path');
+const vm = require('node:vm');
 const account = {
     _id: 'owner',
     webPassword: 'hashed-password',
@@ -35,3 +36,52 @@ test('MFA completion chains email verification before establishing the session',
     );
     expect(auth).toContain('account.emailOtpVerifiedAt || isLoginOtpRequired()');
 });
+test.each(['email', 'telegram'])(
+    'MFA proof and location survive real session regeneration before %s OTP',
+    async (channel) => {
+        const auth = fs.readFileSync(path.join(__dirname, '../routes/auth.js'), 'utf8');
+        const source = auth.slice(
+            auth.indexOf('const startClientOtp ='),
+            auth.indexOf('const continueVerifiedPortalLogin =')
+        );
+        const req = {
+            body: {},
+            session: {
+                pendingEmailMfaProof: proof.create(account, 'company'),
+                pendingSecurityLocation: { latitude: 32, longitude: 13 },
+            },
+        };
+        req.session.regenerate = (callback) => {
+            req.session = {};
+            callback();
+        };
+        const start = vm.runInNewContext(source + '\nstartClientOtp;', {
+            require: (name) => {
+                if (name === '../utils/emailLoginMfaProof') return proof;
+                throw new Error('Unexpected import');
+            },
+            securityControl: {
+                ensureDeviceId: () => 'device',
+                hashDeviceId: () => 'device-hash',
+                parseLocation: () => null,
+            },
+            issueLoginOtp: async () => ({
+                status: 'sent',
+                portal: { sessionTempIdKey: 'tempClientId', verifyPath: '/client/verify' },
+                otpChallengeId: 'otp-id',
+                delivery: { channel },
+            }),
+            establishAuthenticatedSession: require('../utils/sessionSecurity').establishAuthenticatedSession,
+            readLoginOtpAttempt: () => ({}),
+            logAction: async () => {},
+            saveAndRedirect: () => {},
+            String,
+        });
+        await start(req, {}, account, 'company');
+        expect(proof.valid(req.session.pendingEmailMfaProof, account, 'company')).toBe(true);
+        expect(req.session.pendingSecurityLocation).toEqual({ latitude: 32, longitude: 13 });
+        expect(req.session.otpDeliveryChannel).toBe(channel);
+        expect(req.session.tempClientId).toBe(account._id);
+        expect(req.session.isClientLoggedIn).not.toBe(true);
+    }
+);

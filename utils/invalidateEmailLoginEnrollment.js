@@ -3,6 +3,10 @@
 module.exports = (account, { keepVerified = false } = {}) => {
     account.emailOtpEnrollment = undefined;
     if (typeof account.markModified === 'function') account.markModified('emailOtpEnrollment');
+    for (const field of ['telegramOtpEnrollment', 'loginChannelAction', 'otpCode', 'otpChallengeId', 'otpExpires', 'otpIssuedAt', 'otpAttempts']) {
+        account[field] = undefined;
+        if (typeof account.markModified === 'function') account.markModified(field);
+    }
     if (!keepVerified) {
         account.emailOtpVerifiedEmail = '';
         account.emailOtpVerifiedAt = null;

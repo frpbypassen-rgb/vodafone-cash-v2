@@ -136,7 +136,9 @@ describe('owner email OTP admin screens', () => {
         const companyDetails = fs.readFileSync(COMPANY_DETAILS, 'utf8');
 
         expect(card).toContain('البريد الإلكتروني لصاحب الحساب');
-        expect(card).toContain('إرسال رمز التحقق عبر البريد');
+        expect(card).toContain('طلب كود التحقق عند تسجيل الدخول');
+        expect(card).toContain('name="loginOtpChannel"');
+        expect(card).toContain('value="telegram"');
         expect(card).toContain('يلزم بريد صالح فقط عند تفعيل رمز الدخول بالبريد');
         expect(card).toContain('input.required = otpToggle.checked');
         expect(card).toContain('type="text"');

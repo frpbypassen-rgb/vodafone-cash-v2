@@ -39,9 +39,11 @@
         const form = input.form;
         const otpToggle = form && form.querySelector('[data-email-otp-toggle]');
         if (otpToggle && input.hasAttribute('data-email-otp-address')) {
-            const syncRequired = () => { input.required = otpToggle.checked; };
+            const channel = form.querySelector('[name="loginOtpChannel"]');
+            const syncRequired = () => { input.required = otpToggle.checked && (!channel || channel.value === 'email'); clearMessage(input); };
             syncRequired();
             otpToggle.addEventListener('change', syncRequired);
+            if (channel) channel.addEventListener('change', syncRequired);
         }
         input.setAttribute('type', 'text');
         input.setAttribute('inputmode', 'email');

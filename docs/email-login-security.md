@@ -7,7 +7,9 @@ The security page displays email verification below Authenticator in both portal
 1. An authenticated actor supplies the current password. CSRF and an actor-scoped limiter protect the endpoints under `/client/api/security/email-login` and `/agent-portal/api/security/email-login`.
 2. The server resolves the account and destination itself, reserves a challenge on that actor, and sends the unified activation email. No caller-supplied actor ID or destination is trusted.
 3. A six-digit code expires after five minutes. Resends require another password check and a 60-second database cooldown. Five failed attempts exhaust a challenge. A new challenge invalidates its predecessor.
-4. Confirmation checks session, password fingerprint, current destination, delivery status, expiry and security revision. An atomic conditional update consumes the challenge, sets `otpDeliveryChannel=email`, pins the verified login address and invalidates any existing login challenge. Activation codes cannot authenticate a login or subscribe to daily reports.
+4. Confirmation checks session, password fingerprint, current destination, delivery status, expiry and security revision. An atomic conditional update consumes the challenge, pins the verified login address and invalidates any existing login challenge. It selects `otpDeliveryChannel=email` unless Telegram is already the selected factor; that selection is preserved until the current-channel step-up flow authorizes a change. Activation codes cannot authenticate a login or subscribe to daily reports.
+
+Telegram enrollment and the shared email/Telegram selector are documented in [telegram-login-security.md](telegram-login-security.md).
 
 Challenges are HMAC digests, excluded from normal model reads, and never returned or logged. Existing SMTP configuration is reused. Enrollment does not silently enable itself if sending fails or is disabled.
 

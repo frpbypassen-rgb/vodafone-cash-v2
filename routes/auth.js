@@ -286,7 +286,7 @@ const completeAccountMfaChallenge = async (req, res) => {
         return renderAccountMfaChallenge(res, 'رمز Authenticator غير صحيح.', pending.username);
     }
     delete req.session.pendingAccountMfaLogin;
-    if (account.otpDeliveryChannel === 'email') {
+    if (['email', 'telegram'].includes(account.otpDeliveryChannel)) {
         req.session.pendingEmailMfaProof = require('../utils/emailLoginMfaProof').create(account, pending.accountType);
         return startClientOtp(req, res, account, pending.accountType);
     }
@@ -951,8 +951,10 @@ const startClientOtp = async (req, res, account, accountType) => {
     const sessionPayload = {
         tempAccountType: accountType,
         otpChallengeId: issued.otpChallengeId,
-        pendingSecurityLocation: securityControl.parseLocation(req),
-        pendingSecurityUsername: String(req.body.username || ''),
+        pendingSecurityLocation: req.session.pendingSecurityLocation,
+        pendingSecurityUsername: req.session.pendingSecurityUsername,
+        ...(verifiedMfa ? { pendingEmailMfaProof: req.session.pendingEmailMfaProof } : {}),
+        otpDeliveryChannel: issued.delivery?.channel === 'telegram' ? 'telegram' : 'email',
         securityDeviceId: deviceId,
         securityDeviceHash: securityControl.hashDeviceId(deviceId)
     };
@@ -976,7 +978,7 @@ const startClientOtp = async (req, res, account, accountType) => {
 };
 
 const continueVerifiedPortalLogin = async (req, res, account, accountType) => {
-    if (account.emailOtpVerifiedAt || isLoginOtpRequired()) return startClientOtp(req, res, account, accountType);
+    if (account.otpDeliveryChannel === 'telegram' || account.emailOtpVerifiedAt || isLoginOtpRequired()) return startClientOtp(req, res, account, accountType);
     return finishLoginAfterOtpBypass(req, res, account, accountType);
 };
 

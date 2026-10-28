@@ -1,0 +1,32 @@
+<section class="mfa-security-panel mfa-compact email-login-panel" data-telegram-login data-base="<%= portalBasePath %>" data-csrf="<%= typeof csrfToken !== 'undefined' ? csrfToken : '' %>">
+    <div class="mfa-panel-heading"><h2><i class="fa-brands fa-telegram" aria-hidden="true"></i> التحقق عبر تليجرام</h2><span class="mfa-state" data-tg-state>جارٍ الفحص</span></div>
+    <p class="mfa-description">ربط حساب تليجرام واحد ببوت الأكواد <bdi>@Ahram_otp_bot</bdi>. لا يبدأ استقبال أكواد الدخول قبل تأكيد الربط واختيار القناة.</p>
+    <p class="mfa-login-summary" data-tg-account></p>
+    <p class="mfa-message" role="status" aria-live="polite" data-tg-message hidden></p>
+    <form data-tg-password hidden>
+        <label class="bw-field"><span>كلمة المرور الحالية</span><input type="password" name="password" autocomplete="current-password" maxlength="128" required></label>
+        <button class="mfa-button primary" type="submit">متابعة ربط تليجرام</button>
+    </form>
+    <a class="mfa-button primary tg-open-button" data-tg-open target="_blank" rel="noopener noreferrer" referrerpolicy="no-referrer" hidden>فتح تليجرام</a>
+    <form data-tg-code hidden>
+        <label class="bw-field"><span>كود تأكيد الربط من البوت</span><input name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" dir="ltr" required></label>
+        <button class="mfa-button primary" type="submit">تأكيد الربط</button>
+    </form>
+    <button class="mfa-button" type="button" data-tg-restart hidden>بدء ربط جديد</button>
+    <hr class="tg-channel-divider">
+    <h3 class="tg-channel-title">قناة كود تسجيل الدخول</h3>
+    <p class="mfa-description">اختر البريد أو تليجرام. سيبقى Authenticator مطلوبًا إذا كان مفعّلًا. تغيير القناة يتطلب كودًا من القناة الحالية.</p>
+    <p class="mfa-login-summary" data-channel-state></p>
+    <form data-channel-password hidden>
+        <label class="bw-field"><span>القناة المطلوبة</span><select name="target"><option value="email">البريد الإلكتروني المؤكد</option><option value="telegram">تليجرام المؤكد</option></select></label>
+        <label class="bw-field"><span>كلمة المرور لتأكيد التغيير</span><input type="password" name="password" autocomplete="current-password" maxlength="128" required></label>
+        <button class="mfa-button primary" type="submit">حفظ قناة الدخول</button>
+        <button class="mfa-button" type="button" data-tg-unlink hidden>إزالة ربط تليجرام</button>
+    </form>
+    <form data-channel-code hidden>
+        <label class="bw-field"><span>كود التأكيد من القناة الحالية</span><input name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" dir="ltr" required></label>
+        <button class="mfa-button primary" type="submit">تأكيد تغيير القناة</button>
+    </form>
+</section>
+<link rel="stylesheet" href="/css/telegram-login-security.css?v=1">
+<script src="/js/telegram-login-security.js?v=1" defer></script>

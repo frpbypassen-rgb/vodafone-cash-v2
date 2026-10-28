@@ -68,7 +68,7 @@ const actorIds = async (ctx) => {
       tenantId: ctx.entity.tenantId || null,
       status: { $ne: "deleted" },
     })
-    .select("_id name role mfaEnabled preferences email otpDeliveryChannel emailOtpVerifiedEmail emailOtpVerifiedAt")
+    .select("_id name role mfaEnabled preferences email otpDeliveryChannel emailOtpVerifiedEmail emailOtpVerifiedAt telegramLoginVerifiedAt telegramLoginUsername")
     .lean();
   if (!ctx.company) rows.unshift(ctx.entity);
   return rows;
@@ -133,6 +133,9 @@ const snapshot = async (ctx) => {
       email: require('../utils/otpDeliveryChannel').resolveAccountOtpEmail(actor),
       emailOtpVerified: Boolean(actor.emailOtpVerifiedAt),
       emailOtpEnabled: actor.otpDeliveryChannel === "email",
+      loginOtpChannel: ['email', 'telegram'].includes(actor.otpDeliveryChannel) ? actor.otpDeliveryChannel : 'off',
+      telegramLoginVerified: Boolean(actor.telegramLoginVerifiedAt),
+      telegramLoginAccount: actor.telegramLoginUsername || '',
     })),
     emails: emails.map((row) => ({
       id: String(row._id),

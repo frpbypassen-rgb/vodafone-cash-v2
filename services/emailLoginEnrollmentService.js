@@ -32,6 +32,7 @@ const targetEmail = ({ actor, profileEmail, isOwner }) =>
     normalizeOtpEmail(isOwner ? profileEmail : actor.email);
 const present = (ctx) => ({
     enabled: ctx.actor.otpDeliveryChannel === 'email',
+    selectedChannel: ctx.actor.otpDeliveryChannel,
     email: maskEmail(resolveAccountOtpEmail(ctx.actor)),
     targetEmail: maskEmail(targetEmail(ctx)),
     hasEmail: isValidOtpEmail(targetEmail(ctx)),
@@ -137,7 +138,7 @@ const confirm = async (ctx) => {
     // The document update consumes the challenge and enables the canonical admin/login flag atomically.
     delete guard['emailOtpEnrollment.attempts'];
     const set = {
-        otpDeliveryChannel: 'email',
+        otpDeliveryChannel: actor.otpDeliveryChannel === 'telegram' ? 'telegram' : 'email',
         emailOtpVerifiedEmail: pending.email,
         emailOtpVerifiedAt: new Date(),
     };
@@ -155,6 +156,6 @@ const confirm = async (ctx) => {
         },
     });
     if (!result.modifiedCount) throw fail('CHANGED', 'تغيرت إعدادات الأمان. ابدأ من جديد.', 409);
-    return { enabled: true };
+    return { enabled: set.otpDeliveryChannel === 'email', verified: true };
 };
 module.exports = { start, confirm, present, targetEmail };

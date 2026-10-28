@@ -76,6 +76,9 @@ const OTP_UNSET = {
 const publicDeliveryMessage = (code, fallback) => {
     const normalized = String(code || 'WHATSAPP_OTP_FAILED').replace(/[^A-Z0-9_]/g, '');
     const messages = {
+        TELEGRAM_LOGIN_NOT_LINKED: 'ربط تليجرام غير مؤكد. تواصل مع الإدارة.',
+        TELEGRAM_LOGIN_UNAVAILABLE: 'تليجرام غير متاح لهذا الحساب حاليًا. لم يكتمل تسجيل الدخول.',
+        TELEGRAM_LOGIN_SEND_FAILED: 'تعذر إرسال كود تليجرام. حاول لاحقًا أو تواصل مع الإدارة.',
         WHATSAPP_PHONE_REQUIRED: 'لا يوجد رقم واتساب مسجّل لإرسال رمز التحقق. راجع الإدارة أو فعّل وضع الطوارئ الموثّق لمدة 24 ساعة.',
         WHATSAPP_PHONE_INVALID: 'رقم الواتساب المسجّل غير صالح لإرسال رمز التحقق. راجع الإدارة.',
         WHATCHIMP_CONFIG_MISSING: `إعداد واتساب غير مكتمل على الخادم. رمز الحالة: ${normalized}`,
@@ -161,7 +164,7 @@ const readLoginOtpAttempt = (req = {}) => {
     };
 };
 
-const deliverLoginOtp = async ({ otp, accountName, account, accountType, expiresAt, attempt }) => {
+const deliverLoginOtp = async ({ otp, accountName, account, accountType, expiresAt, attempt, challengeId }) => {
     const selection = selectLoginOtpChannel(account || {});
     if (selection.code) {
         return {
@@ -171,6 +174,7 @@ const deliverLoginOtp = async ({ otp, accountName, account, accountType, expires
             code: selection.code
         };
     }
+    if (selection.channel === 'telegram') return require('./telegramLoginSecurityService').sendLoginCode({ account, accountType, otp, challengeId });
     if (selection.channel !== 'email') {
         return { success: false, provider: 'none', channel: 'disabled', code: 'LOGIN_OTP_NOT_ENABLED' };
     }
@@ -250,6 +254,7 @@ const issueLoginOtp = async ({ account, accountType, session = {}, attempt = nul
         account,
         accountType,
         expiresAt: otpExpires,
+        challengeId: otpChallengeId,
         attempt
     });
 
@@ -260,7 +265,7 @@ const issueLoginOtp = async ({ account, accountType, session = {}, attempt = nul
     await clearStoredOtp(portal.Model, account._id);
     const emergencyBypass = getEmergencyClientOtpBypassState();
     const code = delivery?.code || 'WHATSAPP_OTP_FAILED';
-    if (emergencyBypass.active && !account.emailOtpVerifiedAt) {
+    if (emergencyBypass.active && !account.emailOtpVerifiedAt && account.otpDeliveryChannel !== 'telegram') {
         return {
             status: 'emergency_bypass',
             portal,

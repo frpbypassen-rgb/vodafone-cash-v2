@@ -1,6 +1,7 @@
 'use strict';
 const router = require('express').Router();
 router.use(require('./portal/email-login'));
+router.use(require('./portal/telegram-login'));
 router.use(require('./portal/notifications'));
 router.use(require('./portal/web-push'));
 router.use(require('./portal/theme'));

@@ -1,0 +1,33 @@
+.tg-open-button {
+    margin-top: 12px;
+    width: 100%;
+}
+.tg-channel-divider {
+    margin: 18px 0;
+    border: 0;
+    border-top: 1px solid var(--mfa-line);
+}
+.tg-channel-title {
+    margin: 0 0 8px;
+    color: var(--mfa-ink);
+    font-size: 15px;
+}
+[data-telegram-login] select {
+    width: 100%;
+    min-height: 44px;
+    color: var(--mfa-ink);
+    background: var(--mfa-soft);
+    border: 1px solid var(--mfa-line);
+    border-radius: 10px;
+    padding: 10px;
+    font: inherit;
+}
+[data-tg-code] input,
+[data-channel-code] input {
+    text-align: center;
+    letter-spacing: 0.4em;
+    font-size: 20px;
+}
+[data-tg-restart] {
+    margin-top: 12px;
+}

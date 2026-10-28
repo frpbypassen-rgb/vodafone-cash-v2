@@ -419,6 +419,7 @@ app.use('/public', require('./routes/publicReceipts'));
 
 // WhatChimp delivers external messages here. This must remain before CSRF protection.
 app.use('/webhooks/whatchimp', require('./routes/whatChimpWebhook'));
+app.use('/webhooks/telegram-login', require('./routes/telegramLoginWebhook'));
 app.use('/webhooks/telegram', require('./routes/telegramWebhook'));
 app.use(csrfProtection);
 app.use('/', require('./routes/emergencySecurity'));

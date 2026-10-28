@@ -595,4 +595,25 @@ describe('admin account management service', () => {
         expect(getErrorMessage(new AdminAccountManagementError('COMPANY_OWNER_REQUIRED')))
             .toContain('حساب مالك');
     });
+    test.each(['agent', 'company'])('admin %s channel selection uses only a confirmed Telegram link and invalidates pending login codes', async type => {
+        const oldToken = process.env.TELEGRAM_LOGIN_BOT_TOKEN, oldSecret = process.env.TELEGRAM_LOGIN_WEBHOOK_SECRET;
+        process.env.TELEGRAM_LOGIN_BOT_TOKEN = '900001:' + 'x'.repeat(35);
+        process.env.TELEGRAM_LOGIN_WEBHOOK_SECRET = 'test_telegram_secret_01234567890123456789';
+        try {
+            const root = makeAccount({ role: type === 'agent' ? 'agent' : undefined });
+            const actor = type === 'agent' ? root : companyOwner();
+            if (type === 'agent') User.findById.mockResolvedValue(root);
+            else { ClientCompany.findById.mockResolvedValue(root); ClientEmployee.find.mockReturnValue({ sort: jest.fn().mockResolvedValue([actor]) }); }
+            const payload = { email: 'owner@example.com', emailOtpEnabled: 'true', loginOtpChannel: 'telegram' };
+            await expect(updateAccountOwnerEmailOtp({ type, id: IDS.account, payload })).rejects.toMatchObject({ code: 'TELEGRAM_LOGIN_NOT_VERIFIED' });
+            actor.telegramLoginVerifiedAt = new Date(); actor.telegramLoginBotId = '900001'; actor.otpCode = 'old-login-code'; actor.telegramOtpEnrollment = { id: 'pending' };
+            const result = await updateAccountOwnerEmailOtp({ type, id: IDS.account, payload });
+            expect(actor.otpDeliveryChannel).toBe('telegram');
+            expect(result.newData[type === 'agent' ? 'otpDeliveryChannel' : 'ownerOtpDeliveryChannel']).toBe('telegram');
+            expect(actor.otpCode).toBeUndefined(); expect(actor.telegramOtpEnrollment).toBeUndefined();
+            expect(actor.emailOtpSettingsRevision).toBeGreaterThan(0);
+            await updateAccountOwnerEmailOtp({ type, id: IDS.account, payload: { ...payload, emailOtpEnabled: '' } });
+            expect(actor.otpDeliveryChannel).toBe('whatsapp');
+        } finally { if (oldToken === undefined) delete process.env.TELEGRAM_LOGIN_BOT_TOKEN; else process.env.TELEGRAM_LOGIN_BOT_TOKEN = oldToken; if (oldSecret === undefined) delete process.env.TELEGRAM_LOGIN_WEBHOOK_SECRET; else process.env.TELEGRAM_LOGIN_WEBHOOK_SECRET = oldSecret; }
+    });
 });

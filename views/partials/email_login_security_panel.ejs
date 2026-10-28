@@ -1,6 +1,6 @@
 <section class="mfa-security-panel mfa-compact email-login-panel" data-email-login data-base="<%= portalBasePath %>" data-csrf="<%= typeof csrfToken !== 'undefined' ? csrfToken : '' %>">
     <div class="mfa-panel-heading"><h2><i class="fa-solid fa-envelope-circle-check" aria-hidden="true"></i> التحقق عبر البريد الإلكتروني</h2><span class="mfa-state" data-email-state>جارٍ الفحص</span></div>
-    <p class="mfa-description">كود إلى بريدك عند كل تسجيل دخول، بالإضافة إلى Authenticator إذا كان مفعّلًا.</p>
+    <p class="mfa-description">أكّد بريدك لاستخدامه قناةً لكود الدخول. يبقى Authenticator مطلوبًا إذا كان مفعّلًا.</p>
     <p class="mfa-login-summary" data-email-address></p>
     <p class="mfa-message" data-email-message role="status" aria-live="polite" hidden></p>
     <a class="mfa-button" data-email-profile href="<%= portalBasePath %>/settings#identity" hidden>إضافة البريد من بيانات <%= workspace.isCompany ? 'الشركة' : 'الوكيل' %></a>

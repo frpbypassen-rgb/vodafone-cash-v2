@@ -1,7 +1,7 @@
 'use strict';
 
-// Login OTP is opt-in per account. Only an administrator-selected email
-// channel can issue a login OTP; all other accounts have OTP disabled.
+// Login OTP is opt-in per account. Email and confirmed Telegram channels
+// are selected through account security or administration.
 // WhatsApp remains available to non-login notifications, not login OTP.
 
 const { isDisabled } = require('../config/securityPolicy');
@@ -42,12 +42,15 @@ const isEmailOtpExplicitlyEnabled = (account = {}) => (
     String(account.otpDeliveryChannel || '').trim().toLowerCase() === 'email'
 );
 
-const isLoginOtpEnabledForAccount = (account = {}) => isEmailOtpExplicitlyEnabled(account);
+const isLoginOtpEnabledForAccount = (account = {}) => isEmailOtpExplicitlyEnabled(account) || account.otpDeliveryChannel === 'telegram';
 
 /**
- * @returns {{ channel: 'disabled', code: string } | { channel: 'email', email: string, code?: string }}
+ * @returns {{ channel: 'disabled', code: string } | { channel: 'email', email: string, code?: string } | { channel: 'telegram', code?: string }}
  */
 const selectLoginOtpChannel = (account = {}, env = process.env) => {
+    if (account.otpDeliveryChannel === 'telegram') return account.telegramLoginVerifiedAt && account.telegramLoginBotId
+        ? { channel: 'telegram' }
+        : { channel: 'telegram', code: 'TELEGRAM_LOGIN_NOT_LINKED' };
     if (!isEmailOtpExplicitlyEnabled(account)) {
         return { channel: 'disabled', code: 'LOGIN_OTP_NOT_ENABLED' };
     }

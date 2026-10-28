@@ -31,7 +31,7 @@ const main=async()=>{
         MONGO_URI:uri,PORT:String(port),HTTP_BIND_HOST:'127.0.0.1',ALLOWED_ORIGINS:`http://127.0.0.1:${port},http://localhost:${port}`,
         DOTENV_CONFIG_PATH:path.join(root,'outputs/nonexistent-sandbox-env'),SECURE_COOKIE:'false',PASSWORD_ONLY_LOGIN_MODE:'true',CLIENT_OTP_ENABLED:'false',
         REDIS_ENABLED:'false',BULLMQ_WORKERS_ENABLED:'false',EXTERNAL_API_ENABLED:'false',FINANCIAL_SCHEDULERS_ENABLED:'false',
-        MERCHANT_WEBHOOK_WORKER_ENABLED:'true',TELEGRAM_BOT_TOKEN:'',TELEGRAM_WEBHOOK_SECRET:'',SMTP_HOST:'',SMTP_USER:'',SMTP_PASS:'',SMTP_FROM:'',
+        MERCHANT_WEBHOOK_WORKER_ENABLED:'true',TELEGRAM_BOT_TOKEN:'',TELEGRAM_WEBHOOK_SECRET:'',TELEGRAM_LOGIN_BOT_TOKEN:'',TELEGRAM_LOGIN_WEBHOOK_SECRET:'',SMTP_HOST:'',SMTP_USER:'',SMTP_PASS:'',SMTP_FROM:'',
         PUPPETEER_EXECUTABLE_PATH:'C:/Program Files/Google/Chrome/Application/chrome.exe'});
     const nativeConnect=require('node:net').Socket.prototype.connect;
     require('node:net').Socket.prototype.connect=function(...callArgs){
