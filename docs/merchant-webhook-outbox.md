@@ -14,6 +14,8 @@ Subscription creation time is bounded by event creation time, so a newly added e
 
 The wire contract remains at-least-once and does not promise arrival order. Delivery retry budgets, failed-only manual retry claims, HTTPS/DNS validation, private-address rejection, DNS pinning and TLS verification are unchanged.
 
+The existing recovery timer polls every 30 seconds with bounded batches (25 rows per event slot, up to 50 due deliveries per pass). The load test calls the same drain/delivery functions directly to test correctness; its elapsed time is not a promise about timer latency or production queue capacity.
+
 ## Index rollout
 
 The worker refuses to scan the financial collection without all three named pending indexes. The readiness summary explicitly reports missing Outbox indexes. `merchantWebhookOutboxService.ensureIndexes()` is an **explicit migration entry point**, not called from application startup. It creates three partial indexes on the relevant `pending` flag and `_id` (only pending rows are indexed).
@@ -43,3 +45,7 @@ Verified preview: `http://127.0.0.1:4582/client/settings#integrations`. Both API
 - TLS chain/hostname verification, request HMAC verification and receiver persistence were exercised. This does not establish reachability of a real customer's public receiver or validate a production proxy/worker rollout.
 
 The machine-readable sanitized pressure report is `merchant-webhook-outbox-validation.json`.
+
+## Repository-wide regression run
+
+A full run inspected 304 suites / 2,426 tests: 2,411 passed and 15 failed. Fourteen failure names matched the prior baseline (isolation/provider behavior tests and existing mobile/ledger/owner-email/OTP expectations). One additional source-policy check mistook a generic technical-event `ensureIndexes()` helper name for the notification dedupe index builder; the helper was given an explicit service-specific name, without changing index behavior or weakening that policy test. The index policy/readiness/probe subset then passed all 15 tests. A final receiver test also verifies normal creation → completion → duplicate replay; the combined final receiver/index/readiness/probe check passed 20 tests across four suites. The repository-wide suite is therefore **not claimed green**; the remaining baseline failures are outside this change, and this is not production release approval. The full suite was not rerun after the helper-only rename.

@@ -87,6 +87,6 @@ const listEvents = async (scope) =>
         .limit(10)
         .maxTimeMS(1500)
         .lean();
-const ensureIndexes = () =>
+const ensureMerchantIntegrationEventIndexes = () =>
     require('../models/MerchantIntegrationEvent').createIndexes();
-module.exports = { recordEvent, listEvents, ensureIndexes };
+module.exports = { recordEvent, listEvents, ensureMerchantIntegrationEventIndexes };

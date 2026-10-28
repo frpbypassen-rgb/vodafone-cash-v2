@@ -31,3 +31,12 @@ test('signed connection probes acknowledge without creating a mirrored financial
  expect((await send(body)).body).toEqual({received:true,test:true});
  expect(await receiver.State.countDocuments({})).toBe(0);expect(await receiver.Inbox.countDocuments({})).toBe(0);
 });
+test('normal creation followed by completion advances state once per transition',async()=>{
+ const created=payload('transfer.created','pending');
+ expect((await send(created)).status).toBe(200);
+ expect((await send(payload())).status).toBe(200);
+ expect((await send(created)).body.duplicate).toBe(true);
+ const state=await receiver.State.findOne().lean();
+ expect(state.status).toBe('completed');expect(state.appliedCount).toBe(2);
+ expect(await receiver.Inbox.countDocuments({})).toBe(2);
+});
