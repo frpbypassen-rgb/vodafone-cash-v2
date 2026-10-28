@@ -10,6 +10,7 @@ const { MongoMemoryServer } = require('mongodb-memory-server');
 const Company = require('../models/ClientCompany');
 const Employee = require('../models/ClientEmployee');
 const User = require('../models/User');
+const Transaction = require('../models/Transaction');
 const Endpoint = require('../models/MerchantWebhookEndpoint');
 const { logAction } = require('../services/auditService');
 const csrf = 'integration-test-csrf-token';
@@ -18,6 +19,8 @@ beforeAll(async () => {
     mongo = await MongoMemoryServer.create();
     await mongoose.connect(mongo.getUri());
     app = express();
+    app.set('view engine', 'ejs');
+    app.set('views', require('path').join(__dirname, '../views'));
     app.use(express.json());
     app.use(express.urlencoded({ extended: false }));
     app.use((req, _res, next) => {
@@ -42,6 +45,7 @@ afterEach(async () => {
         Employee.deleteMany({}),
         User.deleteMany({}),
         Endpoint.deleteMany({}),
+        Transaction.deleteMany({}),
     ]);
 });
 afterAll(async () => {
@@ -76,6 +80,10 @@ for (const kind of ['company', 'agent']) {
             accountType: isCompany ? 'company' : 'user',
         };
         session = ownerSession;
+        const lockedPage = await request(app).get(base + '/integrations/api');
+        expect(lockedPage.status).toBe(200);
+        expect(lockedPage.headers['cache-control']).toContain('no-store');
+        expect(lockedPage.text).toContain('merchant-api-page.js');
         expect(
             (
                 await request(app)
@@ -116,6 +124,22 @@ for (const kind of ['company', 'agent']) {
         expect(rotated.status).toBe(200);
         expect((await readBalance(token)).status).toBe(401);
         expect((await readBalance(rotated.body.data.token)).status).toBe(200);
+        await Transaction.create([
+            { customId: `${kind}-api-own`, companyId: isCompany ? entity._id : undefined,
+              clientActorId: String(entity._id), clientActorModel: isCompany ? 'ClientCompany' : 'User',
+              employeeName: 'ربط آلي (Merchant API)', userId: isCompany ? 'api_merchant' : String(entity._id), amount: 123, status: 'completed' },
+            { customId: `${kind}-api-other`, companyId: new mongoose.Types.ObjectId(),
+              clientActorId: String(new mongoose.Types.ObjectId()), clientActorModel: isCompany ? 'ClientCompany' : 'User',
+              employeeName: 'ربط آلي (Merchant API)', amount: 999 },
+            { customId: `${kind}-portal-own`, companyId: isCompany ? entity._id : undefined,
+              clientActorId: String(entity._id), clientActorModel: isCompany ? 'ClientCompany' : 'User',
+              employeeName: 'موظف البوابة', amount: 222 }
+        ]);
+        const activity = await request(app).get(base + '/api/integrations/activity').set('Accept','application/json');
+        expect(activity.status).toBe(200);
+        expect(activity.body.data.rows.map(row => row.reference)).toEqual([`${kind}-api-own`]);
+        expect(activity.body.data.rows[0]).not.toHaveProperty('amount');
+        expect(activity.text).not.toContain(rotated.body.data.token);
         const hook = await post(base + '/api/webhooks', {
             name: 'Hook',
             url: 'https://hooks.example.test/events',
@@ -170,6 +194,8 @@ test('an operational manager cannot administer integration credentials', async (
     expect(
         (await post('/client/api/integrations/rotate', { currentPassword: 'test-password-123' })).status
     ).toBe(403);
+    expect((await request(app).get('/client/integrations/api')).status).toBe(403);
+    expect((await request(app).get('/client/api/integrations/activity').set('Accept','application/json')).status).toBe(403);
 });
 test('integration management rejects a company session from another tenant', async () => {
     const saved = process.env.TENANT_MODE;
@@ -189,6 +215,8 @@ test('integration management rejects a company session from another tenant', asy
         expect(
             (await request(app).get('/client/api/integrations').set('Accept', 'application/json')).status
         ).toBe(403);
+        expect((await request(app).get('/client/integrations/api')).status).toBe(403);
+        expect((await request(app).get('/client/api/integrations/activity').set('Accept','application/json')).status).toBe(403);
         session = { csrfToken: csrf, isLoggedIn: true, adminRole: 'master' };
         expect((await post('/company/' + company._id + '/integrations', { apiEnabled: 'on', revision: 0 })).status).toBe(
             404

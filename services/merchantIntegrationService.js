@@ -25,6 +25,19 @@ const getStatus = async (workspace) => {
     if (!entity) throw fail('ACCOUNT_UNAVAILABLE', 'الحساب غير متاح.');
     return describeStatus(entity);
 };
+// A small allowlisted view of this owner's API-created operations, never request bodies or credentials.
+const getActivity = async (workspace) => {
+    assertOwner(workspace);
+    const owner = workspace.isCompany
+        ? { companyId: workspace.entity._id }
+        : { userId: String(workspace.entity._id), clientActorId: String(workspace.entity._id), clientActorModel: 'User' };
+    const rows = await require('../models/Transaction').find({
+        ...owner,
+        employeeName: 'ربط آلي (Merchant API)',
+        ...(tenantMode() === 'multi' ? { tenantId: workspace.entity.tenantId || { $in: [] } } : {})
+    }).select('customId status createdAt').sort({ createdAt: -1 }).limit(5).maxTimeMS(2500).lean();
+    return { rows: rows.map(row => ({ reference: row.customId, status: row.status, createdAt: row.createdAt })) };
+};
 const describeStatus = entity => {
     const access = entity.integrationAccess || {};
     const legacy = entity.token || entity.apiToken || '';
@@ -116,4 +129,4 @@ const webhooksAllowed = async (owner) => {
         })
     );
 };
-module.exports = { describeStatus, getStatus, rotateKey, revokeKey, setAdminAccess, assertOwner, webhooksAllowed, fail };
+module.exports = { describeStatus, getStatus, getActivity, rotateKey, revokeKey, setAdminAccess, assertOwner, webhooksAllowed, fail };

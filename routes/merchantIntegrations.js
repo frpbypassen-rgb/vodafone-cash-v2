@@ -22,18 +22,19 @@ const limited = rateLimit({
     keyGenerator: (req) => `${req.session.accountType}:${req.session.clientId}`,
     message: { success: false, error: 'طلبات كثيرة. حاول لاحقاً.' },
 });
+const authorizedWorkspace = async (req) => {
+    const workspace = await resolveWorkspace(req);
+    service.assertOwner(workspace);
+    if (tenantMode() === 'multi' && (!req.tenant?._id ||
+        String(workspace.entity.tenantId || '') !== String(req.tenant._id) ||
+        String(workspace.actor.tenantId || '') !== String(req.tenant._id)))
+        throw service.fail('INTEGRATION_ACCESS_DENIED', 'الحساب غير متاح في هذه المنشأة.');
+    return workspace;
+};
 const handle = (action) => async (req, res) => {
     res.set('Cache-Control', 'private, no-store');
     try {
-        const workspace = await resolveWorkspace(req);
-        service.assertOwner(workspace);
-        if (
-            tenantMode() === 'multi' &&
-            (!req.tenant?._id ||
-                String(workspace.entity.tenantId || '') !== String(req.tenant._id) ||
-                String(workspace.actor.tenantId || '') !== String(req.tenant._id))
-        )
-            throw service.fail('INTEGRATION_ACCESS_DENIED', 'الحساب غير متاح في هذه المنشأة.');
+        const workspace = await authorizedWorkspace(req);
         if (req.method !== 'GET') {
             const password = req.body?.currentPassword;
             if (typeof password !== 'string' || password.length > 128)
@@ -70,6 +71,22 @@ const handle = (action) => async (req, res) => {
     }
 };
 router.get(paths(''), requireClientAuth, handle(service.getStatus));
+router.get(paths('/activity'), requireClientAuth, handle(service.getActivity));
+router.get(['/client/integrations/api', '/agent-portal/integrations/api'], requireClientAuth, async (req, res) => {
+    res.set('Cache-Control', 'private, no-store');
+    try {
+        const workspace = await authorizedWorkspace(req);
+        const status = await service.getStatus(workspace);
+        return res.render('client/api', {
+            portalBase: req.path.startsWith('/agent-portal') ? '/agent-portal' : '/client',
+            csrfToken: res.locals.csrfToken || '', status,
+            apiBase: require('../services/accountIntegrationPdfService').resolvePublicApiOrigin(req) + '/api/v1/merchant',
+            webhookTheme: req.session.accountType === 'company' ? req.session.companyTheme : req.session.clientTheme
+        });
+    } catch (error) {
+        return res.status(error.statusCode || 500).send(error.statusCode ? error.message : 'تعذر عرض صفحة API. أعد المحاولة.');
+    }
+});
 router.post(paths('/rotate'), requireClientAuth, limited, handle(service.rotateKey));
 router.post(paths('/revoke'), requireClientAuth, limited, handle(service.revokeKey));
 router.post(
