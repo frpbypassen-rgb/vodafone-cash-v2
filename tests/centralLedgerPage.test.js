@@ -168,11 +168,11 @@ describe('central ledger page layout', () => {
                 todayDepositsTotal: 900,
                 todayExecutorDepositsTotal: 745.25,
                 activeExecutors: [
-                    { id: 'e1', name: 'منفذ كاش', balance: 2500.5, completedToday: 4, depositsToday: 320.5 },
-                    { id: 'e2', name: 'منفذ سريع', balance: 128450.75, completedToday: 0, depositsToday: 0 }
+                    { id: 'e1', name: 'منفذ كاش', balance: 2500.5, cashBalance:2500.5, bankBalance:0, activityCount:4, completedToday: 4, depositsToday: 320.5 },
+                    { id: 'e2', name: 'منفذ سريع', balance: 128450.75, cashBalance:128450.75, bankBalance:0, activityCount:0, completedToday: 0, depositsToday: 0 }
                 ],
                 companies: [
-                    { id: 'c1', name: 'شركة النور', balance: 88.5, completedToday: 7, depositsToday: 900 },
+                    { id: 'c1', name: 'شركة النور', balance: 88.5, activityCount:7, completedToday: 7, depositsToday: 900 },
                     { id: 'c2', name: 'شركة الأمل', balance: -12, completedToday: 0, depositsToday: 1234567.89 }
                 ]
             },
@@ -220,108 +220,25 @@ describe('central ledger page layout', () => {
         expect(html).not.toContain('الشركات النشطة');
         expect(html).not.toContain('class="ledger-stats-bar');
 
-        expect(html).toContain('data-ops-summary-strip="operations"');
-        expect(html).toContain('إجمالي الكاش');
-        expect(html).toContain('إجمالي الحساب البنكي');
-        expect(html).toContain('إيداعات الشركات');
-        expect(html).not.toContain('إجمالي الإيداعات اليوم');
-        expect(html).toContain('إيداعات المنفذين');
-        expect(html).toContain('المنفذين النشطين');
-        expect(html).toContain('إجمالي الرصيد معهم');
-        expect(html).toContain('data-ops-cash-egp="10000.5"');
-        expect(html).toContain('data-ops-bank-egp="2400"');
-        expect(html).toContain('data-ops-total-lyd="2310.25"');
-        expect(html).toContain('10,000.50');
-        expect(html).toContain('2,400.00');
-        expect(html).toContain('2,310.25');
-        expect(html).toContain('data-ops-deposits="900"');
-        expect(html).toContain('data-ops-executor-deposits="745.25"');
-        expect(html).toContain('745.25');
-        const companiesColumn = html.slice(html.indexOf('class="ops-summary-companies"'), html.indexOf('class="ops-summary-executors"'));
-        const executorsBlock = html.slice(html.indexOf('class="ops-summary-executors"'), html.indexOf('class="ops-summary-totals"'));
-        expect(companiesColumn).toContain('data-ops-company="c1"');
-        expect(companiesColumn).toContain('data-ops-company="c2"');
-        expect(companiesColumn).not.toContain('data-ops-executor=');
-        expect(companiesColumn).not.toContain('data-ops-today-totals');
-        expect(executorsBlock).toContain('class="ops-exec-row"');
-        expect(executorsBlock).toContain('المنفذين النشطين');
-        expect(executorsBlock).not.toContain('data-ops-company=');
-        expect(executorsBlock).not.toContain('data-ops-today-totals');
-        const totalsStack = html.slice(html.indexOf('class="ops-summary-totals"'), html.indexOf('id="transactionsTable"'));
-        const todayBox = totalsStack.slice(totalsStack.indexOf('data-ops-today-totals'), totalsStack.indexOf('data-ops-executor-deposits-total'));
-        expect(todayBox).toContain('إجمالي اليوم');
-        expect(todayBox).toContain('إجمالي الكاش');
-        expect(todayBox).toContain('data-ops-cash-egp="10000.5"');
-        expect(todayBox).toContain('ج.م');
-        expect(todayBox).toContain('إجمالي الحساب البنكي');
-        expect(todayBox).toContain('data-ops-bank-egp="2400"');
-        expect(todayBox).toContain('المجموع');
-        expect(todayBox).toContain('data-ops-total-lyd="2310.25"');
-        expect(todayBox).toContain('د.ل');
-        const executorDepositsBox = totalsStack.slice(totalsStack.indexOf('data-ops-executor-deposits-total'), totalsStack.indexOf('data-ops-deposits-total'));
-        expect(executorDepositsBox).toContain('إيداعات المنفذين');
-        expect(executorDepositsBox).toContain('data-ops-executor-deposits="745.25"');
-        expect(executorDepositsBox).toContain('EGP');
-        expect(totalsStack).toContain('إيداعات الشركات');
-        expect(totalsStack).toContain('data-ops-deposits="900"');
-        expect(totalsStack).toContain('LYD');
-        expect(totalsStack.indexOf('إجمالي اليوم')).toBeLessThan(totalsStack.indexOf('إيداعات المنفذين'));
-        expect(totalsStack.indexOf('إيداعات المنفذين')).toBeLessThan(totalsStack.indexOf('إيداعات الشركات'));
-        expect(html).toContain('منفذ كاش');
-        expect(html).toContain('2,500.50');
-        expect(html).toContain('128,450.75');
-        expect(html).toContain('data-ops-company="c1"');
-        expect(html).toContain('شركة النور');
-        expect(html).toContain('data-ops-micro="completed"');
-        expect(html).toContain('عمليات اليوم');
-        expect(html).toContain('data-ops-completed="7"');
-        expect(html).toContain('data-ops-micro="deposit"');
-        expect(html).toContain('إيداع اليوم');
-        expect(html).toContain('data-ops-company-deposit="1234567.89"');
-        expect(html).toContain('1,234,567.89');
-        expect(tableStyles).toMatch(/\.ops-summary-layout\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)\s*minmax\(240px,\s*340px\)/);
-        expect(tableStyles).toMatch(/\.ops-summary-layout\s*\{[^}]*grid-template-areas:\s*"companies companies"\s*"executors totals"/);
-        expect(tableStyles).toMatch(/\.ops-summary-layout\s*\{[^}]*direction:\s*rtl/);
-        expect(tableStyles).not.toMatch(/grid-template-columns:\s*minmax\(0,\s*3fr\)\s*minmax\(0,\s*1fr\)/);
-        expect(html).not.toContain('ops-summary-side');
-        expect(tableStyles).toMatch(/\.ops-summary-companies\s*\{[^}]*grid-area:\s*companies/);
-        expect(tableStyles).toMatch(/\.ops-summary-executors\s*\{[^}]*grid-area:\s*executors/);
-        expect(tableStyles).toMatch(/\.ops-summary-totals\s*\{[^}]*grid-area:\s*totals/);
-        expect(tableStyles).toMatch(/\.ops-summary-totals\s*\{[^}]*flex-direction:\s*column/);
-        expect(tableStyles).toMatch(/\.ops-exec-row\s*\{[^}]*display:\s*grid/);
-        expect(tableStyles).toMatch(/\.ops-company-row\s*\{[^}]*display:\s*grid/);
-        expect(tableStyles).toMatch(/\.ops-uniform-card\s*\{[^}]*width:\s*100%[^}]*height:\s*152px/);
-        expect(tableStyles).toMatch(/\.ops-exec-card\s*\{[^}]*width:\s*100%[^}]*height:\s*100px/);
-        expect(tableStyles).toMatch(/@media \(max-width:\s*991\.98px\)\s*\{[^}]*\.ops-summary-layout\s*\{[^}]*grid-template-columns:\s*1fr;[^}]*"companies"\s*"executors"\s*"totals"/);
-        expect(tableStyles).toMatch(/\.ops-micro-stack\s*\{[^}]*flex-direction:\s*column/);
-        expect(tableStyles).toMatch(/\.ops-micro\s*\{[^}]*width:\s*100%/);
-        expect(tableStyles).toMatch(/\.ops-mini-card\s*\{[^}]*padding:\s*7px 10px/);
-        expect(html).toContain('class="ops-exec-card"');
-        expect(html).not.toContain('ops-exec-card ops-uniform-card');
-        expect(html).toContain('ops-company-card ops-uniform-card');
-        const firstExecutor = html.slice(html.indexOf('data-ops-executor="e1"'), html.indexOf('data-ops-executor="e2"'));
-        expect(firstExecutor).toContain('ops-micro-stack');
-        expect(firstExecutor).toContain('عمليات اليوم');
-        expect(firstExecutor).toContain('إيداع اليوم');
-        expect(firstExecutor).toContain('data-ops-completed="4"');
-        expect(firstExecutor).toContain('data-ops-executor-deposit="320.5"');
-        expect(firstExecutor).toContain('320.50');
-        expect(firstExecutor.indexOf('ops-exec-value')).toBeLessThan(firstExecutor.indexOf('data-ops-micro="completed"'));
-        expect(firstExecutor.indexOf('data-ops-micro="completed"')).toBeLessThan(firstExecutor.indexOf('data-ops-micro="deposit"'));
-        const secondExecutor = html.slice(html.indexOf('data-ops-executor="e2"'), html.indexOf('class="ops-summary-totals"'));
-        expect(secondExecutor).toContain('data-ops-completed="0"');
-        expect(secondExecutor).toContain('data-ops-executor-deposit="0"');
-        expect(html).not.toContain('ops-company-cluster');
-        const firstCompany = html.slice(html.indexOf('data-ops-company="c1"'), html.indexOf('data-ops-company="c2"'));
-        expect(firstCompany).toContain('ops-micro-stack');
-        expect(firstCompany.indexOf('ops-company-balance')).toBeLessThan(firstCompany.indexOf('data-ops-micro="completed"'));
-        expect(firstCompany.indexOf('data-ops-micro="completed"')).toBeLessThan(firstCompany.indexOf('data-ops-micro="deposit"'));
-        expect(html.indexOf('data-ops-summary-strip')).toBeLessThan(html.indexOf('id="transactionsTable"'));
-        expect(html.indexOf('class="ops-summary-companies"')).toBeLessThan(html.indexOf('class="ops-summary-executors"'));
-        expect(html.indexOf('class="ops-summary-executors"')).toBeLessThan(html.indexOf('class="ops-summary-totals"'));
-        expect(html).not.toContain('ops-summary-top');
-        expect(html).not.toContain('ops-summary-left');
-        expect(html).not.toContain('ops-summary-right');
+        const totals = html.slice(html.indexOf('class="ow-totals"'),html.indexOf('class="ow-workspace"'));
+        for(const label of ['إجمالي اليوم بالمصري','الكاش','البنكي','مقابل شغل اليوم بالليبي','إيداعات الشركات اليوم','إيداعات المنفذين اليوم','مقارنة عدد العمليات']) expect(totals).toContain(label);
+        for(const amount of ['12,400.50','10,000.50','2,400.00','2,310.25','900.00','745.25','1,234,567.89','320.50']) expect(totals).toContain(amount);
+        expect(totals).toContain('EGP');expect(totals).toContain('LYD');
+        const companies = html.slice(html.indexOf('class="ow-companies"'),html.indexOf('class="ow-search"'));
+        expect(companies).toContain('href="/company/c1"');expect(companies).toContain('href="/company/c2"');
+        expect(companies).toContain('88.50');expect(companies).toContain('-12.00');expect(companies).toContain('ow-negative');
+        expect(companies).toContain('المكتملة اليوم <b>7</b>');
+        expect(companies.indexOf('شركة النور')).toBeLessThan(companies.indexOf('شركة الأمل'));
+        const executors = html.slice(html.indexOf('class="ow-executors"'),html.indexOf('</section>',html.indexOf('class="ow-executors"')));
+        expect(executors).toContain('/transactions/operations?executorId=e1');expect(executors).toContain('href="/executor/e2"');
+        for(const amount of ['2,500.50','128,450.75','0.00']) expect(executors).toContain(amount);
+        expect(executors).toContain('رصيد الكاش');expect(executors).toContain('رصيد البنك');
+        expect(executors).toContain('المنفذة اليوم <b>4</b>');expect(executors).toContain('المنفذة اليوم <b>0</b>');
+        expect(executors.indexOf('منفذ كاش')).toBeLessThan(executors.indexOf('<details>'));
+        expect(executors.indexOf('<details>')).toBeLessThan(executors.indexOf('منفذ سريع'));
+        expect(html.indexOf('class="ow-dashboard"')).toBeLessThan(html.indexOf('id="transactionsTable"'));
+        expect(html).toContain('@media(max-width:760px)');expect(html).toContain('@media(max-width:440px)');
+
     });
 
     test('renders a cancelled operation in the same operations table with a red ملغاة badge', () => {

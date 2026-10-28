@@ -145,9 +145,18 @@ describe('owner email OTP admin screens', () => {
         expect(fs.readFileSync(path.join(__dirname, '../public/js/account-email-address.js'), 'utf8')).toContain('البريد الإلكتروني مطلوب.');
         expect(card).toContain('/admin/accounts/company/507f1f77bcf86cd799439011/owner-otp');
         expect(card).toContain('checked');
-        expect(clients).toContain('/user/<%= u._id %>#owner-email-otp');
-        expect(clients).toContain('/company/<%= c._id %>#owner-email-otp');
-        expect(clients).toContain('/user/<%= agent._id %>#owner-email-otp');
+        expect(clients).toContain('admin_merchant_list');
+        const listPath=path.join(__dirname,'../views/partials/admin_merchant_list.ejs');
+        const account={_id:'507f1f77bcf86cd799439011',name:'Test account',status:'active',balance:0};
+        for(const [section,type] of [['users','user'],['agents','agent'],['companies','company']]) {
+            const data={activeSection:section,users:[account],agents:[account],companies:[account],isMaster:true};
+            const list=await ejs.renderFile(listPath,data,{filename:listPath});
+            expect(list).toContain(`/admin/accounts/${type}/${account._id}/edit`);
+            const restricted=await ejs.renderFile(listPath,{...data,isMaster:false},{filename:listPath});
+            expect(restricted).not.toContain(`/admin/accounts/${type}/${account._id}/edit`);
+        }
+        const detail=fs.readFileSync(path.join(__dirname,'../views/admin_merchant_details.ejs'),'utf8');
+        expect(detail).toContain("include('partials/owner_email_otp_card'");
         expect(userDetails).toContain('owner_email_otp_card');
         expect(companyDetails).toContain('owner_email_otp_card');
         expect(companyDetails).toContain('لا يوجد حساب مالك لهذه الشركة');

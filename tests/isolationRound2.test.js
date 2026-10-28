@@ -248,14 +248,16 @@ describe('merchant webhook crash after HTTP', () => {
         else process.env.MERCHANT_WEBHOOK_WORKER_ENABLED = saved.MERCHANT_WEBHOOK_WORKER_ENABLED;
     });
 
-    const createEndpoint = () => MerchantWebhookEndpoint.create({
+    const createEndpoint = async () => {
+        const owner=await require('../models/User').create({name:'Webhook crash-test owner',webUsername:'webhook-'+ownerId(),webPassword:'test-only-password',role:'agent',status:'active',integrationAccess:{webhooksEnabled:true}});
+        return MerchantWebhookEndpoint.create({
         ownerModel: 'User',
-        ownerId: ownerId(),
+        ownerId: owner._id,
         url: 'https://hooks.example.test/pay',
         secretEncrypted: encrypt('webhook-secret'),
         events: ['transfer.completed'],
         enabled: true
-    });
+    }); };
 
     test('a sending row left by a crash is not redelivered on the next poll', async () => {
         const endpoint = await createEndpoint();
@@ -460,7 +462,7 @@ describe('isolation backlog counts are read-only', () => {
 
 const paymentPosts = () => axios.post.mock.calls.filter((call) => String(call[0]).includes('/Transactions/Payment')).length;
 
-const installProviderHttp = () => {
+const installProviderHttp = (reference = '2805****9087') => {
     axios.post.mockImplementation(async (url) => {
         const target = String(url);
         if (target.includes('/GetToken')) {
@@ -483,7 +485,7 @@ const installProviderHttp = () => {
                     Code: 200,
                     Data: {
                         TransactionNumber: '5001',
-                        RefTransactionNumber: '2805',
+                        RefTransactionNumber: reference,
                         Amount: 1600,
                         Status: 'عمليه ناجحه',
                         IsPaid: true

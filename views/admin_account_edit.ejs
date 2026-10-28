@@ -1,3 +1,4 @@
+<% const optionalTelegramCode = typeof telegramCode !== 'undefined' ? telegramCode : ''; const optionalTelegramLink = typeof telegramLink !== 'undefined' ? telegramLink : null; %>
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
@@ -252,10 +253,10 @@
                 <section class="form-section">
                     <h2 class="section-heading"><i class="fa-brands fa-telegram"></i> إيصالات Telegram</h2>
                     <div class="security-note"><i class="fa-solid fa-lock"></i><span>كود الربط يظهر للإدارة فقط. أرسله للحساب المعني ليكتبه وحده في محادثة البوت.</span></div>
-                    <% if (telegramCode) { %><div class="security-note"><strong dir="ltr"><%= telegramCode %></strong> — احفظه وأرسله للحساب، ولن يظهر مرة أخرى.</div><% } %>
-                    <% if (telegramLink) { %><div class="security-note">حالة الربط: <%= telegramLink.chatId ? 'مرتبط' : 'غير مرتبط' %> | قناة الإيصال: <%= ({off:'متوقفة', whatsapp:'واتساب فقط', telegram:'Telegram فقط', both:'واتساب وTelegram'})[telegramLink.deliveryMode] %></div><% } %>
+                    <% if (optionalTelegramCode) { %><div class="security-note"><strong dir="ltr"><%= optionalTelegramCode %></strong> — احفظه وأرسله للحساب، ولن يظهر مرة أخرى.</div><% } %>
+                    <% if (optionalTelegramLink) { %><div class="security-note">حالة الربط: <%= optionalTelegramLink.chatId ? 'مرتبط' : 'غير مرتبط' %> | قناة الإيصال: <%= ({off:'متوقفة', whatsapp:'واتساب فقط', telegram:'Telegram فقط', both:'واتساب وTelegram'})[optionalTelegramLink.deliveryMode] %></div><% } %>
                     <div class="field-grid two">
-                        <div class="field"><label for="deliveryMode">قناة إرسال الإيصالات</label><select id="deliveryMode" name="deliveryMode" form="telegram-settings-form" class="form-select"><% [['off','متوقفة'],['whatsapp','واتساب فقط'],['telegram','Telegram فقط'],['both','واتساب وTelegram']].forEach(([value,label]) => { %><option value="<%= value %>" <%= telegramLink?.deliveryMode === value ? 'selected' : '' %>><%= label %></option><% }) %></select></div>
+                        <div class="field"><label for="deliveryMode">قناة إرسال الإيصالات</label><select id="deliveryMode" name="deliveryMode" form="telegram-settings-form" class="form-select"><% [['off','متوقفة'],['whatsapp','واتساب فقط'],['telegram','Telegram فقط'],['both','واتساب وTelegram']].forEach(([value,label]) => { %><option value="<%= value %>" <%= optionalTelegramLink?.deliveryMode === value ? 'selected' : '' %>><%= label %></option><% }) %></select></div>
                     </div>
                     <button form="telegram-settings-form" class="btn btn-success" type="submit">حفظ قناة الإرسال</button>
                     <button form="telegram-code-form" class="btn btn-outline-primary" type="submit"><i class="fa-solid fa-rotate"></i> توليد كود / إعادة الربط</button>

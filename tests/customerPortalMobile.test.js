@@ -70,6 +70,8 @@ const agentWorkspace = {
         canTransfer: true,
         canInternalTransfer: true,
         canViewBalance: true,
+        canViewAllTransactions: true,
+        canViewAllReports: true,
         canViewReports: true,
         canRequestDeposit: false,
         canEditSettings: true,
@@ -97,7 +99,7 @@ const renderAgentWorkspace = (page = 'overview') => ejs.renderFile(WORKSPACE_VIE
     portalHomeHref: resolvePortalHomeHref(agentWorkspace),
     navigation: buildNavigation(agentWorkspace, page),
     customerMobileNav: buildAgentMobileNav(buildNavigation(agentWorkspace, page), page),
-    companyMobileNav: [],
+    companyMobileNav: buildAgentMobileNav(buildNavigation(agentWorkspace, page), page).dock,
     statusMeta: STATUS_META,
     serviceCatalog: SERVICE_CATALOG.map((service) => ({ ...service, rate: 4.85 })),
     serviceRates: { vodafone: 4.85 },
@@ -186,24 +188,24 @@ describe('customer portal mobile chrome and exclusivity', () => {
         expect(dock.some((item) => item.key === 'support')).toBe(true);
     });
 
-    test('agent workspace paints one customer shell with bell, dock, and More', async () => {
+    test('agent workspace paints one isolated agent shell with bell, dock, and More', async () => {
         const html = await renderAgentWorkspace('overview');
-        expect(html).toContain('data-customer-shell');
-        expect(html).toContain('cl-app');
-        expect(html).toContain('data-customer-bell');
-        expect(html).toContain('data-customer-dock');
-        expect(html).toContain('data-customer-more');
-        expect(html).toContain('data-cl-more-open');
+        expect(html).toContain('data-agent-shell');
+        expect(html).toContain('cp-app');
+        expect(html).toContain('data-company-bell');
+        expect(html).toContain('data-company-dock');
+        expect(html).toContain('id="agentMoreMenu"');
+        expect(html).toContain('popovertarget="agentMoreMenu"');
         expect(html).toContain('data-dock-key="support"');
-        expect(html).toContain('data-dock-key="more"');
-        expect(html).toContain('/client/finance');
-        expect(html).toContain('/client/customers');
-        expect(html).toContain('/client/settings');
-        expect(html).toContain('20260920-cl-m2');
+        expect(html).toContain('id="agentMoreButton"');
+        expect(html).toContain('/agent-portal/finance');
+        expect(html).toContain('/agent-portal/customers');
+        expect(html).toContain('/agent-portal/settings');
+        expect(html).toContain('/css/portal-shell/tokens.css');
         expect(html).not.toContain('company-portal.tokens.css');
         expect(html).not.toContain('company-portal-layout.css');
-        expect(html).not.toContain('data-company-bell');
-        expect(html).not.toContain('data-company-dock');
+        expect(html).not.toContain('data-customer-shell');
+        expect(html).not.toContain('href="/client/finance');
         expect(html).not.toContain('href="/corporate"');
     });
 
@@ -262,11 +264,11 @@ describe('customer portal mobile chrome and exclusivity', () => {
         const reports = fs.readFileSync(HUB_REPORTS, 'utf8');
         const support = fs.readFileSync(SUPPORT_VIEW, 'utf8');
         const dock = fs.readFileSync(BOTTOM_NAV, 'utf8');
-        const more = fs.readFileSync(MORE_SHEET, 'utf8');
-        const retailMore = fs.readFileSync(WALLET_HUB_MORE, 'utf8');
+        const more = ejs.render(fs.readFileSync(MORE_SHEET, 'utf8'),{portalBasePath:'/client',portalHref:value=>value},{filename:MORE_SHEET});
+        const retailMore = ejs.render(fs.readFileSync(WALLET_HUB_MORE, 'utf8'),{portalBasePath:'/client',portalHref:value=>value,account:{name:'Test retail',role:'user'},activeNav:'reports'},{filename:WALLET_HUB_MORE});
         const home = fs.readFileSync(WALLET_HUB_HOME, 'utf8');
         const sidebar = fs.readFileSync(WALLET_HUB_SIDEBAR, 'utf8');
-        const bell = fs.readFileSync(NOTIFICATIONS, 'utf8');
+        const bell = ejs.render(fs.readFileSync(NOTIFICATIONS, 'utf8'), {}, {filename: NOTIFICATIONS});
         const reportsRoute = fs.readFileSync(path.join(ROOT, 'routes/clientReports.js'), 'utf8');
 
         [dashboard, services, transfers, account, settings, reports, support].forEach((html) => {
@@ -289,7 +291,7 @@ describe('customer portal mobile chrome and exclusivity', () => {
         expect(dock).toContain('/client/services');
         expect(dock).toContain('/client/settings');
         expect(more).toContain('data-customer-more');
-        expect(retailMore).toContain("key: 'reports'");
+        expect(retailMore).toContain('data-more-key="reports"');
         expect(retailMore).toContain('/client/reports');
         expect(retailMore).toContain('التقارير');
         expect(home).toContain('/client/reports');

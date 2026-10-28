@@ -27,7 +27,8 @@ jest.mock('../models/MerchantWebhookEndpoint', () => ({
 }));
 
 jest.mock('../models/User', () => ({
-    findOne: jest.fn()
+    findOne: jest.fn(),
+    exists: jest.fn(async()=>true)
 }));
 
 jest.mock('../models/Transaction', () => ({
@@ -281,6 +282,7 @@ describe('runtime isolation kill switches', () => {
         MerchantWebhookEndpoint.findOne.mockReturnValue({
             select: () => Promise.resolve({
                 _id: 'endpoint-1',
+                ownerModel:'User',ownerId:'owner-1',
                 url: 'https://hooks.example.test/pay',
                 secretEncrypted: encrypt('webhook-secret'),
                 enabled: true
@@ -370,6 +372,7 @@ describe('runtime isolation kill switches', () => {
         MerchantWebhookEndpoint.findOne.mockReturnValue({
             select: () => Promise.resolve({
                 _id: 'endpoint-1',
+                ownerModel:'User',ownerId:'owner-1',
                 url: 'https://hooks.example.test/pay',
                 secretEncrypted: encrypt('webhook-secret'),
                 enabled: true

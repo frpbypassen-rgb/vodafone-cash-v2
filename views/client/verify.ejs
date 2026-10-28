@@ -159,7 +159,7 @@
                     <div class="auth-code-grid" dir="ltr" aria-label="رمز التحقق">
                         <% for (let codeIndex = 0; codeIndex < 6; codeIndex += 1) { %><input type="text" inputmode="numeric" pattern="[0-9]" maxlength="1" class="auth-code-slot" data-auth-code-slot data-slot-index="<%= codeIndex %>" autocomplete="one-time-code" aria-label="رقم <%= codeIndex + 1 %>"><% } %>
                     </div>
-                    <input type="hidden" name="otp" data-auth-code-input>
+                    <input type="hidden" name="otp" data-auth-code-input data-login-otp>
                     <div class="auth-method-switch" role="group" aria-label="طريقة التحقق">
                         <span class="auth-method-chip is-muted"><i class="fa-solid fa-mobile-screen-button"></i><span>تطبيق<br><b>Authenticator</b></span><i class="fa-regular fa-circle auth-method-check"></i></span>
                         <span class="auth-method-chip is-active"><i class="fa-regular fa-envelope"></i><span>رمز البريد</span><i class="fa-solid fa-circle-check auth-method-check"></i></span>

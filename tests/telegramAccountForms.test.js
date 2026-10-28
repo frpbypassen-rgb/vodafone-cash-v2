@@ -20,5 +20,6 @@ test('Generated codes stay in session and return to the editor', () => {
     expect(routes).toContain('req.session.telegramCodeFlash =');
     expect(routes).toContain('delete req.session.telegramCodeFlash');
     expect(routes).not.toContain('telegramCode=${');
-    expect(view).toContain('<%= telegramCode %>');
+    expect(view).toContain('<%= optionalTelegramCode %>');
+    expect(view).toContain("typeof telegramCode !== 'undefined'");
 });
