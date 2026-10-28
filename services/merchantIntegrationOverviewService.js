@@ -49,7 +49,7 @@ const overview = async (workspace, req) => {
             ? { tenantId: workspace.entity.tenantId || { $in: [] } }
             : {}),
     };
-    const [access, groups, lastDelivery, eventsResult, transactions, uniqueIndexReady] =
+    const [access, groups, lastDelivery, eventsResult, transactions, uniqueIndexReady, outboxReady] =
         await Promise.all([
             integration.getStatus(workspace),
             require('../models/MerchantWebhookEndpoint')
@@ -130,6 +130,7 @@ const overview = async (workspace, req) => {
                     () => ({ available: false, supported: false }),
                 ),
             require('./merchantIdempotencyService').indexReady(),
+            require('./merchantWebhookOutboxService').indexesReady(),
         ]);
     const stats = groups[0] || {
         total: 0,
@@ -171,11 +172,15 @@ const overview = async (workspace, req) => {
         },
         webhooks: {
             ...stats,
-            ...classifyWebhook(access, stats, transport),
+            ...classifyWebhook(access, stats, transport && outboxReady),
+            ...(access.webhooksEnabled && transport && !outboxReady ? {
+                state:'stopped',label:'التسليم متوقف',reason:'فهارس سجل الإشعارات الدائم غير مهيأة. تواصل مع الإدارة.',
+            } : {}),
             transportEnabled: transport,
             lastDelivery,
         },
         checks: [
+            {label:'سجل الإشعارات الدائم',ok:outboxReady,message:outboxReady?'فهارس Outbox جاهزة.':'يلزم تجهيز فهارس Outbox قبل تشغيل العامل.'},
             {
                 label: 'فهرس منع التكرار',
                 ok: uniqueIndexReady,

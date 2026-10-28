@@ -204,12 +204,13 @@ const deliverWebhook = async (deliveryId) => {
     }
 };
 
-const enqueueTransactionWebhook = async (eventType, transaction) => {
+const enqueueTransactionWebhook = async (eventType, transaction, options = {}) => {
     if (!EVENTS.includes(eventType) || !transaction) return [];
     const owner = await resolveOwner(transaction);
     if (!owner) return [];
     if (!await webhooksAllowed({ ...owner, tenantId: transaction.tenantId })) return [];
     const endpointQuery = { ...owner, enabled: true, events: eventType };
+    if (options.payload?.created_at) endpointQuery.createdAt = { $lte: new Date(options.payload.created_at) };
     // Single-tenant production often resolves a new DEFAULT_TENANT while the
     // endpoint still carries an older tenantId or none. ownerModel + ownerId
     // stay the mandatory boundary there. Multi-tenant keeps a strict tenant
@@ -218,8 +219,8 @@ const enqueueTransactionWebhook = async (eventType, transaction) => {
     if (tenantMode() === 'multi') endpointQuery.tenantId = transaction.tenantId || null;
     const endpoints = await MerchantWebhookEndpoint.find(endpointQuery).lean();
     if (!endpoints.length) return [];
-    const payload = buildPayload(eventType, transaction);
-    const eventId = `${transaction._id}:${eventType}:${transaction.status || ''}`;
+    const payload = options.payload || buildPayload(eventType, transaction);
+    const eventId = options.eventId || `${transaction._id}:${eventType}:${transaction.status || ''}`;
     const operations = endpoints.map((endpoint) => ({
         updateOne: {
             filter: { endpointId: endpoint._id, eventId },
@@ -232,7 +233,7 @@ const enqueueTransactionWebhook = async (eventType, transaction) => {
     }));
     await MerchantWebhookDelivery.bulkWrite(operations, { ordered: false });
     const deliveries = await MerchantWebhookDelivery.find({ endpointId: { $in: endpoints.map((item) => item._id) }, eventId }).select('_id').lean();
-    deliveries.forEach((item) => { deliverWebhook(item._id).catch((error) => logger.error('Merchant webhook dispatch failed', { error: error.message })); });
+    if (options.dispatch !== false) deliveries.forEach((item) => { deliverWebhook(item._id).catch((error) => logger.error('Merchant webhook dispatch failed', { error: error.message })); });
     return deliveries.map((item) => item._id);
 };
 
@@ -253,7 +254,12 @@ const startMerchantWebhookWorker = () => {
     if (webhookHttpDisabled()) return null;
     if (workerTimer) return workerTimer;
     workerTimer = setInterval(() => {
-        processPendingWebhooks().catch((error) => logger.error('Merchant webhook worker failed', { error: error.message }));
+        require('./merchantWebhookOutboxService').drain()
+            .then((result) => {
+                if (result.failed) logger.warn('Merchant webhook outbox staging will retry', { failed: result.failed });
+                return processPendingWebhooks();
+            })
+            .catch((error) => logger.error('Merchant webhook worker failed', { error: error.message }));
     }, 30_000);
     if (typeof workerTimer.unref === 'function') workerTimer.unref();
     return workerTimer;

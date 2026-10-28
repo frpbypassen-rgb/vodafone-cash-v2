@@ -56,7 +56,10 @@ const eventBus = new FinancialEventBus();
 const dispatchMerchantWebhook = (eventType, data) => {
     const transaction = data?.tx || data?.transaction;
     if (!transaction) return Promise.resolve();
-    return Promise.resolve().then(() => {
+    return Promise.resolve().then(async () => {
+        // New records stage their event atomically with the financial document.
+        // Legacy records keep their existing listener path; never double-stage snapshots.
+        if (await require('./merchantWebhookOutboxService').hasDurableEvent(eventType, transaction)) return [];
         const { enqueueTransactionWebhook } = require('./merchantWebhookService');
         return enqueueTransactionWebhook(eventType, transaction);
     });

@@ -288,4 +288,5 @@ transactionSchema.index({
     'apiResultData.autoCompleteAt': 1
 });
 
+require('../utils/merchantWebhookOutboxSchema').attach(transactionSchema);
 module.exports = mongoose.model('Transaction', transactionSchema);
