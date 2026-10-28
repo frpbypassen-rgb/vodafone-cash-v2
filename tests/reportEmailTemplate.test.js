@@ -34,3 +34,19 @@ test.each(['agent','company'])('%s: the real mailer sends HTML and a plain-text 
  for(const [message] of sendMail.mock.calls)expect(message).toMatchObject({to:'recipient@example.test',from:'noreply@example.test',html:expect.stringContaining('<!doctype html>'),text:expect.any(String)});
  expect(sendMail.mock.calls[1][0].attachments[0].content.toString()).toBe('admin PDF');expect(close).toHaveBeenCalledTimes(2);
 });
+
+test.each(['agent','company'])('%s: Nodemailer builds an actual MIME message with the PDF and inline logo without connecting to SMTP',async kind=>{
+ const transport=jest.requireActual('nodemailer').createTransport({streamTransport:true,buffer:true,newline:'unix'});
+ const pdf=Buffer.from('%PDF-original-attachment');
+ try {
+  const info=await transport.sendMail({from:'noreply@example.test',to:'review@example.test',...statementEmail({kind,day:'2026-10-27',pdf})});
+  const raw=info.message.toString('utf8');
+  expect(raw).toContain('Content-Type: multipart/mixed');
+  expect(raw).toContain('Content-Type: multipart/alternative');
+  expect(raw).toContain('Content-Type: text/plain');expect(raw).toContain('Content-Type: text/html');
+  expect(raw).toContain('Content-ID: <ahram-report-logo>');
+  expect(raw).toContain('Content-Disposition: inline');expect(raw).toContain('Content-Type: image/jpeg');
+  expect(raw).toContain('Content-Type: application/pdf');expect(raw).toContain('Ahram-statement-2026-10-27.pdf');
+  expect(raw).toContain(pdf.toString('base64'));
+ } finally {transport.close();}
+});
