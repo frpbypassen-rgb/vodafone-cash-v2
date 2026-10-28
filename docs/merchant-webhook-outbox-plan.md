@@ -10,3 +10,5 @@ Scope: local branch and a disposable replica-set demo only. Do not change produc
 6. Run many synthetic merchant API requests, duplicate/concurrent requests, crashes/rollbacks, failures/retries, revoked-token/IP gates and out-of-order receiver events. Count wallet debits, ledger rows, transfers, staged events and receiver applications. Report exact load and results, and keep real external transfers disabled.
 
 Completed locally. See `merchant-webhook-outbox.md` and `merchant-webhook-outbox-validation.json` for implementation boundaries, migration prerequisites, the isolated preview, test counts and the measured contention limitation. Production was not changed.
+
+Follow-up completed on 2026-10-28: bounded driver transaction retries reduced the same stress scenario's client-visible conflicts from 978 to zero; scoped queue age/count diagnostics, operational gauges and throttled lag warnings were added; the fourteen prior regression failures were repaired. Final verification passed all 305 suites / 2,438 tests. See the follow-up and regression validation JSON reports. No production rollout was performed.

@@ -1,0 +1,14 @@
+{
+  "verifiedAt": "2026-10-28T12:36:40.913Z",
+  "scope": "isolated-local-only",
+  "suites": 305,
+  "passedSuites": 305,
+  "failedSuites": 0,
+  "tests": 2438,
+  "passedTests": 2438,
+  "failedTests": 0,
+  "skippedTests": 0,
+  "assertionsPreserved": true,
+  "productionChanged": false,
+  "externalProviderCalls": 0
+}
