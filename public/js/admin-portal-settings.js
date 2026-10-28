@@ -112,6 +112,8 @@
       " · " +
       (data.access.keyActive ? "المفتاح نشط" : "المفتاح غير نشط") +
       (data.access.keyHint ? " · …" + data.access.keyHint : "") +
+      " · قائمة IP: " + (data.access.ipAllowlistEnabled ? "مفعّلة" : "غير مفعّلة") +
+      (data.access.allowedIps?.length ? " · " + data.access.allowedIps.join("، ") : "") +
       " · " +
       meta(data.access);
     rows(

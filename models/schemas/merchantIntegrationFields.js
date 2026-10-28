@@ -10,6 +10,8 @@ module.exports = {
         keyDisabled: { type: Boolean, default: false },
         keyHint: { type: String, default: '' },
         keyCreatedAt: { type: Date },
+        ipAllowlistEnabled: { type: Boolean, default: false },
+        allowedIps: { type: [String], default: [] },
     },
     merchantApiKeyHash: { type: String, select: false, unique: true, sparse: true },
 };

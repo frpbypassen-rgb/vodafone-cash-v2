@@ -44,10 +44,12 @@ const handle = (action) => async (req, res) => {
             if (!actor || !(await bcrypt.compare(password, actor.webPassword || '')))
                 throw service.fail('PASSWORD_INVALID', 'كلمة المرور الحالية غير صحيحة.', 400);
         }
-        const data = await action(workspace);
+        if(req.path.endsWith('/ip-policy') && req.body?.ipAllowlistEnabled === true && !require('../utils/merchantIpPolicy').sourceIp(req))
+            throw service.fail('PROXY_CONFIGURATION_REQUIRED','تعذر تحديد IP بأمان. يلزم ضبط عناوين البروكسي الموثوقة صراحةً على الخادم قبل التفعيل.',503);
+        const data = await action(workspace, req.body || {});
         if (req.method !== 'GET')
             await logAction({
-                action: req.path.endsWith('/rotate')
+                action: req.path.endsWith('/ip-policy') ? 'MERCHANT_API_IP_POLICY_UPDATED' : req.path.endsWith('/rotate')
                     ? 'MERCHANT_API_KEY_ROTATED'
                     : 'MERCHANT_API_KEY_REVOKED',
                 req,
@@ -57,7 +59,7 @@ const handle = (action) => async (req, res) => {
                 targetId: workspace.entity._id,
                 targetModel: workspace.entityModel,
                 result: 'ناجح',
-                metadata: { oldKeyRevoked: true },
+                metadata: req.path.endsWith('/ip-policy') ? { ipAllowlistEnabled: data.ipAllowlistEnabled, addressCount: data.allowedIps.length } : { oldKeyRevoked: true },
             });
         return res.json({ success: true, data });
     } catch (error) {
@@ -119,6 +121,7 @@ router.get(['/client/integrations/api', '/agent-portal/integrations/api'], requi
 });
 router.post(paths('/rotate'), requireClientAuth, limited, handle(service.rotateKey));
 router.post(paths('/revoke'), requireClientAuth, limited, handle(service.revokeKey));
+router.post(paths('/ip-policy'), requireClientAuth, limited, handle(service.setIpPolicy));
 router.post(
     ['/company/:id/integrations', '/user/:id/integrations'],
     requireAuth,

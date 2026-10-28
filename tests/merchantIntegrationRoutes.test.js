@@ -44,6 +44,7 @@ beforeEach(() => {
     jest.clearAllMocks();
 });
 afterEach(async () => {
+    app.set('trust proxy', false);
     await Promise.all([
         Company.deleteMany({}),
         Employee.deleteMany({}),
@@ -59,6 +60,47 @@ afterAll(async () => {
 const post = (url, body) =>
     request(app).post(url).set('Accept', 'application/json').set('X-CSRF-Token', csrf).send(body);
 for (const kind of ['company', 'agent']) {
+    test(`${kind}: owner IP policy rejects spoofing and blocks all merchant routes before financial work`, async () => {
+        const isCompany=kind==='company', Model=isCompany?Company:User;
+        const entity=await Model.create(isCompany?{name:'IP Company'}:{name:'IP Agency',role:'agent',webUsername:'ip-owner',webPassword:'test-password-123'});
+        const actor=isCompany?await Employee.create({name:'Owner',companyId:entity._id,role:'owner',webUsername:'ip-owner',webPassword:'test-password-123'}):entity;
+        session={...session,isClientLoggedIn:true,accountType:isCompany?'company':'user',clientId:actor._id};
+        const base=isCompany?'/client':'/agent-portal', workspace={entity,isCompany,isAgent:!isCompany,permissions:{owner:true}};
+        const service=require('../services/merchantIntegrationService');
+        await service.setAdminAccess(Model,{_id:entity._id},{apiEnabled:true,webhooksEnabled:true});
+        const {token}=await service.rotateKey(workspace);
+        const current=()=>service.getStatus(workspace);
+        const save=async(policy,extra={})=>post(base+'/api/integrations/ip-policy',{currentPassword:'test-password-123',revision:(await current()).revision,...policy,...extra});
+        expect((await save({ipAllowlistEnabled:true,allowedIps:[]})).status).toBe(400);
+        expect((await save({ipAllowlistEnabled:true,allowedIps:['192.0.2.1/24']})).status).toBe(400);
+        expect((await save({ipAllowlistEnabled:true,allowedIps:['127.0.0.1']},{currentPassword:'wrong'})).status).toBe(400);
+        expect((await request(app).post(base+'/api/integrations/ip-policy').send({ipAllowlistEnabled:true,allowedIps:['127.0.0.1']})).status).toBe(403);
+        const balance=(xff)=>{const req=request(app).get('/api/v1/merchant/balance').set('x-api-key',token);return xff?req.set('X-Forwarded-For',xff):req;};
+        const enabledPolicy = await save({ipAllowlistEnabled:true,allowedIps:['127.0.0.1']});
+        expect(enabledPolicy.status).toBe(200);
+        expect(enabledPolicy.body.data.keyActive).toBe(true);
+        expect(JSON.stringify(enabledPolicy.body)).not.toContain(token);
+        expect((await balance()).status).toBe(200);
+        const previousRevision=(await current()).revision;
+        expect((await save({ipAllowlistEnabled:true,allowedIps:['192.0.2.1']})).status).toBe(200);
+        expect((await save({ipAllowlistEnabled:false,allowedIps:[]},{revision:previousRevision})).status).toBe(409);
+        expect((await balance('192.0.2.1')).status).toBe(403);
+        expect((await request(app).post('/api/v1/merchant/transfer').set('x-api-key',token).send({})).status).toBe(403);
+        expect((await request(app).get('/api/v1/merchant/status/nonexistent').set('x-api-key',token)).status).toBe(403);
+        expect(await Transaction.countDocuments({})).toBe(0);
+        app.set('trust proxy',['loopback']);
+        expect((await balance('192.0.2.1')).status).toBe(200);
+        expect((await balance('192.0.2.1, 198.51.100.2')).status).toBe(403);
+        app.set('trust proxy',1);
+        expect((await balance('192.0.2.1')).status).toBe(403);
+        const rejected=await post(base+'/api/integrations/ip-policy',{currentPassword:'test-password-123',revision:(await current()).revision,ipAllowlistEnabled:true,allowedIps:['192.0.2.2']}).set('X-Forwarded-For','192.0.2.1');
+        expect(rejected.status).toBe(503);
+        expect((await current()).allowedIps).toEqual(['192.0.2.1']);
+        app.set('trust proxy',false);
+        expect((await save({ipAllowlistEnabled:false,allowedIps:[]})).status).toBe(200);
+        expect((await balance()).status).toBe(200);
+        expect((await Model.findById(entity._id)).balance).toBe(0);
+    }, 15000); // Exercises multiple real password checks and database round-trips, not a latency budget.
     test(`${kind}: actual admin and portal routes enforce flags, password, CSRF and revocation`, async () => {
         const isCompany = kind === 'company';
         const entity = await (isCompany ? Company : User).create(
@@ -237,6 +279,7 @@ test('integration management rejects a company session from another tenant', asy
         ).toBe(403);
         expect((await request(app).get('/client/integrations/api')).status).toBe(403);
         expect((await request(app).get('/client/integrations/api/guide.pdf')).status).toBe(403);
+        expect((await post('/client/api/integrations/ip-policy',{currentPassword:'test-password-123',revision:0,ipAllowlistEnabled:false,allowedIps:[]})).status).toBe(403);
         expect((await request(app).get('/client/api/integrations/activity').set('Accept','application/json')).status).toBe(403);
         session = { csrfToken: csrf, isLoggedIn: true, adminRole: 'master' };
         expect((await post('/company/' + company._id + '/integrations', { apiEnabled: 'on', revision: 0 })).status).toBe(

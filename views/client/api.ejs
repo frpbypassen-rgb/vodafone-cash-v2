@@ -6,8 +6,8 @@
     <title>مفتاح API | الأهرام</title>
     <script>(()=>{let stored;try{stored=localStorage.getItem(<%- JSON.stringify(portalBase === '/client' ? 'ahram_company_theme' : 'ahram_client_theme') %>);}catch(_){}const server=<%- JSON.stringify(savedTheme) %>;document.documentElement.dataset.theme=server||(['day','night','pharaonic'].includes(stored)?stored:matchMedia('(prefers-color-scheme: dark)').matches?'night':'day');})();</script>
     <link rel="stylesheet" href="/css/merchant-webhooks.css?v=20261028-1">
-    <link rel="stylesheet" href="/css/merchant-api-page.css?v=20261028-2">
-    <script src="/js/merchant-api-page.js?v=20261028-2" defer></script>
+    <link rel="stylesheet" href="/css/merchant-api-page.css?v=20261028-3">
+    <script src="/js/merchant-api-page.js?v=20261028-3" defer></script>
 </head>
 <body>
 <main class="wh-page api-page" data-api-page>
@@ -33,6 +33,12 @@
             <span class="api-caption api-webhooks" data-api-webhooks-locked hidden>Webhooks غير مفعّلة من الإدارة.</span>
         </section>
     </div>
+    <section class="wh-panel api-ip-policy" aria-labelledby="api-ip-title">
+        <div class="wh-section-head"><h2 id="api-ip-title">القائمة البيضاء IP</h2><span class="wh-badge" data-api-ip-state>غير مفعّلة</span></div>
+        <p class="api-caption">اقبل طلبات API من عناوين سيرفرك فقط.</p>
+        <p class="api-ip-addresses" dir="ltr" data-api-ip-addresses></p>
+        <button type="button" class="wh-button" data-api-ip-manage>إدارة القائمة</button>
+    </section>
     <section class="wh-panel api-history" aria-labelledby="api-history-title"><div class="wh-section-head"><h2 id="api-history-title">آخر عمليات API</h2><span class="api-caption">آخر 5 عمليات</span></div><div data-api-history aria-live="polite"><p class="api-caption">جارٍ التحميل…</p></div></section>
     <dialog class="wh-dialog" data-api-dialog aria-labelledby="api-dialog-title"></dialog>
     <noscript><p class="wh-notice">فعّل JavaScript لإدارة مفتاح API.</p></noscript>

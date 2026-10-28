@@ -102,6 +102,20 @@
 .api-history {
     margin-top: 16px;
 }
+.api-ip-policy {
+    margin-top: 16px;
+}
+.api-ip-addresses {
+    font: 12px/1.8 monospace;
+    color: var(--wh-muted);
+    overflow-wrap: anywhere;
+    text-align: right;
+}
+.api-ip-input {
+    font: 13px/1.8 monospace;
+    resize: vertical;
+    min-height: 96px;
+}
 .api-history ul {
     list-style: none;
     padding: 0;

@@ -135,6 +135,19 @@ describe.each(["company", "agent"])(
           : "../models/AgentTelegramConnection",
       );
     });
+    test("owner IP policy is visible to administration and administrative gate edits preserve it", async () => {
+      let data=await snapshot();
+      const saved=await portal('/api/integrations/ip-policy',{
+        currentPassword:'sync-password-123',revision:data.access.revision,
+        ipAllowlistEnabled:true,allowedIps:['192.0.2.10','2001:db8::1']
+      });
+      expect(saved.status).toBe(200);
+      data=await snapshot();
+      expect(data.access).toMatchObject({ipAllowlistEnabled:true,allowedIps:['192.0.2.10','2001:db8::1']});
+      expect((await admin({section:'integrations',apiEnabled:false,webhooksEnabled:false,revision:data.access.revision})).status).toBe(200);
+      expect((await call('owner','get',base+'/api/integrations')).body.data).toMatchObject({ipAllowlistEnabled:true,allowedIps:['192.0.2.10','2001:db8::1']});
+      expect((await portal('/api/integrations/ip-policy',{currentPassword:'sync-password-123',revision:data.access.revision,ipAllowlistEnabled:false,allowedIps:[]})).status).toBe(409);
+    });
     test("admin API gates appear in both account editor and details; changes enforce real API access", async () => {
       let data = await snapshot();
       expect(data.access.apiEnabled).toBe(false);

@@ -50,7 +50,40 @@ const describeStatus = entity => {
             entity.status === 'active' && access.apiEnabled === true && !access.keyDisabled && Boolean(entity.merchantApiKeyHash || legacy),
         keyHint: access.keyHint || legacy.slice(-6),
         keyCreatedAt: access.keyCreatedAt || null,
+        ipAllowlistEnabled: access.ipAllowlistEnabled === true,
+        allowedIps: Array.isArray(access.allowedIps) ? access.allowedIps : [],
     };
+};
+const setIpPolicy = async (workspace, input) => {
+    assertOwner(workspace);
+    if (typeof input.ipAllowlistEnabled !== 'boolean')
+        throw fail('INVALID_IP_POLICY', 'إعداد القائمة البيضاء غير صالح.', 400);
+    const addresses = require('../utils/merchantIpPolicy').parseAddresses(input.allowedIps);
+    if (input.ipAllowlistEnabled && !addresses.length)
+        throw fail('IP_LIST_REQUIRED', 'أضف عنوان IP واحدًا على الأقل قبل التفعيل.', 400);
+    const scope = {
+        ...scopeFor(workspace),
+        ...(tenantMode() === 'multi' ? { tenantId: workspace.entity.tenantId || { $in: [] } } : {})
+    };
+    const row = await modelFor(workspace).findOneAndUpdate(
+        withRevision(scope, input.revision, 'integrationAccess.revision'),
+        {
+            $set: {
+                'integrationAccess.ipAllowlistEnabled': input.ipAllowlistEnabled,
+                'integrationAccess.allowedIps': addresses,
+                'integrationAccess.updatedBy': actorLabel(workspace),
+                'integrationAccess.updatedAt': new Date()
+            },
+            $inc: { 'integrationAccess.revision': 1 }
+        },
+        { returnDocument: 'after' }
+    ).select('+merchantApiKeyHash +apiToken').lean();
+    if (!row) {
+        if (!await modelFor(workspace).exists(scope))
+            throw fail('ACCOUNT_UNAVAILABLE', 'الحساب غير متاح.', 404);
+        throw conflict();
+    }
+    return describeStatus(row);
 };
 const rotateKey = async (workspace) => {
     assertOwner(workspace);
@@ -129,4 +162,4 @@ const webhooksAllowed = async (owner) => {
         })
     );
 };
-module.exports = { describeStatus, getStatus, getActivity, rotateKey, revokeKey, setAdminAccess, assertOwner, webhooksAllowed, fail };
+module.exports = { describeStatus, getStatus, getActivity, setIpPolicy, rotateKey, revokeKey, setAdminAccess, assertOwner, webhooksAllowed, fail };

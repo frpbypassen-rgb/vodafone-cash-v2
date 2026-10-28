@@ -197,6 +197,8 @@ const merchantApiAuth = async (req, res, next) => {
 
         const company = await ClientBot.findOne(apiKeyQuery(apiKey, 'token')).lean();
         if (company) {
+            if (!require('../utils/merchantIpPolicy').ipAllowed(req, company))
+                return res.status(403).json({ status:'failed', code:'IP_NOT_ALLOWED', message:'عنوان IP غير مسموح لهذا الحساب.' });
             req.merchant = {
                 ...company,
                 merchantType: 'company',
@@ -213,6 +215,8 @@ const merchantApiAuth = async (req, res, next) => {
         if (!agent) {
             return res.status(401).json({ status: 'failed', message: 'مفتاح المصادقة غير صحيح أو الحساب موقوف' });
         }
+        if (!require('../utils/merchantIpPolicy').ipAllowed(req, agent))
+            return res.status(403).json({ status:'failed', code:'IP_NOT_ALLOWED', message:'عنوان IP غير مسموح لهذا الحساب.' });
 
         req.merchant = {
             ...agent,

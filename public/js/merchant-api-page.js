@@ -59,6 +59,7 @@
             !status.apiEnabled ||
             !status.keyActive;
         get('refresh').disabled = busy || refreshing;
+        get('ip-manage').disabled = busy || refreshing || unavailable;
         dialog
             .querySelectorAll('button')
             .forEach(
@@ -66,7 +67,9 @@
                     (button.disabled =
                         busy ||
                         (button.type === 'submit' &&
-                            (unavailable || !status.apiEnabled))),
+                            (unavailable ||
+                                (dialog.dataset.mode !== 'ip-policy' &&
+                                    !status.apiEnabled)))),
             );
     };
     const render = () => {
@@ -92,6 +95,16 @@
         get('revoke').hidden = !status.keyActive || !status.apiEnabled;
         get('webhooks').hidden = !status.webhooksEnabled;
         get('webhooks-locked').hidden = status.webhooksEnabled;
+        get('ip-state').textContent = status.ipAllowlistEnabled
+            ? 'مفعّلة'
+            : 'غير مفعّلة';
+        get('ip-state').className =
+            'wh-badge wh-' + (status.ipAllowlistEnabled ? 'success' : 'muted');
+        const ips = Array.isArray(status.allowedIps) ? status.allowedIps : [];
+        get('ip-addresses').textContent = ips.length
+            ? ips.slice(0, 3).join(' · ') +
+              (ips.length > 3 ? ` · +${ips.length - 3}` : '')
+            : 'لا توجد عناوين مسجلة.';
         controls();
     };
     const api = async (suffix = '', body) => {
@@ -206,6 +219,7 @@
         if (busy) event.preventDefault();
     });
     const open = (title, content, footer) => {
+        dialog.dataset.mode = 'key';
         if (!dialog.open) returnFocus = document.activeElement;
         // Only application-owned static templates are inserted here. All API data uses textContent/value.
         dialog.innerHTML =
@@ -317,6 +331,63 @@
             }
         });
     };
+    const openIpPolicy = () => {
+        if (busy || unavailable) return;
+        const revision = status.revision;
+        open(
+            'القائمة البيضاء IP',
+            '<p class="wh-helper">أضف IP العام لسيرفر شركتك، وليس IP الهاتف. عند التفعيل تُرفض طلبات API من أي عنوان آخر. تظل إدارة الحساب متاحة.</p><form id="api-ip-form"><label class="wh-check"><input type="checkbox" name="ipEnabled"><span>تفعيل القائمة البيضاء</span></label><label class="wh-field">عناوين السيرفر<textarea class="wh-input api-ip-input" name="addresses" dir="ltr" rows="3" maxlength="1400" spellcheck="false" placeholder="192.0.2.10&#10;2001:db8::10"></textarea></label><p class="wh-helper">عنوان IPv4 أو IPv6 في كل سطر، بحد أقصى 20 عنوانًا.</p><label class="wh-field">كلمة المرور الحالية<input type="password" class="wh-input" name="currentPassword" required maxlength="128" autocomplete="current-password"></label><p class="wh-dialog-error" data-error role="alert" hidden></p></form>',
+            '<button type="button" class="wh-button" data-close>إلغاء</button><button type="submit" form="api-ip-form" class="wh-button wh-primary">حفظ الإعدادات</button>',
+        );
+        dialog.dataset.mode = 'ip-policy';
+        const form = dialog.querySelector('form');
+        form.elements.ipEnabled.checked = Boolean(status.ipAllowlistEnabled);
+        form.elements.addresses.value = (status.allowedIps || []).join('\n');
+        form.elements.addresses.focus();
+        form.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            if (busy || !form.reportValidity()) return;
+            const addresses = form.elements.addresses.value
+                .split(/[\s,،]+/)
+                .filter(Boolean);
+            const errorBox = form.querySelector('[data-error]');
+            if (form.elements.ipEnabled.checked && !addresses.length) {
+                errorBox.hidden = false;
+                errorBox.textContent =
+                    'أضف عنوان IP واحدًا على الأقل قبل التفعيل.';
+                return;
+            }
+            busy = true;
+            controls();
+            try {
+                status = await api('/ip-policy', {
+                    revision,
+                    ipAllowlistEnabled: form.elements.ipEnabled.checked,
+                    allowedIps: addresses,
+                    currentPassword: form.elements.currentPassword.value,
+                });
+                form.elements.currentPassword.value = '';
+                render();
+                busy = false;
+                dialog.close();
+                tell(
+                    status.ipAllowlistEnabled
+                        ? 'تم تفعيل القائمة البيضاء. تُقبل طلبات API من العناوين المحددة فقط.'
+                        : 'تم إيقاف القائمة البيضاء. يبقى التوكن مطلوبًا لكل طلب.',
+                );
+            } catch (error) {
+                form.elements.currentPassword.value = '';
+                errorBox.hidden = false;
+                errorBox.textContent = error.message;
+                await refresh();
+            } finally {
+                busy = false;
+                controls();
+            }
+        });
+        controls();
+    };
+    get('ip-manage').addEventListener('click', openIpPolicy);
     get('rotate').addEventListener('click', () => confirmAction('/rotate'));
     get('revoke').addEventListener('click', () => confirmAction('/revoke'));
     get('refresh').addEventListener('click', async () => {
