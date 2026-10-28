@@ -110,3 +110,11 @@ The earlier report dated 2026-09-26 recorded an SPF TXT record starting with
 `NXDOMAIN` for `_dmarc.ahrampay.com`. These are historical observations; verify
 the current records with the mail provider before changing delivery policy.
 This release does not create or change DNS records.
+
+## Unified company and agency design (2026-10-28)
+
+Company accounts, agency owners and agency staff now select the shared navy/blue/gold account-email shell used for report-email verification and daily statements. `loginOtpService` derives the internal `emailDesignScope` from the authenticated account type and role; it is not taken from request form data. This business-only selection is independent of the historical `LOGIN_OTP_EMAIL_TEMPLATE_V2` switch. Administrator, executor, retail and password-reset rendering retain their existing template selection.
+
+The login message reuses the existing normalized code, expiry phrase, account mask, device summary and Libya-time formatter. It instructs the recipient to return to the existing login screen and has no sign-in/reset action link. The logo is attached inline by CID. The code remains absent from the subject/preheader and logs; render failures fall back to the existing template with a redacted diagnostic. OTP generation, expiry, retries and SMTP identity/configuration are unchanged.
+
+Validation: 113 tests in ten suites passed, including legacy/admin/password-reset regression checks, account-type routing, HTML escaping, omitted attempt fields, dynamic expiry, fallback redaction and actual in-memory MIME assembly with the inline logo. Browser preview checks at 320/390/1366px found no horizontal overflow. No real email was sent, and no production process was restarted.

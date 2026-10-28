@@ -164,6 +164,47 @@ describe('email OTP mailer', () => {
         expect(html).not.toContain('#0c3433');
     });
 
+    test.each(['company','agent'])('uses the shared branded login design for %s independently of the old design flag',async emailDesignScope=>{
+        process.env.LOGIN_OTP_EMAIL_TEMPLATE_V2='false';
+        Object.assign(process.env,{SMTP_HOST:'smtp.example.net',SMTP_PORT:'587',SMTP_USER:'fixture',SMTP_PASS:'fixture'});
+        const sendMail=jest.fn().mockResolvedValue({messageId:'unified-message'});nodemailer.createTransport.mockReturnValue({sendMail});
+        const result=await sendLoginOtpEmail({to:'owner@example.com',...SAMPLE,emailDesignScope});
+        expect(result.success).toBe(true);
+        const message=sendMail.mock.calls[0][0];
+        expect(message.html).toContain('أكمل تسجيل الدخول بأمان');expect(message.html).toContain('#112644');
+        expect(message.html).toContain('صالح لمدة 5 دقائق');expect(message.html).toContain('شاشة تسجيل الدخول المفتوحة');
+        expect(message.html).toContain('تفاصيل محاولة الدخول');expect(message.html).toContain('tiz***@ahram.com');
+        expect(message.html).toContain('Chrome على Windows');expect(message.html).toContain('22 سبتمبر 2026 في 14:22');
+        expect(message.html).not.toContain('tizari@ahram.com');expect(message.html).not.toContain('120.0.0.0');
+        expect(message.html).not.toContain('فتح إعدادات البريد');expect(message.html).not.toContain('كشف حسابك جاهز');
+        expect(message.html.slice(0,message.html.indexOf('<table'))).not.toContain(SAMPLE.otp);
+        expect(message.attachments).toEqual([expect.objectContaining({cid:'ahram-report-logo',contentType:'image/jpeg',content:expect.any(Buffer)})]);
+        expect(message.text).toContain(LTR(SAMPLE.otp));expect(message.subject).not.toContain(SAMPLE.otp);
+        expect(JSON.stringify(result)+JSON.stringify(logger.security.mock.calls)).not.toContain(SAMPLE.otp);
+        const transport=jest.requireActual('nodemailer').createTransport({streamTransport:true,buffer:true});
+        try{const mime=await transport.sendMail(message);expect(mime.message.toString()).toContain('Content-ID: <ahram-report-logo>');}
+        finally{transport.close();}
+    });
+
+    test('unified business login escapes names, uses the supplied expiry and tolerates missing attempt details',async()=>{
+        Object.assign(process.env,{SMTP_HOST:'smtp.example.net',SMTP_PORT:'587',SMTP_USER:'fixture',SMTP_PASS:'fixture'});
+        const sendMail=jest.fn().mockResolvedValue({messageId:'unified-message'});nodemailer.createTransport.mockReturnValue({sendMail});
+        await sendLoginOtpEmail({to:'owner@example.com',otp:'012345',emailDesignScope:'agent',expiresMinutes:7,accountName:'<script>unsafe</script>'});
+        const {html}=sendMail.mock.calls[0][0];expect(html).toContain('&lt;script&gt;unsafe&lt;/script&gt;');expect(html).not.toContain('<script>');
+        expect(html).toContain('صالح لمدة 7 دقائق');expect(html).not.toContain('تفاصيل محاولة الدخول');expect(html).toContain('012345');
+    });
+
+    test('a failed unified render falls back without logging the login code',async()=>{
+        Object.assign(process.env,{SMTP_HOST:'smtp.example.net',SMTP_PORT:'587',SMTP_USER:'fixture',SMTP_PASS:'fixture'});
+        const sendMail=jest.fn().mockResolvedValue({messageId:'fallback-message'});nodemailer.createTransport.mockReturnValue({sendMail});
+        const broken=jest.spyOn(require('../services/reportEmailTemplate'),'loginEmail').mockImplementation(()=>{throw Error('Injected layout failure '+SAMPLE.otp);});
+        try{expect((await sendLoginOtpEmail({to:'owner@example.com',...SAMPLE,emailDesignScope:'company'})).success).toBe(true);}
+        finally{broken.mockRestore();}
+        expect(sendMail.mock.calls[0][0].html).toBe(legacyTemplate.buildLoginOtpHtml(SAMPLE));
+        expect(JSON.stringify(logger.security.mock.calls)).not.toContain(SAMPLE.otp);
+        expect(logger.security).toHaveBeenCalledWith('login email otp template fallback',expect.objectContaining({code:'LOGIN_OTP_UNIFIED_TEMPLATE_RENDER_FAILED'}));
+    });
+
     test('sends the dark template only when LOGIN_OTP_EMAIL_TEMPLATE_V2 is on', async () => {
         enableV2();
         process.env.SMTP_HOST = 'smtp.example.net';

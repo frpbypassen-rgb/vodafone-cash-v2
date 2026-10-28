@@ -332,6 +332,15 @@ describe('login OTP service', () => {
         expect(require('../models/ClientEmployee').updateOne).toHaveBeenCalledTimes(1);
     });
 
+    test.each([
+        ['company',undefined,'company'],['agent_staff','employee','agent'],['user','agent','agent'],['user','user',undefined],
+    ])('selects branded mail from the authenticated account type %s and role %s',async(accountType,role,scope)=>{
+        const account={_id:'design-scope',name:'Demo',role,email:'owner@example.com',otpDeliveryChannel:'email'};
+        const result=await issueLoginOtp({account,accountType,session:{}});
+        expect(result.status).toBe('sent');
+        expect(sendLoginOtpEmail).toHaveBeenCalledWith(expect.objectContaining({emailDesignScope:scope,expiresMinutes:5}));
+    });
+
     test('uses the commercial profile email for a client user on the email channel', async () => {
         const account = {
             _id: 'user-profile-mail',

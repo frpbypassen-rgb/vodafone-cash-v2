@@ -30,4 +30,9 @@ const statementEmail = ({day,pdf,test=false,kind='agent',accountName=''}) => {
         html:render(data),attachments:[{filename:data.filename,content:pdf,contentType:'application/pdf'},logoAttachment()],
     };
 };
-module.exports={codeEmail,statementEmail};
+// The login mailer supplies its existing normalized code, expiry and masked attempt rows.
+const loginEmail = view => {
+    if(!/^\d{6}$/.test(String(view.otp)))throw new Error('INVALID_EMAIL_CODE');
+    return {html:render({...context('agent',view.accountName),mode:'login',code:view.otp,expiresPhrase:view.expiresPhrase,attemptRows:view.attemptRows||[],day:'',displayDay:'',filename:'',test:false}),attachments:[logoAttachment()]};
+};
+module.exports={codeEmail,statementEmail,loginEmail};

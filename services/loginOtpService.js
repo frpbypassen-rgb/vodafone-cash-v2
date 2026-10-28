@@ -161,7 +161,7 @@ const readLoginOtpAttempt = (req = {}) => {
     };
 };
 
-const deliverLoginOtp = async ({ otp, accountName, account, expiresAt, attempt }) => {
+const deliverLoginOtp = async ({ otp, accountName, account, accountType, expiresAt, attempt }) => {
     const selection = selectLoginOtpChannel(account || {});
     if (selection.code) {
         return {
@@ -177,12 +177,16 @@ const deliverLoginOtp = async ({ otp, accountName, account, expiresAt, attempt }
     if (selection.channel === 'email') {
         try {
             const { sendLoginOtpEmail } = require('./emailOtpMailer');
+            let emailDesignScope;
+            if (accountType === 'company') emailDesignScope = 'company';
+            else if (accountType === 'agent_staff' || (accountType === 'user' && account?.role === 'agent')) emailDesignScope = 'agent';
             return await sendLoginOtpEmail({
                 to: selection.email,
                 otp,
                 expiresMinutes: 5,
                 expiresAt,
                 accountName: accountName || '',
+                emailDesignScope,
                 attemptAt: attempt && attempt.at,
                 userAgent: attempt && attempt.userAgent,
                 loginAccount: attempt && attempt.loginAccount
@@ -244,6 +248,7 @@ const issueLoginOtp = async ({ account, accountType, session = {}, attempt = nul
         otp,
         accountName: account.name || account.webUsername || '',
         account,
+        accountType,
         expiresAt: otpExpires,
         attempt
     });

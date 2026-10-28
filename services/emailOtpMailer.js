@@ -337,8 +337,14 @@ const renderLoginOtpForSend = (content) => {
         text: legacyTemplate.buildLoginOtpText(content),
         html: legacyTemplate.buildLoginOtpHtml(content)
     });
-    if (!useLoginOtpTemplateV2()) return current();
+    const unifiedBusiness = !reset && ['company','agent'].includes(content && content.emailDesignScope);
+    if (!unifiedBusiness && !useLoginOtpTemplateV2()) return current();
     try {
+        if(unifiedBusiness) return {
+            subject: `رمز التحقق لتسجيل الدخول — ${getBrandContact().name}`,
+            text: buildLoginOtpTextV2(content),
+            ...require('./reportEmailTemplate').loginEmail(buildLoginOtpView(content))
+        };
         return {
             subject: reset ? passwordResetSubject() : `رمز التحقق لتسجيل الدخول — ${getBrandContact().name}`,
             text: buildLoginOtpTextV2(content),
@@ -346,7 +352,7 @@ const renderLoginOtpForSend = (content) => {
         };
     } catch (error) {
         logger.security('login email otp template fallback', {
-            code: 'LOGIN_OTP_TEMPLATE_V2_RENDER_FAILED',
+            code: unifiedBusiness ? 'LOGIN_OTP_UNIFIED_TEMPLATE_RENDER_FAILED' : 'LOGIN_OTP_TEMPLATE_V2_RENDER_FAILED',
             detail: redactLoginOtp(error && error.message, content && content.otp)
         });
         return current();
@@ -369,6 +375,7 @@ const sendLoginOtpEmail = async ({
     attemptAt,
     userAgent,
     loginAccount,
+    emailDesignScope,
     year
 } = {}) => {
     const email = normalizeOtpEmail(to);
@@ -392,6 +399,7 @@ const sendLoginOtpEmail = async ({
         attemptAt,
         userAgent,
         loginAccount,
+        emailDesignScope,
         year
     };
 
@@ -404,7 +412,8 @@ const sendLoginOtpEmail = async ({
             to: email,
             subject: rendered.subject,
             text: rendered.text,
-            html: rendered.html
+            html: rendered.html,
+            ...(rendered.attachments ? {attachments:rendered.attachments} : {})
         });
         return {
             success: true,

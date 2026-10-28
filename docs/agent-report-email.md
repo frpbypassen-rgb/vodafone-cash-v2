@@ -65,3 +65,5 @@ The attachment remains the exact administration PDF buffer; no totals, dates, sc
 Validation: 35 tests in five suites passed with SMTP mocked, plus browser previews at 320/390/1366px without horizontal overflow. No real messages were sent. A browser preview does not establish rendering in every mail client or actual SMTP deliverability.
 
 Additional MIME verification uses Nodemailer's real in-memory stream transport, with no SMTP connection. It verifies the HTML/plain-text alternatives, inline JPEG Content-ID, PDF filename/type and exact original PDF bytes in the assembled message for both account types. The focused template/subscription/delivery/source suite passed all 31 tests across four suites after these checks were added.
+
+Company/agency login codes now use the same shared HTML shell through its `login` mode. See `docs/operations/login-otp-email.md` for the account-scoped selection and security regression evidence. Report verification still shows its ten-minute validity, while login validity is taken from the login service (normally five minutes).
