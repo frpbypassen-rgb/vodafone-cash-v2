@@ -49,7 +49,7 @@ const overview = async (workspace, req) => {
             ? { tenantId: workspace.entity.tenantId || { $in: [] } }
             : {}),
     };
-    const [access, groups, lastDelivery, eventsResult, transactions, uniqueIndexReady, outboxReady] =
+    const [access, groups, lastDelivery, eventsResult, transactions, uniqueIndexReady, outboxReady, queue] =
         await Promise.all([
             integration.getStatus(workspace),
             require('../models/MerchantWebhookEndpoint')
@@ -131,6 +131,7 @@ const overview = async (workspace, req) => {
                 ),
             require('./merchantIdempotencyService').indexReady(),
             require('./merchantWebhookOutboxService').indexesReady(),
+            require('./merchantWebhookOutboxService').queueStats({...scope,identifiers:[workspace.entity.phone,workspace.entity.webUsername].filter(Boolean)}),
         ]);
     const stats = groups[0] || {
         total: 0,
@@ -177,9 +178,17 @@ const overview = async (workspace, req) => {
                 state:'stopped',label:'التسليم متوقف',reason:'فهارس سجل الإشعارات الدائم غير مهيأة. تواصل مع الإدارة.',
             } : {}),
             transportEnabled: transport,
+            queue,
+            ...(access.webhooksEnabled && transport && outboxReady && queue.delayed ? {
+                state:'error',label:'تأخر الطابور',reason:`أقدم إشعار ينتظر منذ ${queue.oldestAgeSeconds} ثانية. راجع العامل وسجل التسليم.`,
+            } : {}),
+            ...(access.webhooksEnabled && transport && outboxReady && stats.enabled && !stats.failing && !queue.available ? {
+                state:'available',label:'الجاهزية غير مؤكدة',reason:'تعذر قراءة تأخر الطابور؛ أعد الفحص.',
+            } : {}),
             lastDelivery,
         },
         checks: [
+            {label:'تأخر طابور الإشعارات',ok:queue.available&&!queue.delayed,message:!queue.available?'تعذر قراءة الطابور.':`${queue.pendingEvents} حدث و${queue.pendingDeliveries} إرسال منتظر؛ أقدم انتظار ${queue.oldestAgeSeconds} ثانية.`},
             {label:'سجل الإشعارات الدائم',ok:outboxReady,message:outboxReady?'فهارس Outbox جاهزة.':'يلزم تجهيز فهارس Outbox قبل تشغيل العامل.'},
             {
                 label: 'فهرس منع التكرار',

@@ -90,6 +90,9 @@
             data.webhooks.enabled + ' مفعّل / ' + data.webhooks.total;
         get('webhook-success').textContent = date(data.webhooks.lastSuccessAt);
         get('webhook-failure').textContent = date(data.webhooks.lastFailureAt);
+        const queue=data.webhooks.queue;
+        get('queue-pending').textContent=queue?.available?`${queue.pendingEvents} حدث · ${queue.pendingDeliveries} إرسال`:'غير متاح';
+        get('queue-age').textContent=queue?.available?(queue.oldestAgeSeconds?`${queue.oldestAgeSeconds} ثانية`:'لا انتظار'):'تعذر التحقق';
         get('webhook-description').textContent = data.webhooks.reason;
         link(
             'api',
@@ -162,6 +165,8 @@
                 'webhook-count',
                 'webhook-success',
                 'webhook-failure',
+                'queue-pending',
+                'queue-age',
             ])
                 get(key).textContent = '—';
             get('events').replaceChildren(

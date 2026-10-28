@@ -6,8 +6,8 @@ const Company = require('../models/ClientCompany');
 const Endpoint = require('../models/MerchantWebhookEndpoint');
 const Delivery = require('../models/MerchantWebhookDelivery');
 let repl;
-beforeAll(async()=>{repl=await MongoMemoryReplSet.create({replSet:{count:1}});await mongoose.connect(repl.getUri());await Transaction.init();});
-afterAll(async()=>{await mongoose.disconnect();await repl.stop();});
+beforeAll(async()=>{repl=await MongoMemoryReplSet.create({replSet:{count:1}});await mongoose.connect(repl.getUri());await Transaction.init();},60000);
+afterAll(async()=>{await mongoose.disconnect();await repl?.stop();},60000);
 afterEach(async()=>{await Transaction.deleteMany({});});
 const seed = (extra={})=>({_id:new mongoose.Types.ObjectId(), customId:'OB-'+new mongoose.Types.ObjectId(),companyId:new mongoose.Types.ObjectId(),status:'pending',amount:1000,costLYD:200,...extra});
 test('creation and terminal event snapshots commit with the document and are hidden from normal reads',async()=>{
@@ -67,4 +67,36 @@ test('new subscriptions do not receive an earlier queued event',async()=>{
  await worker.drain();expect(await Delivery.countDocuments({ownerId:company._id})).toBe(0);
  expect((await Transaction.findById(tx._id).select('+merchantWebhookCreatedEvent')).merchantWebhookCreatedEvent.pending).toBe(false);
  await Promise.all([Company.deleteMany({}),Endpoint.deleteMany({}),Delivery.deleteMany({})]);
+});
+test('queue lag diagnostics are read-only and exclude another owner and expected future retries',async()=>{
+ const worker=require('../services/merchantWebhookOutboxService');await worker.ensureIndexes();
+ const first=seed(),second=seed();await Transaction.create([first,second]);
+ await Transaction.updateOne({_id:first._id},{$set:{'merchantWebhookCreatedEvent.stagedAt':new Date(Date.now()-180000)}});
+ await Transaction.updateOne({_id:second._id},{$set:{'merchantWebhookCreatedEvent.stagedAt':new Date(Date.now()-600000)}});
+ const owner={ownerModel:'ClientCompany',ownerId:first.companyId};
+ await Delivery.create({...owner,endpointId:new mongoose.Types.ObjectId(),eventId:'future-retry',eventType:'transfer.created',payload:{},status:'failed',attemptCount:1,nextAttemptAt:new Date(Date.now()+3600000)});
+ const before=await Transaction.findById(first._id).select('+merchantWebhookCreatedEvent').lean();
+ const stats=await worker.queueStats(owner);
+ expect(stats).toMatchObject({available:true,pendingEvents:1,pendingDeliveries:0,delayed:true});
+ expect(stats.oldestAgeSeconds).toBeGreaterThanOrEqual(180);expect(stats.oldestAgeSeconds).toBeLessThan(200);
+ expect(await Transaction.findById(first._id).select('+merchantWebhookCreatedEvent').lean()).toEqual(before);
+ expect((await worker.queueStats({ownerModel:'ClientCompany',ownerId:new mongoose.Types.ObjectId()})).pendingEvents).toBe(0);
+ await Delivery.deleteMany({});
+});
+
+test('agent queue ownership prefers the explicit actor and keeps strict tenant isolation',async()=>{
+ const worker=require('../services/merchantWebhookOutboxService');await worker.ensureIndexes();
+ const agent=new mongoose.Types.ObjectId(),otherAgent=new mongoose.Types.ObjectId(),tenant=new mongoose.Types.ObjectId(),foreignTenant=new mongoose.Types.ObjectId();
+ const mode=jest.spyOn(require('../middlewares/tenantResolver'),'tenantMode').mockReturnValue('multi');
+ try {
+  await Transaction.create([
+   seed({companyId:null,userId:'shared-legacy',clientActorModel:'User',clientActorId:String(agent),tenantId:tenant}),
+   seed({companyId:null,userId:'shared-legacy',clientActorModel:'User',clientActorId:String(otherAgent),tenantId:tenant}),
+   seed({companyId:null,userId:'shared-legacy',clientActorModel:'User',clientActorId:String(agent),tenantId:foreignTenant}),
+   seed({companyId:null,userId:'shared-legacy',tenantId:tenant}),
+  ]);
+  const owner={ownerModel:'User',ownerId:agent,tenantId:tenant,identifiers:['shared-legacy']};
+  expect(await worker.queueStats(owner)).toMatchObject({available:true,pendingEvents:2});
+  expect(await worker.queueStats({...owner,tenantId:null})).toMatchObject({available:true,pendingEvents:0});
+ } finally {mode.mockRestore();}
 });

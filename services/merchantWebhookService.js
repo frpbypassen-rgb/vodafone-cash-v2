@@ -250,16 +250,30 @@ const processPendingWebhooks = async (limit = 50) => {
 };
 
 let workerTimer = null;
+let workerBusy=false,lastLagWarning=0;
+const runMerchantWebhookTick=async()=>{
+    if(workerBusy||webhookHttpDisabled())return {skipped:true};
+    workerBusy=true;
+    try{
+        const outbox=require('./merchantWebhookOutboxService');
+        const result=await outbox.drain();
+        if(result.failed)logger.warn('Merchant webhook outbox staging will retry',{failed:result.failed});
+        await processPendingWebhooks();
+        const stats=await outbox.queueStats();
+        require('../middlewares/metrics').recordWebhookQueue(stats);
+        if(stats.delayed&&Date.now()-lastLagWarning>=60000){
+            lastLagWarning=Date.now();logger.warn('Merchant webhook queue delayed',{
+                pendingEvents:stats.pendingEvents,pendingDeliveries:stats.pendingDeliveries,oldestAgeSeconds:stats.oldestAgeSeconds,
+            });
+        }
+        return stats;
+    }finally{workerBusy=false;}
+};
 const startMerchantWebhookWorker = () => {
     if (webhookHttpDisabled()) return null;
     if (workerTimer) return workerTimer;
     workerTimer = setInterval(() => {
-        require('./merchantWebhookOutboxService').drain()
-            .then((result) => {
-                if (result.failed) logger.warn('Merchant webhook outbox staging will retry', { failed: result.failed });
-                return processPendingWebhooks();
-            })
-            .catch((error) => logger.error('Merchant webhook worker failed', { error: error.message }));
+        runMerchantWebhookTick().catch((error) => logger.error('Merchant webhook worker failed', { error: error.message }));
     }, 30_000);
     if (typeof workerTimer.unref === 'function') workerTimer.unref();
     return workerTimer;
@@ -269,5 +283,5 @@ module.exports = {
     EVENTS, MAX_ATTEMPTS, buildPayload, deliverWebhook, enqueueTransactionWebhook,
     ensureMerchantWebhookIndexes,
     normalizeEvents, processPendingWebhooks, publicEndpoint, requestWebhookRetry, signPayload,
-    startMerchantWebhookWorker, validateWebhookUrl
+    startMerchantWebhookWorker, runMerchantWebhookTick, validateWebhookUrl
 };

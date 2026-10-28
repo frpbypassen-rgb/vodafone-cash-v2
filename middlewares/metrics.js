@@ -20,7 +20,8 @@ const metrics = {
     transfersCreated: 0,
     transfersCompleted: 0,
     transfersCancelled: 0,
-    errors: 0
+    errors: 0,
+    webhookQueue: {available:0,pendingEvents:0,pendingDeliveries:0,oldestAgeSeconds:0,delayed:0,lastSampleSeconds:0}
 };
 
 const QUIET_PATH_RE = /\.(?:css|js|map|png|jpe?g|gif|svg|ico|webp|woff2?|ttf)$/i;
@@ -154,6 +155,10 @@ const metricsEndpoint = (req, res) => {
     output += '# TYPE errors_total counter\n';
     output += `errors_total ${metrics.errors}\n`;
 
+    output += '\n# Webhook queue gauges are process-local observations; no owner labels or payloads.\n';
+    for(const [name,key] of Object.entries({available:'available',pending_events:'pendingEvents',pending_deliveries:'pendingDeliveries',oldest_age_seconds:'oldestAgeSeconds',delayed:'delayed',last_sample_timestamp_seconds:'lastSampleSeconds'})) {
+        output += `# TYPE merchant_webhook_queue_${name} gauge\nmerchant_webhook_queue_${name} ${metrics.webhookQueue[key]}\n`;
+    }
     // Process Metrics
     const mem = process.memoryUsage();
     output += '\n# HELP process_memory_rss_bytes Process RSS memory in bytes\n';
@@ -182,4 +187,12 @@ const metricsEndpoint = (req, res) => {
     res.send(output);
 };
 
-module.exports = { metricsMiddleware, metricsEndpoint, recordEvent, shouldSkipMetrics };
+const recordWebhookQueue = stats => {
+    metrics.webhookQueue.available=stats?.available?1:0;
+    if(!stats?.available)return;
+    for(const key of ['pendingEvents','pendingDeliveries','oldestAgeSeconds'])
+        metrics.webhookQueue[key]=Number.isFinite(stats[key])?Math.max(0,stats[key]):0;
+    metrics.webhookQueue.delayed=stats.delayed?1:0;
+    metrics.webhookQueue.lastSampleSeconds=Math.floor(Date.now()/1000);
+};
+module.exports = { metricsMiddleware, metricsEndpoint, recordEvent, shouldSkipMetrics, recordWebhookQueue };

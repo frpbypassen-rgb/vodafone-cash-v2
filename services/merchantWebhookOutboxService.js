@@ -40,4 +40,42 @@ const drain = async (limit=25) => {
     }
     return result;
 };
-module.exports={indexesReady,ensureIndexes,hasDurableEvent,drain};
+const queueStats = async (owner=null) => {
+    const unavailable={available:false,pendingEvents:null,pendingDeliveries:null,oldestAgeSeconds:null,delayed:false};
+    if(!await indexesReady())return unavailable;
+    const now=new Date(),threshold=120;
+    try {
+        const multi=require('../middlewares/tenantResolver').tenantMode()==='multi';
+        const scopedSource=field=>{
+            if(!owner)return {};
+            const source=field+'.source.';
+            const ids=[owner.ownerId,String(owner.ownerId)];
+            const scope=owner.ownerModel==='ClientCompany'?{[source+'companyId']:owner.ownerId}
+                : owner.ownerModel==='User'?{[source+'companyId']:null,$or:[
+                    {[source+'clientActorModel']:'User',[source+'clientActorId']:{$in:ids}},
+                    {$and:[
+                        {$or:[{[source+'clientActorModel']:{$ne:'User'}},{[source+'clientActorId']:{$in:[null,'']}}]},
+                        {[source+'userId']:{$in:[String(owner.ownerId),...(owner.identifiers||[])].filter(Boolean)}}
+                    ]}
+                ]}:null;
+            if(!scope)throw Error('OWNER_REQUIRED');
+            if(multi)scope[source+'tenantId']=owner.tenantId||{$in:[]};return scope;
+        };
+        const parts=await Promise.all(fields.map(field=>require('../models/Transaction').aggregate([
+            {$match:{[field+'.pending']:true,...scopedSource(field)}},
+            {$group:{_id:null,count:{$sum:1},oldest:{$min:'$'+field+'.stagedAt'}}}
+        ]).hint(indexName(field)).option({maxTimeMS:750})));
+        const deliveryScope=owner?{ownerModel:owner.ownerModel,ownerId:owner.ownerId,...(multi?{tenantId:owner.tenantId||{$in:[]}}:{})}:{};
+        const deliveries=await require('../models/MerchantWebhookDelivery').aggregate([
+            {$match:{...deliveryScope,$or:[{status:{$in:['pending','sending']}},{status:'failed',nextAttemptAt:{$lte:now},attemptCount:{$lt:6}}]}},
+            {$group:{_id:null,count:{$sum:1},oldest:{$min:{$cond:[{$eq:['$status','failed']},'$nextAttemptAt',{$cond:[{$eq:['$status','sending']},{$ifNull:['$lockedAt','$lastAttemptAt']},'$createdAt']}]}}}}
+        ]).option({maxTimeMS:750});
+        const summaries=parts.flat();const all=[...summaries,...deliveries];
+        const dates=all.map(row=>row.oldest).filter(Boolean).map(value=>new Date(value).getTime()).filter(Number.isFinite);
+        const oldest=dates.length?Math.min(...dates):null;
+        const age=oldest===null?0:Math.max(0,Math.floor((now.getTime()-oldest)/1000));
+        return {available:true,pendingEvents:summaries.reduce((sum,row)=>sum+row.count,0),pendingDeliveries:deliveries[0]?.count||0,
+            oldestPendingAt:oldest===null?null:new Date(oldest).toISOString(),oldestAgeSeconds:age,warningAfterSeconds:threshold,delayed:age>=threshold};
+    }catch(_){return unavailable;}
+};
+module.exports={indexesReady,ensureIndexes,hasDurableEvent,drain,queueStats};

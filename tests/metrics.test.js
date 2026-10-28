@@ -2,7 +2,7 @@
 
 const request = require('supertest');
 const express = require('express');
-const { metricsMiddleware, metricsEndpoint, shouldSkipMetrics } = require('../middlewares/metrics');
+const { metricsMiddleware, metricsEndpoint, shouldSkipMetrics, recordWebhookQueue } = require('../middlewares/metrics');
 
 describe('Prometheus Metrics Tests', () => {
     let app;
@@ -11,6 +11,18 @@ describe('Prometheus Metrics Tests', () => {
         app = express();
         app.use(metricsMiddleware);
         app.get('/metrics', metricsEndpoint);
+    });
+    test('webhook queue gauges preserve last good values and mark unavailable observations explicitly',async()=>{
+        recordWebhookQueue({available:true,pendingEvents:3,pendingDeliveries:4,oldestAgeSeconds:180,delayed:true});
+        const healthy=await request(app).get('/metrics');
+        expect(healthy.text).toContain('merchant_webhook_queue_pending_events 3');
+        expect(healthy.text).toContain('merchant_webhook_queue_oldest_age_seconds 180');
+        expect(healthy.text).toContain('merchant_webhook_queue_delayed 1');
+        recordWebhookQueue({available:false});
+        const unavailable=await request(app).get('/metrics');
+        expect(unavailable.text).toContain('merchant_webhook_queue_available 0');
+        expect(unavailable.text).toContain('merchant_webhook_queue_pending_events 3');
+        expect(unavailable.text).toMatch(/merchant_webhook_queue_last_sample_timestamp_seconds [1-9]\d+/);
     });
 
     test('GET /metrics should return 200 OK and plaintext metrics', async () => {

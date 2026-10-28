@@ -131,3 +131,23 @@ test('technical events aggregate repeats and only persist allowlisted diagnostic
     await recordEvent(owner, 'password=bad', details);
     expect(await Event.countDocuments({})).toBe(1);
 });
+
+test.each([
+    [{available:true,pendingEvents:2,pendingDeliveries:1,oldestAgeSeconds:180,delayed:true},1,0,'error','تأخر الطابور'],
+    [{available:false,delayed:false},1,0,'available','الجاهزية غير مؤكدة'],
+    [{available:false,delayed:false},0,0,'incomplete','غير مكتمل الإعداد'],
+    [{available:false,delayed:false},1,1,'error','يحتاج مراجعة'],
+])('queue observation preserves known configuration and delivery failures (%s)',async(queue,enabled,failureCount,state,label)=>{
+    process.env.MERCHANT_WEBHOOK_WORKER_ENABLED='true';
+    const company=await Company.create({name:'Queue readiness',integrationAccess:{webhooksEnabled:true}});
+    if(enabled)await Endpoint.create({ownerModel:'ClientCompany',ownerId:company._id,url:'https://receiver.example',secretEncrypted:'unused',enabled:true,lastSuccessAt:new Date(),failureCount});
+    const worker=require('../services/merchantWebhookOutboxService');
+    const index=jest.spyOn(worker,'indexesReady').mockResolvedValue(true);
+    const sample=jest.spyOn(worker,'queueStats').mockResolvedValue(queue);
+    try {
+        const result=await overview({isCompany:true,entity:company,permissions:{owner:true}},{socket:{remoteAddress:'127.0.0.1'},headers:{},app:{get:()=>false}});
+        expect(result.webhooks).toMatchObject({state,label,queue});
+        expect(result.checks.find(row=>row.label==='تأخر طابور الإشعارات').ok).toBe(false);
+        expect(sample).toHaveBeenCalledWith(expect.objectContaining({ownerModel:'ClientCompany',ownerId:company._id}));
+    } finally {index.mockRestore();sample.mockRestore();}
+});
