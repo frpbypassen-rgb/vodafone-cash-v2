@@ -1,8 +1,8 @@
 (() => {
     'use strict';
     const menu = document.getElementById('agentMoreMenu');
-    const button = document.getElementById('agentMoreButton');
-    if (!menu || !button) return;
+    const buttons = document.querySelectorAll('[popovertarget="agentMoreMenu"]:not([popovertargetaction])');
+    if (!menu || !buttons.length) return;
 
     const phoneLayout = window.matchMedia('(max-width: 960px)');
     const closeMobileSidebar = () => {
@@ -17,7 +17,7 @@
 
     menu.addEventListener('toggle', (event) => {
         const open = event.newState === 'open';
-        button.setAttribute('aria-expanded', String(open));
+        buttons.forEach(button => button.setAttribute('aria-expanded', String(open)));
         if (open) {
             closeMobileSidebar();
         }

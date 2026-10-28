@@ -14,7 +14,10 @@ const navLabels = { customers: 'العملاء', finance: 'المالية', over
     <div class="cm-header-actions">
         <%- include('company_notifications') %>
         <%- include('company_theme_switcher') %>
-        <button type="button" class="bw-icon-button" data-sidebar-toggle aria-controls="businessSidebar" aria-expanded="false" aria-label="المزيد من أقسام <%= workspace.entityLabel %>"><i class="fa-solid fa-bars"></i></button>
+        <% if (workspace.isAgent) { %>
+        <a class="bw-button ghost agent-header-settings" href="<%= portalBasePath %>/settings" aria-label="الإعدادات" title="الإعدادات"><i class="fa-solid fa-gear" aria-hidden="true"></i><span>الإعدادات</span></a>
+        <button type="button" class="bw-icon-button" id="agentDesktopMoreButton" popovertarget="agentMoreMenu" aria-controls="agentMoreMenu" aria-expanded="false" aria-label="المزيد من أقسام <%= workspace.entityLabel %>"><i class="fa-solid fa-bars" aria-hidden="true"></i></button>
+        <% } else { %><button type="button" class="bw-icon-button" data-sidebar-toggle aria-controls="businessSidebar" aria-expanded="false" aria-label="المزيد من أقسام <%= workspace.entityLabel %>"><i class="fa-solid fa-bars"></i></button><% } %>
         <a class="cm-profile" href="<%= portalBasePath %>/settings" aria-label="حساب <%= workspace.actor.name %>"><span class="bw-avatar"><%= String(workspace.actor.name || 'م').trim().charAt(0) %></span><span><strong><%= workspace.actor.name %></strong><small><%= workspace.roleLabel %></small></span></a>
     </div>
 </header>

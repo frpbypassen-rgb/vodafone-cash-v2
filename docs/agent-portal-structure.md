@@ -189,3 +189,11 @@ checks simulate the native share API; they do not send messages to WhatsApp.
 Validation: 339 automated cases in 42 suites, 32 daily mobile browser checks at
 320/390/430/1440px, and 4 company/agency isolation scenarios. Run the dedicated
 browser checks with npm run check:agent-daily-browser.
+
+## Navigation and tab-local list state (2026-10-28)
+
+The agency header and phone dock open the same permission-filtered `agentMoreMenu` popover. The desktop menu includes all navigation sections; phone menu entries already present in the dock stay hidden to avoid duplication. The old agency sidebar is hidden at every width, removing off-screen keyboard targets. Settings has a direct labelled header link (a gear icon on phones). Company navigation is unchanged. The agency notification panel anchors toward the inside of the viewport and scrolls within its height.
+
+`public/js/agent-portal/list-state.js` loads before list renderers. It retains allowlisted GET filters and client-side list search/status/sort in `sessionStorage`, scoped by agency, actor and route, for up to eight hours. Bare navigation links restore the last query; explicit query/reset links keep their meaning. State is cleared for the actor on logout. No transfer fields, passwords, tokens or POST forms are retained. Unavailable storage does not block navigation.
+
+Validation: 66 targeted tests in seven suites passed. Isolated browser checks verified menu coverage and notification bounds at 390/1000/1366px, direct settings access at 320px, restored customer search/status, and restored report scope/period. These checks use fixture data and do not submit financial operations or establish real background-push delivery.
