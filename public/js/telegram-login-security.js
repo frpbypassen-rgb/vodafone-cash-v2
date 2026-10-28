@@ -66,10 +66,6 @@
         codeForm.hidden = state.stage !== 'delivered';
         find('[data-tg-restart]').hidden = !state.stage;
         find('[data-tg-open]').hidden = !linkUrl || !['waiting', 'sending'].includes(state.stage);
-        find('[data-channel-state]').textContent =
-            'القناة الحالية: ' +
-            ({ email: 'البريد الإلكتروني', telegram: 'تليجرام', off: 'غير مفعّلة' }[state.selected] ||
-                'غير مفعّلة');
         channelForm.elements.target.querySelector('[value=email]').disabled = !state.emailReady;
         channelForm.elements.target.querySelector('[value=telegram]').disabled = !state.telegramReady;
         channelForm.hidden = !state.emailReady && !state.telegramReady;
