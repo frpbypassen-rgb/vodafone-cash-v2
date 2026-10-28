@@ -13,7 +13,8 @@
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script src="/socket.io/socket.io.js"></script>
     <link rel="stylesheet" href="/css/rate-alert-overlay.css?v=20260816-3">
-    <script src="/js/rate-alert-overlay.js?v=20260902-rate2" defer></script>
+    <script src="/js/portal-realtime.js?v=20261028-shared" defer></script>
+    <script src="/js/rate-alert-overlay.js?v=20261028-shared" defer></script>
     
     <style>
         /* 🎨 المتغيرات (الوضع النهاري - Premium Light) */
@@ -3282,7 +3283,7 @@
 
             armRateCountdown({ effectiveAt });
             if (typeof window.io === 'function') {
-                const rateSocket = window.io();
+                const rateSocket = window.getPortalRealtimeSocket ? window.getPortalRealtimeSocket() : window.io();
                 rateSocket.on('rate_change_scheduled', armRateCountdown);
                 rateSocket.on('rate_change_activated', (payload) => {
                     effectiveAt = null;

@@ -92,7 +92,7 @@ if (liveFeed) {
     });
     window.setInterval(refreshTransferFeed, 20000);
     if (typeof window.io === 'function') {
-        const liveSocket = window.io();
+        const liveSocket = window.getPortalRealtimeSocket ? window.getPortalRealtimeSocket() : window.io();
         liveSocket.on('connect', () => liveSocket.emit('client:transactions:subscribe'));
         liveSocket.on('client:transactions:changed', refreshTransferFeed);
     }

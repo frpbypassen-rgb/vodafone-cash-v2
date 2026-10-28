@@ -303,7 +303,7 @@ const businessTheme = workspace.isAgent && typeof clientTheme !== 'undefined' &&
         window.rateAlertPushPublicKey = <%- JSON.stringify(process.env.WEB_PUSH_PUBLIC_KEY || '').replace(/</g, '\\u003c') %>;
         window.rateAlertCsrfToken = <%- JSON.stringify(csrfToken || '').replace(/</g, '\\u003c') %>;
     </script>
-    <script src="/js/business-portal/rate-notice.js?v=20261025-review" defer></script>
+    <script src="/js/business-portal/rate-notice.js?v=20261028-shared" defer></script>
     <script src="/js/business-portal/api-response.js?v=20261025-review" defer></script>
     <script type="module" src="/js/company-mobile/index.js?v=20261027-performance"></script>
     <% if (modernBusiness) { %>

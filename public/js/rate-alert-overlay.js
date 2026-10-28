@@ -289,7 +289,7 @@
         pollTimer = window.setInterval(() => refreshCurrent(), 15000);
         window.addEventListener('beforeunload', () => window.clearInterval(pollTimer), { once: true });
         if (typeof window.io !== 'function') return;
-        const socket = window.io();
+        const socket = window.getPortalRealtimeSocket ? window.getPortalRealtimeSocket() : window.io();
         socket.on('rate_change_refresh', (event) => {
             const completedPayload = payload;
             void refreshCurrent({ activationHint: event?.event === 'activated', completedPayload });

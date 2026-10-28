@@ -36,7 +36,7 @@
 
     arm({ effectiveAt, rateChangesText });
     if (typeof window.io === 'function') {
-        const socket = window.io();
+        const socket = window.getPortalRealtimeSocket ? window.getPortalRealtimeSocket() : window.io();
         socket.on('rate_change_scheduled', arm);
         socket.on('rate_change_activated', (payload) => {
             effectiveAt = null;

@@ -520,7 +520,7 @@ const refreshServiceRates = async () => {
 
 if (transferForm || serviceButtons.length) {
     if (typeof window.io === 'function') {
-        const rateSocket = window.io();
+        const rateSocket = window.getPortalRealtimeSocket ? window.getPortalRealtimeSocket() : window.io();
         rateSocket.on('exchange_rates_updated', refreshServiceRates);
     }
     window.setInterval(refreshServiceRates, 30000);
