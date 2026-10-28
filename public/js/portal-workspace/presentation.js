@@ -117,6 +117,8 @@
     if (settingsCards) {
         const panels = [...document.querySelectorAll('.bw-settings-stack > .bw-settings-panel')];
         const back = document.querySelector('[data-settings-back]');
+        const context = document.querySelector('[data-settings-context]');
+        const defaultContext = context?.textContent;
         const showSettings = () => {
             const panel = panels.find((item) => '#' + item.id === window.location.hash);
             panels.forEach((item) => {
@@ -124,6 +126,7 @@
             });
             settingsCards.hidden = Boolean(panel);
             if (back) back.hidden = !panel;
+            if (context) context.textContent = panel?.id === 'integrations' ? 'حالة API وWebhooks وإعدادات الربط الخارجية.' : defaultContext;
         };
         back?.addEventListener('click', () => {
             window.location.hash = 'settings';

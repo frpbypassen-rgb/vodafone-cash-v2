@@ -2,7 +2,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="theme-color" content="<%= typeof workspace !== 'undefined' && (workspace.isCompany || workspace.isAgent) ? (typeof companyThemeMeta !== 'undefined' && companyThemeMeta.themeColor ? companyThemeMeta.themeColor : '#E7F1F6') : (typeof clientThemeMeta !== 'undefined' && clientThemeMeta.themeColor ? clientThemeMeta.themeColor : '#E8EEFA') %>">
-    <title><%= pageMeta.title %> | Power Pay AL-Ahram</title>
+    <title><%= typeof page === 'string' && page === 'settings' ? 'الإعدادات' : pageMeta.title %> | Power Pay AL-Ahram</title>
     <script>
         (() => {
             const readPreference = (key) => {
@@ -60,7 +60,7 @@
     <% const companyPageStyles={overview:['home'],services:['services'],service_workbench:['services'],smart_transfer:['services'],transactions:['transactions'],finance:['finance'],reports:['customer-balances','reports'],staff:['customer-balances','staff','customers'],settings:['report-email','telegram-settings'],support:['support']}; %>
     <% for(const asset of ['mobile-menu',...(companyPageStyles[typeof page === 'string' ? page : ''] || [])]) { %><link rel="stylesheet" href="/css/company-mobile/<%= asset %>.css?v=20261027"><% } %>
     <link rel="stylesheet" href="/css/company-mobile/layout.css?v=20261027">
-    <% if(typeof page === 'string' && page === 'settings') { %><link rel="stylesheet" href="/css/portal-integrations.css?v=20261027"><% } %>
+    <% if(typeof page === 'string' && page === 'settings') { %><link rel="stylesheet" href="/css/portal-integrations.css?v=20261028-compact"><% } %>
     <link rel="stylesheet" href="/css/rate-alert-overlay.css?v=20260816-3">
     <script src="/socket.io/socket.io.js"></script>
     <script src="/js/rate-alert-overlay.js?v=20260902-rate2" defer></script>

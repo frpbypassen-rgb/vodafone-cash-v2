@@ -80,4 +80,17 @@ const concurrent = (err) =>
     [11000, 112, 244, 251].includes(err?.code) ||
     err?.hasErrorLabel?.('TransientTransactionError') ||
     err?.hasErrorLabel?.('UnknownTransactionCommitResult');
-module.exports = { prepare, lookup, persist, concurrent, error };
+// Read-only: never build an index on a financial collection from a request.
+const indexReady = async () => {
+    try {
+        const indexes = await require('../models/Transaction').collection
+            .listIndexes({ maxTimeMS: 1000 }).toArray();
+        return indexes.some((index) => index.unique === true && !index.partialFilterExpression
+            && Object.keys(index.key || {}).length === 1 && index.key.idempotencyKey === 1);
+    } catch (_) { return false; }
+};
+const assertIndexReady = async () => {
+    if (!await indexReady()) throw error('IDEMPOTENCY_INDEX_UNAVAILABLE',
+        'تعذر التحقق من فهرس منع تكرار التحويل. تواصل مع الإدارة.', 503);
+};
+module.exports = { prepare, lookup, persist, concurrent, error, indexReady, assertIndexReady };

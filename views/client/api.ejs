@@ -29,6 +29,7 @@
             <div class="api-address-row"><input id="api-address" class="wh-input" readonly dir="ltr" value="<%= apiBase %>"><button class="wh-button" type="button" data-api-copy-base>نسخ</button></div>
             <p class="api-caption">أرسل المفتاح في ترويسة <code dir="ltr">x-api-key</code> من خادمك عبر HTTPS.</p>
             <details class="api-guide" id="api-example"><summary>عرض مثال الربط</summary><pre class="api-code" dir="ltr" data-api-example></pre><button type="button" class="wh-button" data-api-copy-example>نسخ المثال</button></details>
+            <p class="api-caption">للتحويلات، أرسل <code dir="ltr">Idempotency-Key</code> فريدًا لكل طلب، واستخدم المفتاح نفسه والبيانات نفسها عند إعادة المحاولة.</p>
             <a class="wh-button api-download api-webhooks" href="<%= portalBase %>/integrations/webhooks" data-api-webhooks hidden>إدارة Webhooks ←</a>
             <span class="api-caption api-webhooks" data-api-webhooks-locked hidden>Webhooks غير مفعّلة من الإدارة.</span>
         </section>

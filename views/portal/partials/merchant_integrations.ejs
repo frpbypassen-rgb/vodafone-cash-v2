@@ -1,17 +1,25 @@
 <% if (workspace.permissions.owner) { %>
 <div class="merchant-integrations" data-merchant-integrations data-base="<%= portalBasePath %>">
-    <article class="mi-card">
-        <header><h3><i class="fa-solid fa-key" aria-hidden="true"></i> مفتاح API</h3><span data-mi-api-state>جارٍ التحقق…</span></header>
-        <p data-mi-api-description>جاري التحقق من تفعيل الخدمة من الإدارة.</p>
-        <a class="bw-button secondary" href="<%= portalBasePath %>/integrations/api" data-mi-api-link hidden>إدارة مفتاح API <i class="fa-solid fa-arrow-left" aria-hidden="true"></i></a>
-        <p data-mi-key-meta></p>
-    </article>
-    <article class="mi-card">
-        <header><h3><i class="fa-solid fa-code-branch" aria-hidden="true"></i> Webhooks</h3><span data-mi-webhook-state>جارٍ التحقق…</span></header>
-        <p data-mi-webhook-description>تسليم أحداث التحويل بتوقيع آمن، مع سجل المحاولات وإعادة الإرسال.</p>
-        <a class="bw-button secondary" href="<%= portalBasePath %>/integrations/webhooks" data-mi-webhook-link hidden>إدارة Webhooks <i class="fa-solid fa-arrow-left" aria-hidden="true"></i></a>
-    </article>
-    <div class="mi-actions"><button type="button" class="bw-button ghost" data-mi-refresh>تحديث حالة التفعيل</button></div>
+    <p class="mi-notice" data-mi-notice role="status" hidden></p>
+    <div class="mi-grid">
+        <article class="mi-card">
+            <header><h3>مفتاح API</h3><span class="mi-badge" data-mi-api-state>لم يُفحص بعد</span></header>
+            <dl class="mi-facts"><div><dt>التوكن</dt><dd data-mi-key-meta>—</dd></div><div><dt>القائمة البيضاء IP</dt><dd data-mi-ip-state>—</dd></div></dl>
+            <p class="mi-caption" data-mi-api-description>افحص الجاهزية لعرض حالة الربط.</p>
+            <a class="mi-button" href="<%= portalBasePath %>/integrations/api" data-mi-api-link aria-disabled="true">إدارة مفتاح API ←</a>
+            <small class="mi-reason" data-mi-api-reason>بانتظار التحقق.</small>
+        </article>
+        <article class="mi-card">
+            <header><h3>Webhooks</h3><span class="mi-badge" data-mi-webhook-state>لم يُفحص بعد</span></header>
+            <dl class="mi-facts"><div><dt>الروابط</dt><dd data-mi-webhook-count>—</dd></div><div><dt>آخر نجاح</dt><dd data-mi-webhook-success>—</dd></div><div><dt>آخر فشل</dt><dd data-mi-webhook-failure>—</dd></div></dl>
+            <p class="mi-caption" data-mi-webhook-description>سيظهر هنا الفرق بين الإعداد ونجاح التسليم.</p>
+            <a class="mi-button" href="<%= portalBasePath %>/integrations/webhooks" data-mi-webhook-link aria-disabled="true">إدارة Webhooks ←</a>
+            <small class="mi-reason" data-mi-webhook-reason>بانتظار التحقق.</small>
+        </article>
+    </div>
+    <div class="mi-toolbar"><div class="mi-actions"><button type="button" class="mi-button mi-primary" data-mi-check>فحص الجاهزية</button><button type="button" class="mi-button" data-mi-refresh>تحديث</button></div><small data-mi-last-check>لم يُجرَ فحص بعد.</small></div>
+    <details class="mi-detail" data-mi-checks><summary>نتيجة فحص الجاهزية</summary><p class="mi-caption">فحص إعدادات فقط؛ لا ينشئ تحويلًا ولا يرسل إشعارًا تجريبيًا. اختبر الوصول من سيرفرك لإكمال التحقق.</p><ul class="mi-check-list" data-mi-check-list></ul></details>
+    <details class="mi-detail"><summary>السجل التقني المختصر</summary><p class="mi-caption">آخر الأخطاء خلال 7 أيام، مع تجميع التكرارات. لا يتضمن التوكنات أو محتوى الطلبات.</p><ul class="mi-event-list" data-mi-events><li>افتح التكاملات لعرض السجل.</li></ul></details>
     <p role="status" aria-live="polite" data-mi-result></p>
 </div>
 <% } else { %><p>إدارة API وWebhooks متاحة لصاحب حساب الشركة أو الوكيل فقط.</p><% } %>

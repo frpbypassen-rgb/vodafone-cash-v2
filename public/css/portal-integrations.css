@@ -1,13 +1,249 @@
-.merchant-integrations { display:grid; gap:12px; min-width:0; }
-.mi-card { border:1px solid var(--bw-border, #dce5f3); border-radius:14px; padding:16px; min-width:0; }
-.mi-card header { display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap; }
-.mi-card h3 { font-size:15px; margin:0; }
-.mi-card p,.mi-guide { font-size:12px; line-height:1.8; }
-.mi-card header>span { font-size:11px; }
-.mi-card [data-mi-key-meta] { direction:rtl; }
-.mi-actions { display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }
-.mi-card textarea { box-sizing:border-box; width:100%; font:13px monospace; overflow-wrap:anywhere; }
-.mi-guide { margin-top:12px; }
-.mi-guide dd { margin:4px 0 12px; direction:ltr; overflow-wrap:anywhere; }
-.merchant-integrations .is-error { color:#dc3545; }
-.merchant-integrations [hidden] { display:none!important; }
+#integrations.bw-settings-panel {
+    padding: 0;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+}
+#integrations .bw-settings-panel-head {
+    margin-bottom: 12px;
+    padding-bottom: 12px;
+}
+#integrations .bw-settings-panel-icon {
+    width: 40px;
+    height: 40px;
+    background: var(--bw-blue-soft, #e8f0ff);
+    color: var(--bw-blue, #1760d5);
+}
+.merchant-integrations {
+    --mi-line: var(--bw-border, #cdd8e8);
+    --mi-text: var(--bw-text, #182c47);
+    --mi-muted: var(--bw-muted, #64758c);
+    --mi-surface: var(--bw-surface, #fff);
+    --mi-primary: var(--bw-blue, #1760d5);
+    display: grid;
+    gap: 12px;
+    min-width: 0;
+    color: var(--mi-text);
+}
+.mi-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+}
+.mi-card {
+    border: 1px solid var(--mi-line);
+    border-radius: 12px;
+    padding: 16px;
+    min-width: 0;
+    background: var(--mi-surface);
+    display: flex;
+    flex-direction: column;
+    align-items: start;
+}
+.mi-card header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    flex-wrap: wrap;
+    width: 100%;
+    margin-bottom: 12px;
+}
+.mi-card h3 {
+    font-size: 15px;
+    margin: 0;
+}
+.mi-badge {
+    font-size: 11px;
+    padding: 3px 8px;
+    border-radius: 6px;
+    background: var(--bw-bg, #f2f5fa);
+    color: var(--mi-muted);
+}
+.mi-badge.is-ready {
+    color: var(--bw-green, #087a58);
+    border: 1px solid currentColor;
+}
+.mi-badge.is-warning {
+    color: var(--bw-amber, #ad6900);
+    border: 1px solid currentColor;
+}
+.mi-badge.is-error {
+    color: var(--bw-red, #bc3348);
+    border: 1px solid currentColor;
+}
+.mi-facts {
+    font-size: 12px;
+    margin: 0;
+    width: 100%;
+}
+.mi-facts div {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 4px 0;
+}
+.mi-facts dt {
+    color: var(--mi-muted);
+    font-weight: 400;
+    flex-shrink: 0;
+}
+.mi-facts dd {
+    margin: 0;
+    text-align: left;
+    overflow-wrap: anywhere;
+}
+.mi-caption {
+    font-size: 12px;
+    color: var(--mi-muted);
+    line-height: 1.8;
+    margin: 8px 0 12px;
+    overflow-wrap: anywhere;
+}
+.mi-card > .mi-button {
+    margin-top: auto;
+}
+.mi-button {
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1.5;
+    font-family: inherit;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-height: 40px;
+    padding: 8px 12px;
+    border: 1px solid var(--mi-line);
+    border-radius: 8px;
+    background: var(--mi-surface);
+    color: var(--mi-primary);
+    text-decoration: none;
+    cursor: pointer;
+}
+.mi-button:hover:not([aria-disabled='true']) {
+    border-color: var(--mi-primary);
+}
+.mi-button:focus-visible,
+.mi-detail summary:focus-visible {
+    outline: 3px solid var(--mi-primary);
+    outline-offset: 3px;
+}
+.mi-button[aria-disabled='true'],
+.mi-button:disabled {
+    opacity: 0.6;
+    cursor: default;
+}
+.mi-primary {
+    background: var(--mi-primary);
+    color: var(--cl-on-accent, var(--cp-on-accent, #fff));
+    border-color: var(--mi-primary);
+}
+.mi-reason {
+    font-size: 11px;
+    color: var(--mi-muted);
+    display: block;
+    margin-top: 6px;
+    min-height: 16px;
+}
+.mi-reason:empty {
+    display: none;
+}
+.mi-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+.mi-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+.mi-toolbar > small {
+    font-size: 11px;
+    color: var(--mi-muted);
+}
+.mi-notice {
+    padding: 10px 12px;
+    border: 1px solid var(--mi-line);
+    border-radius: 8px;
+    font-size: 12px;
+    color: var(--mi-text);
+    margin: 0;
+    background: var(--mi-surface);
+}
+.mi-notice.is-error {
+    border-color: var(--bw-red, #bc3348);
+}
+.mi-detail {
+    border: 1px solid var(--mi-line);
+    border-radius: 10px;
+    padding: 10px 12px;
+    background: var(--mi-surface);
+    font-size: 12px;
+}
+.mi-detail summary {
+    cursor: pointer;
+    min-height: 28px;
+    display: list-item;
+    color: var(--mi-text);
+}
+.mi-check-list,
+.mi-event-list {
+    list-style: none;
+    padding: 0;
+    margin: 8px 0 0;
+}
+.mi-check-list li,
+.mi-event-list li {
+    border-top: 1px solid var(--mi-line);
+    padding: 8px 0;
+    overflow-wrap: anywhere;
+}
+.mi-check-list strong,
+.mi-event-list strong {
+    font-size: 12px;
+    display: block;
+}
+.mi-check-list span,
+.mi-event-list span {
+    font-size: 11px;
+    color: var(--mi-muted);
+    display: block;
+    line-height: 1.8;
+}
+.merchant-integrations [hidden] {
+    display: none !important;
+}
+.merchant-integrations [data-mi-result] {
+    font-size: 12px;
+    margin: 0;
+    color: var(--mi-muted);
+}
+@media (max-width: 767px) {
+    .mi-grid {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 10px;
+    }
+    .mi-card {
+        padding: 12px;
+    }
+    .mi-card header {
+        margin-bottom: 8px;
+    }
+    .merchant-integrations {
+        gap: 10px;
+    }
+    .mi-toolbar {
+        gap: 8px;
+    }
+    .mi-facts div {
+        padding: 3px 0;
+    }
+    #integrations .bw-settings-panel-head h2 {
+        font-size: 18px;
+    }
+}

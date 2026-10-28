@@ -3,7 +3,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="theme-color" content="#E7F1F6">
-    <title><%= pageMeta.title %> | بوابة الوكلاء — الأهرام</title>
+    <title><%= typeof page === 'string' && page === 'settings' ? 'الإعدادات' : pageMeta.title %> | بوابة الوكلاء — الأهرام</title>
     <script>
         (() => {
             const valid = ['day', 'night', 'pharaonic'];
@@ -30,7 +30,7 @@
     <link rel="stylesheet" href="/css/agent-portal/support.css?v=20261026-chat">
     <link rel="stylesheet" href="/css/agent-portal/mobile-menu.css?v=20261026-more">
     <link rel="stylesheet" href="/css/agent-portal/report-email.css?v=20261026-verify">
-    <% if(typeof page === 'string' && page === 'settings') { %><link rel="stylesheet" href="/css/portal-integrations.css?v=20261027"><% } %>
+    <% if(typeof page === 'string' && page === 'settings') { %><link rel="stylesheet" href="/css/portal-integrations.css?v=20261028-compact"><% } %>
     <link rel="stylesheet" href="/css/agent-portal/telegram-settings.css?v=20261026-accounts">
     <link rel="stylesheet" href="/css/agent-portal/services.css?v=20261026-balance">
     <link rel="stylesheet" href="/css/agent-portal/finance.css?v=20261026-ledger">

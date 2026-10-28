@@ -192,7 +192,7 @@ test.each(['owner', 'manager', 'accountant', 'employee'])(
         const html = await renderAgentPage('settings', role);
         if (role === 'owner') {
             expect(html).toContain('/agent-portal/integrations/webhooks');
-            expect(html).toContain('data-mi-webhook-link hidden');
+            expect(html).toContain('data-mi-webhook-link aria-disabled="true"');
             expect(html).toContain('/js/portal-integrations.js');
         } else expect(html).not.toContain('/agent-portal/integrations/webhooks');
         expect(html).toContain('/agent-portal/security');

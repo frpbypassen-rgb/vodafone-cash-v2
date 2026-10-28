@@ -192,3 +192,84 @@ test('keyed requests fail closed when no transaction session is available, and m
     expect(await Ledger.countDocuments({})).toBe(0);
     expect((await Company.findById(merchant._id)).balance).toBe(1000);
 });
+test('replay still requires current token and IP permission; token rotation preserves owner-scoped replay', async () => {
+    const merchant = await Company.create({
+        name: 'Auth-bound replay',
+        tier: 3,
+        balance: 1000,
+        token: 'old-auth-token',
+        integrationAccess: { apiEnabled: true },
+    });
+    const first = await send('old-auth-token', 'auth-bound-key');
+    expect(first.status).toBe(200);
+    await Company.updateOne(
+        { _id: merchant._id },
+        {
+            $set: {
+                'integrationAccess.ipAllowlistEnabled': true,
+                'integrationAccess.allowedIps': ['192.0.2.1'],
+            },
+        },
+    );
+    expect((await send('old-auth-token', 'auth-bound-key')).status).toBe(403);
+    await Company.updateOne(
+        { _id: merchant._id },
+        { $set: { 'integrationAccess.ipAllowlistEnabled': false } },
+    );
+    const rotated =
+        await require('../services/merchantIntegrationService').rotateKey({
+            isCompany: true,
+            entity: merchant,
+            permissions: { owner: true },
+        });
+    expect((await send('old-auth-token', 'auth-bound-key')).status).toBe(401);
+    expect((await send(rotated.token, 'auth-bound-key')).body).toEqual(
+        first.body,
+    );
+    expect(await Transaction.countDocuments({})).toBe(1);
+    expect(await Ledger.countDocuments({})).toBe(1);
+});
+test('response persistence failure rolls back the transfer, ledger and debit before the same key is retried', async () => {
+    const merchant = await Company.create({
+        name: 'Atomic response',
+        tier: 3,
+        balance: 1000,
+        token: 'atomic-response-token',
+        integrationAccess: { apiEnabled: true },
+    });
+    const storeSpy = jest
+        .spyOn(Transaction, 'updateOne')
+        .mockRejectedValueOnce(new Error('SIMULATED_RESPONSE_STORE_FAILURE'));
+    try {
+        expect((await send('atomic-response-token', 'atomic-key')).status).toBe(
+            500,
+        );
+    } finally {
+        storeSpy.mockRestore();
+    }
+    expect(await Transaction.countDocuments({})).toBe(0);
+    expect(await Ledger.countDocuments({})).toBe(0);
+    expect((await Company.findById(merchant._id)).balance).toBe(1000);
+    expect((await send('atomic-response-token', 'atomic-key')).status).toBe(
+        200,
+    );
+    expect(await Transaction.countDocuments({})).toBe(1);
+    expect(await Ledger.countDocuments({})).toBe(1);
+});
+
+test('a missing unique idempotency index rejects a new keyed transfer before any financial write', async () => {
+    const merchant = await Company.create({ name: 'Index guard', tier: 3, balance: 1000,
+        token: 'index-guard-token', integrationAccess: { apiEnabled: true } });
+    const spy = jest.spyOn(Transaction.collection, 'listIndexes').mockReturnValue({
+        toArray: async () => [{ key: { idempotencyKey: 1 }, unique: false }],
+    });
+    try {
+        const result = await send('index-guard-token', 'index-key');
+        expect(result.status).toBe(503);
+        expect(result.body.code).toBe('IDEMPOTENCY_INDEX_UNAVAILABLE');
+        expect(await Transaction.countDocuments({})).toBe(0);
+        expect(await Ledger.countDocuments({})).toBe(0);
+        expect((await Company.findById(merchant._id)).balance).toBe(1000);
+    } finally { spy.mockRestore(); }
+    expect((await send('index-guard-token', 'index-key')).status).toBe(200);
+});

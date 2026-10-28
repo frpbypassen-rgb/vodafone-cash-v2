@@ -1,0 +1,22 @@
+'use strict';
+const fs=require('fs'),path=require('path'),vm=require('vm');
+const sample={access:{apiEnabled:true,keyActive:true,keyHint:'hint01',ipAllowlistEnabled:true,allowedIps:['192.0.2.1'],webhooksEnabled:true},api:{label:'متاح',state:'ready',proxyReady:true},webhooks:{label:'جاهز',state:'ready',enabled:1,total:1,lastSuccessAt:'2026-10-28T00:00:00Z',lastFailureAt:null,reason:'تسليم مؤكد'},checks:[{ok:true,label:'التوكن',message:'نشط'}],events:[],eventsAvailable:true,readOnly:true,checkedAt:'2026-10-28T00:00:00Z'};
+const response=(status=200)=>({ok:status===200,status,headers:{get:()=> 'application/json'},json:async()=>({success:true,data:sample})});
+test('summary exposes stale state and reasons without hiding controls, clears private metadata on auth failure, and readiness is GET-only',async()=>{
+ const nodes=new Map();
+ const make=()=>({textContent:'',hidden:false,disabled:false,open:false,children:[],attributes:{},listeners:{},append(...items){this.children.push(...items);},replaceChildren(...items){this.children=items;},setAttribute(k,v){this.attributes[k]=v;},getAttribute(k){return this.attributes[k];},removeAttribute(k){delete this.attributes[k];},addEventListener(k,fn){this.listeners[k]=fn;}});
+ const root={...make(),dataset:{base:'/client'},closest:()=>({id:'integrations'}),querySelector(selector){if(!nodes.has(selector))nodes.set(selector,make());return nodes.get(selector);}};
+ const get=name=>root.querySelector('[data-mi-'+name+']');
+ const fetch=jest.fn().mockResolvedValue(response());
+ const context={document:{hidden:false,querySelector:()=>root,createElement:make,addEventListener:jest.fn()},window:{location:{hash:'#integrations'},addEventListener:jest.fn()},fetch,AbortController,setTimeout:jest.fn(),clearTimeout:jest.fn(),Date};
+ vm.runInNewContext(fs.readFileSync(path.join(__dirname,'../public/js/portal-integrations.js'),'utf8'),context);
+ await new Promise(setImmediate);
+ expect(get('api-state').textContent).toBe('متاح');expect(get('api-link').getAttribute('aria-disabled')).toBe('false');
+ fetch.mockRejectedValueOnce(new Error('offline'));
+ await get('refresh').listeners.click();
+ expect(get('api-state').textContent).toBe('تعذر التحقق');expect(get('webhook-state').textContent).toBe('تعذر التحقق');
+ expect(get('api-link').hidden).toBe(false);expect(get('api-link').getAttribute('aria-disabled')).toBe('true');expect(get('notice').textContent).toContain('البيانات المعروضة أدناه سابقة');expect(get('last-check').textContent).toContain('آخر تحقق ناجح');
+ fetch.mockResolvedValueOnce(response(401));await get('refresh').listeners.click();expect(get('key-meta').textContent).toBe('—');
+ fetch.mockResolvedValueOnce(response());await get('check').listeners.click();expect(get('checks').open).toBe(true);expect(get('api-state').textContent).toBe('متاح');
+ expect(fetch.mock.calls.every(([url,options])=>url.endsWith('/overview')&&(!options.method||options.method==='GET'))).toBe(true);
+});

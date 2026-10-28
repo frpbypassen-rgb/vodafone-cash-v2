@@ -308,6 +308,7 @@ router.post('/transfer', merchantApiAuth, async (req, res) => {
         });
         const replay = await merchantIdempotency.lookup(idempotency);
         if (replay) return res.set('Idempotency-Replayed','true').json(replay);
+        if (idempotency) await merchantIdempotency.assertIndexReady();
 
         const cooldown = await acquireTransferCooldown({
             ownerModel: req.merchant.entityModel,

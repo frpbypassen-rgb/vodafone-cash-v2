@@ -2,6 +2,9 @@
     'use strict';
     const root = document.querySelector('[data-agent-telegram]');
     if (!root) return;
+    const panelActive = () => { const panel=root.closest('.bw-settings-panel'); return !document.hidden && (!panel || window.location.hash === '#' + panel.id); };
+    let initialized=false;
+    const initialize=()=>{ if(initialized || !panelActive()) return; initialized=true;
     const find = name => root.querySelector('[data-telegram-' + name + ']');
     const list = find('list'), setup = find('setup'), addForm = find('add-form'), result = find('result');
     let state = null, pending = null, busy = false, pollTimer, editingId = null;
@@ -71,7 +74,7 @@
     };
     const poll = async () => {
         clearTimeout(pollTimer);
-        if (!pending || document.hidden) return;
+        if (!pending || document.hidden || !panelActive()) return;
         if (!busy && !editingId) {
             try { render(await api()); if (!pending) tell('تم تحديث حالة الربط.'); } catch (_) { /* Manual refresh reports errors. */ }
         }
@@ -117,9 +120,14 @@
     });
     document.addEventListener('visibilitychange', () => { if (document.hidden) clearTimeout(pollTimer); else void poll(); });
     window.addEventListener('pagehide', () => clearTimeout(pollTimer));
-    const refreshState = () => { if (!busy && !editingId && addForm.hidden && !document.hidden) api().then(render).catch(() => {}); };
+    const refreshState = () => { if (panelActive() && !pending && !busy && !editingId && addForm.hidden && !document.hidden) api().then(render).catch(() => {}); };
     window.setInterval(refreshState, 15000);
     window.addEventListener('focus', refreshState);
+    window.addEventListener('hashchange', () => { if(panelActive()){ if(pending) void poll(); else refreshState(); } else clearTimeout(pollTimer); });
     document.addEventListener('visibilitychange', refreshState);
     void perform(async () => { render(await api()); tell(''); });
+    };
+    window.addEventListener('hashchange',initialize);
+    document.addEventListener('visibilitychange',initialize);
+    initialize();
 })();

@@ -49,75 +49,88 @@ const overview = async (workspace, req) => {
             ? { tenantId: workspace.entity.tenantId || { $in: [] } }
             : {}),
     };
-    const [access, groups, lastDelivery, eventsResult] = await Promise.all([
-        integration.getStatus(workspace),
-        require('../models/MerchantWebhookEndpoint')
-            .aggregate([
-                { $match: scope },
-                {
-                    $group: {
-                        _id: null,
-                        total: { $sum: 1 },
-                        enabled: { $sum: { $cond: ['$enabled', 1, 0] } },
-                        confirmed: {
-                            $sum: {
-                                $cond: [
-                                    {
-                                        $and: [
-                                            '$enabled',
-                                            {
-                                                $ne: [
-                                                    {
-                                                        $ifNull: [
-                                                            '$lastSuccessAt',
-                                                            null,
-                                                        ],
-                                                    },
-                                                    null,
-                                                ],
-                                            },
-                                        ],
-                                    },
-                                    1,
-                                    0,
-                                ],
+    const [access, groups, lastDelivery, eventsResult, transactions, uniqueIndexReady] =
+        await Promise.all([
+            integration.getStatus(workspace),
+            require('../models/MerchantWebhookEndpoint')
+                .aggregate([
+                    { $match: scope },
+                    {
+                        $group: {
+                            _id: null,
+                            total: { $sum: 1 },
+                            enabled: { $sum: { $cond: ['$enabled', 1, 0] } },
+                            confirmed: {
+                                $sum: {
+                                    $cond: [
+                                        {
+                                            $and: [
+                                                '$enabled',
+                                                {
+                                                    $ne: [
+                                                        {
+                                                            $ifNull: [
+                                                                '$lastSuccessAt',
+                                                                null,
+                                                            ],
+                                                        },
+                                                        null,
+                                                    ],
+                                                },
+                                            ],
+                                        },
+                                        1,
+                                        0,
+                                    ],
+                                },
                             },
-                        },
-                        failing: {
-                            $sum: {
-                                $cond: [
-                                    {
-                                        $and: [
-                                            '$enabled',
-                                            { $gt: ['$failureCount', 0] },
-                                        ],
-                                    },
-                                    1,
-                                    0,
-                                ],
+                            failing: {
+                                $sum: {
+                                    $cond: [
+                                        {
+                                            $and: [
+                                                '$enabled',
+                                                { $gt: ['$failureCount', 0] },
+                                            ],
+                                        },
+                                        1,
+                                        0,
+                                    ],
+                                },
                             },
+                            lastSuccessAt: { $max: '$lastSuccessAt' },
+                            lastFailureAt: { $max: '$lastFailureAt' },
                         },
-                        lastSuccessAt: { $max: '$lastSuccessAt' },
-                        lastFailureAt: { $max: '$lastFailureAt' },
                     },
-                },
-            ])
-            .option({ maxTimeMS: 1500 }),
-        require('../models/MerchantWebhookDelivery')
-            .findOne(scope)
-            .sort({ updatedAt: -1 })
-            .select(
-                'status responseCode lastAttemptAt deliveredAt updatedAt -_id',
-            )
-            .maxTimeMS(1500)
-            .lean(),
-        require('./merchantIntegrationEventService')
-            .listEvents(scope)
-            .then(
-                (rows) => ({ available: true, rows }),
-                () => ({ available: false, rows: [] }),
-            ),
-    ]);
+                ])
+                .option({ maxTimeMS: 1500 }),
+            require('../models/MerchantWebhookDelivery')
+                .findOne(scope)
+                .sort({ updatedAt: -1 })
+                .select(
+                    'status responseCode lastAttemptAt deliveredAt updatedAt -_id',
+                )
+                .maxTimeMS(1500)
+                .lean(),
+            require('./merchantIntegrationEventService')
+                .listEvents(scope)
+                .then(
+                    (rows) => ({ available: true, rows }),
+                    () => ({ available: false, rows: [] }),
+                ),
+            require('mongoose')
+                .connection.db.command({ hello: 1, maxTimeMS: 1000 })
+                .then(
+                    (result) => ({
+                        available: true,
+                        supported: Boolean(
+                            result.setName || result.msg === 'isdbgrid',
+                        ),
+                    }),
+                    () => ({ available: false, supported: false }),
+                ),
+            require('./merchantIdempotencyService').indexReady(),
+        ]);
     const stats = groups[0] || {
         total: 0,
         enabled: 0,
@@ -132,6 +145,8 @@ const overview = async (workspace, req) => {
     const apiReady =
         access.apiEnabled &&
         access.keyActive &&
+        transactions.supported &&
+        uniqueIndexReady &&
         (!access.ipAllowlistEnabled ||
             (proxyReady && access.allowedIps.length > 0));
     return {
@@ -148,6 +163,11 @@ const overview = async (workspace, req) => {
                   ? 'يحتاج إعدادًا'
                   : 'موقوف من الإدارة',
             proxyReady,
+            reason: !transactions.supported
+                ? transactions.available
+                    ? 'الخادم غير مهيأ لحماية Idempotency-Key. تواصل مع الإدارة.'
+                    : 'تعذر التحقق من دعم المعاملات المالية.'
+                : !uniqueIndexReady ? 'فهرس منع تكرار التحويل غير جاهز. تواصل مع الإدارة.' : '',
         },
         webhooks: {
             ...stats,
@@ -156,6 +176,21 @@ const overview = async (workspace, req) => {
             lastDelivery,
         },
         checks: [
+            {
+                label: 'فهرس منع التكرار',
+                ok: uniqueIndexReady,
+                message: uniqueIndexReady ? 'الفهرس الفريد موجود.'
+                    : 'تعذر تأكيد الفهرس الفريد؛ الطلبات المحمية تتوقف قبل الخصم.',
+            },
+            {
+                label: 'حماية منع تكرار التحويل',
+                ok: transactions.supported,
+                message: transactions.supported
+                    ? 'قاعدة البيانات تدعم المعاملات اللازمة لحفظ النتيجة مع الخصم.'
+                    : transactions.available
+                      ? 'يلزم تهيئة دعم المعاملات على الخادم لاستخدام Idempotency-Key.'
+                      : 'تعذر التحقق من دعم المعاملات المالية.',
+            },
             {
                 label: 'سماح الإدارة للـAPI',
                 ok: access.apiEnabled,

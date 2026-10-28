@@ -257,9 +257,9 @@ const businessTheme = typeof clientTheme !== 'undefined' && clientTheme ? client
     <script src="/js/business-portal/api-response.js?v=20261025-review" defer></script>
     <script src="/js/agent-portal/index.js?v=20261025-daily" defer></script>
     <script src="/js/agent-portal/mobile-menu.js?v=20261026-more" defer></script>
-    <script src="/js/agent-portal/report-email.js?v=20261027-sync" defer></script>
-    <% if(page==='settings') { %><script src="/js/portal-integrations.js?v=20261028-api-page" defer></script><% } %>
-    <script src="/js/agent-portal/telegram-settings.js?v=20261027-sync" defer></script>
+    <script src="/js/agent-portal/report-email.js?v=20261028-lazy" defer></script>
+    <% if(page==='settings') { %><script src="/js/portal-integrations.js?v=20261028-readiness" defer></script><% } %>
+    <script src="/js/agent-portal/telegram-settings.js?v=20261028-lazy" defer></script>
     <% if (page === 'finance') { %><script src="/js/agent-portal/finance.js?v=20261026-compact" defer></script><% } %>
     <% if (page === 'agency_profits') { %><script src="/js/agent-portal/customer-profits.js?v=20261026-compact" defer></script><% } %>
     <% if (page === 'customers') { %><script src="/js/agent-portal/customers.js?v=20261026-compact" defer></script><% } %>

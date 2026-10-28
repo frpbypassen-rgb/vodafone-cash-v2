@@ -6,7 +6,7 @@
     <div>
         <span class="bw-section-kicker">ملف <%= workspace.entityLabel %></span>
         <h2><%= workspace.isCompany ? 'الإعدادات' : 'بيانات ' + workspace.entityLabel %></h2>
-        <p>التواصل والمدينة والسجل في هذه الصفحة. كلمة المرور والأجهزة في أمان الحساب.</p>
+        <p data-settings-context>التواصل والمدينة والسجل في هذه الصفحة. كلمة المرور والأجهزة في أمان الحساب.</p>
     </div>
     <% if (!workspace.isAgent && !workspace.isCompany) { %>
     <div class="cp-page-hero-actions">
@@ -99,7 +99,7 @@
 
     <% if (workspace.isCompany || workspace.isAgent) { %>
     <section class="bw-settings-panel" id="integrations">
-        <header class="bw-settings-panel-head"><span class="bw-settings-panel-icon tone-violet"><i class="fa-solid fa-plug"></i></span><div><span>التكاملات</span><h2>ربط أنظمتك الخارجية</h2><p>إدارة استقبال أحداث العمليات ومراجعة سجل التسليم من مكان واحد.</p></div></header>
+        <header class="bw-settings-panel-head"><span class="bw-settings-panel-icon tone-violet"><i class="fa-solid fa-plug"></i></span><div><span>التكاملات</span><h2>ربط أنظمتك الخارجية</h2><p>حالة API وإشعارات Webhooks وفحص جاهزية الربط.</p></div></header>
         <%- include('../partials/merchant_integrations') %>
     </section>
     <% } %>

@@ -9,3 +9,5 @@ Scope: company and agency portals, shared merchant authentication/transfer API, 
 5. Rebuild the settings summary: compact two-column desktop/stacked mobile cards; explicit stale/error/loading states, last successful check, readiness action, IP and webhook metadata, small technical event list.
 6. Defer email and Telegram initialization/polling until their settings panel opens, for both portals.
 7. Run focused security/concurrency/regression checks and real browser verification on phone/desktop, document operational requirements and remaining limitations.
+
+Completed locally. See `integration-reliability.md` for the API contract, requirements, validation and remaining limitations. No production cutover was performed.

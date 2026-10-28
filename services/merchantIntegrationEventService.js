@@ -9,6 +9,7 @@ const codes = new Set([
     'IDEMPOTENCY_CONFLICT',
     'IDEMPOTENCY_IN_PROGRESS',
     'FINANCIAL_TRANSACTIONS_UNAVAILABLE',
+    'IDEMPOTENCY_INDEX_UNAVAILABLE',
 ]);
 let pending = 0;
 const recordEvent = (owner, code, details = {}) => {
@@ -80,7 +81,7 @@ const recordEvent = (owner, code, details = {}) => {
 };
 const listEvents = async (scope) =>
     require('../models/MerchantIntegrationEvent')
-        .find(scope)
+        .find({ ...scope, expiresAt: { $gt: new Date() } })
         .select('code operation httpStatus sourceIp count lastSeenAt -_id')
         .sort({ lastSeenAt: -1 })
         .limit(10)

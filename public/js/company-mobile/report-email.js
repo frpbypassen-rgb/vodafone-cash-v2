@@ -2,6 +2,9 @@
     'use strict';
     const root = document.querySelector('[data-report-email]');
     if (!root) return;
+    const panelActive = () => { const panel=root.closest('.bw-settings-panel'); return !document.hidden && (!panel || window.location.hash === '#' + panel.id); };
+    let initialized=false;
+    const initialize=()=>{ if(initialized || !panelActive()) return; initialized=true;
     const find = key => root.querySelector(`[data-report-email-${key}]`);
     const toggle = find('toggle'), setup = find('setup'), requestForm = find('request'), verifyForm = find('verify');
     const email = requestForm.elements.email, code = verifyForm.elements.code;
@@ -95,9 +98,14 @@
         render(await request());
         message('تم إرسال الكشف التجريبي إلى بريدك المؤكّد.');
     }); });
-    const refreshState = () => { if (!busy && setup.hidden && document.visibilityState === 'visible') request().then(render).catch(() => {}); };
+    const refreshState = () => { if (panelActive() && !busy && setup.hidden && document.visibilityState === 'visible') request().then(render).catch(() => {}); };
     window.setInterval(refreshState, 15000);
     document.addEventListener('visibilitychange', refreshState);
     window.addEventListener('focus', refreshState);
+    window.addEventListener('hashchange', refreshState);
     void perform(async () => { render(await request()); if (status.available) message(''); });
+    };
+    window.addEventListener('hashchange',initialize);
+    document.addEventListener('visibilitychange',initialize);
+    initialize();
 })();
