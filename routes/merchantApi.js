@@ -32,6 +32,10 @@ const { normalizeStoredBank } = require('../utils/egyptianBanks');
 const logger = require('../utils/logger');
 const { apiKeyQuery } = require('../utils/merchantIntegrationPolicy');
 const merchantIdempotency = require('../services/merchantIdempotencyService');
+const recordApiEvent = (req, merchant, code, httpStatus) => require('../services/merchantIntegrationEventService').recordEvent(
+    { ownerModel:merchant.entityModel, ownerId:merchant._id, tenantId:merchant.tenantId }, code,
+    { operation:req.path.startsWith('/status/')?'status':req.path==='/balance'?'balance':'transfer',httpStatus,sourceIp:require('../utils/merchantIpPolicy').sourceIp(req) }
+);
 
 const MERCHANT_TRANSFER_MIN_AMOUNT = 100;
 const MERCHANT_TRANSFER_MAX_AMOUNT = 50000;
@@ -208,8 +212,10 @@ const merchantApiAuth = async (req, res, next) => {
 
         const company = await ClientBot.findOne(apiKeyQuery(apiKey, 'token')).lean();
         if (company) {
-            if (!require('../utils/merchantIpPolicy').ipAllowed(req, company))
+            if (!require('../utils/merchantIpPolicy').ipAllowed(req, company)) {
+                void recordApiEvent(req,{...company,entityModel:'ClientCompany'},'IP_NOT_ALLOWED',403);
                 return res.status(403).json({ status:'failed', code:'IP_NOT_ALLOWED', message:'عنوان IP غير مسموح لهذا الحساب.' });
+            }
             req.merchant = {
                 ...company,
                 merchantType: 'company',
@@ -226,8 +232,10 @@ const merchantApiAuth = async (req, res, next) => {
         if (!agent) {
             return res.status(401).json({ status: 'failed', message: 'مفتاح المصادقة غير صحيح أو الحساب موقوف' });
         }
-        if (!require('../utils/merchantIpPolicy').ipAllowed(req, agent))
+        if (!require('../utils/merchantIpPolicy').ipAllowed(req, agent)) {
+            void recordApiEvent(req,{...agent,entityModel:'User'},'IP_NOT_ALLOWED',403);
             return res.status(403).json({ status:'failed', code:'IP_NOT_ALLOWED', message:'عنوان IP غير مسموح لهذا الحساب.' });
+        }
 
         req.merchant = {
             ...agent,
@@ -440,6 +448,7 @@ router.post('/transfer', merchantApiAuth, async (req, res) => {
                 }
             } catch (recoveryError) { error = recoveryError; }
         }
+        void recordApiEvent(req,req.merchant,error.code,error.statusCode||500);
         logger.error('Merchant API transfer failed', { error: error.message, code: error.code });
         if (error && error.statusCode) {
             return res.status(error.statusCode).json({

@@ -142,6 +142,7 @@ const deliverWebhook = async (deliveryId) => {
             await MerchantWebhookDelivery.updateOne({ _id: delivery._id }, { $set: {
                 status: 'failed', lastError: 'WEBHOOK_DISABLED_BY_ADMIN', lockedAt: null, nextAttemptAt: null
             } });
+            void require('./merchantIntegrationEventService').recordEvent(endpoint,'WEBHOOK_ADMIN_DISABLED',{operation:'webhook'});
             return { delivered: false, reason: 'WEBHOOK_DISABLED_BY_ADMIN' };
         }
         const rawBody = JSON.stringify(delivery.payload);
@@ -184,6 +185,7 @@ const deliverWebhook = async (deliveryId) => {
         ]);
         return { delivered: true };
     } catch (error) {
+        void require('./merchantIntegrationEventService').recordEvent(endpoint,'WEBHOOK_DELIVERY_FAILED',{operation:'webhook',httpStatus:error.responseCode});
         const exhausted = delivery.attemptCount >= MAX_ATTEMPTS;
         const delay = RETRY_DELAYS_MS[Math.min(delivery.attemptCount - 1, RETRY_DELAYS_MS.length - 1)];
         await Promise.all([

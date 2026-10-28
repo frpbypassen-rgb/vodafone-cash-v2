@@ -73,6 +73,11 @@ const handle = (action) => async (req, res) => {
     }
 };
 router.get(paths(''), requireClientAuth, handle(service.getStatus));
+router.get(paths('/overview'), requireClientAuth, async(req,res)=>{
+    res.set('Cache-Control','private, no-store');
+    try{return res.json({success:true,data:await require('../services/merchantIntegrationOverviewService').overview(await authorizedWorkspace(req),req)});}
+    catch(error){return res.status(error.statusCode||503).json({success:false,error:error.statusCode?error.message:'تعذر التحقق من جاهزية التكاملات. أعد المحاولة.'});}
+});
 router.get(paths('/activity'), requireClientAuth, handle(service.getActivity));
 router.get(['/client/integrations/api/guide.pdf', '/agent-portal/integrations/api/guide.pdf'], requireClientAuth, async (req, res) => {
     res.set('Cache-Control', 'private, no-store, max-age=0');

@@ -127,6 +127,8 @@ router.patch(clientPaths('/api/webhooks/:id'), requireClientAuth, async (req, re
     try {
         const owner = await resolveClientOwner(req);
         const update = {};
+        const current = await MerchantWebhookEndpoint.findOne({_id:req.params.id,...endpointScope(req,owner)}).select('url').lean();
+        if(!current)return res.status(404).json({success:false,error:'WEBHOOK_NOT_FOUND'});
         if (req.body.name !== undefined) update.name = String(req.body.name).trim().slice(0, 100);
         if (req.body.url !== undefined) update.url = await validateWebhookUrl(req.body.url);
         if (req.body.events !== undefined) update.events = normalizeEvents(req.body.events);
@@ -140,6 +142,9 @@ router.patch(clientPaths('/api/webhooks/:id'), requireClientAuth, async (req, re
             secret = crypto.randomBytes(32).toString('hex');
             update.secretEncrypted = encrypt(secret);
             update.secretHint = secret.slice(-6);
+        }
+        if ((update.url && update.url !== current.url) || req.body.rotateSecret) {
+            update.lastSuccessAt=null; update.lastFailureAt=null; update.failureCount=0; update.lastError='';
         }
         const endpoint = await MerchantWebhookEndpoint.findOneAndUpdate(
             { _id: req.params.id, ...endpointScope(req, owner) }, { $set: update }, { returnDocument: 'after', runValidators: true }

@@ -542,7 +542,8 @@ Promise.all([connectDB(), initRedis()]).then(() => startBoundHttpServer({
             ensurePerformanceIndexes(),
             ensureSecurityDeviceIndexes(),
             ensureUnifiedReportInfrastructure(),
-            merchantWebhookService.ensureMerchantWebhookIndexes()
+            merchantWebhookService.ensureMerchantWebhookIndexes(),
+            require('./services/merchantIntegrationEventService').ensureIndexes()
         ]);
         if (isFinancialSchedulersEnabled()) {
             await restorePendingRateActivation({ app });
