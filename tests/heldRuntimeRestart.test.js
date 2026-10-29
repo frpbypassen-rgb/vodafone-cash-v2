@@ -45,3 +45,12 @@ test('empty work is accepted only in explicit settled mode and missing transacti
     }
     report.queues['api-transfers-queue'].active=1;expect(()=>validateQueues(report,true)).toThrow('QUEUES_NOT_EMPTY');
 });
+test('busy work diagnostics expose only counts and incomplete inspections never become busy work',()=>{
+    const report=clear();report.transactions={sampled:2,truncated:false,statuses:{pending:1,processing:1}};
+    let caught;try{validateQueues(report,true);}catch(error){caught=error;}
+    expect(caught.message).toBe('OTHER_OPEN_TRANSACTION');
+    expect(caught.summary).toEqual({sampled:2,statuses:{pending:1,processing:1,accepted:0,deposit_pending:0}});
+    report.mongo.connected=false;expect(()=>validateQueues(report,true)).toThrow('TRANSACTION_INSPECTION_NOT_CLEAR');
+    const missing=clear();delete missing.queues['api-transfers-queue'].wait;
+    expect(()=>validateQueues(missing,true)).toThrow('QUEUE_INSPECTION_INCOMPLETE');
+});

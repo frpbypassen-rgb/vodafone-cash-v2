@@ -14,12 +14,18 @@ const validateHeld = (tx, expectedHash, allowSettled = false) => {
 };
 const validateQueues = (report, allowSettled = false) => {
     const empty = allowSettled && report.transactions?.sampled === 0;
-    if (report.mongo?.connected !== true || report.transactions?.truncated !== false
-        || (!empty && (report.transactions.sampled !== 1 || report.transactions.statuses?.processing !== 1)))
+    if (report.mongo?.connected !== true || report.transactions?.truncated !== false || !Number.isInteger(report.transactions.sampled))
         throw new Error('TRANSACTION_INSPECTION_NOT_CLEAR');
+    if (!empty && (report.transactions.sampled !== 1 || report.transactions.statuses?.processing !== 1)) {
+        const error = new Error('OTHER_OPEN_TRANSACTION');
+        error.summary = {sampled:report.transactions.sampled,statuses:Object.fromEntries(
+            ['pending','processing','accepted','deposit_pending'].map(key=>[key,Number(report.transactions.statuses?.[key] || 0)]))};
+        throw error;
+    }
     for (const queue of ['api-transfers-queue','notifications-queue','reports-queue','backups-queue','reconciliations-queue'])
         for (const field of ['active','wait','delayed','prioritized','waiting-children'])
-            if (report.queues?.[queue]?.[field] !== 0) throw new Error('QUEUES_NOT_EMPTY');
+            if (!Number.isInteger(report.queues?.[queue]?.[field])) throw new Error('QUEUE_INSPECTION_INCOMPLETE');
+            else if (report.queues[queue][field] !== 0) throw new Error('QUEUES_NOT_EMPTY');
 };
 const main = async () => {
     require('dotenv').config({ quiet: true });
@@ -53,6 +59,8 @@ const main = async () => {
 module.exports = {validateHeld,validateQueues};
 if (require.main === module) main().catch(error=>{
     const known = ['HELD_STATE_CHANGED','HELD_DOCUMENT_CHANGED','INVALID_ARGUMENT','QUEUE_INSPECTION_FAILED',
-        'TRANSACTION_INSPECTION_NOT_CLEAR','QUEUES_NOT_EMPTY','OTHER_OPEN_TRANSACTION'];
-    console.error(known.includes(error.message) ? error.message : 'READ_ONLY_CHECK_FAILED');process.exitCode=1;
+        'TRANSACTION_INSPECTION_NOT_CLEAR','QUEUES_NOT_EMPTY','OTHER_OPEN_TRANSACTION','QUEUE_INSPECTION_INCOMPLETE'];
+    console.error(known.includes(error.message) ? error.message : 'READ_ONLY_CHECK_FAILED');
+    if (error.summary) console.error(JSON.stringify(error.summary));
+    process.exitCode=['OTHER_OPEN_TRANSACTION','QUEUES_NOT_EMPTY'].includes(error.message) ? 2 : 1;
 });

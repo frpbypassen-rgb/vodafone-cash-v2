@@ -22,6 +22,16 @@ function Read-App {
     if ($LASTEXITCODE -ne 0) { throw 'Unexpected PM2 application state.' }
     return (($output -join "`n") | ConvertFrom-Json)
 }
+function Wait-ForDrain([string]$ExpectedHash) {
+    for ($attempt=1; $attempt -le 12; $attempt++) {
+        try { $null = Check-Hold $ExpectedHash; return }
+        catch {
+            if ($LASTEXITCODE -ne 2 -or $attempt -eq 12) { throw }
+            Write-Host "Waiting for existing work to drain ($attempt/12); no transaction state changed."
+            Start-Sleep -Seconds 5
+        }
+    }
+}
 $root = (Resolve-Path -LiteralPath '.').Path
 & git merge-base --is-ancestor 21f6fd9 HEAD
 if ($LASTEXITCODE -ne 0) { throw 'Required login update is not installed.' }
@@ -52,9 +62,9 @@ try {
     Stop-Website -Name 'ahrampay.com'
     $siteStopped = $true
     Start-Sleep -Seconds 15
-    $null = Check-Hold $snapshot
+    Wait-ForDrain $snapshot
     Start-Sleep -Seconds 5
-    $null = Check-Hold $snapshot
+    Wait-ForDrain $snapshot
     $current = Read-App
     $owners = @(Get-NetTCPConnection -LocalPort 3000 -State Listen | Select-Object -ExpandProperty OwningProcess -Unique)
     $process = Get-CimInstance Win32_Process -Filter "ProcessId=$oldPid"
@@ -84,7 +94,7 @@ try {
     }
     if (!$ready) { throw 'New runtime is not ready.' }
     foreach ($flag in @('workers','schedulers','webhooks')) { if ([string]$app.$flag -ne [string]$newApp.$flag) { throw 'Background runtime flags changed.' } }
-    $null = Check-Hold $snapshot
+    Wait-ForDrain $snapshot
     $asset = Invoke-WebRequest 'http://127.0.0.1:3000/js/login-location.js?verify=held-restart' -UseBasicParsing -TimeoutSec 10
     if ($asset.Headers['Cache-Control'] -notmatch 'no-store') { throw 'New login cache policy is not active.' }
     Start-Website -Name 'ahrampay.com'
