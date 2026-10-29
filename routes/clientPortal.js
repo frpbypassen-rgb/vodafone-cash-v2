@@ -70,6 +70,7 @@ router.get('/register', clientAuthController.getRegister);
 router.get('/register/agent-lookup', clientAuthController.lookupAgent);
 router.post('/register', clientAuthController.postRegister);
 router.get('/verify', clientAuthController.getVerify);
+router.use('/verify', require('./businessLoginChoice'));
 router.post('/verify', otpVerifyLimiter, clientAuthController.postVerify);
 router.get('/logout', clientAuthController.logout);
 router.get('/sw.js', (_req, res) => {

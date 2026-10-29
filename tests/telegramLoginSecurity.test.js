@@ -18,6 +18,7 @@ const transport = require('../services/telegramLoginTransport');
 const mailer = require('../services/emailLoginEnrollmentMailer');
 const login = require('../services/loginOtpService');
 const invalidate = require('../utils/invalidateEmailLoginEnrollment');
+const approval = require('../utils/loginMethodApproval');
 const express = require('express'),
     request = require('supertest');
 let mongo, ctx;
@@ -182,6 +183,7 @@ test('linking Telegram preserves an active email channel; switching requires the
     await ctx.actor.save();
     await link();
     expect(ctx.actor.otpDeliveryChannel).toBe('email');
+    expect(approval.telegramAllowed(ctx.actor)).toBe(false);
     expect((await service.requestChannel({ ...ctx, target: 'telegram' })).requiresCode).toBe(true);
     expect(mailer.sendCode).toHaveBeenCalledWith(
         'owner@example.test',
@@ -194,6 +196,9 @@ test('linking Telegram preserves an active email channel; switching requires the
     await service.confirmChannel({ ...ctx, code });
     await reload();
     expect(ctx.actor.otpDeliveryChannel).toBe('telegram');
+    expect(ctx.actor.telegramLoginApprovedFor).toBe(approval.telegramIdentity(ctx.actor));
+    expect(ctx.actor.emailOtpLoginApprovedFor).toBe('owner@example.test');
+    expect(approval.emailAllowed(ctx.actor)).toBe(true);
     await expect(service.confirmChannel({ ...ctx, code })).rejects.toMatchObject({ code: 'EXPIRED' });
 });
 test('Telegram login codes are sent only to the confirmed current bot and fail closed on outage', async () => {

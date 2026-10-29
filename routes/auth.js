@@ -885,6 +885,17 @@ const startClientOtp = async (req, res, account, accountType) => {
     const verifiedMfa = require('../utils/emailLoginMfaProof').valid(req.session.pendingEmailMfaProof, account, accountType);
     req.session.pendingSecurityLocation = securityControl.parseLocation(req) || (verifiedMfa ? req.session.pendingSecurityLocation : null);
     req.session.pendingSecurityUsername = String(req.body.username || account.webUsername || '');
+    const businessChoice = require('../services/businessLoginChoiceService');
+    if (businessChoice.isBusiness(account, accountType) && ['email', 'telegram'].includes(account.otpDeliveryChannel)) {
+        await businessChoice.start(req, account, accountType, {
+            pendingSecurityLocation: req.session.pendingSecurityLocation,
+            pendingSecurityUsername: req.session.pendingSecurityUsername,
+            ...(verifiedMfa ? { pendingEmailMfaProof: req.session.pendingEmailMfaProof } : {}),
+            securityDeviceId: deviceId,
+            securityDeviceHash: securityControl.hashDeviceId(deviceId),
+        });
+        return saveAndRedirect(req, res, '/client/verify');
+    }
     const issued = await issueLoginOtp({ account, accountType, session: req.session, attempt: readLoginOtpAttempt(req) });
     const portal = issued.portal;
     const performedByModel = portal?.performedByModel || 'User';
@@ -978,6 +989,7 @@ const startClientOtp = async (req, res, account, accountType) => {
 };
 
 const continueVerifiedPortalLogin = async (req, res, account, accountType) => {
+    if ((['company', 'agent_staff'].includes(accountType) || (accountType === 'user' && account.role === 'agent')) && ['email', 'telegram'].includes(account.otpDeliveryChannel)) return startClientOtp(req, res, account, accountType);
     if (account.otpDeliveryChannel === 'telegram' || account.emailOtpVerifiedAt || isLoginOtpRequired()) return startClientOtp(req, res, account, accountType);
     return finishLoginAfterOtpBypass(req, res, account, accountType);
 };

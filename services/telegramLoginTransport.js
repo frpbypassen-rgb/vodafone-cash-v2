@@ -39,7 +39,7 @@ const request = async (method, body) => {
         throw new Error('TELEGRAM_LOGIN_SEND_FAILED');
     }
 };
-const sendCode = (chatId, code, purpose = 'login') => {
+const sendCode = (chatId, code, purpose = 'login', expiresMinutes = 5) => {
     if (!/^[1-9]\d{0,18}$/.test(String(chatId)) || !/^\d{6}$/.test(String(code)))
         throw new Error('INVALID_TELEGRAM_LOGIN_TARGET');
     const title =
@@ -50,7 +50,7 @@ const sendCode = (chatId, code, purpose = 'login') => {
               : 'رمز تسجيل الدخول';
     return request('sendMessage', {
         chat_id: String(chatId),
-        text: `أهرام باي\n${title}\n\n${code}\n\nصالح لمدة 5 دقائق. لا تشارك الرمز مع أي شخص.\n${purpose === 'enrollment' ? 'أدخل الرمز في الموقع لإكمال الربط. لن تصلك أكواد الدخول قبل التأكيد واختيار تليجرام.' : 'إذا لم تطلب هذا الرمز، تجاهل الرسالة وراجع أمان حسابك.'}`,
+        text: `أهرام باي\n${title}\n\n${code}\n\nصالح لمدة ${Math.min(5, Math.max(1, Number(expiresMinutes) || 5))} دقائق. لا تشارك الرمز مع أي شخص.\n${purpose === 'enrollment' ? 'أدخل الرمز في الموقع لإكمال الربط. لن تصلك أكواد الدخول قبل التأكيد واختيار تليجرام.' : 'إذا لم تطلب هذا الرمز، تجاهل الرسالة وراجع أمان حسابك.'}`,
     });
 };
 const verifySecret = (received) => {

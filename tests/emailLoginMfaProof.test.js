@@ -37,7 +37,7 @@ test('MFA completion chains email verification before establishing the session',
     expect(auth).toContain('account.emailOtpVerifiedAt || isLoginOtpRequired()');
 });
 test.each(['email', 'telegram'])(
-    'MFA proof and location survive real session regeneration before %s OTP',
+    'MFA proof and location survive real session regeneration before choosing %s OTP',
     async (channel) => {
         const auth = fs.readFileSync(path.join(__dirname, '../routes/auth.js'), 'utf8');
         const source = auth.slice(
@@ -58,6 +58,18 @@ test.each(['email', 'telegram'])(
         const start = vm.runInNewContext(source + '\nstartClientOtp;', {
             require: (name) => {
                 if (name === '../utils/emailLoginMfaProof') return proof;
+                if (name === '../services/businessLoginChoiceService')
+                    return {
+                        isBusiness: () => true,
+                        start: async (request, actor, type, values) => {
+                            await require('../utils/sessionSecurity').establishAuthenticatedSession(request, {
+                                ...values,
+                                tempClientId: actor._id,
+                                tempAccountType: type,
+                                businessOtpChallengeId: 'choice-test-id',
+                            });
+                        },
+                    };
                 throw new Error('Unexpected import');
             },
             securityControl: {
@@ -77,10 +89,11 @@ test.each(['email', 'telegram'])(
             saveAndRedirect: () => {},
             String,
         });
-        await start(req, {}, account, 'company');
+        await start(req, {}, { ...account, otpDeliveryChannel: channel }, 'company');
         expect(proof.valid(req.session.pendingEmailMfaProof, account, 'company')).toBe(true);
         expect(req.session.pendingSecurityLocation).toEqual({ latitude: 32, longitude: 13 });
-        expect(req.session.otpDeliveryChannel).toBe(channel);
+        expect(req.session.businessOtpChallengeId).toBe('choice-test-id');
+        expect(req.session.otpDeliveryChannel).toBeUndefined();
         expect(req.session.tempClientId).toBe(account._id);
         expect(req.session.isClientLoggedIn).not.toBe(true);
     }

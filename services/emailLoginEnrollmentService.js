@@ -142,6 +142,7 @@ const confirm = async (ctx) => {
         emailOtpVerifiedEmail: pending.email,
         emailOtpVerifiedAt: new Date(),
     };
+    if (set.otpDeliveryChannel === 'email') set.emailOtpLoginApprovedFor = pending.email;
     if (!(ctx.isOwner && ctx.kind === 'agent')) set.email = pending.email;
     const result = await Model.updateOne(guard, {
         $set: set,

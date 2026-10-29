@@ -12,4 +12,7 @@ module.exports = {
     telegramLoginUsername: { type: String, default: '' },
     telegramLoginBotId: { type: String, default: '' },
     telegramLoginVerifiedAt: { type: Date, default: null },
+    loginOtpLastSentAt: { type: Date, select: false },
+    emailOtpLoginApprovedFor: { type: String, default: '' },
+    telegramLoginApprovedFor: { type: String, default: '' },
 };

@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="ar" dir="rtl" data-theme="dark">
+<head>
+    <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>تأكيد الدخول | أهرام باي</title>
+    <script>try{document.documentElement.dataset.theme=['light','day'].includes(localStorage.getItem('ahram_theme'))?'light':'dark';}catch(_){}</script>
+    <link rel="stylesheet" href="/css/business-login-otp.css?v=1">
+</head>
+<body>
+<main class="otp-shell" data-business-otp data-csrf="<%= csrfToken %>">
+    <div class="otp-top"><a class="otp-back" href="/login?portal=client">← العودة لتسجيل الدخول</a><button class="otp-theme" type="button" data-otp-theme aria-label="تغيير المظهر">☀</button></div>
+    <header class="otp-brand"><img src="/images/login-otp-logo.jpg" alt="أهرام باي" width="48" height="48"><b dir="ltr">AL-AHRAM Pay</b><span>تأكيد الدخول</span></header>
+    <% if(screen.authenticatorVerified){ %><p class="otp-factor">✓ تم التحقق من Authenticator</p><% } %>
+    <h1 data-otp-title>اختر طريقة استلام الكود</h1>
+    <p class="otp-description" data-otp-description>سيُرسل الكود إلى الطريقة التي تختارها فقط.</p>
+    <p class="otp-alert" data-otp-message role="alert" aria-live="polite" <%= error ? '' : 'hidden' %>><%= error || '' %></p>
+    <section data-otp-choose>
+        <div class="otp-methods" data-otp-methods aria-label="طريقة استلام الكود"></div>
+        <button class="otp-primary" type="button" data-otp-send>إرسال الكود</button>
+        <p class="otp-note" data-otp-send-note></p>
+    </section>
+    <form action="/client/verify" method="POST" data-otp-form hidden>
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <input type="hidden" name="otp" data-otp-value>
+        <div class="otp-digits" dir="ltr" aria-label="رمز التحقق المكون من ستة أرقام">
+            <% for(let index=0;index<6;index++){ %><input type="text" inputmode="numeric" maxlength="1" autocomplete="<%= index===0?'one-time-code':'off' %>" aria-label="الرقم <%= index+1 %>" data-otp-digit><% } %>
+        </div>
+        <p class="otp-note" data-otp-expiry aria-live="off"></p>
+        <button class="otp-primary" type="submit" data-otp-confirm disabled>تأكيد والدخول</button>
+        <a class="otp-telegram" data-otp-open-telegram href="https://t.me/Ahram_otp_bot" target="_blank" rel="noopener noreferrer" referrerpolicy="no-referrer" hidden>فتح تليجرام ↗</a>
+        <div class="otp-secondary"><button type="button" data-otp-resend>إعادة الإرسال</button><button type="button" data-otp-change>تغيير الطريقة</button></div>
+    </form>
+    <a class="otp-primary otp-restart" href="/login?portal=client" data-otp-restart hidden>بدء تسجيل الدخول مجددًا</a>
+    <footer>لا تشارك الكود مع أي شخص، بما في ذلك الدعم.</footer>
+</main>
+<script type="application/json" id="businessOtpScreen"><%- JSON.stringify(screen).replace(/</g,'\u003c') %></script>
+<script src="/js/business-login-otp.js?v=1" defer></script>
+</body>
+</html>

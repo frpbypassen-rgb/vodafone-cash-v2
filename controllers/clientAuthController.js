@@ -12,7 +12,20 @@ const { isPasskeyRequired } = require('../config/securityPolicy');
 const { checkRegistrationIdentityAvailability } = require('../services/registrationIdentityService');
 const { classifyEmailAddress } = require('../utils/emailAddress');
 const { resolveClientPostLoginHref } = require('../services/businessPortalService');
-const renderClientVerify = (req, res, error = null) => res.render('client/verify', { error, otpChannel: req.session?.otpDeliveryChannel === 'telegram' ? 'telegram' : 'email' });
+const renderBusinessVerify = async (req, res, error = null) => {
+    let screen;
+    try {
+        screen = await require('../services/businessLoginChoiceService').view(req);
+    } catch (failure) {
+        screen = { methods: [], stage: 'blocked', authenticatorVerified: false, selected: null };
+        error = error || (failure.statusCode ? failure.message : 'تعذر تحميل محاولة الدخول. حاول تسجيل الدخول مجددًا.');
+        res.status(401);
+    }
+    return res.render('client/business_verify', { screen, error, csrfToken: req.session?.csrfToken || '' });
+};
+const renderClientVerify = (req, res, error = null) => req.session?.businessOtpChallengeId
+    ? renderBusinessVerify(req, res, error)
+    : res.render('client/verify', { error, otpChannel: req.session?.otpDeliveryChannel === 'telegram' ? 'telegram' : 'email' });
 
 const LIBYAN_CITIES = [
     'طرابلس', 'بنغازي', 'مصراتة', 'الزاوية', 'زليتن', 'الخمس', 'سبها', 'سرت', 'درنة', 'طبرق',
@@ -321,11 +334,14 @@ exports.postLogin = (req, res) => {
 };
 exports.getVerify = (req, res) => {
     if (!req.session.tempClientId) return res.redirect('/login');
-    renderClientVerify(req, res);
+    return renderClientVerify(req, res);
 };
 
 exports.postVerify = async (req, res) => {
     try {
+        const businessResult = req.session.businessOtpChallengeId
+            ? await require('../services/businessLoginChoiceService').consume(req, req.body.otp)
+            : null;
         const otp = normalizeSubmittedOtp(req.body.otp);
         const accountId = req.session.tempClientId;
         const accountType = req.session.tempAccountType;
@@ -337,10 +353,10 @@ exports.postVerify = async (req, res) => {
             ? ClientEmployee
             : (accountType === 'agent_staff' ? AgentEmployee : (accountType === 'sub_client' ? SubAccount : User));
 
-        if (!accountId || !accountType || !otpChallengeId || !otp) return res.redirect('/login');
+        if (!businessResult && (!accountId || !accountType || !otpChallengeId || !otp)) return res.redirect('/login');
 
-        const account = await AccountModel.findById(accountId).lean();
-        const authenticatorVerified = Boolean(account && require('../utils/emailLoginMfaProof').valid(req.session.pendingEmailMfaProof, account, accountType));
+        const account = businessResult ? businessResult.account : await AccountModel.findById(accountId).lean();
+        const authenticatorVerified = businessResult ? businessResult.authenticatorVerified : Boolean(account && require('../utils/emailLoginMfaProof').valid(req.session.pendingEmailMfaProof, account, accountType));
         if (account?.mfaEnabled && account.mfaType === 'totp' && !authenticatorVerified) {
             delete req.session.tempClientId;
             delete req.session.tempAccountType;
@@ -348,6 +364,7 @@ exports.postVerify = async (req, res) => {
             delete req.session.pendingEmailMfaProof;
             return res.redirect('/login');
         }
+        if (!businessResult) {
         const otpAccepted = Boolean(
             account
             && account.otpChallengeId === otpChallengeId
@@ -391,6 +408,7 @@ exports.postVerify = async (req, res) => {
         ).lean();
         if (!consumedAccount) {
             return renderClientVerify(req, res, 'تم استخدام الرمز أو انتهت صلاحيته. سجل الدخول من جديد.');
+        }
         }
 
         const principalType = ({
@@ -456,10 +474,11 @@ exports.postVerify = async (req, res) => {
             performedById: account._id,
             performedByModel,
             performedByName: account.name,
-            metadata: { accountType, via: 'OTP' }
+            metadata: { accountType, via: 'OTP', ...(businessResult ? { channel: businessResult.channel } : {}) }
         });
         return req.session.save(() => res.redirect(resolveClientPostLoginHref(accountType)));
     } catch (e) {
+        if (req.session.businessOtpChallengeId) return renderClientVerify(req, res, e.statusCode ? e.message : 'تعذر إكمال التحقق. حاول مجددًا.');
         console.error('[Client OTP] verify failed:', e.message);
         return renderClientVerify(req, res, 'تعذر إكمال التحقق. أعد المحاولة.');
     }

@@ -210,9 +210,9 @@
             (item.mfaEnabled ? "مفعّل" : "غير مفعّل") +
             " · بريد الدخول: " +
             (item.email || "غير مضاف") +
-            " · OTP بالبريد: " +
+            " · البريد قناة افتراضية: " +
             (item.emailOtpEnabled ? "مفعّل" : "متوقف") +
-            " · قناة الدخول: " + (item.loginOtpChannel === 'telegram' ? 'تليجرام' : item.loginOtpChannel === 'email' ? 'البريد' : 'متوقفة') +
+            " · قناة الدخول الافتراضية: " + (item.loginOtpChannel === 'telegram' ? 'تليجرام' : item.loginOtpChannel === 'email' ? 'البريد' : 'متوقفة') +
             " · تليجرام الدخول: " + (item.telegramLoginVerified ? 'مؤكد' : 'غير مرتبط') + (item.telegramLoginAccount ? ' @' + item.telegramLoginAccount : '') +
             (item.theme ? " · المظهر: " + item.theme : "") +
             " · كثافة العرض: " +

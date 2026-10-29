@@ -2,6 +2,7 @@
 const crypto = require('node:crypto');
 const transport = require('./telegramLoginTransport');
 const challenge = require('../utils/loginSecurityChallenge');
+const approval = require('../utils/loginMethodApproval');
 const { normalizeSubmittedOtp } = require('../utils/otp');
 const { models } = require('./businessLoginSecurityContext');
 const { resolveAccountOtpEmail, isValidOtpEmail, isEmailOtpEnabled } = require('../utils/otpDeliveryChannel');
@@ -204,6 +205,8 @@ const confirm = async (ctx) => {
             telegramLoginBotId: pending.botId,
             telegramLoginVerifiedAt: new Date(),
             otpDeliveryChannel: selected,
+            telegramLoginApprovedFor: selected === 'telegram' || actor.telegramLoginApprovedFor === approval.telegramIdentity({ telegramLoginChatId: pending.chatId, telegramLoginBotId: pending.botId })
+                ? approval.telegramIdentity({ telegramLoginChatId: pending.chatId, telegramLoginBotId: pending.botId }) : '',
         },
         $inc: { emailOtpSettingsRevision: 1 },
         $unset: {
@@ -248,7 +251,7 @@ const applyTarget = async (ctx, target, extraGuard = {}) => {
     const result = await ctx.Model.updateOne(
         { ...challenge.guard(ctx.actor), ...extraGuard },
         {
-            ...(target === 'unlink' ? {} : { $set: { otpDeliveryChannel: target } }),
+            ...(target === 'unlink' ? {} : { $set: { otpDeliveryChannel: target, ...approval.grant(ctx.actor, target) } }),
             $inc: { emailOtpSettingsRevision: 1 },
             $unset: {
                 loginChannelAction: 1,
@@ -262,6 +265,7 @@ const applyTarget = async (ctx, target, extraGuard = {}) => {
                           telegramLoginUsername: 1,
                           telegramLoginBotId: 1,
                           telegramLoginVerifiedAt: 1,
+                          telegramLoginApprovedFor: 1,
                       }
                     : {}),
             },

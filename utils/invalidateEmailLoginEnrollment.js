@@ -10,6 +10,7 @@ module.exports = (account, { keepVerified = false } = {}) => {
     if (!keepVerified) {
         account.emailOtpVerifiedEmail = '';
         account.emailOtpVerifiedAt = null;
+        account.emailOtpLoginApprovedFor = '';
     }
     if (typeof account.$inc === 'function') account.$inc('emailOtpSettingsRevision', 1);
     else account.emailOtpSettingsRevision = (account.emailOtpSettingsRevision || 0) + 1;
