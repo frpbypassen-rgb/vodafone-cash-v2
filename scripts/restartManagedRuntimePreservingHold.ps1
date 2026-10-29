@@ -3,6 +3,7 @@ param(
     [string]$HeldId = '6ae33154246256837d770bde',
     [switch]$AllowSettled,
     [switch]$PreserveManual,
+    [ValidateRange(60,900)][int]$ReadyTimeoutSeconds = 360,
     [switch]$Apply
 )
 $ErrorActionPreference = 'Stop'
@@ -101,8 +102,10 @@ try {
     & pm2 restart ahram-pay --update-env
     if ($LASTEXITCODE -ne 0) { throw 'PM2 start failed.' }
     $ready = $false
-    for ($i=0; $i -lt 30; $i++) {
+    $readyDeadline = [DateTime]::UtcNow.AddSeconds($ReadyTimeoutSeconds)
+    for ($i=0; [DateTime]::UtcNow -lt $readyDeadline; $i++) {
         Start-Sleep -Seconds 3
+        if ($i % 10 -eq 0) { Write-Host "Waiting for startup readiness; deadline $($readyDeadline.ToString('o'))." }
         try {
             $newHealth = Invoke-RestMethod 'http://127.0.0.1:3000/health/ready' -TimeoutSec 3
             $newApp = Read-App
