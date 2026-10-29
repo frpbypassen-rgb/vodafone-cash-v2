@@ -44,7 +44,7 @@
                 retry.disabled=false;inFlight=null;resolve(ok);
             };
             const capture=(position,expectedStage)=>{
-                    if(!active()||stage!==expectedStage)return;
+                    if(!active()||expectedStage>stage)return;
                     const lat=position.coords.latitude,lon=position.coords.longitude;
                     if(!Number.isFinite(lat)||Math.abs(lat)>90||!Number.isFinite(lon)||Math.abs(lon)>180){finish(false,'تعذر تحديد موقع الجهاز. أعد المحاولة.');return;}
                     latitude.value=lat;longitude.value=lon;accuracy.value=Number.isFinite(position.coords.accuracy)?position.coords.accuracy:'';

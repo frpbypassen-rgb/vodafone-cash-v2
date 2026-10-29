@@ -250,7 +250,8 @@ app.use(express.static(path.join(__dirname, 'public'), {
     // protected by the no-store policy registered below.
     maxAge: isProduction ? '1h' : 0,
     etag: true,
-    immutable: false
+    immutable: false,
+    setHeaders: require('./utils/loginAssetHeaders')
 }));
 
 const limiter = rateLimit({

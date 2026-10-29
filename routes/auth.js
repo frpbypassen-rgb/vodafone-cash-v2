@@ -109,7 +109,11 @@ const renderLogin = (res, error = null, data = {}) => {
     const req = res.req;
     const clientPortal = data.clientPortal ?? !!(req && (req.query?.portal === 'client' || req.body?.portal === 'client'));
     const securityCode = String(req?.query?.security || '').trim();
-    return res.render('unified_login', {
+    const presentation = require('../utils/loginPagePresentation')(req, data);
+    res.set('Cache-Control', 'private, no-store');
+    return res.render(presentation.view, {
+        cache: false,
+        mfaLocation: presentation.location,
         error: error || SECURITY_LOGIN_ERRORS[securityCode] || null,
         mfaRequired: false,
         recoveryCodeRequired: false,

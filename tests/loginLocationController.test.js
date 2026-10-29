@@ -132,6 +132,16 @@ describe('login location controller', () => {
         expect(f.elements.longitudeInput.value).toBe(12);
     });
 
+    test('accepts a valid coarse result while the precise fallback is still waiting', async () => {
+        const f = fixture();
+        await jest.advanceTimersByTimeAsync(8250);
+        const pending = f.send();
+        f.success(0, 32, 13);
+        await pending;
+        expect(f.submit).toHaveBeenCalledTimes(1);
+        expect(f.context.navigator.geolocation.clearWatch).toHaveBeenCalledWith(42);
+    });
+
     test('a transient watch error can recover before the bounded deadline', async () => {
         const f = fixture();
         await Promise.resolve();
