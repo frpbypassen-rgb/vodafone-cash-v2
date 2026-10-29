@@ -1,6 +1,7 @@
 'use strict';
 const {validateHeld,validateQueues}=require('../scripts/checkHeldRuntimeRestart.cjs');
 const dispatch=require('../services/providerDispatchClaimService');
+const {assertManual,parseManifest}=require('../scripts/manualRestartSnapshot.cjs');
 const held=()=>({_id:'fixture',status:'processing',updatedAt:new Date('2026-10-29T11:47:46Z'),
     apiResultData:{providerDispatchStartedAt:new Date('2026-10-29T11:46:57Z'),providerDispatchResult:'pending_reference',providerResultUnresolved:true,waitingApiAutoCompletion:false}});
 test('preserves the whole held document and rejects any changed snapshot',()=>{
@@ -53,4 +54,14 @@ test('busy work diagnostics expose only counts and incomplete inspections never 
     report.mongo.connected=false;expect(()=>validateQueues(report,true)).toThrow('TRANSACTION_INSPECTION_NOT_CLEAR');
     const missing=clear();delete missing.queues['api-transfers-queue'].wait;
     expect(()=>validateQueues(missing,true)).toThrow('QUEUE_INSPECTION_INCOMPLETE');
+});
+test('idle manual acceptance and unassigned pending work are distinguishable from active API work',()=>{
+    expect(()=>assertManual({status:'pending'},null)).not.toThrow();
+    expect(()=>assertManual({status:'accepted',executorGroupId:'fixture'},{isApiBot:false})).not.toThrow();
+    for(const tx of [{status:'processing'},{status:'accepted'},{status:'pending',originalApiGroupId:'api'},
+        {status:'pending',apiResultData:{providerDispatchAttemptId:'sent'}},{status:'pending',apiResultData:{waitingApiAutoCompletion:true}}])
+        expect(()=>assertManual(tx,null)).toThrow('UNSAFE_OPEN_TRANSACTION');
+    expect(()=>assertManual({status:'accepted',executorGroupId:'fixture'},{isApiBot:true})).toThrow();
+    expect(()=>assertManual({status:'accepted',executorGroupId:'fixture'},{})).toThrow();
+    expect(()=>parseManifest('invalid')).toThrow('INVALID_ARGUMENT');
 });

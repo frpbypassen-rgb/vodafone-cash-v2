@@ -37,3 +37,25 @@ test('live admission snapshot permits other work, but actual restart barriers st
     expect(bypass.status).toBe(1);expect(bypass.stderr).toContain('INVALID_ARGUMENT');
     expect(await client.db().collection('transactions').find({}).toArray()).toEqual(before);
 });
+
+test('manual preservation freezes only idle manual rows and never permits API work or changed rows',async()=>{
+    const db=client.db(),collection=db.collection('transactions');
+    await collection.deleteMany({_id:{$ne:id}});
+    const groupId=new ObjectId();await db.collection('executorgroups').insertOne({_id:groupId,isApiBot:false});
+    const accepted={_id:new ObjectId(),status:'accepted',executorGroupId:groupId,updatedAt:new Date()};
+    const pending={_id:new ObjectId(),status:'pending',updatedAt:new Date()};
+    await collection.insertMany([accepted,pending]);
+    const before=await collection.find({}).toArray();
+    const fingerprint=JSON.parse(run('--allow-settled','--snapshot-only').stdout).heldHash;
+    const capture=run(fingerprint,'--allow-settled','--capture-manual');expect(capture.status).toBe(0);
+    const manifest=JSON.parse(capture.stdout).manualManifest;expect(manifest.split(',')).toHaveLength(2);
+    const barrier=run(fingerprint,'--allow-settled','--manual='+manifest);expect(barrier.status).toBe(0);
+    expect(await collection.find({}).toArray()).toEqual(before);
+    const extraId=new ObjectId();await collection.insertOne({_id:extraId,status:'pending'});
+    expect(run(fingerprint,'--allow-settled','--manual='+manifest).stderr).toContain('OTHER_OPEN_TRANSACTION');
+    await collection.deleteOne({_id:extraId});
+    await collection.updateOne({_id:accepted._id},{$set:{status:'completed'}});
+    expect(run(fingerprint,'--allow-settled','--manual='+manifest).stderr).toContain('MANUAL_STATE_CHANGED');
+    await collection.updateOne({_id:accepted._id},{$set:{status:'processing',apiResultData:{providerDispatchStartedAt:new Date()}}});
+    expect(run(fingerprint,'--allow-settled','--capture-manual').stderr).toContain('UNSAFE_OPEN_TRANSACTION');
+});

@@ -2,20 +2,32 @@ param(
     [string]$ProjectPath = (Get-Location).Path,
     [string]$HeldId = '6ae33154246256837d770bde',
     [switch]$AllowSettled,
+    [switch]$PreserveManual,
     [switch]$Apply
 )
 $ErrorActionPreference = 'Stop'
 Set-Location -LiteralPath $ProjectPath
+$script:manualCaptured=$false
+$script:manualManifest=''
 function Check-Hold([string]$ExpectedHash, [switch]$SnapshotOnly) {
     $arguments = @('scripts/checkHeldRuntimeRestart.cjs', $HeldId)
     if ($ExpectedHash) { $arguments += $ExpectedHash }
     if ($AllowSettled) { $arguments += '--allow-settled' }
     if ($SnapshotOnly) { $arguments += '--snapshot-only' }
+    if ($PreserveManual -and $ExpectedHash) {
+        if ($script:manualCaptured) { $arguments += ('--manual=' + $script:manualManifest) }
+        else { $arguments += '--capture-manual' }
+    }
     $output = & node @arguments
     if ($LASTEXITCODE -ne 0) { throw 'Hold or work inspection failed; no transaction was modified.' }
     $report = ($output -join "`n") | ConvertFrom-Json
     if ($report.ok -ne $true -or $report.heldHash -notmatch '^[a-f0-9]{64}$') { throw 'Invalid hold inspection.' }
     if ([bool]$report.snapshotOnly -ne [bool]$SnapshotOnly) { throw 'Unexpected inspection mode.' }
+    if ($PreserveManual -and $ExpectedHash) {
+        if ($report.manualCaptured -ne $true -or [string]$report.manualManifest -notmatch '^([a-f0-9]{24}:[a-f0-9]{64}(,[a-f0-9]{24}:[a-f0-9]{64}){0,49})?$') { throw 'Invalid manual-work snapshot.' }
+        $script:manualCaptured=$true
+        $script:manualManifest=[string]$report.manualManifest
+    }
     if (!$ExpectedHash) { Write-Host ('Protected transaction status: ' + $report.protectedStatus) }
     return $report.heldHash
 }
@@ -43,6 +55,7 @@ if ($LASTEXITCODE -ne 0) { throw 'Financial dispatch guards have local modificat
 # checks remain mandatory inside maintenance, before stopping and after starting.
 $snapshot = Check-Hold -SnapshotOnly:$Apply
 $app = Read-App
+if ($PreserveManual -and [string]$app.schedulers -notin @('false','0','no','off')) { throw 'Manual preservation requires financial schedulers to remain explicitly disabled.' }
 $health = Invoke-RestMethod 'http://127.0.0.1:3000/health/ready' -TimeoutSec 10
 if ($health.status -ne 'ok' -or $health.startupReady -ne $true -or [int]$health.pid -ne [int]$app.pid -or $app.status -ne 'online') { throw 'PM2 and live process do not match.' }
 if ($app.cwd -ne $root -or $app.script -ne (Join-Path $root 'app.js')) { throw 'PM2 points to a different project.' }
