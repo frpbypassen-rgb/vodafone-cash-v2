@@ -20,7 +20,11 @@ function fixture(required = true, mfa = false) {
     const context = {
         document: { getElementById: id => elements[id] },
         window: { isSecureContext: true },
-        navigator: { geolocation: { getCurrentPosition: (success, error, options) => requests.push({ success, error, options }) } },
+        navigator: { geolocation: {
+            getCurrentPosition: (success, error, options) => requests.push({ success, error, options }),
+            watchPosition: (success, error, options) => { requests.push({ success, error, options }); return 42; },
+            clearWatch: jest.fn()
+        } },
         HTMLFormElement: { prototype: { submit } }, setTimeout, clearTimeout
     };
     vm.runInNewContext(source, context);
@@ -53,6 +57,11 @@ describe('login location controller', () => {
         await Promise.resolve();
         const pending = f.send();
         f.requests[0].error({ code });
+        if (code === 1) expect(f.requests).toHaveLength(1);
+        if (code !== 1) {
+            await Promise.resolve();
+            f.requests.at(-1).error({ code: 1 });
+        }
         await pending;
         expect(f.submit).not.toHaveBeenCalled();
         expect(f.elements.submitBtn.disabled).toBe(false);
@@ -68,13 +77,13 @@ describe('login location controller', () => {
         const f = fixture();
         f.form.value = 'existing credentials';
         const pending = f.send();
-        await jest.advanceTimersByTimeAsync(20250);
+        await jest.advanceTimersByTimeAsync(33500);
         await pending;
         expect(f.submit).not.toHaveBeenCalled();
         expect(f.form.value).toBe('existing credentials');
         const retry = f.send();
         await Promise.resolve();
-        f.success(1, 0, 0);
+        f.success(f.requests.length - 1, 0, 0);
         await retry;
         expect(f.submit).toHaveBeenCalledTimes(1);
     });
@@ -89,12 +98,61 @@ describe('login location controller', () => {
 
     test('an outdated request cannot overwrite a retry position', async () => {
         const f = fixture();
-        await jest.advanceTimersByTimeAsync(20250);
+        await jest.advanceTimersByTimeAsync(33500);
         const retry = f.context.window.loginLocation.ensure();
         await Promise.resolve();
-        f.success(1, 30, 20);
+        f.success(f.requests.length - 1, 30, 20);
         await retry;
         f.success(0, 1, 2);
         expect(f.elements.latitudeInput.value).toBe(30);
+    });
+
+    test('a network-position timeout falls back to GPS without submitting or asking again', async () => {
+        const f = fixture();
+        await Promise.resolve();
+        const pending = f.send();
+        f.requests[0].error({ code: 3 });
+        expect(f.requests).toHaveLength(2);
+        expect(f.requests[1].options.enableHighAccuracy).toBe(true);
+        expect(f.submit).not.toHaveBeenCalled();
+        f.success(1);
+        await pending;
+        expect(f.submit).toHaveBeenCalledTimes(1);
+        expect(f.context.navigator.geolocation.clearWatch).toHaveBeenCalledWith(42);
+    });
+
+    test('a late coarse response cannot overwrite the GPS result or revive a failed attempt', async () => {
+        const f = fixture();
+        await Promise.resolve();
+        f.requests[0].error({ code: 2 });
+        f.success(1, 31, 12);
+        await f.context.window.loginLocation.ready;
+        f.success(0, 1, 2);
+        expect(f.elements.latitudeInput.value).toBe(31);
+        expect(f.elements.longitudeInput.value).toBe(12);
+    });
+
+    test('a transient watch error can recover before the bounded deadline', async () => {
+        const f = fixture();
+        await Promise.resolve();
+        f.requests[0].error({ code: 3 });
+        const pending = f.send();
+        f.requests[1].error({ code: 2 });
+        expect(f.submit).not.toHaveBeenCalled();
+        f.success(1);
+        await pending;
+        expect(f.submit).toHaveBeenCalledTimes(1);
+    });
+
+    test('supports browsers without watchPosition without bypassing location policy', async () => {
+        const f = fixture();
+        delete f.context.navigator.geolocation.watchPosition;
+        await Promise.resolve();
+        f.requests[0].error({ code: 3 });
+        const pending = f.send();
+        expect(f.requests[1].options.enableHighAccuracy).toBe(true);
+        f.requests[1].error({ code: 2 });
+        await pending;
+        expect(f.submit).not.toHaveBeenCalled();
     });
 });
