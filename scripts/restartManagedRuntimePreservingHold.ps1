@@ -6,14 +6,16 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 Set-Location -LiteralPath $ProjectPath
-function Check-Hold([string]$ExpectedHash) {
+function Check-Hold([string]$ExpectedHash, [switch]$SnapshotOnly) {
     $arguments = @('scripts/checkHeldRuntimeRestart.cjs', $HeldId)
     if ($ExpectedHash) { $arguments += $ExpectedHash }
     if ($AllowSettled) { $arguments += '--allow-settled' }
+    if ($SnapshotOnly) { $arguments += '--snapshot-only' }
     $output = & node @arguments
     if ($LASTEXITCODE -ne 0) { throw 'Hold or work inspection failed; no transaction was modified.' }
     $report = ($output -join "`n") | ConvertFrom-Json
     if ($report.ok -ne $true -or $report.heldHash -notmatch '^[a-f0-9]{64}$') { throw 'Invalid hold inspection.' }
+    if ([bool]$report.snapshotOnly -ne [bool]$SnapshotOnly) { throw 'Unexpected inspection mode.' }
     if (!$ExpectedHash) { Write-Host ('Protected transaction status: ' + $report.protectedStatus) }
     return $report.heldHash
 }
@@ -37,7 +39,9 @@ $root = (Resolve-Path -LiteralPath '.').Path
 if ($LASTEXITCODE -ne 0) { throw 'Required login update is not installed.' }
 & git diff --quiet HEAD -- services/providerDispatchClaimService.js services/queueService.js
 if ($LASTEXITCODE -ne 0) { throw 'Financial dispatch guards have local modifications; manual review required.' }
-$snapshot = Check-Hold
+# Apply takes a document-only snapshot before closing admission. The full work
+# checks remain mandatory inside maintenance, before stopping and after starting.
+$snapshot = Check-Hold -SnapshotOnly:$Apply
 $app = Read-App
 $health = Invoke-RestMethod 'http://127.0.0.1:3000/health/ready' -TimeoutSec 10
 if ($health.status -ne 'ok' -or $health.startupReady -ne $true -or [int]$health.pid -ne [int]$app.pid -or $app.status -ne 'online') { throw 'PM2 and live process do not match.' }

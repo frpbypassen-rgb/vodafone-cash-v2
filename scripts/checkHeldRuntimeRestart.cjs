@@ -32,15 +32,18 @@ const main = async () => {
     const { MongoClient, ObjectId } = require('mongodb');
     const args = process.argv.slice(2);
     const allowSettled = args.includes('--allow-settled');
-    const positional = args.filter(arg => arg !== '--allow-settled');
+    const snapshotOnly = args.includes('--snapshot-only');
+    const positional = args.filter(arg => !['--allow-settled','--snapshot-only'].includes(arg));
     const [id, expectedHash] = positional;
-    if (positional.length > 2) throw new Error('INVALID_ARGUMENT');
+    if (positional.length > 2 || (snapshotOnly && expectedHash)) throw new Error('INVALID_ARGUMENT');
     if (!/^[a-f\d]{24}$/i.test(id || '') || (expectedHash && !/^[a-f\d]{64}$/.test(expectedHash)))
         throw new Error('INVALID_ARGUMENT');
-    const result = spawnSync(process.execPath, [path.join(__dirname,'inspectProductionQueues.cjs'), '--project', process.cwd()],
-        { encoding:'utf8', windowsHide:true, timeout:30000 });
-    if (result.status !== 0) throw new Error('QUEUE_INSPECTION_FAILED');
-    validateQueues(JSON.parse(result.stdout),allowSettled);
+    if (!snapshotOnly) {
+        const result = spawnSync(process.execPath, [path.join(__dirname,'inspectProductionQueues.cjs'), '--project', process.cwd()],
+            { encoding:'utf8', windowsHide:true, timeout:30000 });
+        if (result.status !== 0) throw new Error('QUEUE_INSPECTION_FAILED');
+        validateQueues(JSON.parse(result.stdout),allowSettled);
+    }
     const client = new MongoClient(process.env.MONGO_URI, {
         maxPoolSize:1, serverSelectionTimeoutMS:5000, socketTimeoutMS:5000, retryWrites:false
     });
@@ -48,12 +51,14 @@ const main = async () => {
         await client.connect();
         const collection = client.db().collection('transactions');
         const heldId = new ObjectId(id);
-        const other = await collection.findOne({status:{$in:['pending','processing','accepted','deposit_pending']},_id:{$ne:heldId}},
-            {projection:{_id:1},maxTimeMS:2000});
-        if (other) throw new Error('OTHER_OPEN_TRANSACTION');
+        if (!snapshotOnly) {
+            const other = await collection.findOne({status:{$in:['pending','processing','accepted','deposit_pending']},_id:{$ne:heldId}},
+                {projection:{_id:1},maxTimeMS:2000});
+            if (other) throw new Error('OTHER_OPEN_TRANSACTION');
+        }
         const tx = await collection.findOne({_id:heldId},{maxTimeMS:2000});
         const heldHash = validateHeld(tx,expectedHash,allowSettled);
-        console.log(JSON.stringify({ok:true,readOnly:true,protectedStatus:tx.status,heldHash,unchanged:expectedHash ? true : null}));
+        console.log(JSON.stringify({ok:true,readOnly:true,snapshotOnly,protectedStatus:tx.status,heldHash,unchanged:expectedHash ? true : null}));
     } finally { await client.close(); }
 };
 module.exports = {validateHeld,validateQueues};
