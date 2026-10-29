@@ -28,3 +28,20 @@ test('permits only the one held transaction and complete empty queue inspections
 test.each(['active','wait','delayed','prioritized','waiting-children'])('refuses queue work in %s',field=>{
     const report=clear();report.queues['api-transfers-queue'][field]=1;expect(()=>validateQueues(report)).toThrow('QUEUES_NOT_EMPTY');
 });
+
+test.each(['completed','rejected','cancelled_by_admin'])('explicit settled mode preserves existing %s without changing it',status=>{
+    const tx=held();tx.status=status;const before=JSON.stringify(tx);
+    expect(()=>validateHeld(tx)).toThrow('HELD_STATE_CHANGED');
+    const hash=validateHeld(tx,undefined,true);
+    expect(validateHeld(tx,hash,true)).toBe(hash);expect(JSON.stringify(tx)).toBe(before);
+    tx.updatedAt=new Date();expect(()=>validateHeld(tx,hash,true)).toThrow('HELD_DOCUMENT_CHANGED');
+});
+test('empty work is accepted only in explicit settled mode and missing transactions never pass',()=>{
+    const report=clear();report.transactions={sampled:0,truncated:false,statuses:{}};
+    expect(()=>validateQueues(report)).toThrow();expect(()=>validateQueues(report,true)).not.toThrow();
+    expect(()=>validateHeld(null,undefined,true)).toThrow('HELD_STATE_CHANGED');
+    for(const status of ['pending','accepted','deposit_pending','unknown']) {
+        const tx=held();tx.status=status;expect(()=>validateHeld(tx,undefined,true)).toThrow('HELD_STATE_CHANGED');
+    }
+    report.queues['api-transfers-queue'].active=1;expect(()=>validateQueues(report,true)).toThrow('QUEUES_NOT_EMPTY');
+});

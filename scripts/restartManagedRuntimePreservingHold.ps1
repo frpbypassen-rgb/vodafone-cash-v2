@@ -1,6 +1,7 @@
 param(
     [string]$ProjectPath = (Get-Location).Path,
     [string]$HeldId = '6ae33154246256837d770bde',
+    [switch]$AllowSettled,
     [switch]$Apply
 )
 $ErrorActionPreference = 'Stop'
@@ -8,10 +9,12 @@ Set-Location -LiteralPath $ProjectPath
 function Check-Hold([string]$ExpectedHash) {
     $arguments = @('scripts/checkHeldRuntimeRestart.cjs', $HeldId)
     if ($ExpectedHash) { $arguments += $ExpectedHash }
+    if ($AllowSettled) { $arguments += '--allow-settled' }
     $output = & node @arguments
     if ($LASTEXITCODE -ne 0) { throw 'Hold or work inspection failed; no transaction was modified.' }
     $report = ($output -join "`n") | ConvertFrom-Json
     if ($report.ok -ne $true -or $report.heldHash -notmatch '^[a-f0-9]{64}$') { throw 'Invalid hold inspection.' }
+    if (!$ExpectedHash) { Write-Host ('Protected transaction status: ' + $report.protectedStatus) }
     return $report.heldHash
 }
 function Read-App {
@@ -33,7 +36,7 @@ $oldPid = [int]$health.pid
 $oldProcess = Get-CimInstance Win32_Process -Filter "ProcessId=$oldPid"
 if ($oldProcess.Name -ne 'node.exe' -or $oldProcess.CommandLine -notmatch 'ProcessContainerFork\.js') { throw 'Unexpected live process.' }
 if (!$Apply) {
-    Write-Output 'PRECHECK_PASS: held transaction and empty queues verified. No process, IIS, firewall or financial data changed.'
+    Write-Output 'PRECHECK_PASS: protected transaction and empty queues verified. No process, IIS, firewall or financial data changed.'
     return
 }
 $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
@@ -91,7 +94,7 @@ try {
     & pm2 save
     if ($LASTEXITCODE -ne 0) { throw 'Runtime is ready but PM2 save failed.' }
     $newHealth | Format-List status,pid,startupReady,db,sessionStore,redis
-    Write-Output 'SUCCESS: new runtime ready; held transaction was unchanged at final verification; site reopened.'
+    Write-Output 'SUCCESS: new runtime ready; protected transaction was unchanged at final verification; site reopened.'
 } catch {
     $originalError = $_
     $stillOld = Get-CimInstance Win32_Process -Filter "ProcessId=$oldPid"
