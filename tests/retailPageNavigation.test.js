@@ -47,6 +47,7 @@ test.each(['profile', 'security', 'notifications', 'appearance', 'documents'])(
     async (activeSection) => {
         const html = await render('client/hub/settings.ejs', { activeSection });
         expect(html).toContain('retail-pages.css');
+        expect(html).toContain('href="/security/sessions"');
         expect(html.match(/aria-label="أقسام الإعدادات"/g) || []).toHaveLength(1);
         expect(html).not.toContain('client-os-shell');
         if (activeSection === 'security') expect(html.match(/name="currentPassword"/g) || []).toHaveLength(1);
@@ -65,9 +66,6 @@ test('home directory lists all available pages but omits central funding for sub
     const html = await render('client/partials/retail_directory.ejs');
     for (const url of [
         '/client/account?tab=operations',
-        '/client/account?tab=summary',
-        '/client/account?tab=export',
-        '/security/sessions',
         '/client/settings?section=documents',
         '/client/support',
     ])
@@ -75,6 +73,8 @@ test('home directory lists all available pages but omits central funding for sub
     const sub = await render('client/partials/retail_directory.ejs', { canRequestDeposit: false });
     expect(sub).not.toContain('deposits-new');
     expect(sub).not.toContain('integrations');
+    expect(html).not.toContain('/security/sessions');
+    expect(html).not.toContain('tab=deposits');
 });
 test('retail devices page keeps security controls in the shared shell', async () => {
     const html = await render('account_security_sessions.ejs', {
@@ -98,7 +98,8 @@ test('customer More reuses company popover presentation and preserves account pa
     ['/client/dashboard', '/client/transfers', '/client/smart-transfer', '/client/internal-transfer'].forEach(href => {
         expect(moreMenu).not.toContain('href="' + href + '"');
     });
-    expect(moreMenu).toContain('/client/account?tab=operations');
+    expect(moreMenu).not.toContain('/client/account?tab=operations');
+    for (const tab of ['summary', 'export', 'deposits-new']) expect(html).not.toContain('href="/client/account?tab=' + tab + '"');
     expect(html).not.toContain('href="/client/reports"');
     expect(html).toContain('agent-more-footer');
     expect(html).not.toContain('retailMoreSearch');

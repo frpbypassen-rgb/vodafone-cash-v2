@@ -32,8 +32,14 @@ exports.getSettings = async (req, res) => {
 
 exports.getAccount = async (req, res) => {
     const tab = String(req.query.tab || 'operations').trim();
+    const ctx = await buildHubRenderContext(req);
+    if (!ctx) return res.redirect('/login?portal=client');
+    if (ctx.retailModern && tab !== 'operations') {
+        return res.redirect('/client/account?tab=operations');
+    }
     const allowed = ['operations', 'deposits', 'deposits-new', 'deposits-pending', 'deposits-accepted', 'deposits-rejected', 'summary', 'export'];
-    return renderHubPage(req, res, 'client/hub/account', {
+    return res.render('client/hub/account', {
+        ...ctx,
         activeTab: allowed.includes(tab) ? tab : 'operations'
     });
 };
@@ -50,7 +56,7 @@ exports.redirectLegacyReports = (req, res) => exports.getReports(req, res);
 exports.redirectLegacyDeposits = async (req, res) => {
     const ctx = await loadWalletHubAccount(req);
     if (!ctx) return res.redirect('/client/deposits');
-    return res.redirect('/client/account?tab=deposits-new');
+    return res.redirect('/client/account?tab=operations');
 };
 
 exports.postChangePassword = async (req, res) => {

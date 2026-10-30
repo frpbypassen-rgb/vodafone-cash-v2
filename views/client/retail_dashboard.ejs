@@ -5,7 +5,6 @@
 </head><body data-customer-shell data-retail-home>
 <% const home = retailHome || {available:false};
 const canTransfer = user.role !== 'accountant';
-const canFund = Boolean(canRequestDeposit);
 const number = (value,digits=0) => Number(value || 0).toLocaleString('en-US',{minimumFractionDigits:digits,maximumFractionDigits:digits});
 const historyHref='/client/account?tab=operations'; %>
 <%- include('partials/retail_shell_start',{activeRetailNav:'home'}) %>
@@ -15,8 +14,8 @@ const historyHref='/client/account?tab=operations'; %>
 <div class="home-grid"><section class="home-balance" aria-labelledby="homeBalanceTitle"><div><p id="homeBalanceTitle">الرصيد المتاح</p><div class="home-money"><bdi><%= number(user.balance,3) %></bdi><small>د.ل</small></div><div class="home-account-code">رقم الحساب <bdi><%= user.accountCode || '—' %></bdi></div></div><div class="home-balance-bottom"><div><% if(home.available) { %><span>قيد التنفيذ هذا الشهر</span><strong><%= number(home.summary.pendingCount) %> عملية</strong><% } else { %><span>رصيد الحساب المعروض</span><strong>بالدينار الليبي</strong><% } %></div><a class="button" href="<%= historyHref %>">حركة الحساب ←</a></div></section>
 <section class="home-panel home-quick" aria-labelledby="homeQuickTitle"><h2 id="homeQuickTitle">ماذا تريد أن تفعل؟</h2>
 <% if(canTransfer) { %><a class="button primary home-transfer-action" href="/client/transfers"><span>تحويل جديد</span><i class="fa-solid fa-paper-plane" aria-hidden="true"></i></a><% } else { %><p class="home-readonly">حسابك للعرض والمتابعة.</p><% } %>
-<% if(canFund) { %><a class="button" href="/client/account?tab=deposits-new"><span>طلب إضافة رصيد</span><i class="fa-solid fa-plus" aria-hidden="true"></i></a><% } %><a class="button" href="<%= historyHref %>"><span>متابعة عملية</span><i class="fa-solid fa-arrow-left" aria-hidden="true"></i></a>
-<% if(!canFund) { %><p class="home-funding-note">لإضافة الرصيد، تواصل مع الجهة التابعة لها.</p><% } %></section>
+<a class="button" href="<%= historyHref %>"><span>متابعة عملية</span><i class="fa-solid fa-arrow-left" aria-hidden="true"></i></a>
+</section>
 <% if(home.available) { %><section class="home-metrics" aria-label="إحصاءات التحويلات لهذا الشهر"><div class="home-metric"><span>تحويلات هذا الشهر</span><strong><%= number(home.summary.totalCount) %></strong><small><%= home.monthLabel %></small></div><div class="home-metric"><span>مكتملة</span><strong><%= number(home.summary.completedCount) %></strong></div><div class="home-metric"><span>قيد التنفيذ</span><strong><%= number(home.summary.pendingCount) %></strong></div></section><% } %>
 <section class="home-panel home-recent" aria-labelledby="homeRecentTitle"><header class="home-section-head"><h2 id="homeRecentTitle">آخر العمليات</h2><a class="home-text-link" href="<%= historyHref %>">عرض الكل ←</a></header>
 <% if(!home.available) { %><div class="home-empty" role="status"><strong>تعذر تحديث الملخص وآخر العمليات</strong><p>يمكنك فتح كشف الحساب أو إعادة المحاولة.</p><a class="button" href="/client/dashboard">إعادة المحاولة</a></div>

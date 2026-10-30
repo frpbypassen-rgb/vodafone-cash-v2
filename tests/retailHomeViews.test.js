@@ -41,7 +41,7 @@ test('home shares navigation, renders live values, and never labels pending cost
 test('agent-funded accounts never show the central deposit action', async () => {
     const html = await ejs.renderFile(view, { ...data, canRequestDeposit: false });
     expect(html).not.toContain('deposits-new');
-    expect(html).toContain('الجهة التابعة لها');
+    expect(html).not.toContain('طلب إضافة رصيد');
 });
 test('unavailable summaries display an error instead of fabricated zero or empty history', async () => {
     const html = await ejs.renderFile(view, { ...data, retailHome: { available: false } });
