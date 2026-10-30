@@ -607,6 +607,18 @@ const openTransferConfirm = () => {
             </div>`,
         onConfirm: executeTransfer,
     });
+    if (body.hasAttribute('data-retail-transfer-shell') && transferClientPhone && transferConfirmBody) {
+        const label = document.createElement('label');
+        label.className = 'bw-field';
+        label.innerHTML = '<span>رقم واتساب <em>اختياري</em></span><input type="tel" id="retailReviewClientPhone" class="bw-mono" dir="ltr" inputmode="tel" autocomplete="tel" maxlength="30" placeholder="رقم لاستلام الإيصال عبر واتساب"><small>يمكن تركه فارغًا لاستخدام رقم الحساب لإرسال الإيصال عند اكتمال العملية.</small>';
+        const input = label.querySelector('input');
+        input.value = transferClientPhone.value;
+        input.addEventListener('input', () => {
+            transferClientPhone.value = input.value;
+            transferClientPhone.dispatchEvent(new Event('input', { bubbles: true }));
+        });
+        transferConfirmBody.append(label);
+    }
 };
 
 transferForm?.addEventListener('submit', (event) => {

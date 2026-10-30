@@ -1,5 +1,5 @@
 import { config } from './portal-workspace/core.js';
-import './portal-workspace/transfers.js';
+import './portal-workspace/transfers.js?v=20261030-retail-review';
 (async () => {
     const modules = [];
     if (config.page === 'smart_transfer') modules.push(import('./portal-workspace/smart-transfer.js'));

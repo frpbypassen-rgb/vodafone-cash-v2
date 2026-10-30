@@ -99,7 +99,7 @@ const entryTitles = { vodafone: 'إرسال إلى محفظة كاش', bank_acco
         </div>
 
 </section>
-<aside class="cm-transfer-summary" aria-label="ملخص التحويل">
+<aside class="cm-transfer-summary" aria-label="ملخص التحويل" <%- locals.retailTransferReview ? 'hidden' : '' %>>
 <header><i class="fa-solid fa-calculator"></i><h3>ملخص التكلفة</h3></header>
 <div class="cm-transfer-recipient"><span>المستلم</span><strong dir="ltr" data-cm-recipient>—</strong></div>
 <div class="cm-transfer-recipient"><span>المبلغ المرسل</span><strong dir="ltr" data-cm-amount>—</strong></div>
@@ -112,7 +112,7 @@ const entryTitles = { vodafone: 'إرسال إلى محفظة كاش', bank_acco
 <p class="cm-summary-note"><i class="fa-solid fa-circle-info"></i> تُحسب التكلفة وفق سعر الصرف الحالي. راجع البيانات قبل تأكيد العملية.</p>
 </aside>
 <div class="cm-transfer-action"><div class="bw-form-result" id="transferFormResult" hidden></div><button type="submit" class="bw-button primary wide" id="transferSubmitButton"><span>مراجعة العملية</span><i class="fa-solid fa-arrow-left"></i></button></div>
-<details class="cm-transfer-options"><summary>خيارات إضافية <i class="fa-solid fa-chevron-down"></i></summary><div class="bw-form-grid"><div class="bw-transfer-tools span-2"><button type="button" class="bw-button ghost compact" data-focus-mode><i class="fa-solid fa-expand"></i>وضع التركيز</button><span class="bw-secure-label"><i class="fa-solid fa-shield-halved"></i>إرسال آمن</span></div>            <div class="bw-amount-shortcuts span-2" aria-label="قيم سريعة">
+<% if(locals.retailTransferReview) { %><input type="hidden" name="clientPhone" id="transferClientPhone"><% } else { %><details class="cm-transfer-options"><summary>خيارات إضافية <i class="fa-solid fa-chevron-down"></i></summary><div class="bw-form-grid"><div class="bw-transfer-tools span-2"><button type="button" class="bw-button ghost compact" data-focus-mode><i class="fa-solid fa-expand"></i>وضع التركيز</button><span class="bw-secure-label"><i class="fa-solid fa-shield-halved"></i>إرسال آمن</span></div>            <div class="bw-amount-shortcuts span-2" aria-label="قيم سريعة">
                 <span>إضافة سريعة</span>
                 <button type="button" data-amount-add="100">+100</button>
                 <button type="button" data-amount-add="500">+500</button>
@@ -124,7 +124,7 @@ const entryTitles = { vodafone: 'إرسال إلى محفظة كاش', bank_acco
                 <input type="text" name="clientPhone" id="transferClientPhone" class="bw-mono" dir="ltr" inputmode="tel" autocomplete="off" maxlength="30" placeholder="رقم هاتف العميل">
                 <small>يرسل إيصال الإثبات إلى هذا الرقم عند اكتمال العملية. عند تركه فارغاً، يرسل إلى رقم الحساب الذي أنشأ العملية.</small>
             </label>
-</div></details>
+</div></details><% } %>
 </form>
 <details class="cm-recent-disclosure"><summary>آخر العمليات <i class="fa-solid fa-chevron-down"></i></summary>    <section class="bw-live-mini-feed" data-transfer-live-feed>
         <header><div><span class="bw-live-dot"></span><strong>آخر العمليات</strong></div><a href="<%= portalBasePath %>/transactions">عرض الكل</a></header>

@@ -322,7 +322,7 @@ a {
 }
 .cm-reference-form {
     display: grid;
-    grid-template-columns: minmax(0, 1.5fr) minmax(270px, 1fr);
+    grid-template-columns: minmax(0, 1fr);
     gap: 16px;
     align-items: start;
 }
