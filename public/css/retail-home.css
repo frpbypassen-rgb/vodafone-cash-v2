@@ -224,25 +224,6 @@
     background: #ffecef;
     color: #9e3540;
 }
-.home-assist {
-    grid-column: 1/-1;
-    background: var(--soft);
-    padding: 16px 20px;
-    border-radius: 12px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 16px;
-}
-.home-assist p {
-    font-size: 12px;
-}
-.home-assist strong {
-    font-size: 14px;
-}
-.home-assist .button {
-    white-space: nowrap;
-}
 .home-empty {
     text-align: center;
     padding: 26px 12px;
@@ -402,20 +383,6 @@ html[data-theme='night'] .home-status.tone-danger {
     }
     .home-tx-amount bdi {
         font-size: 13px;
-    }
-    .home-assist {
-        padding: 14px;
-        font-size: 12px;
-    }
-    .home-assist strong {
-        font-size: 13px;
-    }
-    .home-assist p {
-        font-size: 11px;
-    }
-    .home-assist .button {
-        padding: 8px 10px;
-        font-size: 11px;
     }
     .home-balance-bottom {
         gap: 8px;
