@@ -47,9 +47,9 @@ test.each(['profile', 'security', 'notifications', 'appearance', 'documents'])(
     async (activeSection) => {
         const html = await render('client/hub/settings.ejs', { activeSection });
         expect(html).toContain('retail-pages.css');
-        expect(html).toContain('href="/security/sessions"');
         expect(html).toContain('href="/client/logout"');
-        expect(html.match(/aria-label="أقسام الإعدادات"/g) || []).toHaveLength(1);
+        expect(html.match(/aria-label="أقسام الإعدادات"/g) || []).toHaveLength(0);
+        expect(html).toContain('retail-settings-back');
         expect(html).not.toContain('client-os-shell');
         if (activeSection === 'security') expect(html.match(/name="currentPassword"/g) || []).toHaveLength(1);
     }
@@ -96,7 +96,19 @@ test('customer navigation keeps five direct pages without a More menu', async ()
     expect(html).not.toContain('company-mobile/mobile-menu.css');
     const dock = html.split('class="bottomnav"')[1].split('</nav>')[0];
     expect(dock.match(/<a /g)).toHaveLength(5);
-    expect(dock.lastIndexOf('href="/client/settings"')).toBeGreaterThan(dock.lastIndexOf('href="/client/support"'));
+    expect(dock.lastIndexOf('href="/client/settings"')).toBeGreaterThan(
+        dock.lastIndexOf('href="/client/support"')
+    );
     expect(dock).toContain('href="/client/settings"');
     expect(dock).toContain('href="/client/account?tab=operations"');
+});
+
+test.each(['day', 'night'])('settings overview presents six sections in %s theme', async (clientTheme) => {
+    const html = await render('client/hub/settings.ejs', { activeSection: 'overview', clientTheme });
+    expect(html.match(/class="retail-settings-card"/g)).toHaveLength(6);
+    expect(html).toContain('href="/security/sessions"');
+    expect(html).toContain('retailLogoutDialog');
+    expect(html).not.toContain('name="currentPassword"');
+    expect(html).not.toContain('name="name"');
+    expect(html).toContain('data-theme="' + clientTheme + '"');
 });

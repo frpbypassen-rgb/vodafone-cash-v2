@@ -1,6 +1,6 @@
 <% const section = typeof activeSection !== 'undefined' ? activeSection : 'profile'; %>
 <div class="client-hub-settings-layout">
-    <nav class="client-hub-settings-nav" aria-label="أقسام الإعدادات">
+    <% if (!locals.settingsDetail) { %><nav class="client-hub-settings-nav" aria-label="أقسام الإعدادات">
         <a href="/client/settings?section=profile" class="<%= section === 'profile' ? 'is-active' : '' %>"><i class="fa-solid fa-user"></i> الملف الشخصي</a>
         <a href="/client/settings?section=security" class="<%= section === 'security' ? 'is-active' : '' %>"><i class="fa-solid fa-shield-halved"></i> الأمان</a>
         <a href="/client/settings?section=notifications" class="<%= section === 'notifications' ? 'is-active' : '' %>"><i class="fa-solid fa-bell"></i> الإشعارات</a>
@@ -8,7 +8,7 @@
         <a href="/client/settings?section=documents" class="<%= section === 'documents' ? 'is-active' : '' %>"><i class="fa-solid fa-file-shield"></i> الحساب والوثائق</a>
         <% if (['شركة', 'وكيل'].includes(profile.accountTypeName)) { %><a href="/client/integrations/webhooks"><i class="fa-solid fa-code-branch"></i> تكاملات Webhook</a><% } %>
         <% if (locals.retailModern) { %><a href="/security/sessions"><i class="fa-solid fa-laptop"></i> الأجهزة والجلسات</a><a class="text-danger" href="/client/logout"><i class="fa-solid fa-arrow-right-from-bracket"></i> تسجيل الخروج</a><% } %>
-    </nav>
+    </nav><% } %>
 
     <div class="client-hub-panel">
         <% if (section === 'profile') { %>
@@ -71,7 +71,7 @@
             <div class="client-hub-readonly-row"><span>حالة النظام</span><strong><%= profile.systemStatus %></strong></div>
             <div class="client-hub-readonly-row"><span>MFA</span><strong><%= profile.mfaEnabled ? 'مفعّل' : 'غير مفعّل' %></strong></div>
             <p class="small text-muted mt-3">مستندات التحقق (إن وُجدت) تُراجع من الإدارة ولا يمكن تعديلها من هنا.</p>
-            <a href="/client/logout" class="btn btn-outline-danger fw-bold mt-2"><i class="fa-solid fa-power-off me-1"></i> تسجيل الخروج</a>
+            <% if (!locals.settingsDetail) { %><a href="/client/logout" class="btn btn-outline-danger fw-bold mt-2"><i class="fa-solid fa-power-off me-1"></i> تسجيل الخروج</a><% } %>
         <% } %>
     </div>
 </div>

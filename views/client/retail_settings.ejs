@@ -1,5 +1,29 @@
-<!doctype html><html lang="ar" dir="rtl" data-portal="customer" data-theme="<%= clientTheme || 'day' %>"><head><%- include('partials/retail_page_head',{retailPage:'settings'}) %></head><body class="retail-page" data-customer-shell><%- include('partials/retail_shell_start',{activeRetailNav:'settings'}) %><div class="heading"><div><h1>الإعدادات</h1><p>بياناتك وأمان حسابك وتفضيلاتك.</p></div></div><div class="client-hub-mobile-content">        <% if (settingsSuccess) { %><div class="client-hub-alert is-success">تم حفظ التغييرات بنجاح.</div><% } %>
-        <% if (settingsError === 'current_password') { %><div class="client-hub-alert is-error">كلمة المرور الحالية غير صحيحة.</div><% } %>
-        <% if (settingsError === 'new_password') { %><div class="client-hub-alert is-error">كلمة المرور الجديدة غير صالحة أو غير متطابقة.</div><% } %>
-        <% if (settingsError === 'save') { %><div class="client-hub-alert is-error">تعذر حفظ البيانات.</div><% } %>
-<%- include('partials/hub_settings_body') %></div><%- include('partials/retail_shell_end',{activeRetailNav:'settings'}) %><%- include('partials/retail_page_foot') %></body></html>
+<!doctype html>
+<html lang="ar" dir="rtl" data-portal="customer" data-theme="<%= clientTheme || 'day' %>">
+<head><%- include('partials/retail_page_head',{retailPage:'settings'}) %></head>
+<body class="retail-page retail-settings-page" data-customer-shell>
+<% const currentSection = typeof activeSection !== 'undefined' ? activeSection : 'overview';
+const settingsItems = [
+ {key:'profile',title:'الملف الشخصي',copy:'الاسم والعنوان ومعلومات التواصل',icon:'fa-user'},
+ {key:'security',title:'أمان الحساب',copy:'كلمة المرور والتحقق الثنائي',icon:'fa-shield-halved'},
+ {key:'sessions',title:'الأجهزة والجلسات',copy:'مراجعة الأجهزة المتصلة بحسابك',icon:'fa-laptop',href:'/security/sessions'},
+ {key:'notifications',title:'الإشعارات',copy:'تفضيلات تنبيهات الحساب',icon:'fa-bell'},
+ {key:'appearance',title:'المظهر',copy:'اختر المظهر المناسب لك',icon:'fa-palette'},
+ {key:'documents',title:'الحساب والوثائق',copy:'حالة الحساب ومعلومات التحقق',icon:'fa-file-shield'}
+];
+const currentItem = settingsItems.find(item=>item.key===currentSection);
+%>
+<%- include('partials/retail_shell_start',{activeRetailNav:'settings'}) %>
+<section class="retail-settings" aria-labelledby="retailSettingsTitle">
+<header class="retail-settings-heading"><div><h1 id="retailSettingsTitle"><%= currentItem ? currentItem.title : 'الإعدادات' %></h1><p><%= currentItem ? currentItem.copy : 'حسابك، كما يناسبك.' %></p></div><% if(currentItem) { %><a class="button retail-settings-back" href="/client/settings"><i class="fa-solid fa-arrow-right" aria-hidden="true"></i> الإعدادات</a><% } %></header>
+<% if(settingsSuccess) { %><div class="client-hub-alert is-success" role="status">تم حفظ التغييرات بنجاح.</div><% } %>
+<% if(settingsError) { const errors={current_password:'كلمة المرور الحالية غير صحيحة.',new_password:'كلمة المرور الجديدة غير صالحة أو غير متطابقة.',save:'تعذر حفظ البيانات.'}; %><div class="client-hub-alert is-error" role="alert"><%= errors[settingsError] || 'تعذر حفظ التغييرات. أعد المحاولة.' %></div><% } %>
+<% if(!currentItem) { %>
+<div class="retail-settings-identity"><span class="retail-settings-avatar" aria-hidden="true"><%= String(user.name || 'ع').trim().charAt(0) %></span><div><strong><%= user.name %></strong><p>رقم الحساب <bdi><%= user.accountCode || profile.accountCode || '—' %></bdi></p></div><i class="fa-solid fa-shield-halved" aria-hidden="true"></i></div>
+<nav class="retail-settings-cards" aria-label="أقسام الإعدادات"><% settingsItems.forEach(item=>{ %><a class="retail-settings-card" href="<%= item.href || '/client/settings?section='+item.key %>"><span class="retail-settings-icon"><i class="fa-solid <%= item.icon %>" aria-hidden="true"></i></span><span class="retail-settings-card-copy"><strong><%= item.title %></strong><small><%= item.copy %></small></span><i class="fa-solid fa-chevron-left" aria-hidden="true"></i></a><% }) %></nav>
+<% } else { %><div class="retail-settings-detail"><%- include('partials/hub_settings_body',{settingsDetail:true}) %></div><% } %>
+<button class="retail-settings-logout" type="button" data-retail-logout><i class="fa-solid fa-arrow-right-from-bracket" aria-hidden="true"></i> تسجيل الخروج</button>
+</section>
+<dialog id="retailLogoutDialog" class="retail-logout-dialog" aria-labelledby="retailLogoutTitle"><h2 id="retailLogoutTitle">تسجيل الخروج؟</h2><p>ستحتاج إلى تسجيل الدخول للعودة إلى حسابك.</p><div><button type="button" data-retail-logout-cancel>البقاء في الحساب</button><a class="button" href="/client/logout">تسجيل الخروج</a></div></dialog>
+<%- include('partials/retail_shell_end',{activeRetailNav:'settings'}) %><%- include('partials/retail_page_foot') %>
+</body></html>

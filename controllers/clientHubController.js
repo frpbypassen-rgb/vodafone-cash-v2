@@ -20,8 +20,8 @@ exports.getSettings = async (req, res) => {
     }
     const ctx = await buildHubRenderContext(req);
     if (!ctx) return res.redirect('/login?portal=client');
-    const section = String(req.query.section || 'profile').trim();
-    const allowed = ['profile', 'security', 'notifications', 'appearance', 'documents'];
+    const section = String(req.query.section || (ctx.retailModern ? 'overview' : 'profile')).trim();
+    const allowed = ['profile', 'security', 'notifications', 'appearance', 'documents', ...(ctx.retailModern ? ['overview'] : [])];
     return res.render('client/hub/settings', {
         ...ctx,
         activeSection: allowed.includes(section) ? section : 'profile',

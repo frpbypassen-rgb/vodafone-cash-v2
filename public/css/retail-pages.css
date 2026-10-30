@@ -419,3 +419,273 @@
         flex: 1 1 130px;
     }
 }
+.retail-settings {
+    max-width: 1040px;
+    margin: 0 auto;
+    padding: 22px 0;
+}
+.retail-settings-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 22px;
+}
+.retail-settings-heading h1 {
+    margin: 0;
+    font-size: 26px;
+    font-weight: 700;
+}
+.retail-settings-heading p {
+    margin: 6px 0 0;
+    color: var(--muted);
+    font-size: 13px;
+}
+.retail-settings-back {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    white-space: nowrap;
+    font-size: 12px;
+}
+.retail-settings-identity {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 22px;
+    border-radius: 16px;
+    margin-bottom: 22px;
+}
+.retail-settings-avatar {
+    display: grid;
+    place-items: center;
+    background: var(--soft);
+    color: var(--blue);
+    border-radius: 50%;
+    width: 56px;
+    height: 56px;
+    flex-shrink: 0;
+    font-size: 24px;
+    font-weight: 700;
+}
+.retail-settings-identity strong {
+    font-size: 16px;
+    overflow-wrap: anywhere;
+}
+.retail-settings-identity p {
+    margin: 4px 0 0;
+    color: var(--muted);
+    font-size: 12px;
+}
+.retail-settings-identity > i {
+    margin-inline-start: auto;
+    color: var(--blue);
+}
+.retail-settings-cards {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+}
+.retail-settings-card {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    min-height: 104px;
+    padding: 20px;
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: var(--surface);
+    text-decoration: none;
+    transition:
+        border-color 0.15s,
+        background 0.15s;
+}
+.retail-settings-card:hover {
+    background: var(--soft);
+    color: var(--text);
+    border-color: var(--blue);
+}
+.retail-settings-icon {
+    width: 46px;
+    height: 46px;
+    flex-shrink: 0;
+    display: grid;
+    place-items: center;
+    background: var(--soft);
+    color: var(--blue);
+    font-size: 19px;
+    border-radius: 13px;
+}
+.retail-settings-card-copy {
+    display: grid;
+    gap: 5px;
+    min-width: 0;
+}
+.retail-settings-card-copy strong {
+    font-size: 14px;
+}
+.retail-settings-card-copy small {
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 1.6;
+}
+.retail-settings-card > i {
+    margin-inline-start: auto;
+    color: var(--muted);
+    font-size: 11px;
+}
+.retail-settings-logout {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    color: #bd3131;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    width: 100%;
+    margin-top: 22px;
+    min-height: 50px;
+    font-size: 13px;
+}
+html[data-theme='night'] .retail-settings-logout {
+    color: #ff9a9a;
+}
+.retail-settings-detail .client-hub-settings-layout {
+    display: block;
+}
+.retail-settings-detail .client-hub-panel {
+    padding: 24px;
+    background: var(--surface);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+}
+.retail-settings-detail .client-hub-panel h2 {
+    color: var(--text);
+}
+.retail-settings-detail .client-hub-security-tip {
+    background: var(--soft);
+    color: var(--text);
+}
+.retail-settings-detail .btn-success {
+    background: var(--blue);
+    border-color: var(--blue);
+    color: #fff;
+}
+.retail-settings-detail input:focus {
+    background: var(--surface);
+    color: var(--text);
+}
+.retail-settings-detail hr {
+    border-color: var(--border);
+    opacity: 1;
+}
+.retail-settings-card:focus-visible,
+.retail-settings-logout:focus-visible,
+.retail-settings-back:focus-visible {
+    outline: 3px solid var(--blue);
+    outline-offset: 3px;
+}
+.retail-logout-dialog {
+    width: min(420px, calc(100vw - 32px));
+    padding: 24px;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    background: var(--surface);
+    color: var(--text);
+}
+.retail-logout-dialog::backdrop {
+    background: #07142688;
+}
+.retail-logout-dialog h2 {
+    font-size: 20px;
+}
+.retail-logout-dialog p {
+    color: var(--muted);
+}
+.retail-logout-dialog > div {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+@media (max-width: 700px) {
+    .retail-settings {
+        padding: 18px 0 4px;
+    }
+    .retail-settings-heading {
+        margin-bottom: 18px;
+        gap: 10px;
+    }
+    .retail-settings-heading h1 {
+        font-size: 23px;
+    }
+    .retail-settings-identity {
+        padding: 16px;
+        gap: 12px;
+        margin-bottom: 16px;
+    }
+    .retail-settings-identity strong {
+        font-size: 14px;
+    }
+    .retail-settings-avatar {
+        width: 48px;
+        height: 48px;
+        font-size: 21px;
+    }
+    .retail-settings-cards {
+        grid-template-columns: 1fr;
+        gap: 0;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        overflow: hidden;
+    }
+    .retail-settings-card {
+        min-height: 86px;
+        padding: 16px;
+        border: 0;
+        border-bottom: 1px solid var(--border);
+        border-radius: 0;
+        gap: 12px;
+    }
+    .retail-settings-card:last-child {
+        border-bottom: 0;
+    }
+    .retail-settings-icon {
+        width: 42px;
+        height: 42px;
+        font-size: 18px;
+    }
+    .retail-settings-card-copy strong {
+        font-size: 13px;
+    }
+    .retail-settings-card-copy small {
+        font-size: 11px;
+    }
+    .retail-settings-detail .client-hub-panel {
+        padding: 18px 14px;
+    }
+    .retail-settings-logout {
+        margin-top: 16px;
+    }
+}
+@media (prefers-reduced-motion: reduce) {
+    .retail-settings-card {
+        transition: none;
+    }
+}
+html[data-theme='night'] .retail-settings-icon,
+html[data-theme='night'] .retail-settings-avatar,
+html[data-theme='night'] .retail-settings-identity > i {
+    color: #94bdff;
+}
+.retail-settings-detail .mfa-security-panel {
+    --bw-surface: var(--surface);
+    --bw-surface-soft: var(--soft);
+    --bw-border: var(--border);
+    --bw-text: var(--text);
+    --bw-muted: var(--muted);
+}

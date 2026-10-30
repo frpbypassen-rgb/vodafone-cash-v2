@@ -43,3 +43,11 @@
         }
     });
 })();
+
+(() => {
+    'use strict';
+    const dialog = document.getElementById('retailLogoutDialog');
+    if (!dialog) return;
+    document.querySelector('[data-retail-logout]')?.addEventListener('click', () => dialog.showModal());
+    document.querySelector('[data-retail-logout-cancel]')?.addEventListener('click', () => dialog.close());
+})();
