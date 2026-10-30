@@ -227,6 +227,8 @@ const requestCompanyPin = () =>
         window.setTimeout(() => input.focus(), 50);
     });
 
+const usesReferenceTransfer = () => body.hasAttribute('data-business-shell') || body.hasAttribute('data-retail-transfer-shell');
+
 const requestOperationPin = async () => {
     const response = await portalFetch('/security/operation-pin/status', {
         headers: { Accept: 'application/json', 'x-csrf-token': config.csrfToken || '' },
@@ -234,7 +236,7 @@ const requestOperationPin = async () => {
     const status = await parseJsonResponse(response);
     if (!response.ok || !status.success) throw new Error(status.error || 'تعذر التحقق من حماية التحويل.');
     if (!status.enabled) return '';
-    if (config.workspaceType === 'company') return requestCompanyPin();
+    if (config.workspaceType === 'company' || body.hasAttribute('data-retail-transfer-shell')) return requestCompanyPin();
     const pin = window.prompt('أدخل رمز العمليات (من 4 إلى 6 أرقام) لتأكيد التحويل:');
     if (pin === null) return null;
     if (!/^\d{4,6}$/.test(pin.trim())) throw new Error('رمز العمليات يجب أن يكون من 4 إلى 6 أرقام.');
@@ -248,7 +250,7 @@ const transferConfirmBody = document.getElementById('transferConfirmBody');
 const transferConfirmTitle = document.getElementById('transferConfirmTitle');
 
 const updateReviewViewport = () => {
-    if (!transferConfirmDialog || !body.hasAttribute('data-business-shell')) return;
+    if (!transferConfirmDialog || !usesReferenceTransfer()) return;
     const viewport = window.visualViewport;
     // Older engines use innerHeight; mobile keyboards resize the visual viewport.
     transferConfirmDialog.style.setProperty(
@@ -279,7 +281,7 @@ const transferSuccessRef = document.getElementById('transferSuccessRef');
 
 const transferSuccessWhatsapp = document.getElementById('transferSuccessWhatsapp');
 
-const draftStorageKey = config.selectedService ? `cos-draft-${config.selectedService}` : '';
+const draftStorageKey = config.selectedService ? (config.workspaceType === 'customer' ? storageKey(`transfer-draft-${config.selectedService}`) : `cos-draft-${config.selectedService}`) : '';
 
 let pendingTransferConfirm = null;
 
@@ -457,7 +459,7 @@ const executeTransfer = async () => {
                 true
             );
             fillTransferSuccess(payload, context.phoneHint);
-            if (body.hasAttribute('data-business-shell')) openDialog(transferSuccessDialog);
+            if (usesReferenceTransfer()) openDialog(transferSuccessDialog);
             clearTransferValues();
             resetSmartTransfer(true);
             updateCostEstimate();
@@ -482,7 +484,7 @@ const openSealConfirm = ({ html, title, onConfirm, confirmHtml, forceDialog = fa
     if (
         !transferConfirmDialog ||
         !transferConfirmBody ||
-        (!forceDialog && !body.hasAttribute('data-business-shell'))
+        (!forceDialog && !usesReferenceTransfer())
     ) {
         onConfirm();
         return;
@@ -530,7 +532,7 @@ const executeSmartTransfer = async () => {
         onSuccess: (payload, context) => {
             const reference = payload.customId ? ` الرقم المرجعي ${payload.customId}.` : '';
             fillTransferSuccess(payload, context.phoneHint);
-            if (body.hasAttribute('data-business-shell')) openDialog(transferSuccessDialog);
+            if (usesReferenceTransfer()) openDialog(transferSuccessDialog);
             resetSmartTransfer(true);
             setSmartStatus(
                 `${payload.message || 'تم تسجيل العملية.'}${reference} يمكنك متابعتها من سجل المعاملات.`,

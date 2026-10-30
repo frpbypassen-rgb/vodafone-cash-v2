@@ -38,17 +38,8 @@ exports.getAccount = async (req, res) => {
     });
 };
 
-exports.getTransfers = async (req, res) => {
-    return renderHubPage(req, res, 'client/hub/transfers', {
-        pickService: String(req.query.service || '').trim()
-    });
-};
-
-exports.getServices = async (req, res) => {
-    const loaded = await loadWalletHubAccount(req);
-    if (!loaded) return clientWorkspaceController.renderPage('services')(req, res);
-    return renderHubPage(req, res, 'client/hub/services');
-};
+exports.getTransfers = require('./retailTransferController').renderPage('services');
+exports.getServices = require('./retailTransferController').renderPage('services');
 
 exports.getReports = async (req, res) => {
     return renderHubPage(req, res, 'client/hub/reports');

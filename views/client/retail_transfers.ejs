@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="ar" dir="rtl" data-portal="customer" data-theme="<%= clientTheme || 'day' %>">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>التحويلات | أهرام باي</title>
+<link rel="stylesheet" href="/css/portal-shell/base.css?v=20261030"><link rel="stylesheet" href="/css/retail-transfers.css?v=20261030-1">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
+</head><body data-customer-shell data-retail-transfer-shell>
+<% const retailNav = [
+{href:'/client/dashboard',label:'الرئيسية',icon:'fa-house'},
+{href:'/client/transfers',label:'تحويل',icon:'fa-paper-plane',active:true},
+{href:'/client/account?tab=operations',label:'العمليات',icon:'fa-receipt'},
+{href:'/client/settings',label:'الإعدادات',icon:'fa-gear'},
+{href:'/client/support',label:'الدعم',icon:'fa-headset'}
+]; const service = serviceCatalog.find(item => item.key === servicePage.selectedService);
+const title = page === 'services' ? 'التحويلات' : page === 'smart_transfer' ? 'التحويل من رسالة' : page === 'internal_transfer' ? 'تحويل رصيد داخلي' : service.label; %>
+<div class="layout"><aside class="sidebar"><div><div class="brand">AL-AHRAM <span>Pay</span></div><p class="small">بوابة العملاء</p></div><nav class="nav" aria-label="التنقل الرئيسي"><% retailNav.forEach(item=>{ %><a href="<%= item.href %>" class="<%= item.active?'active':'' %>" <%- item.active?'aria-current="page"':'' %>><i class="fa-solid <%= item.icon %>" aria-hidden="true"></i><%= item.label %></a><% }) %></nav><a href="/client/logout">تسجيل الخروج</a></aside>
+<main class="main"><header class="topbar"><div class="identity"><div class="avatar"><%= String(user.name || 'ع').slice(0,1) %></div><div><strong><%= user.name %></strong><div class="small">حساب عميل · <bdi><%= user.accountCode || '' %></bdi></div></div></div><div class="tools"><%- include('partials/customer_notifications') %><%- include('partials/customer_theme_switcher') %></div></header>
+<% if (locals.localPreview) { %><div class="preview-banner" role="status">معاينة محلية من ملفات البوابة الفعلية — بيانات تجريبية. إرسال التحويلات محجوب.</div><% } %>
+<div class="heading"><div><h1><%= title %></h1><p><%= page==='services'?'اختر الخدمة لفتح نموذج التحويل الخاص بها.':'راجع بيانات المستفيد والتكلفة قبل تأكيد الطلب.' %></p></div><% if(page!=='services') { %><a class="button" href="/client/transfers">العودة للخدمات</a><% } %></div>
+<% if(page==='services') { %>
+<% if(workspace.permissions.canTransfer) { %><div class="gallery-actions"><a class="button primary" href="/client/smart-transfer">التحويل من رسالة</a><a class="button" href="/client/internal-transfer">تحويل رصيد داخلي</a></div><div class="service-gallery"><% serviceCatalog.forEach(item=>{ %><a class="service-choice" href="/client/services/<%= item.slug %>"><span class="service-mark"><i class="fa-solid <%= item.icon %>" aria-hidden="true"></i></span><strong><%= item.label %></strong><small><%= item.description %></small></a><% }) %></div><% } else { %><p class="note">الحساب للعرض فقط؛ لا يملك صلاحية إنشاء تحويلات.</p><% } %>
+<% } else { %>
+<div class="service-balance"><span>الرصيد المتاح</span><strong dir="ltr"><span data-agent-service-balance><%= Number(user.balance || 0).toLocaleString('en-US',{minimumFractionDigits:3,maximumFractionDigits:3}) %></span> LYD</strong></div>
+<% if(page==='service_workbench') { %><%- include('../portal/partials/company_transfer_form', {isolatedService:service}) %>
+<% } else if(page==='internal_transfer') { %><%- include('../portal/partials/internal_transfer_panel') %>
+<% } else { %><%- include('../portal/partials/smart_transfer_panel') %><% } %>
+<% } %>
+</main></div><nav class="bottomnav" aria-label="التنقل للهاتف"><% retailNav.forEach(item=>{ %><a href="<%= item.href %>" class="<%= item.active?'active':'' %>"><i class="fa-solid <%= item.icon %>" aria-hidden="true"></i><span><%= item.label %></span></a><% }) %></nav>
+<dialog class="bw-dialog" id="transferConfirmDialog" aria-labelledby="transferConfirmTitle"><header class="cp-transfer-review-head" tabindex="-1"><h2 id="transferConfirmTitle">تأكيد العملية</h2></header><div id="transferConfirmBody"></div><div class="bw-dialog-actions"><button type="button" data-dialog-close>تعديل</button><button type="button" class="primary" id="transferConfirmSubmit">تأكيد وختم</button></div></dialog>
+<dialog class="bw-dialog" id="companyPinDialog" aria-labelledby="companyPinTitle"><form id="companyPinForm"><h2 id="companyPinTitle">رمز العمليات</h2><p>أدخل رمز العمليات من ٤ إلى ٦ أرقام لتأكيد التحويل.</p><label class="bw-field"><span>رمز العمليات</span><input id="companyPinInput" type="password" inputmode="numeric" pattern="[0-9]{4,6}" maxlength="6" autocomplete="one-time-code" required></label><p id="companyPinError" class="bw-form-result danger" hidden></p><div class="bw-dialog-actions"><button type="button" data-dialog-close>إلغاء</button><button type="submit" class="primary">تأكيد الرمز</button></div></form></dialog>
+<dialog class="bw-dialog" id="transferSuccessDialog" aria-labelledby="transferSuccessTitle"><h2 id="transferSuccessTitle">تم استلام العملية</h2><p id="transferSuccessCopy">تسجيل الطلب لا يعني اكتمال التحويل. تابع حالته من سجل العمليات.</p><p id="transferSuccessRef" dir="ltr" hidden></p><div class="bw-dialog-actions"><a class="button primary" href="/client/account?tab=operations" id="transferSuccessOps">متابعة العملية</a><a id="transferSuccessWhatsapp" class="button" target="_blank" rel="noopener" hidden>واتساب العميل</a><button type="button" data-dialog-close>إغلاق</button></div></dialog>
+<script>window.businessPortal = <%- JSON.stringify({page,workspaceType:'customer',csrfToken,notificationScope:accountType+':'+String(account._id),services:serviceCatalog,selectedService:page==='service_workbench'?servicePage.selectedService:null,availableBalance:Number(user.balance||0),canViewBalance:true,entityName:user.name}).replace(/</g,'\\u003c') %>;window.clientPortal = <%- JSON.stringify({csrfToken,retail:true}).replace(/</g,'\\u003c') %>;</script>
+<script src="/js/client-portal.js?v=20261030" defer></script><script type="module" src="/js/retail-transfers.js?v=20261030-1"></script>
+</body></html>

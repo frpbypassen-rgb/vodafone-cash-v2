@@ -44,6 +44,7 @@ const clientCompanyController = require('../controllers/clientCompanyController'
 const clientAgentController = require('../controllers/clientAgentController');
 const clientWorkspaceController = require('../controllers/clientWorkspaceController');
 const clientHubController = require('../controllers/clientHubController');
+const retailTransferController = require('../controllers/retailTransferController');
 const clientDepositController = require('../controllers/clientDepositController');
 const businessPortalService = require('../services/businessPortalService');
 
@@ -95,9 +96,9 @@ router.post('/profile', requireClientAuth, clientDashboardController.postUpdateO
 router.get('/api/transactions', requireClientAuth, clientDashboardController.getApiTransactions);
 router.get('/api/rates', requireClientAuth, clientWorkspaceController.getCurrentRates);
 router.get('/services', requireClientAuth, clientHubController.getServices);
-router.get('/services/:serviceKey', requireClientAuth, clientWorkspaceController.renderPage('service_workbench'));
-router.get('/smart-transfer', requireClientAuth, clientWorkspaceController.renderPage('smart_transfer'));
-router.get('/internal-transfer', requireClientAuth, clientWorkspaceController.renderPage('internal_transfer'));
+router.get('/services/:serviceKey', requireClientAuth, retailTransferController.renderPage('service_workbench'));
+router.get('/smart-transfer', requireClientAuth, retailTransferController.renderPage('smart_transfer'));
+router.get('/internal-transfer', requireClientAuth, retailTransferController.renderPage('internal_transfer'));
 router.get('/company/deposits', requireClientAuth, clientWorkspaceController.renderPage('deposits'));
 router.get('/transactions', requireClientAuth, clientWorkspaceController.renderPage('transactions'));
 router.get('/finance', requireClientAuth, clientWorkspaceController.renderPage('finance'));
@@ -116,7 +117,7 @@ router.get('/security', requireClientAuth, clientWorkspaceController.renderPage(
 router.get('/reports/export.csv', requireClientAuth, clientWorkspaceController.exportReportCsv);
 router.get('/reports/central.pdf', requireClientAuth, clientWorkspaceController.downloadCentralCompanyReportPdf);
 router.get('/transactions/:id/details', requireClientAuth, clientWorkspaceController.getTransactionDetails);
-router.post('/api/smart-transfer/parse', requireClientAuth, clientWorkspaceController.parseSmartTransferMessage);
+router.post('/api/smart-transfer/parse', requireClientAuth, retailTransferController.parseMessage);
 router.post('/api/assistant/query', requireClientAuth, businessAssistantLimiter, clientWorkspaceController.askBusinessAssistant);
 router.post('/customers/add', requireClientAuth, clientWorkspaceController.postCreateCustomer);
 router.post('/customers/:id/toggle', requireClientAuth, clientWorkspaceController.postToggleCustomer);

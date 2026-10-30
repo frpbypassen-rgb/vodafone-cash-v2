@@ -61,7 +61,7 @@ const submitBalanceTransfer = async (bodyData) => {
             },
             ''
         );
-        if (body.hasAttribute('data-business-shell')) openDialog(transferSuccessDialog);
+        if (body.hasAttribute('data-business-shell') || body.hasAttribute('data-retail-transfer-shell')) openDialog(transferSuccessDialog);
         balanceTransferForm.reset();
     } catch (error) {
         showFormResult(balanceTransferResult, error.message || 'تعذر تحويل الرصيد.', false);
@@ -86,7 +86,7 @@ balanceTransferForm?.addEventListener('submit', async (event) => {
         const lookup = await parseJsonResponse(lookupResponse);
         if (!lookupResponse.ok || !lookup.success) throw new Error(lookup.error || 'تعذر التحقق من الحساب.');
         const confirmCopy = `سيتم تحويل ${bodyData.amount} LYD إلى ${lookup.target.name} (${lookup.target.accountCode}).`;
-        if (config.workspaceType !== 'company') {
+        if (config.workspaceType !== 'company' && !body.hasAttribute('data-retail-transfer-shell')) {
             if (!window.confirm(`${confirmCopy} هل تريد المتابعة؟`)) return;
             await submitBalanceTransfer(bodyData);
             return;
