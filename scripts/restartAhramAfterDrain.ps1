@@ -44,6 +44,15 @@ if (@(Get-NetFirewallProfile -PolicyStore ActiveStore | Where-Object { !$_.Enabl
 $publicHealth = Invoke-RestMethod ('https://' + $SiteName + '/health/ready') -TimeoutSec 15
 if ([int]$publicHealth.pid -ne [int]$initialApp.pid -or $publicHealth.startupReady -ne $true) { throw 'Public HTTPS is serving a different runtime.' }
 Import-Module WebAdministration
+# Windows PowerShell can import the IIS provider without loading the separate
+# managed administration assembly. Load the installed IIS assembly explicitly
+# before constructing ServerManager; fail before changing admission if absent.
+if (!('Microsoft.Web.Administration.ServerManager' -as [type])) {
+    if ([IntPtr]::Size -ne 8) { throw 'Run this script in 64-bit Windows PowerShell as Administrator.' }
+    $iisAssemblyPath = Join-Path $env:windir 'System32\inetsrv\Microsoft.Web.Administration.dll'
+    if (!(Test-Path -LiteralPath $iisAssemblyPath -PathType Leaf)) { throw 'Installed IIS administration assembly was not found. No restart was performed.' }
+    Add-Type -Path $iisAssemblyPath -ErrorAction Stop
+}
 $manager = New-Object Microsoft.Web.Administration.ServerManager
 try {
     if (!$manager.Sites[$SiteName] -or $manager.Sites[$SiteName].State -ne 'Started') { throw 'Expected IIS site is not started.' }
