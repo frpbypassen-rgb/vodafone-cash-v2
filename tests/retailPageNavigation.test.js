@@ -48,6 +48,7 @@ test.each(['profile', 'security', 'notifications', 'appearance', 'documents'])(
         const html = await render('client/hub/settings.ejs', { activeSection });
         expect(html).toContain('retail-pages.css');
         expect(html).toContain('href="/security/sessions"');
+        expect(html).toContain('href="/client/logout"');
         expect(html.match(/aria-label="أقسام الإعدادات"/g) || []).toHaveLength(1);
         expect(html).not.toContain('client-os-shell');
         if (activeSection === 'security') expect(html.match(/name="currentPassword"/g) || []).toHaveLength(1);
@@ -106,6 +107,8 @@ test('customer More reuses company popover presentation and preserves account pa
     expect(html).toContain('agent-more-footer');
     expect(html).not.toContain('retailMoreSearch');
     expect(html).not.toContain('<dialog');
-    expect(html).toContain('/client/settings?section=security');
+    expect(moreMenu).toContain('href="/client/settings"');
+    expect(moreMenu).not.toContain('/client/settings?section=');
+    expect(moreMenu).not.toContain('/client/logout');
     expect(html).not.toContain('/client/integrations');
 });

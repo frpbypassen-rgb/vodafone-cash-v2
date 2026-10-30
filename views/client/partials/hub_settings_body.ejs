@@ -7,7 +7,7 @@
         <a href="/client/settings?section=appearance" class="<%= section === 'appearance' ? 'is-active' : '' %>"><i class="fa-solid fa-palette"></i> المظهر</a>
         <a href="/client/settings?section=documents" class="<%= section === 'documents' ? 'is-active' : '' %>"><i class="fa-solid fa-file-shield"></i> الحساب والوثائق</a>
         <% if (['شركة', 'وكيل'].includes(profile.accountTypeName)) { %><a href="/client/integrations/webhooks"><i class="fa-solid fa-code-branch"></i> تكاملات Webhook</a><% } %>
-        <% if (locals.retailModern) { %><a href="/security/sessions"><i class="fa-solid fa-laptop"></i> الأجهزة والجلسات</a><% } %>
+        <% if (locals.retailModern) { %><a href="/security/sessions"><i class="fa-solid fa-laptop"></i> الأجهزة والجلسات</a><a class="text-danger" href="/client/logout"><i class="fa-solid fa-arrow-right-from-bracket"></i> تسجيل الخروج</a><% } %>
     </nav>
 
     <div class="client-hub-panel">
