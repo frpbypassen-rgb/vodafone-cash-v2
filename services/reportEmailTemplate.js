@@ -10,7 +10,7 @@ const context = (kind, accountName) => {
     const brand = getBrandContact();
     let origin = 'https://ahrampay.com';
     try { const url = new URL(brand.website); if(url.protocol === 'https:' && !url.username && !url.password) origin = url.origin; } catch (_) { /* Use the official secure origin. */ }
-    return {brand,accountName:String(accountName || '').slice(0,160),accountLabel:kind === 'company'?'الشركة':kind === 'customer'?'الحساب':'الوكالة',settingsUrl:origin+(kind === 'company' || kind === 'customer'?'/client':'/agent-portal')+'/settings#notifications'};
+    return {brand,accountName:String(accountName || '').slice(0,160),accountLabel:kind === 'company'?'الشركة':kind === 'customer'?'الحساب':'الوكالة',settingsUrl:kind === 'customer'?origin+'/client/settings?section=notifications':origin+(kind === 'company'?'/client':'/agent-portal')+'/settings#notifications'};
 };
 const codeEmail = ({code,kind='agent',accountName=''}) => {
     if(!/^\d{6}$/.test(String(code)))throw new Error('INVALID_EMAIL_CODE');

@@ -1262,3 +1262,170 @@ html[data-theme='night'] .rs-danger:not(:disabled) {
     margin: 0 auto;
     align-self: start;
 }
+.rn-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 18px;
+    align-items: start;
+}
+.rn-card {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+.rn-card > header {
+    margin-bottom: 0;
+}
+.rn-card h2 {
+    font-size: 16px;
+}
+.rn-state {
+    align-self: start;
+    font-size: 12px;
+    padding: 5px 10px;
+    background: var(--soft);
+    color: var(--text);
+    border-radius: 8px;
+}
+.rn-description {
+    font-size: 12px;
+    line-height: 1.9;
+    color: var(--muted);
+    margin: 0;
+}
+.rn-actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+.rn-card .button,
+.rn-inbox .button {
+    min-height: 44px;
+    font-size: 12px;
+}
+.rn-card form:not([hidden]) {
+    display: grid;
+    gap: 10px;
+}
+.rn-card label {
+    font-size: 12px;
+}
+.rn-card input:not([type='checkbox']) {
+    min-height: 48px;
+    font-size: 16px;
+    background: var(--bg);
+    color: var(--text);
+    border-color: var(--border);
+}
+.rn-card input[type='checkbox'] {
+    width: 22px;
+    height: 22px;
+    min-height: 22px;
+    padding: 0;
+    accent-color: var(--blue);
+    flex-shrink: 0;
+}
+.rn-card .rn-preference {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 18px;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--border);
+}
+.rn-preference strong {
+    display: block;
+    font-size: 12px;
+}
+.rn-preference small {
+    display: block;
+    color: var(--muted);
+    font-size: 11px;
+    margin-top: 5px;
+}
+.rn-message {
+    padding: 14px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--soft);
+    color: var(--text);
+    font-size: 13px;
+    margin-bottom: 16px;
+}
+.rn-message.is-error {
+    border-color: #c56b6b;
+}
+.rn-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 16px;
+    font-size: 11px;
+    color: var(--muted);
+}
+.rn-toolbar .button {
+    font-size: 12px;
+}
+.rn-card [hidden],
+.rn-message[hidden] {
+    display: none !important;
+}
+.rn-card button:disabled {
+    background: var(--soft);
+    border-color: var(--border);
+    color: var(--muted);
+    opacity: 1;
+}
+.rn-inbox {
+    display: flex;
+    gap: 16px;
+    align-items: center;
+    justify-content: space-between;
+    padding: 18px 22px;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: var(--surface);
+    margin-top: 18px;
+}
+.rn-inbox strong {
+    font-size: 14px;
+}
+.rn-inbox p {
+    margin-top: 5px;
+    color: var(--muted);
+    font-size: 12px;
+}
+.rn-page :is(button, a, input):focus-visible {
+    outline: 3px solid var(--blue);
+    outline-offset: 3px;
+}
+@media (max-width: 800px) {
+    .rn-grid {
+        grid-template-columns: 1fr;
+        gap: 16px;
+    }
+}
+@media (max-width: 480px) {
+    .rn-inbox {
+        flex-direction: column;
+        align-items: stretch;
+        padding: 16px;
+    }
+    .rn-actions {
+        display: grid;
+        grid-template-columns: 1fr;
+    }
+    .rn-card {
+        padding: 18px 16px;
+    }
+}
+.rn-page .retail-profile-actions {
+    position: static;
+    padding-bottom: 0;
+}
+.rn-card input::placeholder {
+    color: var(--muted);
+    opacity: 1;
+}

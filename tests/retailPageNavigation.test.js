@@ -135,13 +135,31 @@ test('read-only profile cannot render an edit form', async () => {
     expect(html).toContain('بيانات هذا الحساب للعرض فقط.');
 });
 
-test.each(['day','night'])('customer security shows all three factors in order in %s mode', async clientTheme => {
-    const html = await render('client/hub/settings.ejs',{activeSection:'security',clientTheme});
-    expect(html).toContain('id="retailPasswordForm"');
-    expect(html).toContain('data-mfa-panel');
-    expect(html).toContain('data-email-login');
-    expect(html).toContain('data-telegram-login');
-    expect(html.indexOf('data-mfa-panel')).toBeLessThan(html.indexOf('data-email-login'));
-    expect(html.indexOf('data-email-login')).toBeLessThan(html.indexOf('data-telegram-login'));
-    expect(html).toContain('href="/client/settings?section=profile"');
-});
+test.each(['day', 'night'])(
+    'customer security shows all three factors in order in %s mode',
+    async (clientTheme) => {
+        const html = await render('client/hub/settings.ejs', { activeSection: 'security', clientTheme });
+        expect(html).toContain('id="retailPasswordForm"');
+        expect(html).toContain('data-mfa-panel');
+        expect(html).toContain('data-email-login');
+        expect(html).toContain('data-telegram-login');
+        expect(html.indexOf('data-mfa-panel')).toBeLessThan(html.indexOf('data-email-login'));
+        expect(html.indexOf('data-email-login')).toBeLessThan(html.indexOf('data-telegram-login'));
+        expect(html).toContain('href="/client/settings?section=profile"');
+    }
+);
+
+test.each(['day', 'night'])(
+    'notification settings include independent delivery channels in %s theme',
+    async (clientTheme) => {
+        const html = await render('client/hub/settings.ejs', { activeSection: 'notifications', clientTheme });
+        expect(html).toContain('data-retail-notifications');
+        expect(html).toContain('data-rn-push-test');
+        expect(html).toContain('data-rn-email-test');
+        expect(html).toContain('data-rn-tg-test');
+        expect(html).toContain('data-rn-preferences');
+        expect(html).toContain('data-rn-save disabled');
+        expect(html).not.toContain('data-email-login');
+        expect(html).not.toContain('data-telegram-login');
+    }
+);

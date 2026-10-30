@@ -70,7 +70,7 @@ const linkChatByCode = async ({ code, chatId, telegramUser }) => {
     try {
     link = await TelegramAccountLink.findOneAndUpdate(
         filter,
-        { $set: { chatId: String(chatId), linkedAt: new Date(), linkedBy: 'telegram', codeHash: hash(crypto.randomBytes(32).toString('hex')),
+        { $inc: { settingsRevision: 1 }, $set: { chatId: String(chatId), linkedAt: new Date(), linkedBy: 'telegram', codeHash: hash(crypto.randomBytes(32).toString('hex')),
             ...(pending.activateOnLink ? { deliveryMode: ['whatsapp', 'both'].includes(pending.deliveryMode) ? 'both' : 'telegram' } : {}) }, $unset: { codeExpiresAt: 1, activateOnLink: 1, requestedById: 1, requestedByModel: 1 } },
         { returnDocument: 'after' }
     ).select('+codeHash');

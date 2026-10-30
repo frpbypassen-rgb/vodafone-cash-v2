@@ -33,6 +33,7 @@ const { requireClientAuth, endUnauthorizedClientSession } = require('../middlewa
 
 const { getSupportIdentity } = require('../services/portalSupportService');
 router.use(require('./portalSharedApi'));
+router.use(require('./customerNotifications'));
 router.use(require('./companyReportEmail'));
 router.use(require('./companyTelegram'));
 

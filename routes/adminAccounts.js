@@ -183,10 +183,13 @@ const renderEditor = async (req, res, { error = '', submitted = null, statusCode
     const telegramLink = ['user', 'agent', 'company', 'subaccount'].includes(definition.type)
         ? await TelegramAccountLink.findOne({ ownerModel: definition.modelName, ownerId: account._id }).select('+codeHint').lean()
         : null;
+    const customerNotifications = ['user','subaccount'].includes(definition.type)
+        ? await require('../services/customerNotificationService').status({actor:account,entity:account,actorModel:definition.modelName,isCustomer:true,accountType:definition.type==='subaccount'?'sub_client':'user'}) : null;
     return res.status(statusCode).render('admin_account_edit', {
         account,
         accountType: definition.type,
         accountLabel: definition.label,
+        customerNotifications,
         formData: accountToFormData(account, submitted, { companyOwner }),
         options,
         returnUrl: getReturnUrl(definition.type, account),
@@ -198,6 +201,17 @@ const renderEditor = async (req, res, { error = '', submitted = null, statusCode
         telegramCode
     });
 };
+
+router.post('/admin/accounts/:type/:id/notification-preferences', requireAuth, requireMaster, async(req,res)=>{
+    try {
+        const {definition,account}=await findEditableAccount(req.params.type,req.params.id);
+        if(!['user','subaccount'].includes(definition.type))return res.sendStatus(403);
+        const ctx={actor:{...account.toObject(),name:req.session.adminName||'الإدارة'},entity:account,actorModel:definition.modelName,isCustomer:true,accountType:definition.type==='subaccount'?'sub_client':'user'};
+        await require('../services/customerNotificationService').save(ctx,{revision:Number(req.body.revision),emailRevision:Number(req.body.emailRevision),telegramRevision:Number(req.body.telegramRevision),ratesEnabled:req.body.ratesEnabled==='true',emailEnabled:req.body.emailEnabled==='true',telegramEnabled:req.body.telegramEnabled==='true'});
+        await logAction({req,action:'SETTINGS_UPDATED',performedById:req.session.adminId,performedByModel:'Admin',performedByName:req.session.adminName||'الإدارة',targetId:account._id,targetModel:definition.modelName,metadata:{section:'customer_notifications'}});
+        return res.redirect(`/admin/accounts/${definition.type}/${account._id}/edit`);
+    } catch(error) {return res.status(error.statusCode||500).send(error.statusCode?error.message:'تعذر حفظ تفضيلات الإشعارات.');}
+});
 
 router.post('/admin/accounts/:type/:id/telegram-code', requireAuth, requireMaster, async (req, res) => {
     const { definition, account } = await findEditableAccount(req.params.type, req.params.id);
@@ -211,7 +225,7 @@ router.post('/admin/accounts/:type/:id/telegram-settings', requireAuth, requireM
     const { definition, account } = await findEditableAccount(req.params.type, req.params.id);
     if (['agent', 'company'].includes(definition.type)) return res.status(409).send('استخدم لوحة إعدادات البوابة لإدارة حسابات Telegram والحالة الحالية.');
     const deliveryMode = ['off', 'whatsapp', 'telegram', 'both'].includes(req.body?.deliveryMode) ? req.body.deliveryMode : 'off';
-    await TelegramAccountLink.findOneAndUpdate({ ownerModel: definition.modelName, ownerId: account._id }, { $set: { deliveryMode, active: deliveryMode !== 'off' } }, { upsert: true, setDefaultsOnInsert: true });
+    await TelegramAccountLink.findOneAndUpdate({ ownerModel: definition.modelName, ownerId: account._id }, { $set: { deliveryMode, active: deliveryMode !== 'off' }, $inc:{settingsRevision:1} }, { upsert: true, setDefaultsOnInsert: true });
     return res.redirect(`/admin/accounts/${definition.type}/${account._id}/edit?telegramSaved=1`);
 });
 

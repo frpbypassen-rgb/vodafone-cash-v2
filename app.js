@@ -578,6 +578,7 @@ Promise.all([connectDB(), initRedis()]).then(() => startBoundHttpServer({
         await require('./services/companyReportEmailWorker').start().catch(() => {
             logger.error('Company statement email worker could not start');
         });
+        await require('./services/customerReportEmailWorker').start().catch(() => logger.error('Customer statement email worker could not start'));
         merchantWebhookService.startMerchantWebhookWorker();
         await startExecutorPushNotificationWorker().catch((error) => {
             logger.error('Executor push notification worker failed to start', { error: error.message });
