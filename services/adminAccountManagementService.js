@@ -350,6 +350,7 @@ const applyUploadedDocuments = (account, uploads = {}) => {
     }
 
     if (!replacements.length) return [];
+    if (account.schema?.path('documentRevision')) account.documentRevision = (account.documentRevision || 0) + 1;
     const replacedKinds = new Set(replacements.map((document) => document.kind));
     account.verificationDocuments = [
         ...existing.filter((document) => !replacedKinds.has(document.kind)),

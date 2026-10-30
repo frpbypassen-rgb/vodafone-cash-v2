@@ -294,7 +294,7 @@
                     <% if (Array.isArray(account.verificationDocuments) && account.verificationDocuments.length) { %>
                         <div class="account-strip mt-3">
                             <% account.verificationDocuments.forEach((document) => { %>
-                                <div class="strip-item"><span><%= ({ profile_photo: 'الصورة', identity: 'الهوية', tax_card: 'البطاقة الضريبية', business_license: 'الترخيص' })[document.kind] || 'مستند' %></span><strong><a class="link-success" href="<%= document.fileUrl %>" target="_blank" rel="noopener">عرض المستند <i class="fa-solid fa-arrow-up-right-from-square"></i></a></strong></div>
+                                <div class="strip-item"><span><%= ({ profile_photo: 'الصورة', identity: 'الهوية', tax_card: 'البطاقة الضريبية', business_license: 'الترخيص' })[document.kind] || 'مستند' %></span><strong><a class="link-success" href="<%= String(document.fileUrl).startsWith('/private/account-documents/') ? '/admin/accounts/'+accountType+'/'+account._id+'/documents/'+document._id : document.fileUrl %>" target="_blank" rel="noopener">عرض المستند <i class="fa-solid fa-arrow-up-right-from-square"></i></a></strong></div>
                             <% }) %>
                         </div>
                     <% } %>
@@ -405,6 +405,7 @@
                 <button type="submit" class="btn save-button"><i class="fa-solid fa-floppy-disk ms-1"></i>حفظ التعديلات</button>
             </footer>
         </form>
+        <%- include('partials/customer_document_review') %>
         <% if (locals.customerNotifications) { const notificationState=customerNotifications; %><section class="form-section"><h2 class="section-heading">إشعارات حساب العميل</h2><p>الحالة متزامنة مع تفضيلات العميل. لا يؤثر هذا القسم على أكواد الدخول.</p><form method="POST" action="/admin/accounts/<%= accountType %>/<%= account._id %>/notification-preferences"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><input type="hidden" name="revision" value="<%= notificationState.revision %>"><input type="hidden" name="emailRevision" value="<%= notificationState.email.revision %>"><input type="hidden" name="telegramRevision" value="<%= notificationState.telegram.revision %>"><label class="d-block my-2"><input type="checkbox" name="ratesEnabled" value="true" <%= notificationState.ratesEnabled?'checked':'' %>> تنبيهات أسعار الأجهزة</label><label class="d-block my-2"><input type="checkbox" name="emailEnabled" value="true" <%= notificationState.email.enabled?'checked':'' %> <%= notificationState.email.verified?'':'disabled' %>> كشف الحساب اليومي بالبريد — <%= notificationState.email.email || 'غير مؤكّد' %></label><label class="d-block my-2"><input type="checkbox" name="telegramEnabled" value="true" <%= notificationState.telegram.enabled?'checked':'' %> <%= notificationState.telegram.linked?'':'disabled' %>> إيصالات تليجرام — <%= notificationState.telegram.linked?'مرتبط':'غير مرتبط' %></label><button class="btn btn-primary mt-2" type="submit">حفظ تفضيلات الإشعارات</button></form></section><% } %>
         <% if (['user', 'agent', 'company', 'subaccount'].includes(accountType)) { %>
             <form id="telegram-settings-form" action="/admin/accounts/<%= accountType %>/<%= account._id %>/telegram-settings" method="POST"><input type="hidden" name="_csrf" value="<%= csrfToken %>"></form>

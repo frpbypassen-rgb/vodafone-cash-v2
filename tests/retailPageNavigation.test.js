@@ -1,4 +1,13 @@
 'use strict';
+test.each(['day', 'night'])('documents shows private status, account information and upload preview in %s', async (clientTheme) => {
+    const html = await render('client/hub/settings.ejs', { activeSection: 'documents', clientTheme });
+    expect(html).toContain('data-retail-documents');
+    expect(html).toContain('data-rd-verification');
+    expect(html).toContain('data-rd-preview hidden');
+    expect(html).toContain('data-rd-submit disabled');
+    expect(html).toContain('حتى 5 ميجابايت');
+    expect(html).not.toContain('name="currentPassword"');
+});
 test.each(['day', 'night'])('appearance renders three choices and a read-only preview in %s', async (clientTheme) => {
     const html = await render('client/hub/settings.ejs', { activeSection: 'appearance', clientTheme });
     expect(html).toContain('data-retail-appearance');

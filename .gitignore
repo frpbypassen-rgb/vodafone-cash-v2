@@ -103,3 +103,4 @@ docs/security/SECURITY-FINDINGS-*.md
 *.jks
 *.keystore
 key.properties
+private/account-documents/

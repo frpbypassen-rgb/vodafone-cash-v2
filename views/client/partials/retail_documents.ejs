@@ -1,0 +1,26 @@
+<section class="rd-page" data-retail-documents aria-label="الحساب والوثائق">
+  <div class="rd-summary">
+    <section class="rd-card"><h2><i class="fa-solid fa-id-card" aria-hidden="true"></i> معلومات الحساب</h2>
+      <dl class="rd-info"><div><dt>رقم الحساب</dt><dd><bdi data-rd-account><%= profile.accountCode || user.accountCode || '—' %></bdi><button type="button" class="button" data-rd-copy aria-label="نسخ رقم الحساب">نسخ</button></dd></div>
+      <div><dt>نوع الحساب</dt><dd><%= profile.accountTypeName || 'عميل' %></dd></div>
+      <div><dt>تاريخ الانضمام</dt><dd><%= profile.joinedAt ? new Date(profile.joinedAt).toLocaleDateString('ar-LY') : 'غير مسجل' %></dd></div>
+      <div><dt>حالة الحساب</dt><dd><%= ({active:'نشط',suspended:'موقوف',archived:'مؤرشف',inactive:'غير نشط'})[profile.accountStatus] || 'غير محددة' %></dd></div></dl>
+    </section>
+    <section class="rd-card"><h2><i class="fa-solid fa-shield-halved" aria-hidden="true"></i> التحقق من الوثائق</h2>
+      <strong class="rd-status" data-rd-verification>جارٍ التحقق…</strong><p class="rd-muted" data-rd-next>تُحمّل نتيجة المراجعة من حسابك.</p>
+      <p class="rd-muted" data-rd-last></p><a href="#rdUpload" class="button" data-rd-complete>استكمال التحقق</a>
+    </section>
+  </div>
+  <section class="rd-card"><div class="rd-heading"><h2>الوثائق المرفوعة</h2><button class="button" type="button" data-rd-refresh>تحديث الحالة</button></div><p class="rd-muted">تُراجع الوثائق من الإدارة. رفع الملف لا يعني اعتماده.</p><div data-rd-list aria-live="polite"></div></section>
+  <section class="rd-card" id="rdUpload"><h2>إضافة وثيقة</h2><p class="rd-muted">أضف الهوية أو جواز السفر للتحقق. البطاقة الضريبية والترخيص عند طلب الإدارة فقط.</p>
+    <form data-rd-form>
+      <label for="rdKind">نوع الوثيقة</label><select id="rdKind" name="kind"><option value="identity">الهوية أو جواز السفر</option><option value="tax_card">البطاقة الضريبية</option><option value="business_license">الترخيص</option></select>
+      <label class="rd-picker" for="rdFile"><i class="fa-solid fa-cloud-arrow-up" aria-hidden="true"></i><strong>اختر ملفًا من جهازك</strong><span>PDF أو JPG أو PNG أو WEBP · حتى 5 ميجابايت</span><input type="file" id="rdFile" name="document" accept="application/pdf,image/jpeg,image/png,image/webp" aria-describedby="rdFileHelp"></label>
+      <p id="rdFileHelp" class="rd-muted">تأكد أن الصورة واضحة وكاملة، ولا ترفع مستندات لا تخص حسابك.</p>
+      <div class="rd-preview" data-rd-preview hidden><img data-rd-image alt="معاينة الملف المحدد" hidden><div><strong data-rd-filename></strong><p class="rd-muted" data-rd-size></p><p class="rd-muted">لم يُرفع هذا الملف بعد.</p></div><button type="button" class="button" data-rd-clear>إزالة الاختيار</button></div>
+      <div class="rd-actions"><p role="status" aria-live="polite" data-rd-message></p><button type="submit" class="button" data-rd-submit disabled>رفع الوثيقة للمراجعة</button></div>
+    </form>
+    <p class="rd-muted">الملفات متاحة لصاحب الحساب والإدارة فقط. عند طلب تعديل، تبقى نتيجة المراجعة واضحة حتى رفع البديل.</p>
+  </section>
+</section>
+<script src="/js/retail-documents.js?v=20261030-documents" defer></script>

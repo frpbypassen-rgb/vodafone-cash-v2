@@ -1,0 +1,12 @@
+<% if (['user','subaccount'].includes(accountType) && (account.verificationDocuments || []).some(d=>d.kind!=='profile_photo')) { %>
+<section class="form-section"><h2 class="section-heading">مراجعة وثائق العميل</h2><p>تظهر النتيجة في حساب العميل. المراجعة لا تغيّر حالة الحساب أو صلاحيات التحويل.</p>
+<% account.verificationDocuments.filter(d=>d.kind!=='profile_photo').forEach(doc=>{ %>
+<form method="POST" action="/admin/accounts/<%= accountType %>/<%= account._id %>/document-review" class="border rounded p-3 mb-3">
+<input type="hidden" name="_csrf" value="<%= csrfToken %>"><input type="hidden" name="documentId" value="<%= doc._id %>"><input type="hidden" name="revision" value="<%= account.documentRevision || 0 %>">
+<strong><%= ({identity:'الهوية',tax_card:'البطاقة الضريبية',business_license:'الترخيص'})[doc.kind] || 'وثيقة' %></strong>
+<p>الحالة: <%= ({approved:'معتمدة',rejected:'تحتاج تعديلًا',pending:'قيد المراجعة'})[doc.reviewStatus || 'pending'] %></p>
+<a class="btn btn-outline-primary" href="/admin/accounts/<%= accountType %>/<%= account._id %>/documents/<%= doc._id %>" target="_blank" rel="noopener">عرض / تحميل الوثيقة</a>
+<label class="d-block my-2">نتيجة المراجعة<select name="result" class="form-select" required><option value="" <%= !['approved','rejected'].includes(doc.reviewStatus)?'selected':'' %>>اختر نتيجة المراجعة</option><option value="approved" <%= doc.reviewStatus==='approved'?'selected':'' %>>اعتماد الوثيقة</option><option value="rejected" <%= doc.reviewStatus==='rejected'?'selected':'' %>>طلب تعديل</option></select></label>
+<label class="d-block my-2">سبب طلب التعديل<textarea name="reason" maxlength="500" class="form-control"><%= doc.reviewReason || '' %></textarea></label>
+<button class="btn btn-primary" type="submit">حفظ نتيجة المراجعة</button></form>
+<% }) %></section><% } %>

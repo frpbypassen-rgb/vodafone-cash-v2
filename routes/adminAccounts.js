@@ -21,6 +21,23 @@ const { notifyAccountPhoneChanged } = require('../services/accountPhoneChangeNot
 const { phoneLengthModeFromLengths } = require('../utils/executorManualPolicy');
 const { getExecutorEnabledServiceKeys } = require('../utils/executorServiceCatalog');
 const TelegramAccountLink = require('../models/TelegramAccountLink');
+const customerDocuments = require('../services/customerAccountDocuments');
+router.get('/admin/accounts/:type/:id/documents/:documentId', requireAuth, requireMaster, async (req, res) => {
+    try {
+        const { definition, account } = await findEditableAccount(req.params.type, req.params.id);
+        if (!['user', 'subaccount'].includes(definition.type)) return res.sendStatus(403);
+        return await customerDocuments.download(account, req.params.documentId, res);
+    } catch (error) { return res.status(error.statusCode || 500).send(error.statusCode ? error.message : 'تعذر تحميل الوثيقة.'); }
+});
+router.post('/admin/accounts/:type/:id/document-review', requireAuth, requireMaster, async (req, res) => {
+    try {
+        const { definition, account } = await findEditableAccount(req.params.type, req.params.id);
+        if (!['user', 'subaccount'].includes(definition.type)) return res.sendStatus(403);
+        await customerDocuments.review({ Model: account.constructor, actor: account, id: req.body.documentId, revision: req.body.revision, result: req.body.result, reason: req.body.reason });
+        await logAction({ req, action: 'CUSTOMER_DOCUMENT_REVIEWED', performedById: req.session.adminId, performedByModel: 'Admin', targetId: account._id, targetModel: definition.modelName, metadata: { documentId: req.body.documentId, result: req.body.result } });
+        return res.redirect(`/admin/accounts/${definition.type}/${account._id}/edit`);
+    } catch (error) { return res.status(error.statusCode || 500).send(error.statusCode ? error.message : 'تعذر حفظ المراجعة.'); }
+});
 const { createAccountCode } = require('../services/telegramService');
 
 const verifyMultipartCsrf = (req, res, next) => {
