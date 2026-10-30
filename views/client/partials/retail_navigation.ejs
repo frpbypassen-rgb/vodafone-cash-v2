@@ -2,7 +2,7 @@
     {key:'home',href:'/client/dashboard',label:'الرئيسية',icon:'fa-house'},
     {key:'transfers',href:'/client/transfers',label:'تحويل',icon:'fa-paper-plane'},
     {key:'operations',href:'/client/account?tab=operations',label:'التقارير',icon:'fa-chart-column'},
-    {key:'settings',href:'/client/settings',label:'الإعدادات',icon:'fa-gear'},
-    {key:'support',href:'/client/support',label:'الدعم',icon:'fa-headset'}
+    {key:'support',href:'/client/support',label:'الدعم',icon:'fa-headset'},
+    {key:'settings',href:'/client/settings',label:'الإعدادات',icon:'fa-gear'}
 ]; %>
 <nav class="<%= navVariant==='mobile'?'bottomnav':'nav' %>" aria-label="<%= navVariant==='mobile'?'التنقل للهاتف':'التنقل الرئيسي' %>"><% shellNav.forEach(item=>{ %><a href="<%= item.href %>" class="<%= activeRetailNav===item.key?'active':'' %>" <%- activeRetailNav===item.key?'aria-current="page"':'' %>><i class="fa-solid <%= item.icon %>" aria-hidden="true"></i><span><%= item.label %></span></a><% }) %></nav>
