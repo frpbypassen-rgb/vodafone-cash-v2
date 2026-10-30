@@ -87,3 +87,16 @@ test('retail devices page keeps security controls in the shared shell', async ()
     expect(html).toContain('data-devices');
     expect(html.match(/class="bottomnav"/g) || []).toHaveLength(1);
 });
+
+test('customer More reuses company popover presentation and preserves account pages', async () => {
+    const html = await render('client/hub/account.ejs', { activeTab: 'operations' });
+    expect(html).toContain('company-mobile/mobile-menu.css');
+    expect(html).toContain('popover="auto"');
+    expect(html).toContain('popovertarget="retailMoreDialog"');
+    expect(html).toContain('agent-more-grid');
+    expect(html).toContain('agent-more-footer');
+    expect(html).not.toContain('retailMoreSearch');
+    expect(html).not.toContain('<dialog');
+    expect(html).toContain('/client/settings?section=security');
+    expect(html).not.toContain('/client/integrations');
+});
