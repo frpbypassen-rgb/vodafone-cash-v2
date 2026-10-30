@@ -112,3 +112,21 @@ test.each(['day', 'night'])('settings overview presents six sections in %s theme
     expect(html).not.toContain('name="name"');
     expect(html).toContain('data-theme="' + clientTheme + '"');
 });
+
+test('profile separates editable fields from read-only account information', async () => {
+    const html = await render('client/hub/settings.ejs', { activeSection: 'profile' });
+    expect(html).toContain('id="retailProfileForm"');
+    expect(html).toContain('action="/client/profile?return=settings"');
+    expect(html.match(/name="name"/g)).toHaveLength(1);
+    expect(html.match(/name="address"/g)).toHaveLength(1);
+    expect(html).not.toContain('name="phone"');
+    expect(html).toContain('retail-profile-info');
+});
+test('read-only profile cannot render an edit form', async () => {
+    const html = await render('client/hub/settings.ejs', {
+        activeSection: 'profile',
+        profile: { ...data.profile, canEditProfile: false },
+    });
+    expect(html).not.toContain('id="retailProfileForm"');
+    expect(html).toContain('بيانات هذا الحساب للعرض فقط.');
+});

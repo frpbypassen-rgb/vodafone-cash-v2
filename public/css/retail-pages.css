@@ -689,3 +689,179 @@ html[data-theme='night'] .retail-settings-identity > i {
     --bw-text: var(--text);
     --bw-muted: var(--muted);
 }
+.retail-profile-identity {
+    display: flex;
+    gap: 16px;
+    align-items: center;
+    padding: 20px 24px;
+    margin-bottom: 20px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+}
+.retail-profile-identity strong {
+    font-size: 17px;
+    overflow-wrap: anywhere;
+}
+.retail-profile-identity p {
+    margin: 5px 0 0;
+    font-size: 12px;
+    color: var(--muted);
+}
+.retail-profile-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+    gap: 20px;
+    align-items: start;
+}
+.retail-profile-panel {
+    min-width: 0;
+    padding: 24px;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    background: var(--surface);
+}
+.retail-profile-panel > header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 24px;
+}
+.retail-profile-panel h2 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 700;
+}
+.retail-profile-panel header p {
+    margin: 5px 0 0;
+    font-size: 12px;
+    color: var(--muted);
+}
+#retailProfileForm label {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    font-weight: 600;
+    font-size: 13px;
+    margin-bottom: 8px;
+}
+#retailProfileForm label span {
+    font-size: 11px;
+    font-weight: 400;
+    color: var(--muted);
+}
+#retailProfileForm input:not([type='hidden']) {
+    margin-bottom: 24px;
+    min-height: 48px;
+    font-size: 16px;
+}
+#retailProfileForm input:focus {
+    outline: 2px solid var(--blue);
+    outline-offset: 2px;
+    background: var(--surface);
+    color: var(--text);
+    box-shadow: none;
+}
+#retailProfileForm input::placeholder {
+    color: var(--muted);
+    opacity: 1;
+}
+.retail-profile-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+    background: var(--surface);
+}
+.retail-profile-actions p {
+    margin: 0;
+    font-size: 12px;
+    color: var(--muted);
+}
+.retail-profile-actions button {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 10px;
+    min-height: 48px;
+}
+.retail-profile-actions button:disabled {
+    background: var(--soft);
+    border-color: var(--border);
+    color: var(--muted);
+    opacity: 1;
+}
+.retail-profile-panel dl {
+    margin: 0;
+}
+.retail-profile-panel dl > div {
+    display: flex;
+    justify-content: space-between;
+    align-items: start;
+    gap: 18px;
+    padding: 16px 0;
+    border-bottom: 1px solid var(--border);
+}
+.retail-profile-panel dt {
+    font-size: 12px;
+    color: var(--muted);
+    font-weight: 400;
+    flex-shrink: 0;
+}
+.retail-profile-panel dd {
+    margin: 0;
+    text-align: end;
+    font-size: 13px;
+    font-weight: 600;
+    overflow-wrap: anywhere;
+    min-width: 0;
+}
+.retail-profile-help {
+    margin: 18px 0 0;
+    font-size: 12px;
+    line-height: 1.9;
+    color: var(--muted);
+}
+.retail-profile-help a {
+    color: var(--blue);
+    text-underline-offset: 3px;
+}
+html[data-theme='night'] .retail-profile-help a {
+    color: #94bdff;
+}
+@media (max-width: 800px) {
+    .retail-profile-grid {
+        grid-template-columns: 1fr;
+        gap: 16px;
+    }
+}
+@media (max-width: 700px) {
+    .retail-profile-identity {
+        padding: 16px;
+        gap: 12px;
+        margin-bottom: 16px;
+    }
+    .retail-profile-identity strong {
+        font-size: 14px;
+    }
+    .retail-profile-panel {
+        padding: 18px 16px;
+    }
+    .retail-profile-panel > header {
+        margin-bottom: 20px;
+    }
+    .retail-profile-panel h2 {
+        font-size: 14px;
+    }
+    .retail-profile-panel header p {
+        font-size: 11px;
+    }
+    .retail-profile-actions {
+        position: sticky;
+        bottom: 82px;
+        z-index: 2;
+        padding-bottom: 8px;
+    }
+}
