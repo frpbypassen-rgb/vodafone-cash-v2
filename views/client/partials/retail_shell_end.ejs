@@ -1,1 +1,4 @@
 </main></div><%- include('retail_navigation',{navVariant:'mobile',activeRetailNav}) %>
+
+<dialog id="retailMoreDialog" class="retail-more-sheet" aria-labelledby="retailMoreTitle"><header class="retail-more-head"><div><h2 id="retailMoreTitle">المزيد</h2><p>جميع صفحات حسابك في مكان واحد.</p></div><button type="button" data-retail-more-close aria-label="إغلاق المزيد"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></header><label class="retail-more-search"><span>ابحث عن صفحة</span><input type="search" id="retailMoreSearch" placeholder="مثل: الإيداعات، الأمان، التقارير" autocomplete="off"></label><div class="retail-more-content"><%- include('retail_directory',{directoryId:'retailMoreDirectoryTitle',includeHome:true}) %><p class="retail-more-empty" role="status" hidden>لا توجد صفحات مطابقة للبحث.</p></div></dialog>
+<script src="/js/retail-more.js?v=20261030-1" defer></script>
