@@ -94,6 +94,11 @@ test('customer More reuses company popover presentation and preserves account pa
     expect(html).toContain('popover="auto"');
     expect(html).toContain('popovertarget="retailMoreDialog"');
     expect(html).toContain('agent-more-grid');
+    const moreMenu = html.split('id="retailMoreDialog"')[1].split('</nav>')[0];
+    ['/client/dashboard', '/client/transfers', '/client/smart-transfer', '/client/internal-transfer'].forEach(href => {
+        expect(moreMenu).not.toContain('href="' + href + '"');
+    });
+    expect(moreMenu).toContain('/client/reports');
     expect(html).toContain('agent-more-footer');
     expect(html).not.toContain('retailMoreSearch');
     expect(html).not.toContain('<dialog');
