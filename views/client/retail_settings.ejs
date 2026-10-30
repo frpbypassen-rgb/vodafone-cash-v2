@@ -1,0 +1,5 @@
+<!doctype html><html lang="ar" dir="rtl" data-portal="customer" data-theme="<%= clientTheme || 'day' %>"><head><%- include('partials/retail_page_head',{retailPage:'settings'}) %></head><body class="retail-page" data-customer-shell><%- include('partials/retail_shell_start',{activeRetailNav:'settings'}) %><div class="heading"><div><h1>الإعدادات</h1><p>بياناتك وأمان حسابك وتفضيلاتك.</p></div></div><div class="client-hub-mobile-content">        <% if (settingsSuccess) { %><div class="client-hub-alert is-success">تم حفظ التغييرات بنجاح.</div><% } %>
+        <% if (settingsError === 'current_password') { %><div class="client-hub-alert is-error">كلمة المرور الحالية غير صحيحة.</div><% } %>
+        <% if (settingsError === 'new_password') { %><div class="client-hub-alert is-error">كلمة المرور الجديدة غير صالحة أو غير متطابقة.</div><% } %>
+        <% if (settingsError === 'save') { %><div class="client-hub-alert is-error">تعذر حفظ البيانات.</div><% } %>
+<%- include('partials/hub_settings_body') %></div><%- include('partials/retail_shell_end',{activeRetailNav:'settings'}) %><%- include('partials/retail_page_foot') %></body></html>

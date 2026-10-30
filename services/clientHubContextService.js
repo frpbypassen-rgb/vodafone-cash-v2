@@ -112,6 +112,7 @@ async function buildHubRenderContext(req) {
         accountType,
         isSubAccount,
         profile,
+        retailModern: true,
         walletHub: true,
         isSystemOpen,
         serviceRates,

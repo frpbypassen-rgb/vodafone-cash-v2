@@ -163,6 +163,14 @@
         const dayEl = document.getElementById('dateValueDay');
         if (monthEl) monthEl.value = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
         if (dayEl) dayEl.value = now.toISOString().slice(0, 10);
+        const query = new URLSearchParams(window.location.search);
+        const requestedType = query.get('dateType');
+        if (document.getElementById('dateType') && ['day','week','month','range'].includes(requestedType)) document.getElementById('dateType').value = requestedType;
+        const search = document.getElementById('reportSearch');
+        if (search && query.has('search')) search.value = query.get('search').slice(0,80);
+        if (monthEl && /^\d{4}-\d{2}$/.test(query.get('dateValue') || '')) monthEl.value = query.get('dateValue');
+        if (dayEl && /^\d{4}-\d{2}-\d{2}$/.test(query.get('dateValue') || '')) dayEl.value = query.get('dateValue');
+        window.toggleDateInput();
         const panel = document.getElementById('hubAccountReportsPanel');
         const mode = panel?.dataset?.mode || '';
         if (panel && !mode.startsWith('deposit') && mode !== 'export') window.fetchReport();

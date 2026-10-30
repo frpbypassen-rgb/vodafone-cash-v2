@@ -1,0 +1,112 @@
+<!doctype html><html lang="ar" dir="rtl" data-portal="customer" data-theme="<%= clientTheme || 'day' %>"><head><%- include('partials/retail_page_head',{retailPage:'sessions'}) %></head><body class="retail-page" data-customer-shell><%- include('partials/retail_shell_start',{activeRetailNav:'settings'}) %><section class="retail-sessions-content">
+        <section class="hero">
+            <div class="hero-copy"><span class="kicker"><i class="fa-solid fa-lock"></i> أمان <%= principalName %></span><h1>الأجهزة والجلسات المتصلة</h1><p>يسمح النظام بجهاز واحد فقط لكل حساب. أي جهاز جديد يحتاج رمز Authenticator ثم موافقة الإدارة.</p></div>
+            <div class="policy"><div><span>جلسات الموقع</span><strong>جهاز واحد</strong></div><div><span>جلسات التطبيق</span><strong>هاتف واحد</strong></div></div>
+        </section>
+        <div class="status" data-status></div>
+        <% if(typeof isAgentSessions !== 'undefined' && isAgentSessions) { %><div class="sessions-summary"><span>الجلسات النشطة</span><strong data-session-count aria-live="polite">—</strong></div><% } %>
+        <section class="section">
+            <div class="section-heading"><div class="section-title"><span class="section-icon"><i class="fa-solid fa-display"></i></span><div><h2>الجلسات النشطة</h2><p>راجع آخر نشاط والموقع وعنوان الاتصال.</p></div></div><button class="refresh" type="button" data-refresh title="تحديث"><i class="fa-solid fa-rotate"></i></button></div>
+            <div class="device-grid" data-devices><div class="loading"><i class="fa-solid fa-circle-notch fa-spin"></i>جاري تحميل الجلسات...</div></div>
+            <% if(typeof isAgentSessions !== 'undefined' && isAgentSessions) { %><button type="button" class="danger revoke-others" data-revoke-others hidden>تسجيل الخروج من الأجهزة الأخرى</button><% } %>
+        </section>
+        <% if(typeof isAgentSessions !== 'undefined' && isAgentSessions) { %><details class="sessions-requests-drawer"><summary>طلبات الأجهزة الجديدة <span data-request-count>—</span></summary><% } %>
+        <section class="section">
+            <div class="section-heading"><div class="section-title"><span class="section-icon"><i class="fa-solid fa-user-clock"></i></span><div><h2>طلبات الأجهزة الجديدة</h2><p>الطلبات بانتظار قرار الإدارة؛ يمكنك رفض أي طلب لا تعرفه.</p></div></div></div>
+            <div data-requests><div class="loading"><i class="fa-solid fa-circle-notch fa-spin"></i>جاري تحميل الطلبات...</div></div>
+        </section>
+        <% if(typeof isAgentSessions !== 'undefined' && isAgentSessions) { %></details><% } %>
+        <p class="footnote"><i class="fa-solid fa-circle-info"></i> إنهاء الجلسة الحالية يعيدك إلى شاشة الدخول. عند الاشتباه في دخول غير معروف، ارفض الطلب وغيّر كلمة المرور وراجع الدعم الفني.</p>
+    </section><%- include('partials/retail_shell_end',{activeRetailNav:'settings'}) %><%- include('partials/retail_page_foot') %><script>
+    (() => {
+        const csrf = document.querySelector('meta[name="csrf-token"]').content;
+        const compact=document.body.classList.contains('agent-sessions');
+        const countNode=document.querySelector('[data-session-count]');
+        const requestCount=document.querySelector('[data-request-count]');
+        const revokeOthers=document.querySelector('[data-revoke-others]');
+        let loadVersion=0;
+        let mutationBusy=false;
+        const devicesNode = document.querySelector('[data-devices]');
+        const requestsNode = document.querySelector('[data-requests]');
+        const statusNode = document.querySelector('[data-status]');
+        const escapeHtml = (value) => String(value ?? '').replace(/[&<>'"]/g, (char) => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
+        const formatDate = (value) => value && Number.isFinite(new Date(value).getTime()) ? new Intl.DateTimeFormat('ar-LY',{dateStyle:'medium',timeStyle:'short',timeZone:'Africa/Tripoli'}).format(new Date(value)) : 'غير متوفر';
+        const channelLabel = (value) => value === 'app' ? 'تطبيق الهاتف' : 'موقع الويب';
+        const deviceIcon = (device) => device.channel === 'app' ? 'fa-mobile-screen-button' : 'fa-display';
+        const approximateLocation = (value) => value && Number.isFinite(Number(value.latitude)) && Number.isFinite(Number(value.longitude))
+            ? `${Number(value.latitude).toFixed(1)}°, ${Number(value.longitude).toFixed(1)}°` : 'غير متوفر';
+        const setStatus = (message, error = false) => { statusNode.textContent = message || ''; statusNode.className = `status${message ? ' show' : ''} ${error ? 'error' : 'ok'}`; };
+        const api = async (path, options = {}) => {
+            const response = await fetch(path,{credentials:'same-origin',...options,headers:{Accept:'application/json','Content-Type':'application/json','x-csrf-token':csrf,...(options.headers||{})}});
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok || data.success !== true) throw new Error(data.error || (response.redirected?'انتهت الجلسة. أعد تسجيل الدخول.':'تعذر تأكيد استجابة الخادم. أعد تحديث الصفحة.'));
+            return data;
+        };
+        const renderDevices = (devices) => {
+            if(compact){
+                countNode.textContent=devices.length;
+                revokeOthers.hidden=!devices.some(device=>!device.current);
+                revokeOthers.disabled=!devices.some(device=>device.current);
+                const ordered=devices.slice().sort((a,b)=>Number(Boolean(b.current))-Number(Boolean(a.current)));
+                devicesNode.innerHTML=ordered.length?ordered.map(device=>`<details class="device compact-device ${device.current?'is-current':''}"><summary><span class="device-badge"><i class="fa-solid ${deviceIcon(device)}" aria-hidden="true"></i></span><span class="device-title"><strong>${escapeHtml(device.displayName || 'جهاز غير معروف')}</strong><span>${escapeHtml([device.browser,device.platform].filter(Boolean).join(' · ') || channelLabel(device.channel))}</span><span>آخر نشاط: ${escapeHtml(formatDate(device.lastSeenAt))}</span></span>${device.current?'<span class="current">جلستك الحالية</span>':''}<i class="fa-solid fa-chevron-down session-chevron" aria-hidden="true"></i></summary><div class="details"><div><span>عنوان IP</span><strong>${escapeHtml(device.lastIp || 'غير متوفر')}</strong></div><div><span>الموقع التقريبي</span><strong>${escapeHtml(approximateLocation(device.lastLocation))}</strong></div><div><span>تاريخ الاعتماد</span><strong>${escapeHtml(formatDate(device.approvedAt))}</strong></div><div><span>نوع الاتصال</span><strong>${channelLabel(device.channel)}</strong></div></div><button type="button" class="danger" data-revoke="${escapeHtml(device.id)}" data-current="${device.current===true}">تسجيل خروج هذا الجهاز</button></details>`).join(''):'<div class="empty">لا توجد جلسات نشطة مسجلة.</div>';
+                return;
+            }
+            if (!devices.length) { devicesNode.innerHTML = '<div class="empty"><i class="fa-solid fa-laptop-file"></i>لا توجد جلسات نشطة مسجلة.</div>'; return; }
+            devicesNode.innerHTML = devices.map((device) => `<article class="device ${escapeHtml(device.channel)}"><div class="device-head"><span class="device-badge"><i class="fa-solid ${deviceIcon(device)}"></i></span><div class="device-title"><strong>${escapeHtml(device.displayName || channelLabel(device.channel))}</strong><span>${channelLabel(device.channel)} · ${escapeHtml(device.platform || device.deviceType || 'جهاز غير معروف')}</span></div>${device.current ? '<span class="current">الجلسة الحالية</span>' : ''}</div><div class="details"><div><span>آخر نشاط</span><strong>${formatDate(device.lastSeenAt)}</strong></div><div><span>عنوان الاتصال</span><strong>${escapeHtml(device.lastIp || 'غير متوفر')}</strong></div><div><span>الموقع التقريبي</span><strong>${escapeHtml(approximateLocation(device.lastLocation))}</strong></div><div><span>المتصفح</span><strong>${escapeHtml(device.browser || (device.channel === 'app' ? 'Ahram Pay' : 'غير معروف'))}</strong></div><div><span>تاريخ الاعتماد</span><strong>${formatDate(device.approvedAt)}</strong></div></div><button class="danger" data-revoke="${escapeHtml(device.id)}" data-current="${device.current === true}"><i class="fa-solid fa-right-from-bracket"></i> ${device.current ? 'إنهاء الجلسة الحالية' : 'إنهاء هذه الجلسة'}</button></article>`).join('');
+        };
+        const renderRequests = (requests) => {
+            if(requestCount)requestCount.textContent=requests.length;
+            if (!requests.length) { requestsNode.innerHTML = '<div class="empty"><i class="fa-solid fa-shield-circle-check"></i>لا توجد طلبات دخول معلقة.</div>'; return; }
+            requestsNode.innerHTML = requests.map((request) => `<article class="request"><span class="request-icon"><i class="fa-solid ${request.channel === 'app' ? 'fa-mobile-screen-button' : 'fa-display'}"></i></span><div><strong>${escapeHtml(request.displayName)} · ${channelLabel(request.channel)}</strong><p>الرمز ${escapeHtml(request.requestCode)} · ${escapeHtml(request.ipAddress || 'عنوان غير متوفر')} · ينتهي ${formatDate(request.expiresAt)}</p></div><div class="request-actions"><button class="approve" data-request="${escapeHtml(request.id)}" data-decision="approve"><i class="fa-solid fa-check"></i> موافقة</button><button class="reject" data-request="${escapeHtml(request.id)}" data-decision="reject"><i class="fa-solid fa-xmark"></i> رفض</button></div></article>`).join('');
+        };
+        const load = async (preserveStatus=false) => {
+            if(mutationBusy && !preserveStatus)return;
+            const version=++loadVersion;
+            try {
+                if(!preserveStatus)setStatus('');
+                const data=await api('/security/sessions/data');
+                if(version!==loadVersion)return;
+                if(!Array.isArray(data.devices)||!Array.isArray(data.requests))throw new Error('بيانات الجلسات غير مكتملة. أعد تحديث الصفحة.');
+                renderDevices(data.devices);renderRequests(data.requests);
+            } catch(error) {
+                if(version!==loadVersion)return;
+                if(countNode)countNode.textContent='—';if(requestCount)requestCount.textContent='—';if(revokeOthers)revokeOthers.hidden=true;
+                devicesNode.innerHTML=requestsNode.innerHTML='<div class="empty"><i class="fa-solid fa-triangle-exclamation"></i>تعذر تحميل بيانات الجلسات.</div>';setStatus(error.message,true);
+            }
+        };
+        revokeOthers?.addEventListener('click',async()=>{
+            if(mutationBusy)return;
+            if(!confirm('هل تريد تسجيل الخروج من الأجهزة الأخرى مع إبقاء جلستك الحالية؟'))return;
+            mutationBusy=true;++loadVersion;
+            revokeOthers.disabled=true;
+            try{const data=await api('/security/sessions/revoke-others',{method:'POST',body:'{}'});setStatus(`تم إنهاء ${data.revokedCount || 0} جلسة أخرى. جلستك الحالية مستمرة.`);await load(true);}
+            catch(error){setStatus(error.message,true);revokeOthers.disabled=false;}
+            finally{mutationBusy=false;}
+        });
+        document.addEventListener('click', async (event) => {
+            const revoke = event.target.closest('[data-revoke]');
+            const review = event.target.closest('[data-request]');
+            if ((!revoke && !review) || mutationBusy) return;
+            mutationBusy=true;++loadVersion;
+            const button = revoke || review; button.disabled = true;
+            try {
+                if (revoke) {
+                    if (!confirm('هل تريد إنهاء هذه الجلسة؟')) return;
+                    const data = await api(`/security/sessions/${encodeURIComponent(revoke.dataset.revoke)}/revoke`,{method:'POST',body:'{}'});
+                    if (data.currentRevoked) { window.location.assign('/logout'); return; }
+                    setStatus('تم إنهاء الجلسة بنجاح.');
+                } else {
+                    const approve = review.dataset.decision === 'approve';
+                    if (!confirm(approve ? 'سيتم استبدال الجلسة القديمة من النوع نفسه. هل تريد المتابعة؟' : 'هل تريد رفض طلب الجهاز؟')) return;
+                    const result = await api(`/security/session-requests/${encodeURIComponent(review.dataset.request)}/${review.dataset.decision}`,{method:'POST',body:'{}'});
+                    if (approve && result.channel === 'web') { window.location.assign('/logout'); return; }
+                    setStatus(approve ? 'تم اعتماد الجهاز الجديد.' : 'تم رفض طلب الجهاز.');
+                }
+                await load(true);
+            } catch (error) { setStatus(error.message,true); } finally { button.disabled = false;mutationBusy=false; }
+        });
+        document.querySelector('[data-refresh]').addEventListener('click', ()=>load());
+        load();
+    })();
+    </script>
+</body></html>

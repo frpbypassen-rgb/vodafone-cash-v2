@@ -1,3 +1,4 @@
+<% if(locals.retailModern) { %><%- include('../retail_settings') %><% } else { %>
 <!DOCTYPE html>
 <html lang="ar" dir="rtl" data-portal="customer" data-theme="<%= typeof clientTheme !== 'undefined' && clientTheme ? clientTheme : 'day' %>">
 <head>
@@ -46,3 +47,5 @@
     <%- include('../partials/wallet_hub_bottom_nav', { activeNav: 'settings' }) %>
 </body>
 </html>
+
+<% } %>

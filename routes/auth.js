@@ -476,7 +476,9 @@ router.get('/security/sessions', requireWebMfaContext, async (req, res) => {
     const returnUrl = req.session.isExecutorLoggedIn
         ? '/executor-portal/settings'
         : (isAgent ? '/agent-portal/security' : isCompany ? '/client/security' : '/client/settings?section=security');
+    const retailContext = await require('../services/clientHubContextService').buildHubRenderContext(req);
     return res.render('account_security_sessions', {
+        ...(retailContext || {}),
         principalName: principal?.principalName || 'الحساب',
         returnUrl,
         returnLabel: isAgent || isCompany ? 'أمان الحساب' : 'رجوع للحساب',

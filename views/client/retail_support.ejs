@@ -1,0 +1,137 @@
+<!doctype html><html lang="ar" dir="rtl" data-portal="customer" data-theme="<%= clientTheme || 'day' %>"><head><%- include('partials/retail_page_head',{retailPage:'support'}) %></head><body class="retail-page" data-customer-shell><%- include('partials/retail_shell_start',{activeRetailNav:'support'}) %><div class="heading"><div><h1>الدعم الفني</h1><p>تواصل مع فريق الدعم وتابع رسائلك.</p></div></div>    <div class="container d-flex flex-column px-2 nile-support-body wallet-hub-page-content" style="flex: 1;">
+        <div id="imagePreviewContainer" class="p-3 border-bottom d-none nile-image-preview" style="border-radius: 20px 20px 0 0; display: flex; align-items: center; gap: 15px; margin: 20px auto 0; width: 100%; max-width: 800px;">
+            <img id="imagePreview" src="" style="height: 60px; border-radius: 8px; border: 1px solid var(--nile-border);">
+            <span class="text-primary fw-bold small">الصورة جاهزة للإرسال...</span>
+            <button class="btn btn-sm btn-danger rounded-circle ms-auto" onclick="clearImage()" style="width:30px; height:30px;"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        
+        <div class="chat-container m-0 mt-2 mx-auto nile-page-card">
+            <div class="chat-header">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="rounded-circle d-flex justify-content-center align-items-center nile-support-avatar">
+                        <i class="fa-solid fa-user-shield fs-4"></i>
+                    </div>
+                    <div>
+                        <h5 class="m-0 fw-bold nile-support-title">فريق الدعم الفني</h5>
+                        <small class="fw-bold opacity-75 nile-support-subtitle">جاهزون لمساعدتك</small>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="chat-messages" id="chatBox">
+                <div class="text-center w-100 mt-5"><i class="fa-solid fa-circle-notch fa-spin fa-2x text-muted opacity-50"></i></div>
+            </div>
+            
+            <form id="chatForm" class="chat-input-area">
+                <input type="file" id="imageInput" class="d-none" accept="image/*">
+                <div class="attach-btn" onclick="document.getElementById('imageInput').click()"><i class="fa-solid fa-image fs-5"></i></div>
+                <input type="text" id="msgInput" class="chat-input" placeholder="اكتب استفسارك هنا..." autocomplete="off">
+                <button type="submit" class="send-btn" id="sendBtn"><i class="fa-solid fa-paper-plane"></i></button>
+            </form>
+        </div>
+    </div>
+
+<%- include('partials/retail_shell_end',{activeRetailNav:'support'}) %><%- include('partials/retail_page_foot') %>    <script>
+        const chatBox = document.getElementById('chatBox');
+        const chatForm = document.getElementById('chatForm');
+        const msgInput = document.getElementById('msgInput');
+        const sendBtn = document.getElementById('sendBtn');
+        const imageInput = document.getElementById('imageInput');
+        const previewContainer = document.getElementById('imagePreviewContainer');
+        const previewImg = document.getElementById('imagePreview');
+        let selectedBase64 = null;
+        const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
+        const safeAttachmentUrl = (value) => {
+            const url = String(value || '');
+            return /^\/client\/api\/support\/tickets\/[a-f\d]{24}\/images\/\d+$/i.test(url) ? url : '';
+        };
+
+        function compressImage(file, callback) {
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                const img = new Image();
+                img.onload = function() {
+                    const canvas = document.createElement('canvas');
+                    const MAX_WIDTH = 800; const MAX_HEIGHT = 800;
+                    let width = img.width; let height = img.height;
+                    if (width > height) { if (width > MAX_WIDTH) { height *= MAX_WIDTH / width; width = MAX_WIDTH; } } 
+                    else { if (height > MAX_HEIGHT) { width *= MAX_HEIGHT / height; height = MAX_HEIGHT; } }
+                    canvas.width = width; canvas.height = height;
+                    const ctx = canvas.getContext('2d'); ctx.drawImage(img, 0, 0, width, height);
+                    callback(canvas.toDataURL('image/jpeg', 0.6));
+                }
+                img.src = event.target.result;
+            }
+            reader.readAsDataURL(file);
+        }
+
+        imageInput.onchange = (e) => { const file = e.target.files[0]; if (file) compressImage(file, (b64) => { selectedBase64 = b64; previewImg.src = b64; previewContainer.classList.remove('d-none'); }); };
+        function clearImage() { selectedBase64 = null; imageInput.value = ''; previewContainer.classList.add('d-none'); }
+
+        const loadMessages = async () => {
+            try {
+                const res = await fetch('/client/api/support/messages');
+                const data = await res.json();
+                if(data.success) renderMessages(data.messages);
+            } catch(e) {}
+        };
+
+        const renderMessages = (messages) => {
+            if(messages.length === 0) {
+                chatBox.innerHTML = '<div class="text-center w-100 mt-5"><div class="nile-chat-empty">أرسل رسالة لفتح تذكرة دعم فني جديدة 👋</div></div>';
+                return;
+            }
+            chatBox.innerHTML = '';
+            messages.forEach(msg => {
+                const isUser = msg.sender === 'user';
+                const time = new Date(msg.createdAt).toLocaleTimeString('en-GB', {timeZone:'Africa/Tripoli', hour:'2-digit', minute:'2-digit'});
+                const imageUrl = safeAttachmentUrl(msg.imageUrl);
+                const imgHtml = imageUrl ? `<a href="${imageUrl}" target="_blank" rel="noopener"><img src="${imageUrl}" class="img-fluid rounded mb-2 d-block shadow-sm" style="max-height: 200px; border: 1px solid var(--nile-border); cursor: pointer;" alt="مرفق الدعم"></a>` : '';
+                chatBox.innerHTML += `
+                    <div class="msg-bubble ${isUser ? 'msg-user' : 'msg-admin'}">
+                        ${!isUser ? `<div class="fw-bold mb-1 nile-admin-label"><i class="fa-solid fa-shield-halved me-1"></i> ${escapeHtml(msg.senderName)}</div>` : ''}
+                        ${imgHtml}
+                        <div>${escapeHtml(msg.text)}</div>
+                        <span class="msg-time">${time}</span>
+                    </div>`;
+            });
+            chatBox.scrollTop = chatBox.scrollHeight;
+        };
+
+        chatForm.onsubmit = async (e) => {
+            e.preventDefault();
+            const text = msgInput.value.trim();
+            if(!text && !selectedBase64) return;
+            
+            const b64 = selectedBase64;
+            const previousText = msgInput.value;
+            sendBtn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i>';
+            sendBtn.disabled = true;
+            
+            try {
+                const response = await fetch('/client/api/support/messages', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...(csrfToken ? { 'x-csrf-token': csrfToken } : {}) },
+                    body: JSON.stringify({ text, imageBase64: b64 })
+                });
+                const payload = await response.json().catch(() => ({}));
+                if (!response.ok || !payload.success) throw new Error(payload.error || 'تعذر إرسال الرسالة.');
+                msgInput.value = '';
+                clearImage();
+                await loadMessages();
+            } catch(e) {
+                msgInput.value = previousText;
+                const error = document.createElement('div');
+                error.className = 'alert alert-danger py-2 px-3 small mt-2 mb-0';
+                error.textContent = e.message || 'تعذر إرسال الرسالة. حاول مجدداً.';
+                chatForm.after(error);
+                window.setTimeout(() => error.remove(), 5000);
+            } finally {
+                sendBtn.disabled = false;
+                sendBtn.innerHTML = '<i class="fa-solid fa-paper-plane"></i>';
+            }
+        };
+
+        setInterval(() => { if (!document.hidden) loadMessages(); }, 10000); loadMessages();
+    </script>
+</body></html>

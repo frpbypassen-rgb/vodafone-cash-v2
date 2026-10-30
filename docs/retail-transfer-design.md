@@ -17,3 +17,11 @@ Validation outcome: 107 focused tests passed across retail transfer ownership, s
 Monthly counts are read separately from the legacy bounded dashboard list, using the same server-calendar month as existing portal reports. Direct-user/sub-client ownership and a tenant ID (when available) scope both reads. The browser receives an explicit display DTO rather than executor information. Failure to load this optional summary produces a retry state, not fabricated zeros or a financial write.
 
 The local preview now supports the home page with normal, empty, unavailable-summary, agent-funded and read-only fixtures. 67 focused checks passed, plus browser checks at 320, 390, 768, 1024 and 1440 pixels, night mode, notification panel bounds, and home-to-transfer navigation. Preview financial submissions remain blocked; no production deployment is included.
+
+## Unified account pages and full directory
+
+Retail hub contexts opt into the shared customer shell for account operations/deposits/summary/export, reports, settings, support, and device sessions. Existing form actions, report endpoints, CSRF checks, session controls, and financial mutations are unchanged. Legacy views remain compatibility fallbacks for contexts that do not opt in; company/agent/admin views remain separate.
+
+The home directory explicitly links all 18 available sections for a direct customer. Central funding links remain absent for agency-funded sub-clients; transfer entry links stay absent for read-only accounts. There are no integration links. Settings render one responsive content tree instead of separate mobile/desktop forms. A transaction deep link carries its reference and calendar month, and the report page applies those values before its initial request.
+
+Validation: 95 focused tests passed including session isolation/security coverage. A real local login checked all 18 directory destinations at five viewport widths, a single dock/shell on each page, one settings navigation, and finding a transfer from the previous month via the home link. No test submitted a financial transaction, sent a support message, changed a password, or revoked a session.

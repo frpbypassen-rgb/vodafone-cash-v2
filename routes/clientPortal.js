@@ -184,6 +184,7 @@ router.get('/support', requireClientAuth, async (req, res) => {
                     account,
                     accountType: req.session.accountType,
                     walletHub,
+                    retailModern: walletHub,
                     user: account,
                     canRequestDeposit: canRequestRetailDeposit(req.session.accountType, account.role),
                     csrfToken: req.session.csrfToken || '',
