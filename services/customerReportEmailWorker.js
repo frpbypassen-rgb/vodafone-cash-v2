@@ -192,7 +192,11 @@ const tick = async (now = new Date()) => {
 };
 const start = async () => {
     if (timer) return;
-    await Promise.all([Subscription.createIndexes(), Delivery.createIndexes()]);
+    await Promise.all([
+        Subscription.createIndexes(),
+        Delivery.createIndexes(),
+        require('../models/CustomerNotificationPreference').createIndexes(),
+    ]);
     if (
         process.env.NODE_ENV !== 'production' ||
         ['false', '0', 'off'].includes(String(process.env.CUSTOMER_REPORT_EMAIL_ENABLED).toLowerCase())
