@@ -275,7 +275,16 @@ exports.getDashboard = async (req, res) => {
 
         const showMfaNotice = Boolean(req.session.showMfaEnableNotice);
         delete req.session.showMfaEnableNotice;
-        res.render('client/dashboard', {
+        let retailHome = null;
+        if (isWalletHubUser) {
+            try {
+                retailHome = await require('../services/retailHomeService').loadRetailHome({account,isSubAccount});
+            } catch (_) {
+                retailHome = {available:false,summary:null,recent:null};
+            }
+        }
+        res.render(isWalletHubUser ? 'client/retail_dashboard' : 'client/dashboard', {
+            retailHome,
             user: { name: account.name, phone: account.phone || account.webUsername, balance, role: account.role || 'user', accountType: req.session.accountType, accountCode, canViewBalance, canRequestDeposit },
             isSubAccount, isMaster: !isSubAccount, masterTotalProfit, transactions: sanitizedTransactions, transactionsTruncated, recentTransactions, todayStats, walletHub: isWalletHubUser, currentRate, serviceRates, totals, targetDate, dateLabel, showMonth, search, query: req.query, storeCatalog,
             isSystemOpen,

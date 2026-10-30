@@ -56,6 +56,62 @@ const page = (name) => (req, res) => {
         selectedService: selected,
     });
 };
+app.get('/client/dashboard', (req, res) => {
+    const summary = { totalCount: 38, completedCount: 36, pendingCount: 2 };
+    const recent = [
+        {
+            reference: 'ATT-2610-10482',
+            status: 'processing',
+            statusLabel: 'قيد التنفيذ',
+            tone: 'info',
+            serviceLabel: 'محافظ كاش',
+            icon: 'fa-mobile-screen-button',
+            amount: 1200,
+            currency: 'EGP',
+            createdAt: new Date(),
+        },
+        {
+            reference: 'ATT-2610-10481',
+            status: 'completed',
+            statusLabel: 'ناجحة',
+            tone: 'success',
+            serviceLabel: 'حساب بنكي',
+            icon: 'fa-landmark',
+            amount: 3500,
+            currency: 'EGP',
+            createdAt: new Date(Date.now() - 3600000),
+        },
+        {
+            reference: 'ATT-2610-10480',
+            status: 'completed',
+            statusLabel: 'ناجحة',
+            tone: 'success',
+            serviceLabel: 'سيفا النيجر',
+            icon: 'fa-earth-africa',
+            amount: 75000,
+            currency: 'XOF',
+            createdAt: new Date(Date.now() - 86400000),
+        },
+    ];
+    const empty = req.query.state === 'empty';
+    const home =
+        req.query.state === 'error'
+            ? { available: false }
+            : {
+                  available: true,
+                  monthLabel: 'أكتوبر 2026',
+                  summary: empty ? { totalCount: 0, completedCount: 0, pendingCount: 0 } : summary,
+                  recent: empty ? [] : recent,
+              };
+    res.render('client/retail_dashboard', {
+        ...base,
+        user: { ...user, role: req.query.role === 'accountant' ? 'accountant' : 'user' },
+        canRequestDeposit: req.query.audience !== 'sub-client',
+        retailHome: home,
+        showMfaNotice: false,
+        pendingRateUpdate: null,
+    });
+});
 app.get(['/', '/client/transfers', '/client/services'], page('services'));
 app.get('/client/services/:serviceKey', page('service_workbench'));
 app.get('/client/smart-transfer', page('smart_transfer'));
@@ -69,7 +125,33 @@ app.post('/client/balance-transfer/lookup', (_req, res) =>
     res.json({ success: true, target: { accountCode: '10483', name: 'محمد علي — بيانات تجريبية' } })
 );
 app.get('/client/api/notifications', (_req, res) =>
-    res.json({ success: true, notifications: [], unreadCount: 0 })
+    res.json({
+        success: true,
+        unreadCount: 2,
+        groups: [
+            {
+                label: 'اليوم',
+                items: [
+                    {
+                        id: 'preview-1',
+                        title: 'اكتمل التحويل بنجاح',
+                        message: 'بيانات تجريبية — ATT-2610-10481',
+                        relativeTime: 'منذ ساعة',
+                        href: '/client/account?tab=operations',
+                        isRead: false,
+                    },
+                    {
+                        id: 'preview-2',
+                        title: 'تحديث حالة عملية',
+                        message: 'العملية ATT-2610-10482 قيد التنفيذ',
+                        relativeTime: 'الآن',
+                        href: '/client/account?tab=operations',
+                        isRead: false,
+                    },
+                ],
+            },
+        ],
+    })
 );
 app.post(/.*/, (_req, res) =>
     res
@@ -85,6 +167,6 @@ app.get(/.*/, (_req, res) =>
 );
 app.listen(4595, '127.0.0.1', () =>
     console.log(
-        'Retail transfer view preview: http://127.0.0.1:4595/client/transfers — all financial submissions disabled'
+        'Customer portal view preview: http://127.0.0.1:4595/client/dashboard — all financial submissions disabled'
     )
 );
