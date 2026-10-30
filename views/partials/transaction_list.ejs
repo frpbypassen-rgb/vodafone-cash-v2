@@ -122,9 +122,10 @@
                             <tr style="<%= tx.status === 'deposit_pending' ? 'background: rgba(245, 158, 11, 0.05);' : (tx.status === 'deposit' ? 'background: rgba(16, 185, 129, 0.05);' : (tx.status === 'deduction' ? 'background: rgba(239, 68, 68, 0.05);' : '')) %>">
 
                             <td>
+                                <span class="tx-operation-reference"><button type="button" class="btn btn-sm btn-outline-secondary tx-copy-operation" data-copy-operation="<%= tx._id %>" aria-label="نسخ بيانات العملية <%= tx.customId || tx._id %>" title="نسخ الجهة المرسلة ورقم الحساب والمبلغ"><i class="fa-regular fa-copy" aria-hidden="true"></i></button>
                                 <a class="clickable-id mono-num fs-6" data-tx='<%- JSON.stringify({ _id: tx._id }).replace(/'/g, "&#39;") %>' onclick="viewTransactionDetails(this)">
                                     #<%= tx.customId || tx._id.toString().slice(-6) %>
-                                </a>
+                                </a></span>
                                 <% if (tx.cancellationNumber) { %>
                                     <div class="badge bg-danger-subtle text-danger mono-num mt-1" style="font-size: 0.7rem;"><i class="fa-solid fa-ban me-1"></i><%= tx.cancellationNumber %></div>
                                 <% } %>
@@ -331,9 +332,10 @@
                           style="position: relative; border-right: 4px solid <%= isPendingGroup ? '#f59e0b' : (tx.status === 'completed' || tx.status === 'deposit' ? '#10b981' : '#ef4444') %>;">
                         <div class="d-flex justify-content-between align-items-start mb-2">
                             <div>
+                                <span class="tx-operation-reference"><button type="button" class="btn btn-sm btn-outline-secondary tx-copy-operation" data-copy-operation="<%= tx._id %>" aria-label="نسخ بيانات العملية <%= tx.customId || tx._id %>" title="نسخ الجهة المرسلة ورقم الحساب والمبلغ"><i class="fa-regular fa-copy" aria-hidden="true"></i></button>
                                 <a class="clickable-id mono-num fs-6 fw-bold" data-tx='<%- JSON.stringify({ _id: tx._id }).replace(/'/g, "&#39;") %>' onclick="viewTransactionDetails(this)">
                                     #<%= tx.customId || tx._id.toString().slice(-6) %>
-                                </a>
+                                </a></span>
                                 <% if (tx.cancellationNumber) { %>
                                     <div class="badge bg-danger-subtle text-danger mono-num mt-1" style="font-size: 0.7rem;"><i class="fa-solid fa-ban me-1"></i><%= tx.cancellationNumber %></div>
                                 <% } %>

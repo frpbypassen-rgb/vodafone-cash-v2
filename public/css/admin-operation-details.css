@@ -535,3 +535,9 @@
     .od-kv { flex-direction: column; align-items: flex-start; }
     .od-tabs-bar [data-od-tab] { min-width: 108px; }
 }
+.tx-copy-operation { min-width:44px; min-height:44px; margin-inline-end:4px; vertical-align:middle; }
+.tx-copy-operation:focus-visible { outline:3px solid #4385ef; outline-offset:2px; }
+.tx-copy-feedback { position:fixed; inset-inline:16px; bottom:90px; margin-inline:auto; width:fit-content; max-width:calc(100% - 32px); padding:12px 20px; border:1px solid #64748b; border-radius:10px; background:#142b45; color:#fff; box-shadow:0 4px 16px #0003; z-index:1090; text-align:center; }
+.tx-copy-fallback { position:fixed; left:-9999px; top:0; }
+.tx-operation-reference { display:inline-flex; align-items:center; gap:4px; max-width:100%; }
+.tx-operation-reference > button { flex-shrink:0; }
