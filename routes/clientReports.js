@@ -67,6 +67,7 @@ const renderReports = async (req, res) => {
     try {
         const hubCtx = await buildHubRenderContext(req);
         if (hubCtx) {
+            if (hubCtx.retailModern) return res.redirect('/client/account?tab=operations');
             return res.render('client/hub/reports', hubCtx);
         }
 

@@ -64,7 +64,7 @@ test.each(['client/hub/reports.ejs', 'client/support.ejs'])(
 test('home directory lists all available pages but omits central funding for sub-clients', async () => {
     const html = await render('client/partials/retail_directory.ejs');
     for (const url of [
-        '/client/reports',
+        '/client/account?tab=operations',
         '/client/account?tab=summary',
         '/client/account?tab=export',
         '/security/sessions',
@@ -98,7 +98,8 @@ test('customer More reuses company popover presentation and preserves account pa
     ['/client/dashboard', '/client/transfers', '/client/smart-transfer', '/client/internal-transfer'].forEach(href => {
         expect(moreMenu).not.toContain('href="' + href + '"');
     });
-    expect(moreMenu).toContain('/client/reports');
+    expect(moreMenu).toContain('/client/account?tab=operations');
+    expect(html).not.toContain('href="/client/reports"');
     expect(html).toContain('agent-more-footer');
     expect(html).not.toContain('retailMoreSearch');
     expect(html).not.toContain('<dialog');
