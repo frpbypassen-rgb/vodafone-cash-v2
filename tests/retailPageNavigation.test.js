@@ -86,6 +86,10 @@ test('retail devices page keeps security controls in the shared shell', async ()
     expect(html).toContain('retail-pages.css');
     expect(html).toContain('/security/sessions/data');
     expect(html).toContain('data-devices');
+    expect(html).toContain('data-revoke-others');
+    expect(html).toContain('data-last-updated');
+    expect(html).toContain('id="retailSessionConfirm"');
+    expect(html).toContain('/js/retail-sessions.js');
     expect(html.match(/class="bottomnav"/g) || []).toHaveLength(1);
 });
 

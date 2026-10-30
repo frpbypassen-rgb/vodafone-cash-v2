@@ -964,3 +964,301 @@ html[data-theme='night'] #retailPasswordRules .is-valid {
     border: 1px solid var(--border);
     border-radius: 14px;
 }
+.rs-summary {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 20px;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    background: var(--surface);
+    margin-bottom: 20px;
+}
+.rs-summary-copy {
+    flex: 1;
+    min-width: 0;
+}
+.rs-summary-copy strong {
+    font-size: 15px;
+}
+.rs-summary-copy bdi {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 8px;
+    background: var(--soft);
+    color: var(--text);
+    margin-inline-start: 6px;
+}
+.rs-summary-copy p,
+.rs-summary-copy time {
+    display: block;
+    margin: 6px 0 0;
+    font-size: 11px;
+    color: var(--muted);
+}
+.rs-summary-copy [hidden] {
+    display: none;
+}
+.rs-danger {
+    min-height: 44px;
+    padding: 10px 14px;
+    border: 1px solid #e7b9b9;
+    background: var(--surface);
+    color: #ab2525;
+    font-size: 12px;
+    border-radius: 10px;
+}
+.rs-danger:disabled {
+    color: var(--muted);
+    border-color: var(--border);
+    opacity: 1;
+    cursor: default;
+}
+.rs-section-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+    gap: 12px;
+}
+.rs-section-heading h2 {
+    margin: 0;
+    font-size: 17px;
+}
+.rs-refresh {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    font-size: 12px;
+}
+.rs-device-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+}
+.rs-device {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    padding: 20px;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    background: var(--surface);
+}
+.rs-device.is-current {
+    border-color: var(--blue);
+}
+.rs-device-head {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+.rs-device-title {
+    flex: 1;
+    min-width: 100px;
+}
+.rs-device-title h3 {
+    font-size: 14px;
+    line-height: 1.7;
+    margin: 0;
+    overflow-wrap: anywhere;
+}
+.rs-device-title p {
+    color: var(--muted);
+    font-size: 12px;
+    margin: 4px 0 0;
+    overflow-wrap: anywhere;
+}
+.rs-current {
+    background: var(--soft);
+    color: var(--blue);
+    font-size: 11px;
+    font-weight: 600;
+    padding: 5px 9px;
+    border-radius: 8px;
+}
+.rs-last-seen {
+    margin: 18px 0 12px;
+    font-size: 12px;
+    color: var(--muted);
+}
+.rs-device-details {
+    border-top: 1px solid var(--border);
+    margin-bottom: 16px;
+}
+.rs-device-details summary {
+    cursor: pointer;
+    font-size: 12px;
+    color: var(--blue);
+    padding: 13px 0;
+    min-height: 44px;
+}
+.rs-device-details dl {
+    margin: 0;
+}
+.rs-device-details dl > div {
+    display: flex;
+    gap: 16px;
+    justify-content: space-between;
+    border-top: 1px solid var(--border);
+    padding: 10px 0;
+}
+.rs-device-details dt {
+    font-size: 11px;
+    color: var(--muted);
+    font-weight: 400;
+    flex-shrink: 0;
+}
+.rs-device-details dd {
+    font-size: 12px;
+    margin: 0;
+    overflow-wrap: anywhere;
+    min-width: 0;
+    text-align: end;
+}
+.rs-device > button {
+    margin-top: auto;
+    width: 100%;
+}
+.rs-empty {
+    padding: 22px;
+    border: 1px dashed var(--border);
+    border-radius: 12px;
+    background: var(--surface);
+    color: var(--muted);
+    font-size: 13px;
+    grid-column: 1/-1;
+    margin: 0;
+}
+.rs-message {
+    border: 1px solid var(--border);
+    background: var(--soft);
+    color: var(--text);
+    font-size: 12px;
+    border-radius: 10px;
+    padding: 12px 16px;
+    margin-bottom: 16px;
+}
+.rs-message[hidden] {
+    display: none;
+}
+.rs-message.is-error {
+    border-color: #cf7070;
+}
+.rs-requests {
+    margin-top: 20px;
+    padding: 16px 20px;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: var(--surface);
+}
+.rs-requests > summary {
+    font-weight: 600;
+    font-size: 13px;
+    cursor: pointer;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.rs-requests > summary::before {
+    content: '‹';
+    transform: rotate(-90deg);
+    font-size: 20px;
+}
+.rs-requests[open] > summary::before {
+    transform: rotate(90deg);
+}
+.rs-requests > summary span {
+    margin-inline-start: auto;
+    font-size: 12px;
+    color: var(--muted);
+}
+.rs-requests > p {
+    font-size: 12px;
+    color: var(--muted);
+}
+.rs-request {
+    padding: 16px 0;
+    border-top: 1px solid var(--border);
+}
+.rs-request strong {
+    font-size: 13px;
+    overflow-wrap: anywhere;
+}
+.rs-request p {
+    color: var(--muted);
+    font-size: 12px;
+}
+.rs-help {
+    display: flex;
+    gap: 12px;
+    padding: 18px;
+    background: var(--soft);
+    color: var(--text);
+    border-radius: 14px;
+    margin-top: 20px;
+}
+.rs-help > i {
+    margin-top: 6px;
+    color: var(--blue);
+}
+.rs-help strong {
+    font-size: 13px;
+}
+.rs-help p {
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 1.9;
+    margin: 5px 0 0;
+}
+.rs-help a {
+    color: var(--blue);
+    text-underline-offset: 3px;
+}
+html[data-theme='night'] :is(.rs-current, .rs-device-details summary, .rs-help a, .rs-help > i) {
+    color: #94bdff;
+}
+html[data-theme='night'] .rs-danger:not(:disabled) {
+    color: #ffadad;
+    border-color: #9e5858;
+}
+.rs-device-grid[aria-busy='true'] {
+    opacity: 0.7;
+}
+.retail-session-page :is(button, a, summary):focus-visible {
+    outline: 3px solid var(--blue);
+    outline-offset: 3px;
+}
+@media (max-width: 700px) {
+    .rs-summary {
+        padding: 16px;
+        flex-wrap: wrap;
+        gap: 12px;
+    }
+    .rs-summary > button {
+        width: 100%;
+    }
+    .rs-summary-copy strong {
+        font-size: 13px;
+    }
+    .rs-device-grid {
+        grid-template-columns: 1fr;
+        gap: 14px;
+    }
+    .rs-device {
+        padding: 16px;
+    }
+    .rs-current {
+        font-size: 10px;
+    }
+    .rs-requests {
+        padding: 12px 16px;
+    }
+}
+
+.retail-sessions-page .main {
+    margin: 0 auto;
+    align-self: start;
+}
