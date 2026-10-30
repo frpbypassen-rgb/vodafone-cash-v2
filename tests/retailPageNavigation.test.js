@@ -99,6 +99,8 @@ test('customer More reuses company popover presentation and preserves account pa
         expect(moreMenu).not.toContain('href="' + href + '"');
     });
     expect(moreMenu).not.toContain('/client/account?tab=operations');
+    expect(moreMenu).not.toContain('/client/support');
+    expect(html).toContain('href="/client/support"');
     for (const tab of ['summary', 'export', 'deposits-new']) expect(html).not.toContain('href="/client/account?tab=' + tab + '"');
     expect(html).not.toContain('href="/client/reports"');
     expect(html).toContain('agent-more-footer');
