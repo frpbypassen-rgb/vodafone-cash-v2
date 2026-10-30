@@ -10,7 +10,7 @@ $projectRoot = (Resolve-Path -LiteralPath '.').Path
 $healthUrl = 'http://127.0.0.1:3000/health/ready'
 
 function Read-ManagedApp {
-    $output = & pm2 jlist | & node -e 'let s="";process.stdin.on("data",d=>s+=d);process.stdin.on("end",()=>{const apps=JSON.parse(s),p=apps.find(x=>x.name==="ahram-pay");if(!p||apps.some(x=>x!==p&&Number(x.pid)>0&&String(x.pm2_env.pm_cwd).toLowerCase()===String(p.pm2_env.pm_cwd).toLowerCase()))process.exit(1);else console.log(JSON.stringify({pid:p.pid,status:p.pm2_env.status,cwd:p.pm2_env.pm_cwd,script:p.pm2_env.pm_exec_path,mode:p.pm2_env.exec_mode,flags:[p.pm2_env.BULLMQ_WORKERS_ENABLED,p.pm2_env.FINANCIAL_SCHEDULERS_ENABLED,p.pm2_env.MERCHANT_WEBHOOK_WORKER_ENABLED]}));});'
+    $output = & pm2 jlist | & node -e 'let s='''';process.stdin.on(''data'',d=>s+=d);process.stdin.on(''end'',()=>{const apps=JSON.parse(s),p=apps.find(x=>x.name===''ahram-pay'');if(!p||apps.some(x=>x!==p&&Number(x.pid)>0&&String(x.pm2_env.pm_cwd).toLowerCase()===String(p.pm2_env.pm_cwd).toLowerCase()))process.exit(1);else console.log(JSON.stringify({pid:p.pid,status:p.pm2_env.status,cwd:p.pm2_env.pm_cwd,script:p.pm2_env.pm_exec_path,mode:p.pm2_env.exec_mode,flags:[p.pm2_env.BULLMQ_WORKERS_ENABLED,p.pm2_env.FINANCIAL_SCHEDULERS_ENABLED,p.pm2_env.MERCHANT_WEBHOOK_WORKER_ENABLED]}));});'
     if ($LASTEXITCODE -ne 0) { throw 'PM2 inspection failed or duplicate project processes exist.' }
     return (($output -join "`n") | ConvertFrom-Json)
 }
