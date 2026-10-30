@@ -28,5 +28,5 @@ const historyHref='/client/account?tab=operations'; %>
 <%- include('partials/retail_shell_end',{activeRetailNav:'home'}) %>
 <script>window.clientPortal = <%- JSON.stringify({csrfToken,retail:true,page:'home'}).replace(/</g,'\\u003c') %>;window.rateAlertInitial = <%- JSON.stringify(locals.pendingRateUpdate || null).replace(/</g,'\\u003c') %>;window.rateAlertCsrfToken = <%- JSON.stringify(csrfToken || '').replace(/</g,'\\u003c') %>;window.rateAlertPushPublicKey = <%- JSON.stringify(process.env.WEB_PUSH_PUBLIC_KEY || '').replace(/</g,'\\u003c') %>;</script>
 <% if(!locals.localPreview) { %><script src="/socket.io/socket.io.js" defer></script><script src="/js/portal-realtime.js?v=20261028-shared" defer></script><script src="/js/rate-alert-overlay.js?v=20261030" defer></script><% } %>
-<script src="/js/client-portal.js?v=20261030-home" defer></script>
+<script src="/js/client-portal.js?v=20261030-appearance" defer></script>
 </body></html>

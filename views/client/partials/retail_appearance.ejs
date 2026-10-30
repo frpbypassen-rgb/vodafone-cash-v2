@@ -1,0 +1,28 @@
+<section class="ra-page" data-retail-appearance aria-label="تفضيلات المظهر">
+  <div class="ra-layout">
+    <form class="ra-card" data-ra-form>
+      <h2>اختر وضع العرض</h2>
+      <p class="ra-muted">جرّب المظهر في المعاينة، ثم احفظ اختيارك.</p>
+      <fieldset class="ra-options">
+        <legend class="visually-hidden">وضع العرض</legend>
+        <% [{value:'day',label:'نهاري',icon:'sun'},{value:'night',label:'ليلي',icon:'moon'},{value:'system',label:'حسب الجهاز',icon:'desktop'}].forEach(mode=>{ %>
+        <label class="ra-option"><input type="radio" name="appearance" value="<%= mode.value %>"><span><i class="fa-solid fa-<%= mode.icon %>" aria-hidden="true"></i><strong><%= mode.label %></strong><i class="fa-solid fa-circle-check ra-check" aria-hidden="true"></i></span></label>
+        <% }) %>
+      </fieldset>
+      <p class="ra-muted" data-ra-description></p>
+      <div class="ra-save"><p role="status" aria-live="polite" data-ra-status></p><button class="button" type="submit" data-ra-save disabled>حفظ المظهر</button></div>
+      <small class="ra-muted">يُحفظ لهذا المتصفح ويُطبق على صفحات بوابة العملاء.</small>
+    </form>
+    <section class="ra-card" aria-labelledby="raPreviewTitle">
+      <div class="ra-preview-heading"><h2 id="raPreviewTitle">معاينة مباشرة</h2><span data-ra-preview-label></span></div>
+      <div class="ra-preview" data-ra-preview="day">
+        <div class="ra-demo-top"><strong>أهرام باي</strong><i class="fa-regular fa-bell" aria-hidden="true"></i></div>
+        <div class="ra-demo-balance"><small>الرصيد المتاح</small><strong><bdi>1,250.000 <small>LYD</small></bdi></strong><span>بيانات توضيحية للمعاينة</span></div>
+        <label for="raDemoField">رقم العملية</label><input id="raDemoField" value="ATT-10482" readonly tabindex="-1" dir="ltr">
+        <span class="ra-demo-button">عرض التفاصيل</span>
+        <div class="ra-demo-nav" aria-hidden="true"><i class="fa-solid fa-house"></i><i class="fa-solid fa-paper-plane"></i><i class="fa-solid fa-chart-simple"></i><i class="fa-solid fa-gear"></i></div>
+      </div>
+    </section>
+  </div>
+</section>
+<script src="/js/retail-appearance.js?v=20261030-appearance" defer></script>

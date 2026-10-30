@@ -12,6 +12,15 @@
         'x-csrf-token': csrf
     };
     const THEMES = ['day', 'night', 'pharaonic'];
+    const appearanceKey = 'ahram_customer_appearance';
+    const systemAppearance = window.matchMedia('(prefers-color-scheme: dark)');
+    const resolveAppearance = (mode) => mode === 'system' ? (systemAppearance.matches ? 'night' : 'day') : mode;
+    const readAppearance = () => {
+        try {
+            const mode = localStorage.getItem(appearanceKey);
+            return ['day', 'night', 'system'].includes(mode) ? mode : null;
+        } catch (_) { return null; }
+    };
     const THEME_COLORS = { day: '#E8EEFA', night: '#070B14', pharaonic: '#1C1610' };
     const THEME_ICONS = { day: 'fa-sun', night: 'fa-moon', pharaonic: 'fa-landmark' };
 
@@ -32,6 +41,8 @@
         if (next === 'pharaonic') root.classList.add('cl-art-ready');
         else root.classList.remove('cl-art-ready');
         if (!persist) return;
+        try { localStorage.setItem(appearanceKey, next); } catch (_) { /* private mode */ }
+        window.dispatchEvent(new CustomEvent('customer-appearance-saved', { detail: next }));
         try { localStorage.setItem('ahram_client_theme', next); } catch (_error) { /* private mode */ }
         fetch('/client/api/theme', {
             method: 'POST',
@@ -41,9 +52,31 @@
     };
 
     const serverTheme = THEMES.includes(root.getAttribute('data-theme')) ? root.getAttribute('data-theme') : '';
-    const stored = localStorage.getItem('ahram_client_theme');
-    const current = serverTheme || (THEMES.includes(stored) ? stored : 'day');
+    let stored = '';
+    try { stored = localStorage.getItem('ahram_client_theme'); } catch (_) { /* private mode */ }
+    const current = resolveAppearance(readAppearance()) || serverTheme || (THEMES.includes(stored) ? stored : 'day');
     applyTheme(current, false);
+    window.customerAppearance = {
+        current: () => readAppearance() || root.getAttribute('data-theme'),
+        resolve: resolveAppearance,
+        save(mode) {
+            if (!['day', 'night', 'system'].includes(mode)) throw new Error('INVALID_APPEARANCE');
+            // Storage must succeed before presenting this browser preference as saved.
+            localStorage.setItem(appearanceKey, mode);
+            applyTheme(resolveAppearance(mode), false);
+            window.dispatchEvent(new CustomEvent('customer-appearance-saved', { detail: mode }));
+        },
+    };
+    const followSystem = () => {
+        if (readAppearance() === 'system') applyTheme(resolveAppearance('system'), false);
+    };
+    systemAppearance.addEventListener('change', followSystem);
+    window.addEventListener('storage', (event) => {
+        if (event.key === appearanceKey) {
+            applyTheme(resolveAppearance(readAppearance()) || serverTheme || 'day', false);
+            window.dispatchEvent(new CustomEvent('customer-appearance-saved', { detail: window.customerAppearance.current() }));
+        }
+    });
     if (serverTheme) {
         try { localStorage.setItem('ahram_client_theme', serverTheme); } catch (_error) { /* private mode */ }
     }

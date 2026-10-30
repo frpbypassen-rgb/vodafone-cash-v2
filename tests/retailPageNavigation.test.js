@@ -1,4 +1,12 @@
 'use strict';
+test.each(['day', 'night'])('appearance renders three choices and a read-only preview in %s', async (clientTheme) => {
+    const html = await render('client/hub/settings.ejs', { activeSection: 'appearance', clientTheme });
+    expect(html).toContain('data-retail-appearance');
+    expect(html.match(/name="appearance"/g)).toHaveLength(3);
+    expect(html).toContain('value="system"');
+    expect(html).toContain('data-ra-save disabled');
+    expect(html).toContain('data-ra-preview="day"');
+});
 const ejs = require('ejs'),
     path = require('path');
 const data = {
