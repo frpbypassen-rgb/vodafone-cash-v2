@@ -877,39 +877,3 @@ html[data-theme='pharaonic'] {
     }
 }
 /* One compact native dialog for the complete customer page directory. */
-.bottomnav .retail-more-trigger {
-    display: grid;
-    place-items: center;
-    min-width: 44px;
-    min-height: 48px;
-    padding: 2px 5px;
-    border: 0;
-    border-radius: 8px;
-    background: transparent;
-    color: var(--muted);
-}
-.bottomnav .retail-more-trigger i {
-    font-size: 18px;
-}
-.bottomnav .retail-more-trigger span {
-    font-size: 10px;
-    line-height: 1.5;
-}
-.bottomnav .retail-more-trigger[aria-expanded='true'] {
-    color: var(--blue);
-    background: var(--soft);
-}
-.retail-company-more {
-    --cp-line: var(--border);
-    --cp-surface: var(--surface);
-    --cp-ink: var(--text);
-    --cp-surface-soft: var(--soft);
-    --cp-muted: var(--muted);
-    --cp-icon: var(--blue);
-    --cp-surface-strong: var(--bg);
-}
-@media (min-width: 701px) {
-    .retail-company-more:popover-open {
-        display: none;
-    }
-}

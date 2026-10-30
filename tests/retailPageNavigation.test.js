@@ -89,26 +89,13 @@ test('retail devices page keeps security controls in the shared shell', async ()
     expect(html.match(/class="bottomnav"/g) || []).toHaveLength(1);
 });
 
-test('customer More reuses company popover presentation and preserves account pages', async () => {
+test('customer navigation keeps five direct pages without a More menu', async () => {
     const html = await render('client/hub/account.ejs', { activeTab: 'operations' });
-    expect(html).toContain('company-mobile/mobile-menu.css');
-    expect(html).toContain('popover="auto"');
-    expect(html).toContain('popovertarget="retailMoreDialog"');
-    expect(html).toContain('agent-more-grid');
-    const moreMenu = html.split('id="retailMoreDialog"')[1].split('</nav>')[0];
-    ['/client/dashboard', '/client/transfers', '/client/smart-transfer', '/client/internal-transfer'].forEach(href => {
-        expect(moreMenu).not.toContain('href="' + href + '"');
-    });
-    expect(moreMenu).not.toContain('/client/account?tab=operations');
-    expect(moreMenu).not.toContain('/client/support');
-    expect(html).toContain('href="/client/support"');
-    for (const tab of ['summary', 'export', 'deposits-new']) expect(html).not.toContain('href="/client/account?tab=' + tab + '"');
-    expect(html).not.toContain('href="/client/reports"');
-    expect(html).toContain('agent-more-footer');
-    expect(html).not.toContain('retailMoreSearch');
-    expect(html).not.toContain('<dialog');
-    expect(moreMenu).toContain('href="/client/settings"');
-    expect(moreMenu).not.toContain('/client/settings?section=');
-    expect(moreMenu).not.toContain('/client/logout');
-    expect(html).not.toContain('/client/integrations');
+    expect(html).not.toContain('retailMore');
+    expect(html).not.toContain('retail-more.js');
+    expect(html).not.toContain('company-mobile/mobile-menu.css');
+    const dock = html.split('class="bottomnav"')[1].split('</nav>')[0];
+    expect(dock.match(/<a /g)).toHaveLength(5);
+    expect(dock).toContain('href="/client/settings"');
+    expect(dock).toContain('href="/client/account?tab=operations"');
 });
