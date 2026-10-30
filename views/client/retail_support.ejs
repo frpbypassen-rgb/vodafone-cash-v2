@@ -4,7 +4,7 @@
             <span class="text-primary fw-bold small">الصورة جاهزة للإرسال...</span>
             <button class="btn btn-sm btn-danger rounded-circle ms-auto" onclick="clearImage()" style="width:30px; height:30px;"><i class="fa-solid fa-xmark"></i></button>
         </div>
-        
+
         <div class="chat-container m-0 mt-2 mx-auto nile-page-card">
             <div class="chat-header">
                 <div class="d-flex align-items-center gap-3">
@@ -17,11 +17,11 @@
                     </div>
                 </div>
             </div>
-            
+
             <div class="chat-messages" id="chatBox">
                 <div class="text-center w-100 mt-5"><i class="fa-solid fa-circle-notch fa-spin fa-2x text-muted opacity-50"></i></div>
             </div>
-            
+
             <form id="chatForm" class="chat-input-area">
                 <input type="file" id="imageInput" class="d-none" accept="image/*">
                 <div class="attach-btn" onclick="document.getElementById('imageInput').click()"><i class="fa-solid fa-image fs-5"></i></div>
@@ -54,7 +54,7 @@
                     const canvas = document.createElement('canvas');
                     const MAX_WIDTH = 800; const MAX_HEIGHT = 800;
                     let width = img.width; let height = img.height;
-                    if (width > height) { if (width > MAX_WIDTH) { height *= MAX_WIDTH / width; width = MAX_WIDTH; } } 
+                    if (width > height) { if (width > MAX_WIDTH) { height *= MAX_WIDTH / width; width = MAX_WIDTH; } }
                     else { if (height > MAX_HEIGHT) { width *= MAX_HEIGHT / height; height = MAX_HEIGHT; } }
                     canvas.width = width; canvas.height = height;
                     const ctx = canvas.getContext('2d'); ctx.drawImage(img, 0, 0, width, height);
@@ -102,12 +102,12 @@
             e.preventDefault();
             const text = msgInput.value.trim();
             if(!text && !selectedBase64) return;
-            
+
             const b64 = selectedBase64;
             const previousText = msgInput.value;
             sendBtn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i>';
             sendBtn.disabled = true;
-            
+
             try {
                 const response = await fetch('/client/api/support/messages', {
                     method: 'POST',
