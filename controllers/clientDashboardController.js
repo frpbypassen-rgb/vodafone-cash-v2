@@ -329,6 +329,13 @@ exports.postUpdateOwnProfile = async (req, res) => {
             if (req.query.return === 'settings') return res.redirect('/client/settings?section=profile&settingsError=name');
             return res.redirect('/client/dashboard?profileError=name');
         }
+        if (req.body.email !== undefined) {
+            const email = require('../utils/otpDeliveryChannel').normalizeOtpEmail(req.body.email);
+            if (typeof req.body.email !== 'string' || (email && !require('../utils/otpDeliveryChannel').isValidOtpEmail(email))) return res.status(400).json({success:false,error:'أدخل بريدًا إلكترونيًا صالحًا.'});
+            // Editing contact details never moves an already verified login factor.
+            if (isSubAccount) account.contactEmail = email;
+            else account.set('businessProfile.email', email);
+        }
         account.name = name;
         if (isSubAccount) {
             account.address = address;
@@ -364,6 +371,7 @@ exports.postUpdateOwnProfile = async (req, res) => {
                 profile: {
                     name: account.name,
                     address,
+                    email: isSubAccount ? account.contactEmail || account.email || '' : account.businessProfile?.email || account.email || '',
                     photoUpdatedAt: account.profilePhotoUpdatedAt || null
                 }
             });

@@ -130,3 +130,14 @@ test('read-only profile cannot render an edit form', async () => {
     expect(html).not.toContain('id="retailProfileForm"');
     expect(html).toContain('بيانات هذا الحساب للعرض فقط.');
 });
+
+test.each(['day','night'])('customer security shows all three factors in order in %s mode', async clientTheme => {
+    const html = await render('client/hub/settings.ejs',{activeSection:'security',clientTheme});
+    expect(html).toContain('id="retailPasswordForm"');
+    expect(html).toContain('data-mfa-panel');
+    expect(html).toContain('data-email-login');
+    expect(html).toContain('data-telegram-login');
+    expect(html.indexOf('data-mfa-panel')).toBeLessThan(html.indexOf('data-email-login'));
+    expect(html.indexOf('data-email-login')).toBeLessThan(html.indexOf('data-telegram-login'));
+    expect(html).toContain('href="/client/settings?section=profile"');
+});

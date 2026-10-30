@@ -3,7 +3,7 @@
     <p class="mfa-description">أكّد بريدك لاستخدامه قناةً لكود الدخول. يبقى Authenticator مطلوبًا إذا كان مفعّلًا.</p>
     <p class="mfa-login-summary" data-email-address></p>
     <p class="mfa-message" data-email-message role="status" aria-live="polite" hidden></p>
-    <a class="mfa-button" data-email-profile href="<%= portalBasePath %>/settings#identity" hidden>إضافة البريد من بيانات <%= workspace.isCompany ? 'الشركة' : 'الوكيل' %></a>
+    <a class="mfa-button" data-email-profile href="<%= locals.retailSecurity ? '/client/settings?section=profile' : portalBasePath+'/settings#identity' %>" hidden>إضافة البريد من بيانات <%= locals.retailSecurity ? 'الحساب' : workspace.isCompany ? 'الشركة' : 'الوكيل' %></a>
     <form data-email-password hidden>
         <label class="bw-field"><span>كلمة المرور الحالية</span><input type="password" name="password" autocomplete="current-password" maxlength="128" required></label>
         <button type="submit" class="mfa-button primary">إرسال كود التفعيل</button>

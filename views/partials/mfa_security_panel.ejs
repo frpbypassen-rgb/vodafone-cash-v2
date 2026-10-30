@@ -1,4 +1,4 @@
-<% const compactMfaPanel = typeof workspace !== 'undefined' && (workspace.isCompany || workspace.isAgent); %>
+<% const compactMfaPanel = locals.retailSecurity || typeof workspace !== 'undefined' && (workspace.isCompany || workspace.isAgent); %>
 <section class="mfa-security-panel<%= compactMfaPanel ? ' mfa-compact' : '' %>" data-mfa-panel data-mfa-csrf="<%= typeof csrfToken !== 'undefined' ? csrfToken : '' %>">
     <div class="mfa-panel-heading">
         <div>

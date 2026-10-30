@@ -995,7 +995,7 @@ const startClientOtp = async (req, res, account, accountType) => {
 };
 
 const continueVerifiedPortalLogin = async (req, res, account, accountType) => {
-    if ((['company', 'agent_staff'].includes(accountType) || (accountType === 'user' && account.role === 'agent')) && ['email', 'telegram'].includes(account.otpDeliveryChannel)) return startClientOtp(req, res, account, accountType);
+    if (require('../services/businessLoginChoiceService').isBusiness(account, accountType) && ['email', 'telegram'].includes(account.otpDeliveryChannel)) return startClientOtp(req, res, account, accountType);
     if (account.otpDeliveryChannel === 'telegram' || account.emailOtpVerifiedAt || isLoginOtpRequired()) return startClientOtp(req, res, account, accountType);
     return finishLoginAfterOtpBypass(req, res, account, accountType);
 };

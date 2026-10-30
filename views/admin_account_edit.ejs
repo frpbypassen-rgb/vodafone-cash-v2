@@ -121,6 +121,7 @@
         <%- include('partials/admin_portal_settings', { integrationAccount: account, integrationAccountType: accountType }) %>
         <% } %>
         <form class="editor-form" action="/admin/accounts/<%= accountType %>/<%= account._id %>/edit" method="POST" enctype="multipart/form-data" autocomplete="off">
+            <% if (['user','subaccount'].includes(accountType)) { %><input type="hidden" name="loginSecurityRevision" value="<%= value('loginSecurityRevision',0) %>"><% } %>
             <% if (['agent', 'company'].includes(accountType)) { %><input type="hidden" name="profileRevision" value="<%= value('profileRevision', 0) %>"><% } %>
             <section class="form-section">
                 <h2 class="section-heading"><i class="fa-solid fa-address-card"></i> البيانات الأساسية</h2>
@@ -164,11 +165,12 @@
                     </div>
                     <div class="permission-grid mt-3">
                         <label class="permission-option">
-                            <input type="checkbox" name="emailOtpEnabled" value="true" data-email-otp-toggle <%= value('emailOtpEnabled') ? 'checked' : '' %>>
-                            <span>إرسال رمز التحقق عبر البريد</span>
+                            <input type="checkbox" name="emailOtpEnabled" value="true" data-email-otp-toggle <%= (value('emailOtpEnabled') || (['user','subaccount'].includes(accountType) && value('otpDeliveryChannel') === 'telegram')) ? 'checked' : '' %>>
+                            <span><%= ['user','subaccount'].includes(accountType) ? 'طلب كود عند تسجيل الدخول' : 'إرسال رمز التحقق عبر البريد' %></span>
                         </label>
                     </div>
-                    <div class="security-note" style="margin-top:12px;margin-bottom:0;"><i class="fa-solid fa-envelope"></i><span>عند التفعيل يصل OTP إلى البريد. عند إيقافه يكون الدخول بكلمة المرور فقط، ولا يُرسل OTP عبر واتساب.</span></div>
+                    <% if (['user','subaccount'].includes(accountType)) { %><label class="d-block mt-3">قناة كود الدخول<select class="form-select mt-1" name="loginOtpChannel"><option value="email" <%= value('otpDeliveryChannel') !== 'telegram' ? 'selected' : '' %>>البريد الإلكتروني</option><option value="telegram" <%= value('otpDeliveryChannel') === 'telegram' ? 'selected' : '' %> <%= value('telegramLoginVerified') ? '' : 'disabled' %>>تليجرام المؤكد</option></select></label><p class="small mt-2">البريد: <%= value('emailOtpVerified') ? 'مؤكد' : 'غير مؤكد' %> · تليجرام: <%= value('telegramLoginVerified') ? 'مرتبط ومؤكد' : 'غير مرتبط' %>. هذه الحالة هي نفسها في حساب العميل.</p><% } %>
+                    <div class="security-note" style="margin-top:12px;margin-bottom:0;"><i class="fa-solid fa-envelope"></i><span><%= ['user','subaccount'].includes(accountType) ? 'يصل كود الدخول إلى القناة المختارة. يبقى Authenticator مطلوبًا إذا كان مفعّلًا، ولا يُرسل كود عبر واتساب.' : 'عند التفعيل يصل OTP إلى البريد. عند إيقافه يكون الدخول بكلمة المرور فقط، ولا يُرسل OTP عبر واتساب.' %></span></div>
                 </section>
             <% } %>
 
@@ -203,11 +205,12 @@
                     </div>
                     <div class="permission-grid mt-3">
                         <label class="permission-option">
-                            <input type="checkbox" name="emailOtpEnabled" value="true" data-email-otp-toggle <%= value('emailOtpEnabled') ? 'checked' : '' %>>
-                            <span>إرسال رمز التحقق عبر البريد</span>
+                            <input type="checkbox" name="emailOtpEnabled" value="true" data-email-otp-toggle <%= (value('emailOtpEnabled') || (['user','subaccount'].includes(accountType) && value('otpDeliveryChannel') === 'telegram')) ? 'checked' : '' %>>
+                            <span><%= ['user','subaccount'].includes(accountType) ? 'طلب كود عند تسجيل الدخول' : 'إرسال رمز التحقق عبر البريد' %></span>
                         </label>
                     </div>
-                    <div class="security-note" style="margin-top:12px;margin-bottom:0;"><i class="fa-solid fa-envelope"></i><span>عند التفعيل يصل OTP إلى البريد. عند إيقافه يكون الدخول بكلمة المرور فقط، ولا يُرسل OTP عبر واتساب.</span></div>
+                    <% if (['user','subaccount'].includes(accountType)) { %><label class="d-block mt-3">قناة كود الدخول<select class="form-select mt-1" name="loginOtpChannel"><option value="email" <%= value('otpDeliveryChannel') !== 'telegram' ? 'selected' : '' %>>البريد الإلكتروني</option><option value="telegram" <%= value('otpDeliveryChannel') === 'telegram' ? 'selected' : '' %> <%= value('telegramLoginVerified') ? '' : 'disabled' %>>تليجرام المؤكد</option></select></label><p class="small mt-2">البريد: <%= value('emailOtpVerified') ? 'مؤكد' : 'غير مؤكد' %> · تليجرام: <%= value('telegramLoginVerified') ? 'مرتبط ومؤكد' : 'غير مرتبط' %>. هذه الحالة هي نفسها في حساب العميل.</p><% } %>
+                    <div class="security-note" style="margin-top:12px;margin-bottom:0;"><i class="fa-solid fa-envelope"></i><span><%= ['user','subaccount'].includes(accountType) ? 'يصل كود الدخول إلى القناة المختارة. يبقى Authenticator مطلوبًا إذا كان مفعّلًا، ولا يُرسل كود عبر واتساب.' : 'عند التفعيل يصل OTP إلى البريد. عند إيقافه يكون الدخول بكلمة المرور فقط، ولا يُرسل OTP عبر واتساب.' %></span></div>
                 </section>
             <% } %>
 

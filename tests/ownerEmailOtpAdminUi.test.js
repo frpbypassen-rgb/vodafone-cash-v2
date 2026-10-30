@@ -101,7 +101,7 @@ describe('owner email OTP admin screens', () => {
 
         expect(html).toContain('id="owner-email-otp"');
         expect(html).toContain('البريد الإلكتروني لصاحب الحساب');
-        expect(html).toContain('إرسال رمز التحقق عبر البريد');
+        expect(html).toContain(accountType === 'user' ? 'طلب كود عند تسجيل الدخول' : 'إرسال رمز التحقق عبر البريد');
         expect(html).toContain('يلزم بريد صالح فقط عند تفعيل رمز الدخول بالبريد');
         expect(html).toContain('name="emailOtpEnabled"');
         expect(html.match(/name="emailOtpEnabled"/g)).toHaveLength(1);
@@ -179,4 +179,13 @@ describe('owner email OTP admin screens', () => {
         expect(view).toContain('البريد الإلكتروني مطلوب قبل إنشاء الحساب.');
         expect(view).toContain('أدخل بريداً إلكترونياً صالحاً.');
     });
+});
+
+test('customer admin editor shows canonical confirmed Telegram and email status', async () => {
+    const html = await renderEditor('user',{otpDeliveryChannel:'telegram',emailOtpVerified:true,telegramLoginVerified:true,emailOtpEnabled:false});
+    expect(html).toContain('name="loginOtpChannel"');
+    expect(html).toContain('value="telegram" selected');
+    expect(html).toContain('البريد: مؤكد');
+    expect(html).toContain('تليجرام: مرتبط ومؤكد');
+    expect(html.match(/name="emailOtpEnabled"/g)).toHaveLength(1);
 });

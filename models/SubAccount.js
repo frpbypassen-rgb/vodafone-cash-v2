@@ -11,13 +11,15 @@ const serviceMarginPiastersSchema = new mongoose.Schema({
 }, { _id: false });
 
 const subAccountSchema = new mongoose.Schema({
+    ...require('./schemas/emailLoginSecurityFields'),
+    contactEmail: { type:String, trim:true, lowercase:true, default:'' },
     masterType: { type: String, enum: ['user', 'company'], required: true },
     masterId: { type: mongoose.Schema.Types.ObjectId, required: true },
     name: { type: String, required: true },
     phone: { type: String },
     // بريد رمز الدخول. عند وجود بريد صالح يُرسل الرمز عبر البريد.
     email: { type: String, trim: true, lowercase: true, default: '' },
-    otpDeliveryChannel: { type: String, enum: ['whatsapp', 'email'], default: 'whatsapp' },
+    otpDeliveryChannel: { type: String, enum: ['whatsapp', 'email', 'telegram'], default: 'whatsapp' },
     webUsername: { type: String, required: true, unique: true },
     webPassword: { type: String, required: true },
     address: { type: String, trim: true, default: '' },

@@ -18,9 +18,14 @@ const { hash, guard, fail } = require('../utils/loginSecurityChallenge');
 const { generateOtp, hashOtp, verifyOtp } = require('../utils/otp');
 const { tenantMode } = require('../middlewares/tenantResolver');
 const approval = require('../utils/loginMethodApproval');
-const registry = { user: User, company: CompanyEmployee, agent_staff: Staff };
+const registry = {
+    user: User,
+    company: CompanyEmployee,
+    agent_staff: Staff,
+    sub_client: require('../models/SubAccount'),
+};
 const isBusiness = (actor, type) =>
-    ['company', 'agent_staff'].includes(type) || (type === 'user' && actor?.role === 'agent');
+    ['company', 'agent_staff', 'sub_client'].includes(type) || (type === 'user' && Boolean(actor));
 const fingerprint = (actor) =>
     hash(
         JSON.stringify([
@@ -42,6 +47,8 @@ const fingerprint = (actor) =>
             actor.mfaConfiguredAt || null,
             String(actor.tenantId || ''),
             String(actor.companyId || actor.agentId || ''),
+            String(actor.masterId || ''),
+            actor.masterType || '',
         ])
     );
 const sessionBinding = (req) => hash('business-otp:' + req.sessionID);
@@ -103,6 +110,16 @@ const loadActor = async (req, type, id) => {
             String(parent.tenantId || '') !== String(actor.tenantId || '')
         )
             throw fail('ACCOUNT_CHANGED', 'حساب الوكالة غير متاح حاليًا.', 401);
+    }
+    if (type === 'sub_client') {
+        const Parent = actor.masterType === 'company' ? Company : User;
+        const parent = await Parent.findById(actor.masterId).select('status tenantId').lean();
+        if (
+            !parent ||
+            parent.status !== 'active' ||
+            (tenantMode() === 'multi' && String(parent.tenantId || '') !== String(actor.tenantId || ''))
+        )
+            throw fail('ACCOUNT_CHANGED', 'الحساب الرئيسي غير متاح.', 401);
     }
     if (
         actor.mfaEnabled &&
@@ -232,7 +249,12 @@ const send = async (req, channel) => {
                 expiresMinutes,
                 expiresAt,
                 accountName: actor.name || '',
-                emailDesignScope: record.accountType === 'company' ? 'company' : 'agent',
+                emailDesignScope:
+                    record.accountType === 'company'
+                        ? 'company'
+                        : actor.role === 'agent' || record.accountType === 'agent_staff'
+                          ? 'agent'
+                          : 'customer',
                 attemptAt: now,
                 userAgent: req.get?.('user-agent') || '',
                 loginAccount: req.session.pendingSecurityUsername || '',

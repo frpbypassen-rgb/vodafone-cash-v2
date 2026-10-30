@@ -337,7 +337,7 @@ const renderLoginOtpForSend = (content) => {
         text: legacyTemplate.buildLoginOtpText(content),
         html: legacyTemplate.buildLoginOtpHtml(content)
     });
-    const unifiedBusiness = !reset && ['company','agent'].includes(content && content.emailDesignScope);
+    const unifiedBusiness = !reset && ['company','agent','customer'].includes(content && content.emailDesignScope);
     if (!unifiedBusiness && !useLoginOtpTemplateV2()) return current();
     try {
         if(unifiedBusiness) return {

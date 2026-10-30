@@ -3,8 +3,8 @@ const mongoose = require('mongoose');
 const schema = new mongoose.Schema(
     {
         actorId: { type: mongoose.Schema.Types.ObjectId, required: true },
-        actorModel: { type: String, enum: ['User', 'ClientEmployee', 'AgentEmployee'], required: true },
-        accountType: { type: String, enum: ['user', 'company', 'agent_staff'], required: true },
+        actorModel: { type: String, enum: ['User', 'ClientEmployee', 'AgentEmployee', 'SubAccount'], required: true },
+        accountType: { type: String, enum: ['user', 'company', 'agent_staff', 'sub_client'], required: true },
         binding: { type: String, required: true, select: false },
         fingerprint: { type: String, required: true, select: false },
         state: { type: String, enum: ['choose', 'sending', 'sent', 'used', 'locked'], default: 'choose' },

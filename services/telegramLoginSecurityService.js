@@ -7,7 +7,8 @@ const { normalizeSubmittedOtp } = require('../utils/otp');
 const { models } = require('./businessLoginSecurityContext');
 const { resolveAccountOtpEmail, isValidOtpEmail, isEmailOtpEnabled } = require('../utils/otpDeliveryChannel');
 const email = require('./emailLoginEnrollmentMailer');
-const modelNames = ['User', 'ClientEmployee', 'AgentEmployee'];
+// Append only: the byte index is embedded in outstanding encrypted Telegram links.
+const modelNames = ['User', 'ClientEmployee', 'AgentEmployee', 'SubAccount'];
 const key = () =>
     crypto
         .createHash('sha256')
@@ -205,8 +206,18 @@ const confirm = async (ctx) => {
             telegramLoginBotId: pending.botId,
             telegramLoginVerifiedAt: new Date(),
             otpDeliveryChannel: selected,
-            telegramLoginApprovedFor: selected === 'telegram' || actor.telegramLoginApprovedFor === approval.telegramIdentity({ telegramLoginChatId: pending.chatId, telegramLoginBotId: pending.botId })
-                ? approval.telegramIdentity({ telegramLoginChatId: pending.chatId, telegramLoginBotId: pending.botId }) : '',
+            telegramLoginApprovedFor:
+                selected === 'telegram' ||
+                actor.telegramLoginApprovedFor ===
+                    approval.telegramIdentity({
+                        telegramLoginChatId: pending.chatId,
+                        telegramLoginBotId: pending.botId,
+                    })
+                    ? approval.telegramIdentity({
+                          telegramLoginChatId: pending.chatId,
+                          telegramLoginBotId: pending.botId,
+                      })
+                    : '',
         },
         $inc: { emailOtpSettingsRevision: 1 },
         $unset: {
@@ -251,7 +262,9 @@ const applyTarget = async (ctx, target, extraGuard = {}) => {
     const result = await ctx.Model.updateOne(
         { ...challenge.guard(ctx.actor), ...extraGuard },
         {
-            ...(target === 'unlink' ? {} : { $set: { otpDeliveryChannel: target, ...approval.grant(ctx.actor, target) } }),
+            ...(target === 'unlink'
+                ? {}
+                : { $set: { otpDeliveryChannel: target, ...approval.grant(ctx.actor, target) } }),
             $inc: { emailOtpSettingsRevision: 1 },
             $unset: {
                 loginChannelAction: 1,
@@ -333,9 +346,12 @@ const confirmChannel = async (ctx) => {
     return applyTarget(ctx, pending.target, guard);
 };
 const sendLoginCode = async ({ account, accountType, otp, challengeId }) => {
-    const Model = { user: models.User, company: models.ClientEmployee, agent_staff: models.AgentEmployee }[
-        accountType
-    ];
+    const Model = {
+        user: models.User,
+        company: models.ClientEmployee,
+        agent_staff: models.AgentEmployee,
+        sub_client: models.SubAccount,
+    }[accountType];
     if (!Model)
         return {
             success: false,

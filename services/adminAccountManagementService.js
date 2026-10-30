@@ -282,7 +282,7 @@ const setLoginOtpDelivery = (type, account, payload) => {
         ? requireOtpEmail(payload.email, 'email')
         : optionalOtpEmail(payload.email, 'email');
     account.otpDeliveryChannel = channel;
-    if (['user', 'agent', 'client-employee', 'agent-employee'].includes(type)) require('../utils/invalidateEmailLoginEnrollment')(account, { keepVerified: channel !== 'whatsapp' && account.emailOtpVerifiedEmail === email && Boolean(account.emailOtpVerifiedAt) });
+    if (['user', 'agent', 'subaccount', 'client-employee', 'agent-employee'].includes(type)) require('../utils/invalidateEmailLoginEnrollment')(account, { keepVerified: channel !== 'whatsapp' && account.emailOtpVerifiedEmail === email && Boolean(account.emailOtpVerifiedAt) });
     if (type === 'user' || type === 'agent') {
         if (emailOtpEnabled) account.set('businessProfile.email', email);
     } else {
@@ -790,6 +790,13 @@ const updateEditableAccount = async ({ type, id, payload, uploads = {} }) => {
         account.$where = guard;
         account.$inc('profileRevision', 1);
     }
+    if (['user', 'subaccount'].includes(definition.type)) {
+        const { withRevision, conflict } = require('../utils/portalSettingsRevision');
+        const current = account.emailOtpSettingsRevision || 0;
+        const revision = payload.loginSecurityRevision === undefined ? current : Number(payload.loginSecurityRevision);
+        if (revision !== current) throw conflict();
+        account.$where = withRevision({}, revision, 'emailOtpSettingsRevision');
+    }
     const snapshotContext = definition.type === 'company' ? { companyOwner } : {};
     const oldData = safeSnapshot(definition.type, account, snapshotContext);
     let accountCodeChange = null;
@@ -847,7 +854,7 @@ const updateEditableAccount = async ({ type, id, payload, uploads = {} }) => {
         };
     } catch (error) {
         if (accountCodeChange) await accountCodeChange.rollback().catch(() => {});
-        if (error.name === 'DocumentNotFoundError' && ['agent', 'company'].includes(definition.type)) throw require('../utils/portalSettingsRevision').conflict();
+        if (error.name === 'DocumentNotFoundError' && ['agent', 'company', 'user', 'subaccount'].includes(definition.type)) throw require('../utils/portalSettingsRevision').conflict();
         if (error instanceof AdminAccountManagementError) throw error;
         if (error?.code === 11000) throw new AdminAccountManagementError('IDENTITY_TAKEN');
         throw error;

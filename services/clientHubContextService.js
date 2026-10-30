@@ -53,6 +53,7 @@ async function buildClientProfile(req, account, isSubAccount) {
     return {
         name: account.name,
         phone: account.phone || 'غير مسجل',
+        email: isSubAccount ? account.contactEmail || account.email || '' : account.businessProfile?.email || account.email || '',
         username: account.webUsername,
         accountCode: account.accountCode || '',
         agentAccountCode: isSubAccount && profileMaster && profileMaster.role === 'agent'
