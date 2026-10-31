@@ -1,13 +1,21 @@
 // middlewares/errorHandler.js
 
 const errorHandler = (err, req, res, next) => {
-    console.error(`[🔥 Global Error]: ${err.message}`);
+    if (res.headersSent) return next(err);
 
-    const statusCode = res.statusCode === 200 ? 500 : res.statusCode;
+    const validStatus = (value) => Number.isInteger(value) && value >= 400 && value <= 599;
+    const statusCode = validStatus(err.statusCode) ? err.statusCode
+        : validStatus(err.status) ? err.status
+            : validStatus(res.statusCode) ? res.statusCode : 500;
+    // Error messages and stacks can contain request bodies, credentials, database
+    // URLs and paths. Keep this fallback log deliberately free of raw error data.
+    console.error('[HTTP_ERROR]', { status: statusCode });
+    res.set('Cache-Control', 'private, no-store');
     res.status(statusCode);
 
     // إذا كان الطلب من الموبايل أو الـ API
-    if (req.xhr || req.originalUrl.startsWith('/api') || req.originalUrl.startsWith('/client') || req.originalUrl.startsWith('/executor-portal')) {
+    const url = req.originalUrl || '';
+    if (req.xhr || url.startsWith('/api') || url.startsWith('/client') || url.startsWith('/executor-portal')) {
         return res.json({
             success: false,
             error: 'حدث خطأ داخلي في الخادم، يرجى المحاولة لاحقاً.'

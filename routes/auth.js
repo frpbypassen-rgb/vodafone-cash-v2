@@ -70,14 +70,8 @@ const requireWebMfaContext = async (req, res, next) => {
 
 const webMfaDeviceId = (req, res) => webDeviceId(req, res);
 
-const loginLimiter = rateLimit({
-    windowMs: 1 * 60 * 1000,
-    max: 10,
-    message: 'تم تجاوز الحد الأقصى لمحاولات تسجيل الدخول. حاول بعد دقيقة.',
-    standardHeaders: true,
-    legacyHeaders: false,
-    skipSuccessfulRequests: true,
-});
+const { createLoginLimiter, validateLoginInput } = require('../middlewares/webLoginProtection');
+const loginLimiter = createLoginLimiter();
 
 const {
     createPasswordResetIpLimiter,
@@ -1262,7 +1256,7 @@ router.get('/login', async (req, res) => {
     return renderLogin(res);
 });
 
-router.post('/login', loginLimiter, async (req, res) => {
+router.post('/login', loginLimiter, validateLoginInput, async (req, res) => {
     try {
         if (req.session.pendingExecutorMfaLogin?.executorId) {
             return completeExecutorMfaChallenge(req, res);

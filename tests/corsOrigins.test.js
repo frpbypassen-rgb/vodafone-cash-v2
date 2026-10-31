@@ -10,6 +10,20 @@ const {
 } = require('../config/corsOrigins');
 
 describe('CORS origin configuration', () => {
+    test('does not authorize an unrelated website to read credentialed API responses', async () => {
+        const app = express();
+        app.use(cors({ origin: getAllowedOrigins('https://ahrampay.com'), credentials: true }));
+        app.get('/api/test', (_req, res) => res.json({ ok: true }));
+        const response = await request(app).get('/api/test').set('Origin', 'https://untrusted.example');
+        expect(response.headers['access-control-allow-origin']).toBeUndefined();
+    });
+
+    test('preserves server-to-server API access without an Origin header', async () => {
+        const app = express();
+        app.use(cors({ origin: getAllowedOrigins('https://ahrampay.com'), credentials: true }));
+        app.get('/api/test', (_req, res) => res.json({ ok: true }));
+        expect((await request(app).get('/api/test')).body).toEqual({ ok: true });
+    });
     test('keeps the configured public origins unchanged for the main website', () => {
         expect(getAllowedOrigins('https://ahrampay.com, https://admin.ahrampay.com')).toEqual([
             'https://ahrampay.com',

@@ -222,11 +222,9 @@ app.use(helmet({
     },
     crossOriginEmbedderPolicy: false,
     hsts: { maxAge: 31536000, includeSubDomains: true, preload: true },
-    referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
-    permissionsPolicy: {
-        features: { camera: ["'none'"], microphone: ["'none'"], geolocation: ["'self'"] }
-    }
+    referrerPolicy: { policy: 'strict-origin-when-cross-origin' }
 }));
+app.use(require('./middlewares/browserSecurityHeaders'));
 
 // The browser preview is allowed to call only the mobile API, not the full website.
 app.use('/api/mobile', cors({ origin: mobileAllowedOrigins, credentials: true }));
