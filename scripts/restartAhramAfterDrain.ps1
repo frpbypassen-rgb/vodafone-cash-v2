@@ -2,7 +2,8 @@ param(
     [string]$ProjectPath = (Get-Location).Path,
     [string]$SiteName = 'ahrampay.com',
     [ValidateRange(60,900)][int]$ReadyTimeoutSeconds = 360,
-    [switch]$Apply
+    [switch]$Apply,
+    [switch]$UpdateDependencies
 )
 $ErrorActionPreference = 'Stop'
 Set-Location -LiteralPath $ProjectPath
@@ -31,6 +32,13 @@ Check-Empty
 if (!$Apply) {
     Write-Output 'PRECHECK_PASS. Read-only inspection; no restart, IIS, firewall or financial changes.'
     return
+}
+$dependencyManifestHash = $null
+$dependencyLockHash = $null
+if ($UpdateDependencies) {
+    $npmCommand = (Get-Command npm.cmd -ErrorAction Stop).Source
+    $dependencyManifestHash = (Get-FileHash -LiteralPath (Join-Path $projectRoot 'package.json') -Algorithm SHA256).Hash
+    $dependencyLockHash = (Get-FileHash -LiteralPath (Join-Path $projectRoot 'package-lock.json') -Algorithm SHA256).Hash
 }
 $principal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
 if (!$principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) { throw 'Run PowerShell as Administrator.' }
@@ -110,6 +118,23 @@ try {
     for ($attempt=0; $attempt -lt 15 -and (Get-Process -Id $initialApp.pid -ErrorAction SilentlyContinue); $attempt++) { Start-Sleep -Seconds 1 }
     if (Get-Process -Id $initialApp.pid -ErrorAction SilentlyContinue) { throw 'Old process is still alive. No force termination was attempted.' }
     if (Get-NetTCPConnection -LocalPort 3000 -State Listen -ErrorAction SilentlyContinue) { throw 'Port 3000 is still occupied. No process was killed.' }
+    if ($UpdateDependencies) {
+        # Populate npm's cache in a separate directory BEFORE invoking this mode.
+        # Preserve unchanged native modules; never run npm ci in the serving tree.
+        # No downloads, lifecycle hooks, manifest edits or automatic retries here.
+        if ((Get-FileHash -LiteralPath 'package.json' -Algorithm SHA256).Hash -ne $dependencyManifestHash -or
+            (Get-FileHash -LiteralPath 'package-lock.json' -Algorithm SHA256).Hash -ne $dependencyLockHash) {
+            throw 'Dependency manifests changed before installation.'
+        }
+        & $npmCommand install --offline --ignore-scripts --no-audit --no-fund --no-save
+        if ($LASTEXITCODE -ne 0) { throw 'Dependency install failed. Admission remains closed.' }
+        if ((Get-FileHash -LiteralPath 'package.json' -Algorithm SHA256).Hash -ne $dependencyManifestHash -or
+            (Get-FileHash -LiteralPath 'package-lock.json' -Algorithm SHA256).Hash -ne $dependencyLockHash) {
+            throw 'Dependency manifests changed during installation.'
+        }
+        & node -e 'for(const name of [''bcryptjs'',''canvas'',''mongoose'',''connect-mongo''])require(name);console.log(''Runtime dependencies loaded.'');'
+        if ($LASTEXITCODE -ne 0) { throw 'Dependency import check failed. Admission remains closed.' }
+    }
     & pm2 restart ahram-pay --update-env
     if ($LASTEXITCODE -ne 0) { throw 'PM2 start failed.' }
     $deadline = [DateTime]::UtcNow.AddSeconds($ReadyTimeoutSeconds)

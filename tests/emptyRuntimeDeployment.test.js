@@ -1,5 +1,21 @@
 'use strict';
 const { validate } = require('../scripts/checkEmptyRuntime.cjs');
+const restartSource = require('node:fs').readFileSync(
+    require('node:path').join(__dirname, '../scripts/restartAhramAfterDrain.ps1'),
+    'utf8'
+);
+test('dependency updates are explicit, offline, hook-free and between verified stop and start', () => {
+    expect(restartSource).toContain('[switch]$UpdateDependencies');
+    const install = restartSource.indexOf(
+        '& $npmCommand install --offline --ignore-scripts --no-audit --no-fund --no-save'
+    );
+    expect(install).toBeGreaterThan(restartSource.indexOf('& pm2 stop ahram-pay'));
+    expect(install).toBeGreaterThan(restartSource.indexOf("throw 'Port 3000 is still occupied."));
+    expect(install).toBeLessThan(restartSource.indexOf('& pm2 restart ahram-pay --update-env'));
+    expect(restartSource).toContain('if ($UpdateDependencies)');
+    expect(restartSource).toContain('Dependency install failed. Admission remains closed.');
+    expect(restartSource).toContain('Dependency manifests changed during installation.');
+});
 const fixture = () => ({
     mongo: { connected: true },
     transactions: { sampled: 0, truncated: false },
