@@ -35,7 +35,7 @@ jobs:
     steps:
       - name: Require the typed SHA and a successful CI run for main
         id: gate
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             if (context.ref !== 'refs/heads/main') {
