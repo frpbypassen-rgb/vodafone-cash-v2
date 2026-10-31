@@ -37,6 +37,7 @@ async function loadRetailHome({ account, isSubAccount, now = new Date() }) {
         recent: recent.map((tx) => {
             const service = SERVICE_CATALOG.find((item) => item.key === tx.transferType);
             return {
+                id: tx._id ? String(tx._id) : '',
                 reference: String(tx.customId || ''),
                 status: tx.status,
                 statusLabel: STATUS_META[tx.status]?.label || 'قيد المتابعة',

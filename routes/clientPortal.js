@@ -35,6 +35,7 @@ const { getSupportIdentity } = require('../services/portalSupportService');
 router.use(require('./portalSharedApi'));
 router.use(require('./customerNotifications'));
 router.use(require('./customerAccountDocuments'));
+router.use(require('./retailOperationDetails'));
 router.use(require('./companyReportEmail'));
 router.use(require('./companyTelegram'));
 

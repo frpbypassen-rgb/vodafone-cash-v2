@@ -8,6 +8,7 @@ const home = {
     summary: { totalCount: 38, completedCount: 36, pendingCount: 2 },
     recent: [
         {
+            id: '6ae5008e880226d4b241969d',
             reference: 'ATT-10482',
             statusLabel: 'قيد التنفيذ',
             tone: 'info',
@@ -32,6 +33,10 @@ test('home shares navigation, renders live values, and never labels pending cost
     const html = await ejs.renderFile(view, data);
     expect(html).toContain('2,485.000');
     expect(html).toContain('ATT-10482');
+    expect(html).toContain('data-home-transaction="6ae5008e880226d4b241969d"');
+    expect(html).toContain('data-retail-operation-dialog');
+    expect(html).toContain('data-ro-download hidden');
+    expect(html).toContain('data-ro-share disabled');
     expect(html).not.toContain('المبلغ المحجوز');
     expect(html.match(/aria-current="page"/g) || []).toHaveLength(2);
     expect(html.match(/class="bottomnav"/g) || []).toHaveLength(1);

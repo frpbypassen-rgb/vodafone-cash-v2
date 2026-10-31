@@ -1,0 +1,15 @@
+<dialog id="retailOperationDialog" class="ro-dialog" data-retail-operation-dialog aria-labelledby="roTitle">
+  <header class="ro-heading"><div><h2 id="roTitle">تفاصيل العملية</h2><bdi data-ro-reference></bdi></div><button type="button" class="button ro-close" data-ro-close aria-label="إغلاق تفاصيل العملية"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></header>
+  <p class="ro-message" data-ro-message role="status" aria-live="polite"></p>
+  <button class="button" type="button" data-ro-retry hidden>إعادة المحاولة</button>
+  <div data-ro-content hidden>
+    <dl class="ro-details" data-ro-details></dl>
+    <section class="ro-proof-section" aria-labelledby="roProofTitle"><h3 id="roProofTitle">صورة الإثبات</h3>
+      <nav class="ro-proof-tabs" data-ro-tabs aria-label="اختيار صورة الإثبات" hidden></nav>
+      <p class="ro-message" data-ro-proof-message aria-live="polite"></p>
+      <img class="ro-proof-image" data-ro-image alt="صورة إثبات العملية" hidden>
+      <div class="ro-actions"><a class="button primary" data-ro-download hidden><i class="fa-solid fa-download" aria-hidden="true"></i> تحميل الصورة</a><button type="button" class="button" data-ro-share disabled><i class="fa-solid fa-share-nodes" aria-hidden="true"></i> مشاركة الصورة</button></div>
+      <p class="ro-share-help" data-ro-share-help></p>
+    </section>
+  </div>
+</dialog>

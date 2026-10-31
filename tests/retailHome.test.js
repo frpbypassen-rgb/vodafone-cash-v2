@@ -14,6 +14,7 @@ beforeEach(() => {
                 limit: () => ({
                     lean: async () => [
                         {
+                            _id: '6ae5008e880226d4b241969d',
                             customId: 'ATT-100',
                             status: 'completed',
                             transferType: 'vodafone',
@@ -36,6 +37,7 @@ test('monthly statistics cover the account independently of the bounded recent l
     });
     expect(result.summary).toMatchObject({ totalCount: 38, completedCount: 36, pendingCount: 2 });
     expect(result.recent).toHaveLength(1);
+    expect(result.recent[0].id).toBe('6ae5008e880226d4b241969d');
     expect(result.recent[0]).not.toHaveProperty('executorSecret');
     expect(Transaction.aggregate.mock.calls[0][0][0].$match).toMatchObject({
         userId: '0911111111',
