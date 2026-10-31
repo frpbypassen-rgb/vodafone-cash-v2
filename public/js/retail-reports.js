@@ -45,6 +45,12 @@
         for (const key of keys) if (state[key]) params.set(key, state[key]);
         return params;
     };
+    const statementQuery = (state) => {
+        const query = new URLSearchParams();
+        for (const key of ['dateType', 'dateValue', 'dateFrom', 'dateTo'])
+            if (state[key]) query.set(key, state[key]);
+        return query;
+    };
     const mount = (window) => {
         const document = window.document,
             page = document.querySelector('[data-retail-reports]');
@@ -65,6 +71,62 @@
             shown = 0,
             busy = false,
             saveWarning = '';
+        let exporting = false,
+            exportReady = false;
+        const downloadButton = find('[data-rr-download]');
+        const syncDownload = () => {
+            downloadButton.disabled = busy || exporting || !exportReady;
+        };
+        downloadButton.addEventListener('click', async () => {
+            if (busy || exporting || !exportReady) return;
+            const query = statementQuery(state);
+            const output = find('[data-rr-download-message]');
+            exporting = true;
+            syncDownload();
+            downloadButton.setAttribute('aria-busy', 'true');
+            output.textContent = 'جارٍ إعداد كشف الحساب الكامل…';
+            const abort = new window.AbortController();
+            const timeout = window.setTimeout(() => abort.abort(), 90000);
+            try {
+                const response = await window.fetch(
+                    '/client/api/retail-reports/download.pdf?' + query.toString(),
+                    {
+                        cache: 'no-store',
+                        signal: abort.signal,
+                        headers: { Accept: 'application/pdf' },
+                    }
+                );
+                if (!response.ok) {
+                    const error = await response.json().catch(() => ({}));
+                    throw new Error(error.error || 'تعذر تحميل التقرير. أعد المحاولة.');
+                }
+                if (!(response.headers.get('content-type') || '').startsWith('application/pdf'))
+                    throw new Error('تعذر استلام ملف PDF. حدّث الصفحة وتحقق من تسجيل الدخول.');
+                const blob = await response.blob();
+                if (!blob.size || blob.size > 25 * 1024 * 1024)
+                    throw new Error('اختر فترة أقصر لتحميل التقرير.');
+                const url = window.URL.createObjectURL(blob),
+                    link = document.createElement('a');
+                const period = query.get('dateValue') || `${query.get('dateFrom')}-${query.get('dateTo')}`;
+                link.href = url;
+                link.download = 'account-statement-' + period.replace(/[^\d-]/g, '') + '.pdf';
+                document.body.appendChild(link);
+                link.click();
+                link.remove();
+                window.setTimeout(() => window.URL.revokeObjectURL(url), 60000);
+                output.textContent = 'تم إعداد التقرير وإرسال الملف إلى التنزيلات.';
+            } catch (error) {
+                output.textContent =
+                    error.name === 'AbortError'
+                        ? 'استغرق إعداد التقرير وقتًا طويلًا. اختر فترة أقصر وأعد المحاولة.'
+                        : error.message;
+            } finally {
+                window.clearTimeout(timeout);
+                exporting = false;
+                syncDownload();
+                downloadButton.removeAttribute('aria-busy');
+            }
+        });
         const money = (value, currency = 'LYD', digits = 2) =>
             Number(value || 0).toLocaleString('en-US', {
                 minimumFractionDigits: digits,
@@ -216,6 +278,8 @@
             const own = controller,
                 token = ++generation;
             busy = true;
+            if (!more) exportReady = false;
+            syncDownload();
             find('[data-rr-more]').disabled = true;
             find('[data-rr-retry]').hidden = true;
             message(more ? 'جارٍ تحميل المزيد…' : 'جارٍ تحميل التقرير…');
@@ -248,6 +312,7 @@
                 appendRows(data.rows);
                 nextCursor = data.nextCursor;
                 asOf = data.asOf;
+                exportReady = true;
                 find('[data-rr-results]').hidden = false;
                 find('[data-rr-more]').hidden = !nextCursor;
                 find('[data-rr-shown]').textContent = 'عرض ' + shown + ' من ' + data.summary.count + ' عملية';
@@ -270,6 +335,7 @@
             } finally {
                 if (token === generation) {
                     busy = false;
+                    syncDownload();
                     find('[data-rr-more]').disabled = false;
                     page.setAttribute('aria-busy', 'false');
                 }
@@ -377,5 +443,5 @@
         renderFilters();
         void load();
     };
-    return { readState, toQuery, todayKey, mount };
+    return { readState, toQuery, statementQuery, todayKey, mount };
 });

@@ -1,4 +1,6 @@
 .rr-page { min-width:0; }
+.rr-heading-actions { display:flex; flex-wrap:wrap; gap:8px; flex-shrink:0; }.rr-heading-actions .button { display:inline-flex; align-items:center; justify-content:center; gap:8px; white-space:nowrap; }.rr-download { background:var(--blue); color:#fff; border-color:var(--blue); }.rr-download:disabled { opacity:.6; cursor:wait; }.rr-download-hint { margin:0 0 16px !important; max-width:75ch; line-height:1.7; }
+@media(max-width:767px) { .rr-heading { flex-wrap:wrap; }.rr-heading-actions { width:100%; }.rr-heading-actions .rr-download { flex:1; justify-content:center; } }
 .rr-page [hidden],.rr-filter-dialog [hidden] { display:none !important; }
 .rr-heading,.rr-result-heading { display:flex; align-items:center; justify-content:space-between; gap:16px; margin-bottom:20px; }
 .rr-heading h1 { font-size:26px; margin:0 0 6px; }.rr-heading p,.rr-muted { color:var(--muted); font-size:13px; margin:0; }

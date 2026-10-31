@@ -17,10 +17,17 @@ const statementScope = (ctx) => {
             : { userId: { $in: identity }, companyId: null, subAccountId: null };
     return { ...own, tenantId: ctx.actor.tenantId || null };
 };
-const loadStatement = async (ctx, day) => {
-    const start = systemDayStart(day),
-        end = systemDayEnd(day);
-    if (!start || !end) throw new Error('INVALID_REPORT_DAY');
+const loadPeriodStatement = async (ctx, period) => {
+    const { start, end } = period;
+    if (
+        !(start instanceof Date) ||
+        !(end instanceof Date) ||
+        !Number.isFinite(start.getTime()) ||
+        !Number.isFinite(end.getTime()) ||
+        start > end ||
+        end - start > 366 * 86400000
+    )
+        throw new Error('INVALID_REPORT_DAY');
     const own = statementScope(ctx);
     const cost =
         ctx.actorModel === 'SubAccount'
@@ -57,13 +64,14 @@ const loadStatement = async (ctx, day) => {
                     },
                 },
             },
-        ]),
+        ]).option({ maxTimeMS: 10000 }),
         Transaction.find({ ...own, createdAt: { $gte: start, $lte: end } })
             .select(
-                'customId status transferType amount costLYD subAccountCostLYD agencyPricing.customerChargeLYD vodafoneNumber accountNumber accountName customerNotes createdAt'
+                'customId status transferType amount costLYD exchangeRate subClientRate subAccountCostLYD agencyPricing.customerChargeLYD agencyPricing.customerRate vodafoneNumber accountNumber accountName customerNotes createdAt'
             )
             .sort({ createdAt: -1 })
             .limit(5001)
+            .maxTimeMS(10000)
             .lean(),
     ]);
     if (rows.length > 5000) throw new Error('REPORT_TOO_LARGE');
@@ -79,16 +87,21 @@ const loadStatement = async (ctx, day) => {
                         ctx.actorModel === 'SubAccount'
                             ? (row.agencyPricing?.customerChargeLYD ?? row.subAccountCostLYD ?? row.costLYD)
                             : row.costLYD,
+                    exchangeRate:
+                        ctx.actorModel === 'SubAccount'
+                            ? (row.agencyPricing?.customerRate ?? row.subClientRate ?? row.exchangeRate)
+                            : row.exchangeRate,
                 };
                 delete result.agencyPricing;
                 delete result.subAccountCostLYD;
+                delete result.subClientRate;
                 return result;
             }),
         });
     return sanitizeAccountStatementReport({
         success: true,
         scope: { mainCategory: 'direct_client', subId: String(ctx.actor._id), subType: 'all' },
-        range: { dateType: 'day', start, end },
+        range: { ...period, start, end },
         entityInfo: {
             name: ctx.actor.name,
             phone: ctx.actor.phone,
@@ -102,6 +115,13 @@ const loadStatement = async (ctx, day) => {
         closure: { closedDays: [], closedDayCount: 0, hasPostCloseChanges: false, status: 'open' },
     });
 };
+const loadStatement = (ctx, day) =>
+    loadPeriodStatement(ctx, {
+        start: systemDayStart(day),
+        end: systemDayEnd(day),
+        dateType: 'day',
+        dateValue: day,
+    });
 const createStatementPdf = async (ctx, day) =>
     generateAdminReportPdf(
         {
@@ -110,4 +130,4 @@ const createStatementPdf = async (ctx, day) =>
         },
         { report: await loadStatement(ctx, day), generatedAt: new Date(), adminName: 'كشف حساب العميل' }
     );
-module.exports = { previousDay, statementScope, loadStatement, createStatementPdf };
+module.exports = { previousDay, statementScope, loadStatement, loadPeriodStatement, createStatementPdf };

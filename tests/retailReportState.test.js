@@ -1,4 +1,19 @@
 'use strict';
+test('statement export keeps only the financial period, never client-supplied scope or list filters', () => {
+    const { statementQuery } = require('../public/js/retail-reports');
+    expect(
+        statementQuery({
+            dateType: 'range',
+            dateFrom: '2026-10-01',
+            dateTo: '2026-10-31',
+            subId: 'other',
+            search: 'abc',
+            status: 'completed',
+            service: 'vodafone',
+            cursor: 'page2',
+        }).toString()
+    ).toBe('dateType=range&dateFrom=2026-10-01&dateTo=2026-10-31');
+});
 const { readState, toQuery } = require('../public/js/retail-reports');
 const now = new Date('2026-10-31T23:15:00Z');
 test('explicit deep links override saved preferences; plain reports link restores them', () => {
