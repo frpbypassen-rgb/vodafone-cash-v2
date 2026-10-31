@@ -58,10 +58,13 @@ jobs:
       run: npm ci
 
     - name: Run production dependency audit
-      run: npm audit --omit=dev --audit-level=high
+      run: npm audit --omit=dev --audit-level=moderate
 
     - name: Run security regression tests
       run: npm run test:security
+
+    - name: Run security baseline regression tests
+      run: npm run test:security-baseline
 
   # ═══════════════════════════════════════════════
   #  3️⃣ اختبارات الوحدة + تقرير التغطية
