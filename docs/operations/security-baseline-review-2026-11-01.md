@@ -19,7 +19,7 @@ untrusted CORS origins, and accidental secret-file publication.
 | Environment secrets | `.env` was already ignored; added all `.env.*` overrides and private key/certificate containers, preserving example templates. Existing tracked files are not removed by `.gitignore`; the tracked PEM files found are test-only receiver fixtures. No history-wide secret audit or rotation was performed. |
 | HTTPS | Public `/login` responded over certificate-validated HTTPS. HSTS is present. IIS owns TLS termination; no binding, redirect or certificate settings changed. |
 | Database injection | This application uses MongoDB/Mongoose, not SQL. Parameterized SQL is not applicable to the reviewed runtime. Added scalar type, length and NUL checks for unified-login credential aliases before normalization/lookup; object/array operators are rejected. This is not an audit of every database call in the repository. |
-| CAPTCHA | Pending provider selection and privately configured keys. Do not claim CAPTCHA is active or introduce a challenge without matching server-side verification. Turnstile, if selected, requires single-use server verification plus expected hostname/action checks: https://developers.cloudflare.com/turnstile/get-started/server-side-validation/ |
+| CAPTCHA | Explicitly deferred by the owner on 2026-11-01; no challenge is enabled or required for this update. Keep rate limiting, MFA and input validation. Future activation requires provider selection and privately configured keys, with matching server-side verification. Turnstile, if selected, requires single-use verification plus expected hostname/action checks: https://developers.cloudflare.com/turnstile/get-started/server-side-validation/ |
 | CORS | Existing explicit origins retained; regression tests deny unrelated browser origins and preserve server-to-server API calls without Origin. CORS is not an authorization mechanism. Review `ALLOWED_ORIGINS` on production separately. |
 | Security headers | Public HSTS, CSP, frame protection, nosniff and referrer policy verified. Helmet's unsupported `permissionsPolicy` option did not emit a header; replaced with explicit Permissions-Policy restricted to self. Camera/microphone remain available for proof capture and executor voice attachments; geolocation remains available for login. Existing inline-script allowances in CSP require a separate nonce migration and UI regression pass. |
 | Directory listing | Express serves the `public` root using static middleware, with no directory-index middleware. IIS/Plesk directory browsing outside the application has not been inspected in this review. |
@@ -67,5 +67,6 @@ drained. No unguarded PM2 restart or automatic financial retry is part of this w
   still not green; browser regression tests remain unverified in this environment.
 - Test-generated changes to the tracked migration dry-run report were restored;
   no generated reports, private runtime config or unrelated edits were committed.
-- Deployment readiness is not asserted while CAPTCHA configuration, production
-  credential inventory, infrastructure checks and browser test evidence remain open.
+- CAPTCHA is deferred by the owner rather than a prerequisite for this update.
+  Production credential inventory, infrastructure checks and browser test evidence
+  remain open; publication does not assert complete production deployment readiness.
