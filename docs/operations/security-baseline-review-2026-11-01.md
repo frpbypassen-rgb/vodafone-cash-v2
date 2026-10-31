@@ -52,3 +52,20 @@ changes require installation into an isolated candidate and native-module
 validation; do not run `npm ci` in the live directory while workers use it.
 Use the documented guarded deployment process after current financial work has
 drained. No unguarded PM2 restart or automatic financial retry is part of this work.
+
+## Validation results
+
+- Focused baseline/authentication checks: 12 suites, 60 tests passed. Changed-file
+  ESLint, YAML parsing and `git diff --check` passed.
+- Full suite with synthetic CI test secrets: 336 suites passed, 3 failed;
+  2667 tests passed, 9 failed, 2676 total. Eight failures in
+  `executorDashboardXss` and `loginOtpEmailTemplate` could not run because the
+  required Puppeteer Chrome binary was absent. One merchant integration test
+  exceeded its 15-second timeout under the complete run.
+- The complete `merchantIntegrationRoutes` suite was rerun independently:
+  6/6 passed without code changes or relaxed timeouts. The original full run is
+  still not green; browser regression tests remain unverified in this environment.
+- Test-generated changes to the tracked migration dry-run report were restored;
+  no generated reports, private runtime config or unrelated edits were committed.
+- Deployment readiness is not asserted while CAPTCHA configuration, production
+  credential inventory, infrastructure checks and browser test evidence remain open.
