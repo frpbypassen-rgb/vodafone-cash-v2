@@ -110,7 +110,7 @@ jobs:
 
       - name: 🏷️ Create Tag & Release
         id: create_release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: v${{ needs.build.outputs.version }}
           name: "🚀 AhramPay V${{ needs.build.outputs.version }}"
