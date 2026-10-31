@@ -4,6 +4,17 @@ const { requireClientAuth } = require('../middlewares/clientPortalAuth');
 const { resolve } = require('../services/customerNotificationContext');
 const service = require('../services/retailOperationDetailsService');
 const { proofSourceUrl, streamProofImage } = require('../services/proofStorageService');
+router.get('/api/retail-reports', requireClientAuth, async (req, res) => {
+    res.set('Cache-Control', 'private, no-store');
+    try {
+        const ctx = await resolve(req);
+        res.json(await require('../services/retailReportsService').list(ctx, req.query));
+    } catch (error) {
+        res.status(error.statusCode || 500).json({
+            error: error.statusCode ? error.message : 'تعذر تحميل التقرير. أعد المحاولة.',
+        });
+    }
+});
 router.use('/api/retail-transactions', requireClientAuth, (_req, res, next) => {
     res.set({ 'Cache-Control': 'private, no-store', 'X-Content-Type-Options': 'nosniff' });
     next();

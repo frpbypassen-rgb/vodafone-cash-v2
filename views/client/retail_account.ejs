@@ -1,5 +1,3 @@
-<!doctype html><html lang="ar" dir="rtl" data-portal="customer" data-theme="<%= clientTheme || 'day' %>"><head><%- include('partials/retail_page_head',{retailPage:'account'}) %></head><body class="retail-page" data-customer-shell><%- include('partials/retail_shell_start',{activeRetailNav:'operations'}) %><div class="heading"><div><h1>التقارير</h1><p>ابحث في العمليات وتابع حالتها وكشوف الحساب.</p></div></div>    <div class="client-hub-mobile-content">
-        <%- include('partials/hub_account_reports', { tab: 'operations', account: account, accountType: accountType }) %>
-    </div>
-
-<%- include('partials/retail_shell_end',{activeRetailNav:'operations'}) %><%- include('partials/retail_page_foot') %><script src="/js/client-hub-account.js?v=20261030-search" defer></script></body></html>
+<!doctype html><html lang="ar" dir="rtl" data-portal="customer" data-theme="<%= clientTheme || 'day' %>"><head><%- include('partials/retail_page_head',{retailPage:'account'}) %><link rel="stylesheet" href="/css/retail-reports.css?v=20261031-1"><link rel="stylesheet" href="/css/retail-operation-dialog.css?v=20261031-1"></head><body class="retail-page" data-customer-shell><%- include('partials/retail_shell_start',{activeRetailNav:'operations'}) %>
+<%- include('partials/retail_reports') %>
+<%- include('partials/retail_shell_end',{activeRetailNav:'operations'}) %><%- include('partials/retail_operation_dialog') %><%- include('partials/retail_page_foot') %><script src="/js/retail-reports.js?v=20261031-1" defer></script><script src="/js/retail-operation-dialog.js?v=20261031-1" defer></script></body></html>

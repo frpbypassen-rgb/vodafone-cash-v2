@@ -58,6 +58,9 @@ test.each([
     expect(html.match(/class="bottomnav"/g) || []).toHaveLength(1);
     expect(html).not.toContain('client-os-shell');
     expect(html).not.toContain('data-company-shell');
+    expect(html).toContain('data-retail-reports');
+    expect(html).toContain('data-retail-operation-dialog');
+    expect(html).not.toContain('/js/client-hub-account.js');
 });
 test.each(['profile', 'security', 'notifications', 'appearance', 'documents'])(
     'settings %s is rendered once for both screen sizes',

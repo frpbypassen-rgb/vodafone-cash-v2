@@ -57,6 +57,7 @@ beforeAll(async () => {
         transferType: 'vodafone',
         amount: 100,
         costLYD: 10,
+        createdAt: new Date('2026-10-01T12:00:00Z'),
         proofImage: 'proofs/customer.png',
         executorProofImages: ['proofs/executor-secret.png'],
         apiResultData: { secret: 'NO_LEAK' },
@@ -143,4 +144,16 @@ test('subordinate account gets its own customer charge and cannot see parent his
     await request(app)
         .get('/client/api/retail-transactions/' + tx + '/proof/0oops')
         .expect(404);
+});
+test('report HTTP endpoint uses the same authenticated owner boundary', async () => {
+    const response = await request(app)
+        .get('/client/api/retail-reports?dateType=month&dateValue=2026-10')
+        .expect(200);
+    expect(response.body.summary.count).toBe(1);
+    expect(response.body.rows[0].id).toBe(String(tx));
+    const otherResponse = await request(app)
+        .get('/client/api/retail-reports?dateType=month&dateValue=2026-10')
+        .set('x-owner', String(other._id))
+        .expect(200);
+    expect(otherResponse.body.summary.count).toBe(0);
 });
