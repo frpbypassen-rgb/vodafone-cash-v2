@@ -61,7 +61,7 @@
   "author": "Eng. Mohamed",
   "license": "ISC",
   "dependencies": {
-    "@sentry/node": "^10.56.0",
+    "@sentry/node": "^11.10.0",
     "@simplewebauthn/server": "^13.3.2",
     "axios": "^1.19.0",
     "bcrypt": "^6.0.0",
