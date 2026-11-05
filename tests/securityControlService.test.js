@@ -452,5 +452,37 @@ describe('securityControlService', () => {
             });
             expect(createDevice).not.toHaveBeenCalled();
         });
+
+        test('an unenrolled app can request an admin transfer without replacing its existing device', async () => {
+            mockState();
+            jest.spyOn(SecurityDevice, 'findOne').mockReturnValue({
+                select: jest.fn().mockResolvedValue({
+                    _id: 'old-device', deviceIdHash: securityControl.hashDeviceId('other-device')
+                })
+            });
+            const createDevice = jest.spyOn(SecurityDevice, 'create');
+            jest.spyOn(SecurityAccessRequest, 'findOne').mockReturnValue({
+                select: jest.fn().mockResolvedValue(null)
+            });
+            const createRequest = jest.spyOn(SecurityAccessRequest, 'create').mockResolvedValue({
+                requestCode: 'SEC-TEST'
+            });
+            jest.spyOn(Notification, 'create').mockResolvedValue({});
+            const result = await securityControl.authorizeLogin({
+                req: {
+                    originalUrl: '/api/mobile/login',
+                    headers: { 'x-client-channel': 'app', 'x-device-id': 'bbbbbbbb-cccc-dddd-eeee-ffffffffffff' },
+                    body: {}
+                },
+                principal: { principalType: 'executor', principalId: 'executor-1' },
+                allowFirstDevice: true,
+                allowUnenrolledAppTransferRequest: true
+            });
+            expect(result).toMatchObject({ allowed: false, code: 'DEVICE_APPROVAL_REQUIRED', requestCode: 'SEC-TEST' });
+            expect(createRequest).toHaveBeenCalledWith(expect.objectContaining({
+                channel: 'app', purpose: 'device_transfer', authenticatorVerifiedAt: null
+            }));
+            expect(createDevice).not.toHaveBeenCalled();
+        });
     });
 });

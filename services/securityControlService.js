@@ -453,7 +453,8 @@ const authorizeLogin = async ({
     accountClass = 'account',
     allowFirstDevice = false,
     authenticatorVerified = false,
-    verifiedLogin = false
+    verifiedLogin = false,
+    allowUnenrolledAppTransferRequest = false
 }) => {
     // Authentication contract tests do not provision the security collections.
     // Dedicated enforcement tests can opt in; production always evaluates policy.
@@ -538,7 +539,11 @@ const authorizeLogin = async ({
         markSessionDeviceVerified(req, { deviceId, device });
         return { allowed: true, enforcementEnabled: true, device, rebound: true };
     }
-    if (active && !authenticatorVerified && !verifiedLogin) {
+    // A password-verified app account with no Authenticator can ask an admin
+    // for help, but this exception never activates or replaces the device.
+    const canRequestUnenrolledTransfer = allowUnenrolledAppTransferRequest
+        && channel === 'app' && accountClass === 'account' && state.adminApprovalRequired !== false;
+    if (active && !authenticatorVerified && !verifiedLogin && !canRequestUnenrolledTransfer) {
         return {
             allowed: false,
             code: 'AUTHENTICATOR_REQUIRED_FOR_DEVICE_TRANSFER',
@@ -674,6 +679,11 @@ const reviewPrincipalAccessRequest = async ({ principal, requestId, approve, rev
     if (!request) {
         const error = new Error('SECURITY_ACCESS_REQUEST_NOT_FOUND');
         error.code = 'SECURITY_ACCESS_REQUEST_NOT_FOUND';
+        throw error;
+    }
+    if (approve && request.purpose === 'device_transfer' && !request.authenticatorVerifiedAt) {
+        const error = new Error('SECURITY_ADMIN_APPROVAL_REQUIRED');
+        error.code = 'SECURITY_ADMIN_APPROVAL_REQUIRED';
         throw error;
     }
     if (request.expiresAt <= new Date()) {
