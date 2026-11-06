@@ -328,9 +328,18 @@ async function resolveDepositTicketInSession({ ticketId, admin, approved, reason
     return { transaction: tx, ticket };
 }
 
-const resolveDepositTicket = (request) => withOptionalMongoTransaction((session) => (
+async function dismissDepositAlert(result) {
+    // Notification cleanup must never change a committed financial result.
+    await Notification.updateMany(
+        { audience: 'executor', 'metadata.depositRequestId': objectId(result.transaction._id), isRead: false },
+        { $set: { isRead: true } }, { maxTimeMS: 1500 }
+    ).catch((error) => logger.error('Deposit alert cleanup failed after review', { code: error.code }));
+    return result;
+}
+
+const resolveDepositTicket = async (request) => dismissDepositAlert(await withOptionalMongoTransaction((session) => (
     resolveDepositTicketInSession({ ...request, session })
-));
+)));
 
 async function reviewAdminDepositRequest({ employee, requestId, approved, reason = '' }) {
     if (!employee?.groupId || employee.role !== 'manager') throw failure('الموافقة على إيداعات الإدارة متاحة لمدير شركة التنفيذ فقط.', 403);
@@ -338,7 +347,8 @@ async function reviewAdminDepositRequest({ employee, requestId, approved, reason
     const review = (session) => reviewAdminDepositInSession({ employee, requestId, approved, reason, session });
     for (let attempt = 0; ; attempt++) {
         try {
-            return await withOptionalMongoTransaction(review);
+            const result = await withOptionalMongoTransaction(review);
+            return dismissDepositAlert(result);
         } catch (error) {
             const retryable = error.hasErrorLabel?.('TransientTransactionError')
                 || error.hasErrorLabel?.('UnknownTransactionCommitResult');

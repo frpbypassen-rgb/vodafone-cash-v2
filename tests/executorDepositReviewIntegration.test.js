@@ -68,7 +68,8 @@ test('queues a deposit alert for the receiving managers and applies a repeated a
         const fallback = await Notification.find({ audience: 'executor', txId: created.customId }).lean();
         await MobilePushDevice.create([manager, operator, otherManager].map((employee) => ({
             installationId: employee.webUsername, token: employee.webUsername,
-            accountType: 'executor', accountId: String(employee._id), permissionStatus: 'authorized'
+            accountType: 'executor', accountId: String(employee._id), permissionStatus: 'authorized',
+            notificationPreferences: { support: false }
         })));
         sendPushToTokens.mockResolvedValue({ successCount: 1, failureCount: 0, responses: [] });
         await expect(processOutboxItem(outbox)).resolves.toMatchObject({ status: 'sent' });
@@ -76,6 +77,15 @@ test('queues a deposit alert for the receiving managers and applies a repeated a
             tokens: [manager.webUsername], androidDataOnly: true, title: 'طلب إيداع جديد من الإدارة'
         }));
         expect(await MobileNotificationInbox.countDocuments({ transactionId: created.id, accountId: String(manager._id) })).toBe(1);
+        const managerToken = jwt.sign({ userId: String(manager._id), accountType: 'executor',
+            executorGroupId: String(group._id), sessionVersion: 0 }, process.env.JWT_SECRET);
+        await request(app).get('/api/mobile/client/home')
+            .set('Authorization', 'Bearer ' + managerToken).expect(403);
+        const fallbackResponse = await request(app).get('/api/mobile/client/notifications?unreadOnly=true')
+            .set('Authorization', 'Bearer ' + managerToken).expect(200);
+        expect(fallbackResponse.body.notifications).toEqual(expect.arrayContaining([
+            expect.objectContaining({ depositRequestId: created.id, type: 'support_reply' })
+        ]));
         const review = (employee, approved = true) => deposits.reviewAdminDepositRequest({
             employee, requestId: created.id, approved, reason: 'Fixture reason'
         });
@@ -89,6 +99,10 @@ test('queues a deposit alert for the receiving managers and applies a repeated a
             executorGroupId: String(group._id), sessionVersion: 0 }, process.env.JWT_SECRET);
         await request(app).post('/api/mobile/executor/deposits/' + created.id + '/review')
             .set('Authorization', 'Bearer ' + token).send({ decision: 'approve' }).expect(200);
+        const updatedList = await request(app).get('/api/mobile/executor/deposits')
+            .set('Authorization', 'Bearer ' + token).expect(200);
+        expect(updatedList.body.requests.find((row) => row.id === created.id))
+            .toMatchObject({ status: 'deposit', reviewable: false });
         const tx = await Transaction.findById(created.id).lean();
         const ticket = await SupportTicket.findById(tx.depositRequest.supportTicketId).lean();
         expect(ticket.messages.filter((message) => message.text?.startsWith('تم قبول الإيداع'))).toHaveLength(1);
@@ -99,9 +113,54 @@ test('queues a deposit alert for the receiving managers and applies a repeated a
             data: { depositRequestId: created.id }
         });
         expect(fallback.map((item) => item.userId)).toEqual([String(manager._id)]);
+        expect(await Notification.countDocuments({ txId: created.customId, audience: 'executor', isRead: false })).toBe(0);
     } finally {
         const fs = require('node:fs/promises');
         const tx = await Transaction.findById(created.id).lean();
         await Promise.all((tx?.proofImages || []).map((image) => fs.unlink('uploads/' + image)));
+    }
+});
+
+test('covers rejection, company-origin review, deposit visibility and receipt validation', async () => {
+    const group = await ExecutorGroup.create({ name: 'Deposit rejection group' });
+    const member = (role) => Employee.create({
+        groupId: group._id, role, name: role, webUsername: 'deposit-second-' + role,
+        webPassword: '$2b$04$fixture', status: 'active'
+    });
+    const [manager, accountant, operator, external] = await Promise.all(
+        ['manager', 'accountant', 'operator', 'external'].map(member)
+    );
+    const source = { group, amount: 75, receipts: ['data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl6Vb8AAAAASUVORK5CYII='] };
+    const admin = { id: new mongoose.Types.ObjectId(), name: 'Fixture admin', role: 'master' };
+    await expect(deposits.createDepositRequest({ ...source, receipts: [], employee: manager })).rejects.toMatchObject({ status: 400 });
+    await expect(deposits.createDepositRequest({ ...source, employee: accountant })).rejects.toMatchObject({ status: 403 });
+    const incoming = await deposits.createDepositRequest({ ...source, submittedBy: admin, submittedFromAdmin: true });
+    const outgoing = await deposits.createDepositRequest({ ...source, employee: manager });
+    try {
+        const pendingAlert = await PushNotificationOutbox.findOne({ transactionId: incoming.id }).lean();
+        await expect(processOutboxItem(pendingAlert)).resolves.toMatchObject({ status: 'skipped' });
+        expect(await Notification.countDocuments({ userId: String(manager._id), txId: incoming.customId, isRead: false })).toBe(1);
+        const rows = await deposits.listDepositRequests({ employee: manager });
+        expect(rows.find((row) => row.id === incoming.id)).toMatchObject({ status: 'pending', reviewable: true, receiptCount: 1 });
+        expect(rows.find((row) => row.id === outgoing.id)).toMatchObject({ status: 'pending', reviewable: false });
+        expect((await deposits.listDepositRequests({ employee: accountant })).every((row) => !row.reviewable)).toBe(true);
+        await expect(deposits.listDepositRequests({ employee: operator })).rejects.toMatchObject({ status: 403 });
+        expect(await deposits.listDepositRequests({ employee: external })).toEqual([]);
+        expect(await PushNotificationOutbox.countDocuments({ transactionId: outgoing.id })).toBe(0);
+        const review = (id, approved, reason) => deposits.reviewAdminDepositRequest({ employee: manager, requestId: id, approved, reason });
+        await expect(review(outgoing.id, true)).rejects.toMatchObject({ status: 403 });
+        await expect(review(incoming.id, false, 'x')).rejects.toMatchObject({ status: 400 });
+        expect((await Transaction.findById(incoming.id)).status).toBe('deposit_pending');
+        await expect(review(incoming.id, false, 'سبب تجريبي')).resolves.toMatchObject({ transaction: { status: 'rejected' } });
+        await expect(review(incoming.id, false, 'سبب تجريبي')).resolves.toMatchObject({ alreadyReviewed: true });
+        await expect(review(incoming.id, true)).rejects.toMatchObject({ status: 409 });
+        expect((await ExecutorGroup.findById(group._id)).balance).toBe(0);
+        const pending = await Transaction.findById(outgoing.id);
+        await deposits.resolveDepositTicket({ ticketId: pending.depositRequest.supportTicketId, admin, approved: true });
+        expect((await ExecutorGroup.findById(group._id)).balance).toBe(75);
+    } finally {
+        const files = require('node:fs/promises');
+        const rows = await Transaction.find({ _id: { $in: [incoming.id, outgoing.id] } }).lean();
+        await Promise.all(rows.flatMap((row) => row.proofImages.map((image) => files.unlink('uploads/' + image))));
     }
 });

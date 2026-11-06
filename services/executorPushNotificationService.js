@@ -318,7 +318,7 @@ const queueExecutorDepositRequest = ({ tx, title, message, ticketId, session }) 
     audience: { type: 'group_roles', groupId: idOf(tx.executorGroupId), roles: ['manager'] },
     title,
     body: message,
-    data: { action: 'open_executor_support', ticketId: idOf(ticketId), depositRequestId: idOf(tx) },
+    data: { action: 'open_executor_deposits', ticketId: idOf(ticketId), depositRequestId: idOf(tx) },
     visible: true,
     collapseKey: 'executor-deposit-' + idOf(tx),
     availableAt: new Date()
@@ -682,7 +682,8 @@ const resolveAudienceDevices = async (outbox, tx, resolvedEmployeeIds = null) =>
     }).select('_id token accountId acknowledgedTasks snoozedTasks notificationPreferences').lean();
     const definition = definitionFor(outbox.category);
     const preferenceFiltered = devices.filter((device) => {
-        if (['executor_task_new', 'executor_task_routed', 'executor_urgent_alert'].includes(outbox.category)) return true;
+        // Deposit approvals have their own purpose, independent of the legacy support-reply preference.
+        if (outbox.data?.depositRequestId || ['executor_task_new', 'executor_task_routed', 'executor_urgent_alert'].includes(outbox.category)) return true;
         const preferences = { ...DEFAULT_PREFERENCES, ...(device.notificationPreferences || {}) };
         return preferences[definition.preferenceKey] !== false;
     });

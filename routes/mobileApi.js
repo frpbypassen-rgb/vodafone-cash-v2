@@ -3116,6 +3116,8 @@ router.get('/client/notifications', authenticateJWT, async (req, res) => {
                 type: notification.type || 'system_alert',
                 isRead: Boolean(notification.isRead),
                 txId: notification.txId || null,
+                ...(accountType === 'executor' && notification.metadata?.depositRequestId
+                    ? { depositRequestId: String(notification.metadata.depositRequestId) } : {}),
                 createdAt: notification.createdAt ? new Date(notification.createdAt).toISOString() : null
             })),
             pagination: {
