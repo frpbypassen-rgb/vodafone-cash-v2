@@ -83,7 +83,7 @@ const taskMessage = (tx, reminder = false) => {
     };
 };
 
-const queueOutboxEvent = async (payload) => {
+const queueOutboxEvent = async (payload, session = null) => {
     const definition = definitionFor(payload.category);
     const normalized = {
         channelId: definition.channelId,
@@ -102,10 +102,10 @@ const queueOutboxEvent = async (payload) => {
         return await PushNotificationOutbox.findOneAndUpdate(
             { eventKey: normalized.eventKey },
             { $setOnInsert: normalized },
-            { upsert: true, returnDocument: 'after' }
+            { upsert: true, returnDocument: 'after', ...(session ? { session } : {}) }
         );
     } catch (error) {
-        if (error?.code === 11000) return null;
+        if (!session && error?.code === 11000) return null;
         throw error;
     }
 };
@@ -308,6 +308,21 @@ const queueSupportReply = ({ employeeId, ticketId, message = '' }) => queueOutbo
     collapseKey: `executor-support-${ticketId}`,
     availableAt: new Date()
 });
+
+// Reuse the support channel recognized by installed mobile versions.
+const queueExecutorDepositRequest = ({ tx, title, message, ticketId, session }) => queueOutboxEvent({
+    eventKey: 'executor-deposit:' + idOf(tx),
+    category: 'executor_support_reply',
+    transactionId: tx._id,
+    referenceId: idOf(tx),
+    audience: { type: 'group_roles', groupId: idOf(tx.executorGroupId), roles: ['manager'] },
+    title,
+    body: message,
+    data: { action: 'open_executor_support', ticketId: idOf(ticketId), depositRequestId: idOf(tx) },
+    visible: true,
+    collapseKey: 'executor-deposit-' + idOf(tx),
+    availableAt: new Date()
+}, session);
 
 const queueSecurityAlert = ({ employeeId, deviceName = '', ipAddress = '', occurredAt = new Date() }) => queueOutboxEvent({
     eventKey: `executor-security:${employeeId}:${eventTime(occurredAt)}`,
@@ -593,6 +608,7 @@ const markAllMobileNotificationsRead = ({ user }) => MobileNotificationInbox.upd
 );
 
 const actionableTask = (outbox, tx) => {
+    if (outbox.data?.depositRequestId) return tx?.status === 'deposit_pending';
     if (!TASK_ACTION_CATEGORIES.has(outbox.category)) return true;
     if (!tx) return false;
     if (['executor_task_new', 'executor_task_routed', 'executor_task_reminder'].includes(outbox.category)) {
@@ -625,6 +641,7 @@ const resolveAudienceEmployeeIds = async (outbox, tx) => {
     const employees = await Employee.find({
         groupId,
         status: 'active',
+        ...(outbox.data?.depositRequestId ? { archivedAt: null } : {}),
         role: { $in: roles.length > 0 ? roles : ['manager', 'operator', 'external'] }
     }).select('_id role').lean();
 
@@ -776,6 +793,7 @@ const scheduleNextReminder = async (outbox, tx) => {
 
 const executorPortalUrlForNotification = (outbox) => {
     const category = String(outbox?.category || '');
+    if (outbox.data?.depositRequestId) return '/executor-portal/deposits';
     if (category === 'executor_support_reply') return '/executor-portal/support';
     if (['executor_report_ready', 'executor_task_completed', 'executor_task_cancelled'].includes(category)) {
         return '/executor-portal/reports';
@@ -1011,6 +1029,7 @@ module.exports = {
     queueTaskClosed,
     queueUrgentAlert,
     queueSupportReply,
+    queueExecutorDepositRequest,
     queueSecurityAlert,
     queueReportReady,
     queueBalanceWarningForTransaction,

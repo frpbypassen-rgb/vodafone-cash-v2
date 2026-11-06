@@ -5,6 +5,7 @@ const fs = require('fs');
 const path = require('path');
 const mongoose = require('mongoose');
 const Admin = require('../models/Admin');
+const Employee = require('../models/Employee');
 const Notification = require('../models/Notification');
 const SupportTicket = require('../models/SupportTicket');
 const Transaction = require('../models/Transaction');
@@ -16,6 +17,7 @@ const { queryWithSession } = require('../utils/executorLedgerGuard');
 const { getExecutorPrimaryServiceKey } = require('../utils/executorServiceCatalog');
 const { fundingFieldsForService } = require('../utils/executorServiceLedger');
 const { parseExecutorImageDataUrl } = require('../utils/executorImageValidation');
+const { queueExecutorDepositRequest } = require('./executorPushNotificationService');
 
 const MAX_RECEIPTS = 5;
 const MAX_RECEIPT_BYTES = 5 * 1024 * 1024;
@@ -90,6 +92,27 @@ async function notifyAdmins({ title, message, type = 'deposit_pending' }) {
     }).catch(() => null)));
 }
 
+async function notifyExecutorManagers({ tx, ticketId, session = null }) {
+    const title = 'طلب إيداع جديد من الإدارة';
+    const message = 'لديك طلب إيداع بانتظار المراجعة في المالية والإيداعات.';
+    await queueExecutorDepositRequest({ tx, title, message, ticketId, session });
+    const managers = await queryWithSession(Employee.find({
+        groupId: tx.executorGroupId, role: 'manager', status: 'active', archivedAt: null
+    }).select('_id').lean(), session);
+    if (managers.length) {
+        await Notification.insertMany(managers.map((manager) => ({
+            userId: objectId(manager._id),
+            audience: 'executor',
+            // The local mobile monitor recognizes support_reply alerts.
+            type: 'support_reply',
+            title,
+            message,
+            txId: tx.customId,
+            metadata: { ticketId: objectId(ticketId), depositRequestId: objectId(tx._id) }
+        })), session ? { session } : {});
+    }
+}
+
 async function createDepositRequest({ employee, group: requestedGroup, submittedBy, amount, note, receipts, submittedFromAdmin = false, serviceKey }) {
     if ((!employee?.groupId && !requestedGroup) || (employee && employee.role === 'accountant')) throw failure('هذا الحساب لا يملك صلاحية طلب إيداع للشركة.', 403);
     const parsedAmount = Number(amount);
@@ -110,6 +133,7 @@ async function createDepositRequest({ employee, group: requestedGroup, submitted
     const transactionId = new mongoose.Types.ObjectId();
     const ticketId = new mongoose.Types.ObjectId();
     let tx;
+    let createdInTransaction = false;
     try {
     await withOptionalMongoTransaction(async (session) => {
     const persistedGroup = await queryWithSession(ExecutorGroup.findOneAndUpdate(
@@ -161,12 +185,18 @@ async function createDepositRequest({ employee, group: requestedGroup, submitted
             }
         }
     }], session ? { session } : {});
+    if (submittedFromAdmin && session) await notifyExecutorManagers({ tx, ticketId, session });
+    createdInTransaction = Boolean(session);
     });
     } catch (error) {
         // An uncertain commit must retain its files until reconciliation; never
         // delete proofs that may already belong to a committed deposit request.
         if (!error.hasErrorLabel?.('UnknownTransactionCommitResult')) await removeReceipts(receiptImages);
         throw error;
+    }
+    if (submittedFromAdmin && !createdInTransaction) {
+        await notifyExecutorManagers({ tx, ticketId }).catch((error) =>
+            logger.error('Executor manager deposit alert failed after creation', { code: error.code }));
     }
     await notifyAdmins({ title: 'طلب إيداع جديد لشركة تنفيذ', message: `${group.name}: ${customId} بقيمة ${parsedAmount} EGP` })
         .catch((error) => logger.error('Executor deposit notification failed after commit', { code: error.code }));
@@ -305,16 +335,44 @@ const resolveDepositTicket = (request) => withOptionalMongoTransaction((session)
 async function reviewAdminDepositRequest({ employee, requestId, approved, reason = '' }) {
     if (!employee?.groupId || employee.role !== 'manager') throw failure('الموافقة على إيداعات الإدارة متاحة لمدير شركة التنفيذ فقط.', 403);
     if (!mongoose.isValidObjectId(requestId)) throw failure('طلب الإيداع غير صالح.', 404);
-    const tx = await Transaction.findOne({ _id: requestId, executorGroupId: employee.groupId._id, status: 'deposit_pending' }).select('depositRequest');
-    if (!tx?.depositRequest?.supportTicketId) throw failure('هذا الطلب غير متاح للمراجعة أو تمت مراجعته سابقًا.', 404);
-    const ticket = await SupportTicket.findById(tx.depositRequest.supportTicketId).select('messages.sender metadata.depositRequest.submittedByRole').lean();
+    const review = (session) => reviewAdminDepositInSession({ employee, requestId, approved, reason, session });
+    for (let attempt = 0; ; attempt++) {
+        try {
+            return await withOptionalMongoTransaction(review);
+        } catch (error) {
+            const retryable = error.hasErrorLabel?.('TransientTransactionError')
+                || error.hasErrorLabel?.('UnknownTransactionCommitResult');
+            if (!retryable || attempt >= 2) throw error;
+        }
+    }
+}
+
+async function reviewAdminDepositInSession({ employee, requestId, approved, reason, session }) {
+    const tx = await queryWithSession(Transaction.findOne({
+        _id: requestId, executorGroupId: employee.groupId._id,
+        status: { $in: ['deposit_pending', 'deposit', 'rejected'] }
+    }), session);
+    if (!tx?.depositRequest?.supportTicketId) throw failure('هذا الطلب غير متاح للمراجعة.', 404);
+    const ticket = await queryWithSession(SupportTicket.findById(tx.depositRequest.supportTicketId), session);
+    if (ticket?.metadata?.type !== 'executor_deposit'
+        || objectId(ticket.entityId) !== objectId(employee.groupId)
+        || objectId(ticket.metadata.depositRequest?.transactionId) !== objectId(tx._id)) {
+        throw failure('طلب الإيداع غير متاح للمراجعة.', 404);
+    }
     if (tx.depositRequest.submittedByRole !== 'admin' && !isAdminInitiatedTicket(ticket)) {
         throw failure('هذا الطلب ليس إيداعاً واردًا من الإدارة.', 403);
     }
-    if (tx.depositRequest.submittedByRole !== 'admin') {
-        await Transaction.updateOne({ _id: tx._id }, { $set: { 'depositRequest.submittedByRole': 'admin' } });
+    if (tx.status !== 'deposit_pending') {
+        if (tx.status === (approved ? 'deposit' : 'rejected')
+            && ticket.metadata.depositRequest.status === (approved ? 'approved' : 'rejected')) {
+            return { transaction: tx, ticket, alreadyReviewed: true };
+        }
+        throw failure('تمت مراجعة طلب الإيداع بقرار مختلف أو يلزم التحقق من حالته.', 409);
     }
-    return resolveDepositTicket({ ticketId: String(tx.depositRequest.supportTicketId), admin: { id: objectId(employee._id), name: employee.name }, approved, reason });
+    return resolveDepositTicketInSession({
+        ticketId: objectId(ticket._id), admin: { id: objectId(employee._id), name: employee.name },
+        approved, reason, session
+    });
 }
 
 module.exports = { ExecutorDepositRequestError, createDepositRequest, listDepositRequests, resolveDepositTicket, reviewAdminDepositRequest };
