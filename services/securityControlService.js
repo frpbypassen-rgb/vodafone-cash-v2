@@ -385,11 +385,12 @@ const notifyDeviceTransfer = async ({ req, principal, purpose, previousDevice = 
     }).catch((error) => console.error('[SecurityControl] device transfer notice failed:', error.message));
 };
 
-const supersedePendingAccessRequests = async ({ principal, reviewedBy, reviewNote }) => {
+const supersedePendingAccessRequests = async ({ principal, channel, reviewedBy, reviewNote }) => {
     await SecurityAccessRequest.updateMany(
         {
             principalType: principal.principalType,
             principalId: principal.principalId,
+            channel,
             status: 'pending'
         },
         {
@@ -509,6 +510,7 @@ const authorizeLogin = async ({
         const device = await activateDevice({ req, res, principal, approvedBy: 'first_verified_login' });
         await supersedePendingAccessRequests({
             principal,
+            channel,
             reviewedBy: 'first_verified_login',
             reviewNote: 'Superseded by the first verified device enrollment.'
         });
@@ -527,6 +529,7 @@ const authorizeLogin = async ({
         const device = await activateDevice({ req, res, principal, approvedBy });
         await supersedePendingAccessRequests({
             principal,
+            channel,
             reviewedBy: approvedBy,
             reviewNote: 'Superseded by a verified login that rebound the current device.'
         });

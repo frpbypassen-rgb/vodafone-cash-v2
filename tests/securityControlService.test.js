@@ -229,7 +229,7 @@ describe('securityControlService', () => {
                 _id: 'dev-1',
                 status: 'active'
             });
-            jest.spyOn(SecurityAccessRequest, 'updateMany').mockResolvedValue({});
+            const closePending = jest.spyOn(SecurityAccessRequest, 'updateMany').mockResolvedValue({});
 
             const result = await securityControl.authorizeLogin({
                 req: {
@@ -245,6 +245,10 @@ describe('securityControlService', () => {
             });
 
             expect(result).toMatchObject({ allowed: true, enrolled: true });
+            expect(closePending).toHaveBeenCalledWith(
+                expect.objectContaining({ channel: 'web', status: 'pending' }),
+                expect.any(Object)
+            );
             expect(updateMany).toHaveBeenCalled();
             expect(create).toHaveBeenCalledWith(expect.objectContaining({
                 principalType: 'client_company',
@@ -270,7 +274,7 @@ describe('securityControlService', () => {
                 _id: 'new-device',
                 status: 'active'
             });
-            jest.spyOn(SecurityAccessRequest, 'updateMany').mockResolvedValue({});
+            const closePending = jest.spyOn(SecurityAccessRequest, 'updateMany').mockResolvedValue({});
             const notify = jest.spyOn(Notification, 'create').mockResolvedValue({});
 
             const result = await securityControl.authorizeLogin({
@@ -287,6 +291,10 @@ describe('securityControlService', () => {
             });
 
             expect(result).toMatchObject({ allowed: true, rebound: true });
+            expect(closePending).toHaveBeenCalledWith(
+                expect.objectContaining({ channel: 'web', status: 'pending' }),
+                expect.any(Object)
+            );
             expect(create).toHaveBeenCalledWith(expect.objectContaining({
                 approvedBy: 'verified_login_rebind',
                 status: 'active'

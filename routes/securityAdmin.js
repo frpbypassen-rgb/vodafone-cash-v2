@@ -268,14 +268,15 @@ router.post('/access-requests/:id/:decision', requireSecurityManager, async (req
         request.reviewNote = String(req.body.note || '').slice(0, 500);
         await request.save();
         if (decision === 'approve') {
+            const channel = request.channel || 'web';
             await SecurityDevice.updateMany(
-                { principalType: request.principalType, principalId: request.principalId, status: 'active' },
+                { principalType: request.principalType, principalId: request.principalId, channel, status: 'active' },
                 { $set: { status: 'revoked', revokedAt: new Date(), revokedReason: 'approved_device_transfer' } }
             );
             await SecurityDevice.create({
                 principalType: request.principalType,
                 principalId: request.principalId,
-                channel: request.channel || 'web',
+                channel,
                 tenantId: request.tenantId,
                 displayName: request.displayName,
                 deviceIdHash: request.deviceIdHash,
