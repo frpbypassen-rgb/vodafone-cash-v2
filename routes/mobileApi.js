@@ -1865,12 +1865,17 @@ const mobileSecurityActionError = (res, req, error) => {
     const status = error.code === 'SECURITY_DEVICE_NOT_FOUND'
         || error.code === 'SECURITY_ACCESS_REQUEST_NOT_FOUND'
         ? 404
-        : (error.code === 'SECURITY_ACCESS_REQUEST_EXPIRED' ? 410 : 400);
+        : (error.code === 'SECURITY_ACCESS_REQUEST_EXPIRED' ? 410 : (
+            ['SECURITY_APPROVAL_CREDENTIALS_INVALID', 'SECURITY_CURRENT_DEVICE_REQUIRED', 'SECURITY_ADMIN_APPROVAL_REQUIRED']
+                .includes(error.code) ? 403 : 400
+        ));
     const messages = {
         SECURITY_DEVICE_NOT_FOUND: 'الجلسة غير موجودة أو تم إنهاؤها بالفعل',
         SECURITY_ACCESS_REQUEST_NOT_FOUND: 'طلب الجهاز غير موجود أو تمت مراجعته',
         SECURITY_ACCESS_REQUEST_EXPIRED: 'انتهت صلاحية طلب الجهاز. أعد محاولة تسجيل الدخول',
-        SECURITY_ADMIN_APPROVAL_REQUIRED: 'هذا الطلب يحتاج موافقة الإدارة حفاظاً على أمان الحساب.'
+        SECURITY_ADMIN_APPROVAL_REQUIRED: 'هذا الطلب يحتاج موافقة الإدارة حفاظاً على أمان الحساب.',
+        SECURITY_CURRENT_DEVICE_REQUIRED: 'تعذر التحقق من الجهاز الحالي. أعد تسجيل الدخول من جهاز معتمد.',
+        SECURITY_APPROVAL_CREDENTIALS_INVALID: 'تحقق من كلمة المرور ورمز Authenticator إذا كان مفعلاً.'
     };
     return sendMobileError(
         res,
@@ -1885,7 +1890,8 @@ const getMobileSecuritySessions = async (req, res) => {
     try {
         const data = await securityControl.listPrincipalSessions({
             principal: mobileSecurityPrincipal(req),
-            req
+            req,
+            approvalAccount: req.user.accountType === 'executor' ? await resolveMfaAccount(req) : null
         });
         return res.json({ success: true, ...data });
     } catch (error) {
@@ -1926,7 +1932,11 @@ router.post('/security/sessions/:id/revoke', authenticateJWT, async (req, res) =
     }
 });
 
-router.post('/security/session-requests/:id/:decision', authenticateJWT, async (req, res) => {
+const deviceDecisionLimiter = rateLimit({
+    windowMs: 5 * 60 * 1000, max: 8,
+    handler: rateLimitHandler('عدد محاولات اعتماد الأجهزة كبير، يرجى الانتظار خمس دقائق')
+});
+router.post('/security/session-requests/:id/:decision', deviceDecisionLimiter, authenticateJWT, async (req, res) => {
     try {
         const decision = String(req.params.decision || '');
         if (!['approve', 'reject'].includes(decision)) {
@@ -1937,6 +1947,8 @@ router.post('/security/session-requests/:id/:decision', authenticateJWT, async (
             principal,
             requestId: req.params.id,
             approve: decision === 'approve',
+            req,
+            approvalAccount: decision === 'approve' && req.user.accountType === 'executor' ? await resolveMfaAccount(req) : null,
             reviewedBy: principal.principalName,
             reviewNote: req.body?.note
         });

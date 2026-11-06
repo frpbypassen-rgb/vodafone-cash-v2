@@ -64,7 +64,11 @@
         .request strong { display:block; font-size:.86rem; }
         .request p { margin:4px 0 0; color:var(--muted); font-size:.69rem; line-height:1.7; }
         .request-actions { display:flex; gap:7px; }
-        .request-actions button { min-height:38px; padding:7px 11px; border-radius:8px; cursor:pointer; font-weight:900; font-size:.72rem; }
+        .request-actions button { min-height:48px; padding:7px 11px; border-radius:8px; cursor:pointer; font-weight:900; font-size:.72rem; }
+        .approval-dialog { width:min(420px, calc(100% - 24px)); max-height:90vh; overflow:auto; padding:18px; color:var(--navy); background:var(--surface); border:1px solid var(--line); border-radius:14px; }
+        .approval-dialog::backdrop { background:#0008; }
+        .approval-dialog label { display:block; margin:12px 0; }
+        .approval-dialog input { display:block; width:100%; min-height:44px; padding:8px; margin-top:4px; border:1px solid var(--line); border-radius:8px; color:inherit; background:var(--surface); }
         .approve { color:#fff; border:1px solid var(--green); background:var(--green); }
         /* Device approval is an administrative decision; account owners can reject only. */
         .approve { display:none !important; }
@@ -110,10 +114,10 @@
     <header class="topbar"><div class="topbar-inner"><div class="brand"><span class="brand-mark"><i class="fa-solid fa-shield-halved"></i></span><span>AHRAM PAY</span></div><a class="back" href="<%= returnUrl %>"><i class="fa-solid fa-arrow-right"></i> <%= typeof returnLabel !== 'undefined' ? returnLabel : 'رجوع للحساب' %></a></div></header>
     <main class="page">
         <section class="hero">
-            <div class="hero-copy"><span class="kicker"><i class="fa-solid fa-lock"></i> أمان <%= principalName %></span><h1>الأجهزة والجلسات المتصلة</h1><p>يسمح النظام بجهاز واحد فقط لكل حساب. أي جهاز جديد يحتاج رمز Authenticator ثم موافقة الإدارة.</p></div>
+            <div class="hero-copy"><span class="kicker"><i class="fa-solid fa-lock"></i> أمان <%= principalName %></span><h1>الأجهزة والجلسات المتصلة</h1><p>يمكن اعتماد تطبيق هاتف واحد ومتصفح واحد للحساب. راجع طلبات الأجهزة الجديدة أدناه.</p></div>
             <div class="policy"><div><span>جلسات الموقع</span><strong>جهاز واحد</strong></div><div><span>جلسات التطبيق</span><strong>هاتف واحد</strong></div></div>
         </section>
-        <div class="status" data-status></div>
+        <div class="status" data-status aria-live="polite"></div>
         <% if(typeof isAgentSessions !== 'undefined' && isAgentSessions) { %><div class="sessions-summary"><span>الجلسات النشطة</span><strong data-session-count aria-live="polite">—</strong></div><% } %>
         <section class="section">
             <div class="section-heading"><div class="section-title"><span class="section-icon"><i class="fa-solid fa-display"></i></span><div><h2>الجلسات النشطة</h2><p>راجع آخر نشاط والموقع وعنوان الاتصال.</p></div></div><button class="refresh" type="button" data-refresh title="تحديث"><i class="fa-solid fa-rotate"></i></button></div>
@@ -122,12 +126,22 @@
         </section>
         <% if(typeof isAgentSessions !== 'undefined' && isAgentSessions) { %><details class="sessions-requests-drawer"><summary>طلبات الأجهزة الجديدة <span data-request-count>—</span></summary><% } %>
         <section class="section">
-            <div class="section-heading"><div class="section-title"><span class="section-icon"><i class="fa-solid fa-user-clock"></i></span><div><h2>طلبات الأجهزة الجديدة</h2><p>الطلبات بانتظار قرار الإدارة؛ يمكنك رفض أي طلب لا تعرفه.</p></div></div></div>
+            <div class="section-heading"><div class="section-title"><span class="section-icon"><i class="fa-solid fa-user-clock"></i></span><div><h2>طلبات الأجهزة الجديدة</h2><p>طابق رمز الطلب مع الجهاز الجديد قبل الموافقة، وارفض أي طلب لا تعرفه.</p></div></div></div>
             <div data-requests><div class="loading"><i class="fa-solid fa-circle-notch fa-spin"></i>جاري تحميل الطلبات...</div></div>
         </section>
         <% if(typeof isAgentSessions !== 'undefined' && isAgentSessions) { %></details><% } %>
         <p class="footnote"><i class="fa-solid fa-circle-info"></i> إنهاء الجلسة الحالية يعيدك إلى شاشة الدخول. عند الاشتباه في دخول غير معروف، ارفض الطلب وغيّر كلمة المرور وراجع الدعم الفني.</p>
     </main>
+    <dialog class="approval-dialog" data-approval-dialog aria-labelledby="approval-title">
+        <form method="dialog" autocomplete="off">
+            <h2 id="approval-title">تأكيد اعتماد الجهاز</h2>
+            <p>طابق رمز الطلب قبل الموافقة. سيحل الجهاز الجديد محل الجهاز المعتمد من النوع نفسه.</p>
+            <strong dir="ltr" data-approval-code></strong>
+            <label>كلمة المرور الحالية<input name="currentPassword" type="password" autocomplete="current-password" maxlength="256" required></label>
+            <label data-authenticator-field hidden>رمز Authenticator<input name="authenticatorCode" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" dir="ltr"></label>
+            <div class="request-actions"><button type="submit" class="approve" value="approve">موافقة</button><button type="submit" class="reject" value="cancel" formnovalidate>إلغاء</button></div>
+        </form>
+    </dialog>
     <script>
     (() => {
         const csrf = document.querySelector('meta[name="csrf-token"]').content;
@@ -139,6 +153,32 @@
         let mutationBusy=false;
         const devicesNode = document.querySelector('[data-devices]');
         const requestsNode = document.querySelector('[data-requests]');
+        const approvalDialog = document.querySelector('[data-approval-dialog]');
+        const approvalCredentials = (button) => new Promise(resolve => {
+            const form = approvalDialog.querySelector('form');
+            form.reset();
+            approvalDialog.querySelector('[data-approval-code]').textContent = button.dataset.code;
+            const needsAuthenticator = button.dataset.authenticator === 'true';
+            approvalDialog.querySelector('[data-authenticator-field]').hidden = !needsAuthenticator;
+            form.elements.authenticatorCode.required = needsAuthenticator;
+            const finish = credentials => {
+                approvalDialog.removeEventListener('close', cancel);
+                form.onsubmit = null;
+                form.reset();
+                if (approvalDialog.open) approvalDialog.close();
+                resolve(credentials);
+            };
+            const cancel = () => finish(null);
+            approvalDialog.addEventListener('close', cancel);
+            form.onsubmit = event => {
+                event.preventDefault();
+                finish(event.submitter?.value !== 'cancel' ? {
+                    currentPassword: form.elements.currentPassword.value,
+                    ...(needsAuthenticator ? {authenticatorCode: form.elements.authenticatorCode.value} : {})
+                } : null);
+            };
+            approvalDialog.showModal();
+        });
         const statusNode = document.querySelector('[data-status]');
         const escapeHtml = (value) => String(value ?? '').replace(/[&<>'"]/g, (char) => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
         const formatDate = (value) => value && Number.isFinite(new Date(value).getTime()) ? new Intl.DateTimeFormat('ar-LY',{dateStyle:'medium',timeStyle:'short',timeZone:'Africa/Tripoli'}).format(new Date(value)) : 'غير متوفر';
@@ -168,7 +208,7 @@
         const renderRequests = (requests) => {
             if(requestCount)requestCount.textContent=requests.length;
             if (!requests.length) { requestsNode.innerHTML = '<div class="empty"><i class="fa-solid fa-shield-circle-check"></i>لا توجد طلبات دخول معلقة.</div>'; return; }
-            requestsNode.innerHTML = requests.map((request) => `<article class="request"><span class="request-icon"><i class="fa-solid ${request.channel === 'app' ? 'fa-mobile-screen-button' : 'fa-display'}"></i></span><div><strong>${escapeHtml(request.displayName)} · ${channelLabel(request.channel)}</strong><p>الرمز ${escapeHtml(request.requestCode)} · ${escapeHtml(request.ipAddress || 'عنوان غير متوفر')} · ينتهي ${formatDate(request.expiresAt)}</p></div><div class="request-actions"><button class="approve" data-request="${escapeHtml(request.id)}" data-decision="approve"><i class="fa-solid fa-check"></i> موافقة</button><button class="reject" data-request="${escapeHtml(request.id)}" data-decision="reject"><i class="fa-solid fa-xmark"></i> رفض</button></div></article>`).join('');
+            requestsNode.innerHTML = requests.map((request) => `<article class="request"><span class="request-icon"><i class="fa-solid ${request.channel === 'app' ? 'fa-mobile-screen-button' : 'fa-display'}"></i></span><div><strong>${escapeHtml(request.displayName)} · ${channelLabel(request.channel)}</strong><p>الرمز ${escapeHtml(request.requestCode)} · ${escapeHtml(request.ipAddress || 'عنوان غير متوفر')} · ينتهي ${formatDate(request.expiresAt)}</p></div><div class="request-actions">${request.canApprove === true ? `<button class="approve" data-request="${escapeHtml(request.id)}" data-decision="approve" data-code="${escapeHtml(request.requestCode)}" data-password="${request.approvalRequiresPassword === true}" data-authenticator="${request.approvalRequiresAuthenticator === true}"><i class="fa-solid fa-check"></i> موافقة</button>` : ''}<button class="reject" data-request="${escapeHtml(request.id)}" data-decision="reject"><i class="fa-solid fa-xmark"></i> رفض</button></div></article>`).join('');
         };
         const load = async (preserveStatus=false) => {
             if(mutationBusy && !preserveStatus)return;
@@ -208,8 +248,12 @@
                     setStatus('تم إنهاء الجلسة بنجاح.');
                 } else {
                     const approve = review.dataset.decision === 'approve';
-                    if (!confirm(approve ? 'سيتم استبدال الجلسة القديمة من النوع نفسه. هل تريد المتابعة؟' : 'هل تريد رفض طلب الجهاز؟')) return;
-                    const result = await api(`/security/session-requests/${encodeURIComponent(review.dataset.request)}/${review.dataset.decision}`,{method:'POST',body:'{}'});
+                    let credentials = {};
+                    if (approve && review.dataset.password === 'true') {
+                        credentials = await approvalCredentials(review);
+                        if (!credentials) return;
+                    } else if (!confirm(approve ? 'سيتم استبدال الجلسة القديمة من النوع نفسه. هل تريد المتابعة؟' : 'هل تريد رفض طلب الجهاز؟')) return;
+                    const result = await api(`/security/session-requests/${encodeURIComponent(review.dataset.request)}/${review.dataset.decision}`,{method:'POST',body:JSON.stringify(credentials)});
                     if (approve && result.channel === 'web') { window.location.assign('/logout'); return; }
                     setStatus(approve ? 'تم اعتماد الجهاز الجديد.' : 'تم رفض طلب الجهاز.');
                 }

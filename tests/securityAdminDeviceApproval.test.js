@@ -25,6 +25,7 @@ test('administrative app approval revokes only the existing app binding', async 
     jest.spyOn(SecurityAccessRequest, 'findOne').mockReturnValue({
         select: jest.fn().mockResolvedValue(accessRequest)
     });
+    jest.spyOn(SecurityAccessRequest, 'updateOne').mockResolvedValue({ modifiedCount: 1 });
     const revoke = jest.spyOn(SecurityDevice, 'updateMany').mockResolvedValue({});
     const create = jest.spyOn(SecurityDevice, 'create').mockResolvedValue({});
     const app = express();

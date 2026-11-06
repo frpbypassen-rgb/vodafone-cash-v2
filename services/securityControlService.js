@@ -2,8 +2,10 @@
 
 const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
+const mongoose = require('mongoose');
 const SecurityDevice = require('../models/SecurityDevice');
 const SecurityAccessRequest = require('../models/SecurityAccessRequest');
+const MobileDeviceSession = require('../models/MobileDeviceSession');
 const SecurityState = require('../models/SecurityState');
 const Notification = require('../models/Notification');
 const {
@@ -600,7 +602,20 @@ const publicAccessRequest = (request) => ({
     expiresAt: request.expiresAt
 });
 
-const listPrincipalSessions = async ({ principal, req, res = null }) => {
+const isExecutorDeviceManager = (principal, account) =>
+    principal.principalType === 'executor'
+    && String(account?._id || '') === String(principal.principalId)
+    && account.role === 'manager'
+    && account.status === 'active'
+    && !account.archivedAt;
+
+const currentDeviceBinding = (req) => ({
+    channel: requestChannel(req),
+    deviceIdHash: hashDeviceId(ensureDeviceId(req, null, { mint: false }))
+});
+
+const listPrincipalSessions = async ({ principal, req, res = null, approvalAccount = null }) => {
+    const accountMfa = require('./accountMfaService');
     const now = new Date();
     await SecurityAccessRequest.updateMany(
         {
@@ -611,7 +626,7 @@ const listPrincipalSessions = async ({ principal, req, res = null }) => {
         },
         { $set: { status: 'expired', reviewedAt: now } }
     );
-    const [devices, requests] = await Promise.all([
+    const [devices, requests, state] = await Promise.all([
         SecurityDevice.find({
             principalType: principal.principalType,
             principalId: principal.principalId,
@@ -622,16 +637,25 @@ const listPrincipalSessions = async ({ principal, req, res = null }) => {
             principalId: principal.principalId,
             status: 'pending',
             expiresAt: { $gt: now }
-        }).sort({ createdAt: -1 }).lean()
+        }).sort({ createdAt: -1 }).lean(),
+        getState()
     ]);
     const currentDeviceId = ensureDeviceId(req, res);
     const currentHash = hashDeviceId(currentDeviceId);
     const currentChannel = requestChannel(req);
+    const managerCanApprove = !state.lockdownActive && isExecutorDeviceManager(principal, approvalAccount)
+        && devices.some(device => device.channel === currentChannel && hashesEqual(device.deviceIdHash, currentHash));
     return {
         policy: { maxDevices: 1 },
         currentChannel,
         devices: devices.map((device) => publicDevice(device, currentHash, currentChannel)),
-        requests: requests.map(publicAccessRequest)
+        requests: requests.map(request => ({
+            ...publicAccessRequest(request),
+            canApprove: managerCanApprove || (state.adminApprovalRequired === false
+                && (request.purpose !== 'device_transfer' || Boolean(request.authenticatorVerifiedAt))),
+            approvalRequiresPassword: managerCanApprove,
+            approvalRequiresAuthenticator: managerCanApprove && accountMfa.isEnabled(approvalAccount)
+        }))
     };
 };
 
@@ -666,9 +690,65 @@ const revokeOtherPrincipalDevices = async ({principal,req}) => {
     return {revokedCount:result.modifiedCount || 0};
 };
 
-const reviewPrincipalAccessRequest = async ({ principal, requestId, approve, reviewedBy, reviewNote = '' }) => {
+const approveExecutorDevice = async ({ request, principal, req, reviewedBy, reviewNote }) => {
+    const owner = { principalType: principal.principalType, principalId: principal.principalId, status: 'active' };
+    const binding = currentDeviceBinding(req);
+    const channel = request.channel || 'web';
+    const now = new Date();
+    const nextDevice = {
+        ...owner, channel, tenantId: request.tenantId || null, deviceIdHash: request.deviceIdHash,
+        displayName: request.displayName, deviceType: request.deviceType, platform: request.platform,
+        browser: request.browser, userAgent: request.userAgent, firstIp: request.ipAddress,
+        lastIp: request.ipAddress, firstLocation: request.location, lastLocation: request.location,
+        approvedBy: reviewedBy, approvedAt: now, lastSeenAt: now
+    };
+    const dbSession = await mongoose.startSession();
+    try {
+        const device = await dbSession.withTransaction(async () => {
+            if (!await SecurityDevice.exists({ ...owner, ...binding }).session(dbSession)) {
+                throw Object.assign(new Error('Untrusted device'), { code: 'SECURITY_CURRENT_DEVICE_REQUIRED' });
+            }
+            const claim = await SecurityAccessRequest.updateOne(
+                { _id: request._id, principalType: owner.principalType, principalId: owner.principalId,
+                    status: 'pending', expiresAt: { $gt: new Date() } },
+                { $set: { status: 'approved', reviewedBy, reviewedAt: now, reviewNote } },
+                { session: dbSession }
+            );
+            if (claim.modifiedCount !== 1) {
+                throw Object.assign(new Error('Request already reviewed'), { code: 'SECURITY_ACCESS_REQUEST_NOT_FOUND' });
+            }
+            if (channel === 'app') {
+                await MobileDeviceSession.updateMany(
+                    { accountId: principal.principalId, accountType: 'executor', active: true },
+                    { $set: { active: false, revokedAt: now, revokeReason: 'replaced_by_approved_app' } },
+                    { session: dbSession }
+                );
+            }
+            // Keep the unique active channel slot on the same document and archive its old binding.
+            const previous = await SecurityDevice.findOneAndReplace(
+                { ...owner, channel }, nextDevice, { session: dbSession }
+            ).select('+deviceIdHash +credentialPublicKey').lean();
+            if (!previous) return (await SecurityDevice.create([nextDevice], { session: dbSession }))[0];
+            const { _id, ...history } = previous;
+            await SecurityDevice.create([{
+                ...history, status: 'revoked', revokedAt: now, revokedReason: 'replaced_by_approved_device'
+            }], { session: dbSession });
+            return { ...nextDevice, _id };
+        });
+        deviceBindingCache.clear();
+        return { request, device };
+    } finally {
+        await dbSession.endSession();
+    }
+};
+
+const reviewPrincipalAccessRequest = async ({
+    principal, requestId, approve, reviewedBy, reviewNote = '', req, approvalAccount = null
+}) => {
     const state = await getState();
-    if (approve && state.adminApprovalRequired !== false) {
+    const managerApproval = approve && isExecutorDeviceManager(principal, approvalAccount);
+    if (approve && ((managerApproval && state.lockdownActive)
+        || (!managerApproval && state.adminApprovalRequired !== false))) {
         const error = new Error('SECURITY_ADMIN_APPROVAL_REQUIRED');
         error.code = 'SECURITY_ADMIN_APPROVAL_REQUIRED';
         throw error;
@@ -684,25 +764,57 @@ const reviewPrincipalAccessRequest = async ({ principal, requestId, approve, rev
         error.code = 'SECURITY_ACCESS_REQUEST_NOT_FOUND';
         throw error;
     }
-    if (approve && request.purpose === 'device_transfer' && !request.authenticatorVerifiedAt) {
+    if (approve && !managerApproval && request.purpose === 'device_transfer' && !request.authenticatorVerifiedAt) {
         const error = new Error('SECURITY_ADMIN_APPROVAL_REQUIRED');
         error.code = 'SECURITY_ADMIN_APPROVAL_REQUIRED';
         throw error;
     }
     if (request.expiresAt <= new Date()) {
-        request.status = 'expired';
-        request.reviewedAt = new Date();
-        await request.save();
+        await SecurityAccessRequest.updateOne(
+            { _id: request._id, status: 'pending' },
+            { $set: { status: 'expired', reviewedAt: new Date() } }
+        );
         const error = new Error('SECURITY_ACCESS_REQUEST_EXPIRED');
         error.code = 'SECURITY_ACCESS_REQUEST_EXPIRED';
         throw error;
+    }
+    if (managerApproval) {
+        const accountMfa = require('./accountMfaService');
+        const password = req?.body?.currentPassword;
+        const token = req?.body?.authenticatorCode;
+        if (!await SecurityDevice.exists({
+            principalType: principal.principalType, principalId: principal.principalId, status: 'active',
+            ...currentDeviceBinding(req)
+        })) {
+            throw Object.assign(new Error('Untrusted device'), { code: 'SECURITY_CURRENT_DEVICE_REQUIRED' });
+        }
+        if (typeof password !== 'string' || !password || password.length > 256
+            || !await bcrypt.compare(password, approvalAccount.webPassword || '')
+            || (accountMfa.isEnabled(approvalAccount) && (
+                typeof token !== 'string' || !/^\d{6}$/.test(token)
+                || !accountMfa.verifyTotp(accountMfa.decrypt(approvalAccount.totpSecretEncrypted), token)
+            ))) {
+            throw Object.assign(new Error('Reauthentication failed'), { code: 'SECURITY_APPROVAL_CREDENTIALS_INVALID' });
+        }
+        return approveExecutorDevice({
+            request, principal, req,
+            reviewedBy: String(reviewedBy || principal.principalId).slice(0, 160),
+            reviewNote: String(reviewNote || '').slice(0, 500)
+        });
     }
     request.status = approve ? 'approved' : 'rejected';
     request.reviewedBy = String(reviewedBy || principal.principalName || principal.principalId).slice(0, 160);
     request.reviewedAt = new Date();
     request.reviewNote = String(reviewNote || '').slice(0, 500);
     if (!approve) {
-        await request.save();
+        const claim = await SecurityAccessRequest.updateOne(
+            { _id: request._id, status: 'pending', expiresAt: { $gt: request.reviewedAt } },
+            { $set: { status: request.status, reviewedBy: request.reviewedBy, reviewedAt: request.reviewedAt,
+                reviewNote: request.reviewNote } }
+        );
+        if (claim.modifiedCount !== 1) {
+            throw Object.assign(new Error('Request already reviewed'), { code: 'SECURITY_ACCESS_REQUEST_NOT_FOUND' });
+        }
         return { request, device: null };
     }
 

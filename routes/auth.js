@@ -451,10 +451,14 @@ const securitySessionsError = (res, error) => {
     const status = error.code === 'SECURITY_DEVICE_NOT_FOUND'
         || error.code === 'SECURITY_ACCESS_REQUEST_NOT_FOUND'
         ? 404
-        : (error.code === 'SECURITY_ACCESS_REQUEST_EXPIRED' ? 410 : 400);
+        : (error.code === 'SECURITY_ACCESS_REQUEST_EXPIRED' ? 410 : (
+            ['SECURITY_APPROVAL_CREDENTIALS_INVALID', 'SECURITY_CURRENT_DEVICE_REQUIRED', 'SECURITY_ADMIN_APPROVAL_REQUIRED']
+                .includes(error.code) ? 403 : 400
+        ));
     const messages = {
         SECURITY_DEVICE_NOT_FOUND: 'الجلسة غير موجودة أو تم إنهاؤها بالفعل.',
-        SECURITY_CURRENT_DEVICE_REQUIRED: 'تعذر التحقق من الجلسة الحالية. أعد تسجيل الدخول قبل إنهاء الأجهزة الأخرى.',
+        SECURITY_CURRENT_DEVICE_REQUIRED: 'تعذر التحقق من الجهاز الحالي. أعد تسجيل الدخول من جهاز معتمد.',
+        SECURITY_APPROVAL_CREDENTIALS_INVALID: 'تحقق من كلمة المرور ورمز Authenticator إذا كان مفعلاً.',
         SECURITY_ACCESS_REQUEST_NOT_FOUND: 'طلب الجهاز غير موجود أو تمت مراجعته.',
         SECURITY_ACCESS_REQUEST_EXPIRED: 'انتهت صلاحية طلب الجهاز. أعد محاولة تسجيل الدخول.',
         SECURITY_ADMIN_APPROVAL_REQUIRED: 'هذا الطلب يحتاج موافقة الإدارة حفاظاً على أمان الحساب.'
@@ -556,7 +560,8 @@ router.get('/security/sessions/data', requireWebMfaContext, async (req, res) => 
         const data = await securityControl.listPrincipalSessions({
             principal: webSecurityPrincipal(req),
             req,
-            res
+            res,
+            approvalAccount: req.webMfaContext.account
         });
         return res.json({ success: true, ...data });
     } catch (error) {
@@ -597,7 +602,8 @@ router.post('/security/sessions/:id/revoke', requireWebMfaContext, async (req, r
     }
 });
 
-router.post('/security/session-requests/:id/:decision', requireWebMfaContext, async (req, res) => {
+const deviceDecisionLimiter = rateLimit({ windowMs: 5 * 60 * 1000, max: 8 });
+router.post('/security/session-requests/:id/:decision', deviceDecisionLimiter, requireWebMfaContext, async (req, res) => {
     try {
         const decision = String(req.params.decision || '');
         if (!['approve', 'reject'].includes(decision)) {
@@ -608,6 +614,8 @@ router.post('/security/session-requests/:id/:decision', requireWebMfaContext, as
             principal,
             requestId: req.params.id,
             approve: decision === 'approve',
+            req,
+            approvalAccount: req.webMfaContext.account,
             reviewedBy: principal.principalName,
             reviewNote: req.body?.note
         });

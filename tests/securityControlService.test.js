@@ -203,6 +203,66 @@ describe('securityControlService', () => {
             restoreEnv();
         });
 
+        test('only a reauthenticated manager on an approved device can approve their pending app transfer', async () => {
+            mockState();
+            const mongoose = require('mongoose');
+            const MobileDeviceSession = require('../models/MobileDeviceSession');
+            const accountMfa = require('../services/accountMfaService');
+            const principal = { principalType: 'executor', principalId: 'executor-1' };
+            const manager = { _id: 'executor-1', role: 'manager', status: 'active', webPassword: await bcrypt.hash('correct', 4) };
+            const pending = { _id: 'pending-app', channel: 'app', purpose: 'device_transfer',
+                expiresAt: new Date(Date.now() + 60000), deviceIdHash: 'new-app' };
+            const find = jest.spyOn(SecurityAccessRequest, 'findOne').mockReturnValue({
+                select: jest.fn().mockResolvedValue(pending)
+            });
+            const req = { originalUrl: '/security/session-requests/pending-app/approve',
+                headers: { cookie: 'ahrampay_security_device=aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee' },
+                body: { currentPassword: 'wrong' } };
+            const input = { principal, req, requestId: pending._id, approve: true, approvalAccount: manager };
+            const exists = jest.spyOn(SecurityDevice, 'exists').mockResolvedValue(null);
+            const start = jest.spyOn(mongoose, 'startSession');
+            await expect(securityControl.reviewPrincipalAccessRequest({
+                ...input, approvalAccount: { ...manager, role: 'operator' }
+            })).rejects.toMatchObject({ code: 'SECURITY_ADMIN_APPROVAL_REQUIRED' });
+            await expect(securityControl.reviewPrincipalAccessRequest(input))
+                .rejects.toMatchObject({ code: 'SECURITY_CURRENT_DEVICE_REQUIRED' });
+            exists.mockResolvedValue({ _id: 'trusted-web' });
+            await expect(securityControl.reviewPrincipalAccessRequest(input))
+                .rejects.toMatchObject({ code: 'SECURITY_APPROVAL_CREDENTIALS_INVALID' });
+            req.body.currentPassword = 'correct';
+            const mfa = jest.spyOn(accountMfa, 'isEnabled').mockReturnValue(true);
+            await expect(securityControl.reviewPrincipalAccessRequest(input))
+                .rejects.toMatchObject({ code: 'SECURITY_APPROVAL_CREDENTIALS_INVALID' });
+            expect(start).not.toHaveBeenCalled();
+            mfa.mockReturnValue(false);
+            const dbSession = { withTransaction: jest.fn(callback => callback()), endSession: jest.fn() };
+            start.mockResolvedValue(dbSession);
+            exists.mockReturnValue({ session: jest.fn().mockResolvedValue({ _id: 'trusted-web' }) });
+            const claim = jest.spyOn(SecurityAccessRequest, 'updateOne').mockResolvedValue({ modifiedCount: 0 });
+            const replace = jest.spyOn(SecurityDevice, 'findOneAndReplace').mockReturnValue({
+                select: jest.fn().mockReturnThis(),
+                lean: jest.fn().mockResolvedValue({ _id: 'old-app', deviceIdHash: 'old-hash' })
+            });
+            const archive = jest.spyOn(SecurityDevice, 'create').mockResolvedValue([]);
+            const revoke = jest.spyOn(MobileDeviceSession, 'updateMany').mockResolvedValue({});
+            await expect(securityControl.reviewPrincipalAccessRequest(input))
+                .rejects.toMatchObject({ code: 'SECURITY_ACCESS_REQUEST_NOT_FOUND' });
+            expect(replace).not.toHaveBeenCalled();
+            claim.mockResolvedValue({ modifiedCount: 1 });
+            await expect(securityControl.reviewPrincipalAccessRequest(input))
+                .resolves.toMatchObject({ device: { channel: 'app', deviceIdHash: 'new-app' } });
+            expect(find).toHaveBeenCalledWith(expect.objectContaining({ principalId: 'executor-1', status: 'pending' }));
+            expect(replace).toHaveBeenCalledWith(
+                expect.objectContaining({ channel: 'app', status: 'active' }),
+                expect.objectContaining({ deviceIdHash: 'new-app' }), { session: dbSession }
+            );
+            expect(archive).toHaveBeenCalledWith([expect.objectContaining({ status: 'revoked' })], { session: dbSession });
+            expect(revoke).toHaveBeenCalledWith(
+                { accountId: 'executor-1', accountType: 'executor', active: true },
+                expect.any(Object), { session: dbSession }
+            );
+        });
+
         test('restores a missing cookie from the authenticated session instead of minting a new device id', () => {
             const deviceId = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
             const req = {

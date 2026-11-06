@@ -262,11 +262,19 @@ router.post('/access-requests/:id/:decision', requireSecurityManager, async (req
             expiresAt: { $gt: new Date() }
         }).select('+deviceIdHash');
         if (!request) return res.status(404).json({ success: false, error: 'الطلب غير موجود أو انتهت صلاحيته.' });
-        request.status = decision === 'approve' ? 'approved' : 'rejected';
-        request.reviewedBy = req.session.adminName || '';
-        request.reviewedAt = new Date();
-        request.reviewNote = String(req.body.note || '').slice(0, 500);
-        await request.save();
+        const reviewedAt = new Date();
+        const claim = await SecurityAccessRequest.updateOne(
+            { _id: request._id, status: 'pending', expiresAt: { $gt: reviewedAt } },
+            { $set: {
+                status: decision === 'approve' ? 'approved' : 'rejected',
+                reviewedBy: req.session.adminName || '',
+                reviewedAt,
+                reviewNote: String(req.body.note || '').slice(0, 500)
+            } }
+        );
+        if (claim.modifiedCount !== 1) {
+            return res.status(409).json({ success: false, error: 'تمت مراجعة الطلب أو انتهت صلاحيته.' });
+        }
         if (decision === 'approve') {
             const channel = request.channel || 'web';
             await SecurityDevice.updateMany(
