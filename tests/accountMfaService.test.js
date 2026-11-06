@@ -56,6 +56,18 @@ describe('accountMfaService', () => {
         expect(await accountMfaService.verifyAccountToken(account, '287082')).toBe(true);
     });
 
+    test('rejects enrollment replay after another confirmation configured Authenticator', async () => {
+        const updateOne = jest.fn().mockResolvedValue({ matchedCount: 0 });
+        const account = { _id: '507f1f77bcf86cd799439011', constructor: { updateOne } };
+        await expect(accountMfaService.confirmSetup(
+            account, 'GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ', '287082', [], { enrollmentOnly: true }
+        )).rejects.toMatchObject({ code: 'MFA_ALREADY_ENABLED' });
+        expect(updateOne).toHaveBeenCalledWith({
+            _id: account._id,
+            $nor: [{ mfaEnabled: true, mfaType: 'totp', totpSecretEncrypted: { $exists: true, $nin: [null, ''] } }]
+        }, expect.objectContaining({ $set: expect.objectContaining({ mfaEnabled: true }) }));
+    });
+
     test('creates an Authenticator URI without exposing internal account data', () => {
         const result = accountMfaService.setup({
             _id: '507f1f77bcf86cd799439011',

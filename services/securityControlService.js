@@ -322,7 +322,7 @@ const sessionPrincipal = (session = {}) => {
     return null;
 };
 
-const createAccessRequest = async ({ req, principal, deviceIdHash, purpose = 'first_login', authenticatorVerified = false }) => {
+const createAccessRequest = async ({ req, principal, deviceIdHash, purpose = 'first_login', authenticatorVerified = false, platformApprovalOnly = false }) => {
     const device = detectDevice(req);
     const channel = requestChannel(req);
     const risk = assessNetworkRisk(req);
@@ -330,11 +330,20 @@ const createAccessRequest = async ({ req, principal, deviceIdHash, purpose = 'fi
     const existing = await SecurityAccessRequest.findOne({
         principalType: principal.principalType,
         principalId: principal.principalId,
+        channel,
         deviceIdHash,
         status: 'pending',
         expiresAt: { $gt: new Date() }
     }).select('+deviceIdHash');
-    if (existing) return existing;
+    if (existing) {
+        if (platformApprovalOnly && !existing.platformApprovalOnly) {
+            await SecurityAccessRequest.updateOne(
+                { _id: existing._id, status: 'pending' },
+                { $set: { platformApprovalOnly: true } }
+            );
+        }
+        return existing;
+    }
     const request = await SecurityAccessRequest.create({
         requestCode: `SEC-${crypto.randomBytes(4).toString('hex').toUpperCase()}`,
         ...principal,
@@ -342,6 +351,7 @@ const createAccessRequest = async ({ req, principal, deviceIdHash, purpose = 'fi
         tenantId: req.tenant?._id || null,
         deviceIdHash,
         purpose,
+        platformApprovalOnly,
         authenticatorVerifiedAt: authenticatorVerified ? new Date() : null,
         ...device,
         ipAddress: requestIp(req),
@@ -457,7 +467,8 @@ const authorizeLogin = async ({
     allowFirstDevice = false,
     authenticatorVerified = false,
     verifiedLogin = false,
-    allowUnenrolledAppTransferRequest = false
+    allowUnenrolledAppTransferRequest = false,
+    requireAdminDeviceApproval = false
 }) => {
     // Authentication contract tests do not provision the security collections.
     // Dedicated enforcement tests can opt in; production always evaluates policy.
@@ -500,7 +511,7 @@ const authorizeLogin = async ({
         channel,
         status: 'active'
     }).select('+deviceIdHash');
-    const canRebindMismatch = allowFirstDevice && (
+    const canRebindMismatch = allowFirstDevice && !requireAdminDeviceApproval && (
         verifiedLogin
         || authenticatorVerified
         || emergencyDeviceBypass.active
@@ -508,7 +519,7 @@ const authorizeLogin = async ({
         || state.adminApprovalRequired === false
     );
 
-    if (!active && allowFirstDevice) {
+    if (!active && allowFirstDevice && !requireAdminDeviceApproval) {
         const device = await activateDevice({ req, res, principal, approvedBy: 'first_verified_login' });
         await supersedePendingAccessRequests({
             principal,
@@ -547,7 +558,8 @@ const authorizeLogin = async ({
     // A password-verified app account with no Authenticator can ask an admin
     // for help, but this exception never activates or replaces the device.
     const canRequestUnenrolledTransfer = allowUnenrolledAppTransferRequest
-        && channel === 'app' && accountClass === 'account' && state.adminApprovalRequired !== false;
+        && channel === 'app' && accountClass === 'account'
+        && (requireAdminDeviceApproval || state.adminApprovalRequired !== false);
     if (active && !authenticatorVerified && !verifiedLogin && !canRequestUnenrolledTransfer) {
         return {
             allowed: false,
@@ -560,7 +572,8 @@ const authorizeLogin = async ({
         principal,
         deviceIdHash,
         purpose: active ? 'device_transfer' : 'first_login',
-        authenticatorVerified
+        authenticatorVerified,
+        platformApprovalOnly: requireAdminDeviceApproval
     });
     return {
         allowed: false,
@@ -643,7 +656,10 @@ const listPrincipalSessions = async ({ principal, req, res = null, approvalAccou
     const currentDeviceId = ensureDeviceId(req, res);
     const currentHash = hashDeviceId(currentDeviceId);
     const currentChannel = requestChannel(req);
-    const managerCanApprove = !state.lockdownActive && isExecutorDeviceManager(principal, approvalAccount)
+    const hasAuthenticator = accountMfa.isEnabled(approvalAccount);
+    const needsAuthenticatorRecovery = approvalAccount?.mfaEnabled && !hasAuthenticator;
+    const managerCanApprove = !state.lockdownActive && !needsAuthenticatorRecovery
+        && isExecutorDeviceManager(principal, approvalAccount)
         && devices.some(device => device.channel === currentChannel && hashesEqual(device.deviceIdHash, currentHash));
     return {
         policy: { maxDevices: 1 },
@@ -651,10 +667,10 @@ const listPrincipalSessions = async ({ principal, req, res = null, approvalAccou
         devices: devices.map((device) => publicDevice(device, currentHash, currentChannel)),
         requests: requests.map(request => ({
             ...publicAccessRequest(request),
-            canApprove: managerCanApprove || (state.adminApprovalRequired === false
-                && (request.purpose !== 'device_transfer' || Boolean(request.authenticatorVerifiedAt))),
-            approvalRequiresPassword: managerCanApprove,
-            approvalRequiresAuthenticator: managerCanApprove && accountMfa.isEnabled(approvalAccount)
+            canApprove: !needsAuthenticatorRecovery && !request.platformApprovalOnly && (managerCanApprove || (state.adminApprovalRequired === false
+                && (request.purpose !== 'device_transfer' || Boolean(request.authenticatorVerifiedAt)))),
+            approvalRequiresPassword: !request.platformApprovalOnly && managerCanApprove,
+            approvalRequiresAuthenticator: !request.platformApprovalOnly && managerCanApprove && hasAuthenticator
         }))
     };
 };
@@ -690,36 +706,38 @@ const revokeOtherPrincipalDevices = async ({principal,req}) => {
     return {revokedCount:result.modifiedCount || 0};
 };
 
-const approveExecutorDevice = async ({ request, principal, req, reviewedBy, reviewNote }) => {
-    const owner = { principalType: principal.principalType, principalId: principal.principalId, status: 'active' };
-    const binding = currentDeviceBinding(req);
+const approveDeviceRequest = async ({ request, req, reviewedBy, reviewNote, platformApproval = false }) => {
+    const owner = { principalType: request.principalType, principalId: request.principalId, status: 'active' };
+    const binding = platformApproval ? null : currentDeviceBinding(req);
     const channel = request.channel || 'web';
     const now = new Date();
+    const location = request.location?.latitude == null ? null : (request.location.toObject?.() || request.location);
     const nextDevice = {
-        ...owner, channel, tenantId: request.tenantId || null, deviceIdHash: request.deviceIdHash,
+        ...owner, principalName: request.principalName, channel, tenantId: request.tenantId || null, deviceIdHash: request.deviceIdHash,
         displayName: request.displayName, deviceType: request.deviceType, platform: request.platform,
         browser: request.browser, userAgent: request.userAgent, firstIp: request.ipAddress,
-        lastIp: request.ipAddress, firstLocation: request.location, lastLocation: request.location,
+        lastIp: request.ipAddress, firstLocation: location, lastLocation: location,
         approvedBy: reviewedBy, approvedAt: now, lastSeenAt: now
     };
     const dbSession = await mongoose.startSession();
     try {
         const device = await dbSession.withTransaction(async () => {
-            if (!await SecurityDevice.exists({ ...owner, ...binding }).session(dbSession)) {
+            if (binding && !await SecurityDevice.exists({ ...owner, ...binding }).session(dbSession)) {
                 throw Object.assign(new Error('Untrusted device'), { code: 'SECURITY_CURRENT_DEVICE_REQUIRED' });
             }
             const claim = await SecurityAccessRequest.updateOne(
                 { _id: request._id, principalType: owner.principalType, principalId: owner.principalId,
-                    status: 'pending', expiresAt: { $gt: new Date() } },
+                    status: 'pending', expiresAt: { $gt: new Date() },
+                    ...(binding ? { platformApprovalOnly: { $ne: true } } : {}) },
                 { $set: { status: 'approved', reviewedBy, reviewedAt: now, reviewNote } },
                 { session: dbSession }
             );
             if (claim.modifiedCount !== 1) {
                 throw Object.assign(new Error('Request already reviewed'), { code: 'SECURITY_ACCESS_REQUEST_NOT_FOUND' });
             }
-            if (channel === 'app') {
+            if (channel === 'app' && ['executor', 'client_user', 'sub_client'].includes(owner.principalType)) {
                 await MobileDeviceSession.updateMany(
-                    { accountId: principal.principalId, accountType: 'executor', active: true },
+                    { accountId: owner.principalId, accountType: owner.principalType, active: true },
                     { $set: { active: false, revokedAt: now, revokeReason: 'replaced_by_approved_app' } },
                     { session: dbSession }
                 );
@@ -764,7 +782,9 @@ const reviewPrincipalAccessRequest = async ({
         error.code = 'SECURITY_ACCESS_REQUEST_NOT_FOUND';
         throw error;
     }
-    if (approve && !managerApproval && request.purpose === 'device_transfer' && !request.authenticatorVerifiedAt) {
+    if (approve && (request.platformApprovalOnly
+        || (approvalAccount?.mfaEnabled && !require('./accountMfaService').isEnabled(approvalAccount))
+        || (!managerApproval && request.purpose === 'device_transfer' && !request.authenticatorVerifiedAt))) {
         const error = new Error('SECURITY_ADMIN_APPROVAL_REQUIRED');
         error.code = 'SECURITY_ADMIN_APPROVAL_REQUIRED';
         throw error;
@@ -796,8 +816,8 @@ const reviewPrincipalAccessRequest = async ({
             ))) {
             throw Object.assign(new Error('Reauthentication failed'), { code: 'SECURITY_APPROVAL_CREDENTIALS_INVALID' });
         }
-        return approveExecutorDevice({
-            request, principal, req,
+        return approveDeviceRequest({
+            request, req,
             reviewedBy: String(reviewedBy || principal.principalId).slice(0, 160),
             reviewNote: String(reviewNote || '').slice(0, 500)
         });
@@ -1034,6 +1054,7 @@ module.exports = {
     revokePrincipalDevice,
     revokeOtherPrincipalDevices,
     reviewPrincipalAccessRequest,
+    approveDeviceRequest,
     ensureSecurityDeviceIndexes,
     applySessionSecurity,
     rotateEmergencyCode,

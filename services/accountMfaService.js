@@ -161,19 +161,34 @@ const setup = (account) => {
     };
 };
 
-const confirmSetup = async (account, secret, token, codes) => {
+const confirmSetup = async (account, secret, token, codes, { enrollmentOnly = false } = {}) => {
     if (!verifyTotp(secret, token, 1)) {
         const error = new Error('MFA_INVALID');
         error.code = 'MFA_INVALID';
         throw error;
     }
-    account.mfaEnabled = true;
-    account.mfaType = 'totp';
-    account.totpSecretEncrypted = encrypt(secret);
-    account.mfaRecoveryCodeHashes = (Array.isArray(codes) && codes.length ? codes : recoveryCodes()).map(recoveryHash);
-    account.mfaConfiguredAt = new Date();
-    account.mfaLastUsedStep = null;
-    await account.save();
+    const configuration = {
+        mfaEnabled: true,
+        mfaType: 'totp',
+        totpSecretEncrypted: encrypt(secret),
+        mfaRecoveryCodeHashes: (Array.isArray(codes) && codes.length ? codes : recoveryCodes()).map(recoveryHash),
+        mfaConfiguredAt: new Date(),
+        mfaLastUsedStep: null
+    };
+    if (enrollmentOnly) {
+        const result = await account.constructor.updateOne({
+            _id: account._id,
+            $nor: [{
+                mfaEnabled: true,
+                mfaType: 'totp',
+                totpSecretEncrypted: { $exists: true, $nin: [null, ''] }
+            }]
+        }, { $set: configuration });
+        if (result.matchedCount !== 1) throw Object.assign(new Error('MFA_ALREADY_ENABLED'), { code: 'MFA_ALREADY_ENABLED' });
+    } else {
+        Object.assign(account, configuration);
+        await account.save();
+    }
     return { enabled: true };
 };
 

@@ -362,12 +362,22 @@ const login = async (username, password, req) => {
             requestTenantId(req) || cleanId(account.tenantId) || null
         )
         : null;
+    if (enforceSecurityControls && !mfaAccount) {
+        return {
+            success: false,
+            statusCode: 503,
+            code: 'SECURITY_ACCOUNT_UNAVAILABLE',
+            message: 'تعذر التحقق من إعدادات أمان الحساب. أعد المحاولة.'
+        };
+    }
+    const hasAuthenticator = accountMfaService.isEnabled(mfaAccount);
+    const incompleteAuthenticator = Boolean(mfaAccount?.mfaEnabled && !hasAuthenticator);
     const deviceId = enforceSecurityControls ? accountMfaService.deviceIdFor(req) : null;
     const mfaToken = String(req.body?.mfaToken || req.headers['x-mfa-token'] || '').trim();
     const securityState = enforceSecurityControls ? await securityControl.getState() : null;
     const mandatoryAuthenticator = enforceSecurityControls && securityState.mandatoryAuthenticatorEnabled !== false;
     let mfaVerifiedWithCode = false;
-    if (mandatoryAuthenticator && (!mfaAccount || !accountMfaService.isEnabled(mfaAccount))) {
+    if ((mandatoryAuthenticator && !hasAuthenticator) || incompleteAuthenticator) {
         // The first access still needs an administrative device approval. Once
         // approved, no session/token is issued until TOTP enrollment finishes.
         const enrollmentAuthorization = await securityControl.authorizeLogin({
@@ -376,7 +386,8 @@ const login = async (username, password, req) => {
             principal: { principalType: accountType, principalId: String(account._id), principalName: account.name || account.webUsername || 'Mobile account' },
             accountClass: 'account',
             allowFirstDevice: true,
-            allowUnenrolledAppTransferRequest: Boolean(mfaAccount && !mfaAccount.mfaEnabled)
+            allowUnenrolledAppTransferRequest: true,
+            requireAdminDeviceApproval: incompleteAuthenticator
         });
         if (!enrollmentAuthorization.allowed) {
             return {
@@ -385,6 +396,14 @@ const login = async (username, password, req) => {
                 code: enrollmentAuthorization.code,
                 message: enrollmentAuthorization.message,
                 requestCode: enrollmentAuthorization.requestCode || null
+            };
+        }
+        if (incompleteAuthenticator && !enrollmentAuthorization.device) {
+            return {
+                success: false,
+                statusCode: 403,
+                code: 'SECURITY_ADMIN_APPROVAL_REQUIRED',
+                message: 'يلزم اعتماد الجهاز من مركز الأمان لإعادة إعداد Authenticator.'
             };
         }
         return {
@@ -401,29 +420,27 @@ const login = async (username, password, req) => {
             })
         };
     }
-    if (mandatoryAuthenticator && mfaAccount && accountMfaService.isEnabled(mfaAccount)) {
-        if (mfaToken && await accountMfaService.verifyAccountToken(mfaAccount, mfaToken)) {
-            mfaVerifiedWithCode = true;
-        } else {
-            return {
-                success: false,
-                statusCode: 403,
-                code: 'MFA_REQUIRED',
-                message: 'أدخل رمز Authenticator لإكمال تسجيل الدخول من هذا الجهاز',
-                mfaRequired: true,
-                mfaType: 'totp',
-                mfaChallengeToken: accountMfaService.createChallenge({
-                    account,
-                    accountType,
-                    tenantId: requestTenantId(req) || cleanId(account.tenantId) || null,
-                    deviceId
-                }),
-                trustTtlSeconds: Math.floor(accountMfaService.TRUST_TTL_MS / 1000)
-            };
-        }
+    const authenticatorChallenge = () => ({
+        success: false,
+        statusCode: 403,
+        code: 'MFA_REQUIRED',
+        message: 'أدخل رمز Authenticator لإكمال تسجيل الدخول من هذا الجهاز',
+        mfaRequired: true,
+        mfaType: 'totp',
+        mfaChallengeToken: accountMfaService.createChallenge({
+            account,
+            accountType,
+            tenantId: requestTenantId(req) || cleanId(account.tenantId) || null,
+            deviceId
+        }),
+        trustTtlSeconds: Math.floor(accountMfaService.TRUST_TTL_MS / 1000)
+    });
+    if (mandatoryAuthenticator) {
+        mfaVerifiedWithCode = Boolean(mfaToken && await accountMfaService.verifyAccountToken(mfaAccount, mfaToken));
+        if (!mfaVerifiedWithCode) return authenticatorChallenge();
     }
     if (enforceSecurityControls) {
-        const deviceAuthorization = await securityControl.authorizeLogin({
+        const authorizeDevice = (verified) => securityControl.authorizeLogin({
             req,
             res: null,
             principal: {
@@ -433,10 +450,16 @@ const login = async (username, password, req) => {
             },
             accountClass: 'account',
             allowFirstDevice: true,
-            allowUnenrolledAppTransferRequest: Boolean(mfaAccount && !mfaAccount.mfaEnabled),
-            authenticatorVerified: mfaVerifiedWithCode,
-            verifiedLogin: mfaVerifiedWithCode
+            allowUnenrolledAppTransferRequest: !hasAuthenticator,
+            authenticatorVerified: verified,
+            verifiedLogin: verified
         });
+        let deviceAuthorization = await authorizeDevice(mfaVerifiedWithCode);
+        if (hasAuthenticator && deviceAuthorization.code === 'AUTHENTICATOR_REQUIRED_FOR_DEVICE_TRANSFER') {
+            mfaVerifiedWithCode = Boolean(mfaToken && await accountMfaService.verifyAccountToken(mfaAccount, mfaToken));
+            if (!mfaVerifiedWithCode) return authenticatorChallenge();
+            deviceAuthorization = await authorizeDevice(true);
+        }
         if (!deviceAuthorization.allowed) {
             return {
                 success: false,

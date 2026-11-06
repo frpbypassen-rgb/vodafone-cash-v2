@@ -183,10 +183,10 @@ describe('securityControlService', () => {
             assign('deviceBypass', 'EMERGENCY_DEVICE_BINDING_BYPASS');
         };
 
-        const mockState = () => {
+        const mockState = (overrides = {}) => {
             const query = {
                 select: jest.fn().mockReturnThis(),
-                exec: jest.fn().mockResolvedValue(enforcementState)
+                exec: jest.fn().mockResolvedValue({ ...enforcementState, ...overrides })
             };
             jest.spyOn(SecurityState, 'findOne').mockReturnValue(query);
             return jest.spyOn(SecurityState, 'findOneAndUpdate').mockReturnValue(query);
@@ -210,7 +210,7 @@ describe('securityControlService', () => {
             const accountMfa = require('../services/accountMfaService');
             const principal = { principalType: 'executor', principalId: 'executor-1' };
             const manager = { _id: 'executor-1', role: 'manager', status: 'active', webPassword: await bcrypt.hash('correct', 4) };
-            const pending = { _id: 'pending-app', channel: 'app', purpose: 'device_transfer',
+            const pending = { ...principal, _id: 'pending-app', channel: 'app', purpose: 'device_transfer',
                 expiresAt: new Date(Date.now() + 60000), deviceIdHash: 'new-app' };
             const find = jest.spyOn(SecurityAccessRequest, 'findOne').mockReturnValue({
                 select: jest.fn().mockResolvedValue(pending)
@@ -230,6 +230,10 @@ describe('securityControlService', () => {
             await expect(securityControl.reviewPrincipalAccessRequest(input))
                 .rejects.toMatchObject({ code: 'SECURITY_APPROVAL_CREDENTIALS_INVALID' });
             req.body.currentPassword = 'correct';
+            pending.platformApprovalOnly = true;
+            await expect(securityControl.reviewPrincipalAccessRequest(input))
+                .rejects.toMatchObject({ code: 'SECURITY_ADMIN_APPROVAL_REQUIRED' });
+            pending.platformApprovalOnly = false;
             const mfa = jest.spyOn(accountMfa, 'isEnabled').mockReturnValue(true);
             await expect(securityControl.reviewPrincipalAccessRequest(input))
                 .rejects.toMatchObject({ code: 'SECURITY_APPROVAL_CREDENTIALS_INVALID' });
@@ -521,8 +525,8 @@ describe('securityControlService', () => {
             expect(createDevice).not.toHaveBeenCalled();
         });
 
-        test('an unenrolled app can request an admin transfer without replacing its existing device', async () => {
-            mockState();
+        test.each([false, true])('an unenrolled app can request a transfer without replacing the existing device (recovery: %s)', async (recovery) => {
+            mockState({ adminApprovalRequired: !recovery });
             jest.spyOn(SecurityDevice, 'findOne').mockReturnValue({
                 select: jest.fn().mockResolvedValue({
                     _id: 'old-device', deviceIdHash: securityControl.hashDeviceId('other-device')
@@ -544,11 +548,12 @@ describe('securityControlService', () => {
                 },
                 principal: { principalType: 'executor', principalId: 'executor-1' },
                 allowFirstDevice: true,
-                allowUnenrolledAppTransferRequest: true
+                allowUnenrolledAppTransferRequest: true,
+                requireAdminDeviceApproval: recovery
             });
             expect(result).toMatchObject({ allowed: false, code: 'DEVICE_APPROVAL_REQUIRED', requestCode: 'SEC-TEST' });
             expect(createRequest).toHaveBeenCalledWith(expect.objectContaining({
-                channel: 'app', purpose: 'device_transfer', authenticatorVerifiedAt: null
+                channel: 'app', purpose: 'device_transfer', authenticatorVerifiedAt: null, platformApprovalOnly: recovery
             }));
             expect(createDevice).not.toHaveBeenCalled();
         });

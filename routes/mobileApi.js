@@ -1989,6 +1989,7 @@ const enrollmentAccountFromRequest = async (req) => {
     const activeDevice = await require('../models/SecurityDevice').findOne({
         principalType: challenge.accountType,
         principalId: String(challenge.userId),
+        channel: 'app',
         status: 'active',
         deviceIdHash: suppliedHash
     }).select('_id');
@@ -2017,9 +2018,10 @@ router.post('/auth/mfa-enrollment/confirm', async (req, res) => {
         const token = String(req.body?.token || '').trim();
         const recoveryCodes = Array.isArray(req.body?.recoveryCodes) ? req.body.recoveryCodes : [];
         if (!account || !secret || !token || recoveryCodes.length < 6) return sendMobileError(res, 400, 'VALIDATION_ERROR', 'بيانات Authenticator غير مكتملة', req.correlationId);
-        await accountMfaService.confirmSetup(account, secret, token, recoveryCodes);
+        await accountMfaService.confirmSetup(account, secret, token, recoveryCodes, { enrollmentOnly: true });
         return res.json({ success: true, message: 'تم تفعيل Authenticator. سجّل الدخول مرة أخرى باستخدام الرمز.' });
     } catch (error) {
+        if (error.code === 'MFA_ALREADY_ENABLED') return sendMobileError(res, 409, error.code, 'Authenticator مفعل بالفعل', req.correlationId);
         return sendMobileError(res, error.code === 'MFA_INVALID' ? 400 : 403, error.code || 'MFA_ENROLLMENT_INVALID', error.code === 'MFA_INVALID' ? 'رمز Authenticator غير صحيح' : 'تعذر تأكيد تفعيل الحماية.', req.correlationId);
     }
 });

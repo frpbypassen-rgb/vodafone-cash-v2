@@ -263,44 +263,18 @@ router.post('/access-requests/:id/:decision', requireSecurityManager, async (req
         }).select('+deviceIdHash');
         if (!request) return res.status(404).json({ success: false, error: 'الطلب غير موجود أو انتهت صلاحيته.' });
         const reviewedAt = new Date();
-        const claim = await SecurityAccessRequest.updateOne(
-            { _id: request._id, status: 'pending', expiresAt: { $gt: reviewedAt } },
-            { $set: {
-                status: decision === 'approve' ? 'approved' : 'rejected',
-                reviewedBy: req.session.adminName || '',
-                reviewedAt,
-                reviewNote: String(req.body.note || '').slice(0, 500)
-            } }
-        );
-        if (claim.modifiedCount !== 1) {
-            return res.status(409).json({ success: false, error: 'تمت مراجعة الطلب أو انتهت صلاحيته.' });
-        }
+        const reviewedBy = req.session.adminName || '';
+        const reviewNote = String(req.body.note || '').slice(0, 500);
         if (decision === 'approve') {
-            const channel = request.channel || 'web';
-            await SecurityDevice.updateMany(
-                { principalType: request.principalType, principalId: request.principalId, channel, status: 'active' },
-                { $set: { status: 'revoked', revokedAt: new Date(), revokedReason: 'approved_device_transfer' } }
+            await securityControl.approveDeviceRequest({ request, reviewedBy, reviewNote, platformApproval: true });
+        } else {
+            const claim = await SecurityAccessRequest.updateOne(
+                { _id: request._id, status: 'pending', expiresAt: { $gt: reviewedAt } },
+                { $set: { status: 'rejected', reviewedBy, reviewedAt, reviewNote } }
             );
-            await SecurityDevice.create({
-                principalType: request.principalType,
-                principalId: request.principalId,
-                channel,
-                tenantId: request.tenantId,
-                displayName: request.displayName,
-                deviceIdHash: request.deviceIdHash,
-                deviceType: request.deviceType,
-                platform: request.platform,
-                browser: request.browser,
-                userAgent: request.userAgent,
-                firstIp: request.ipAddress,
-                lastIp: request.ipAddress,
-                firstLocation: request.location,
-                lastLocation: request.location,
-                status: 'active',
-                approvedBy: req.session.adminName || '',
-                approvedAt: new Date(),
-                lastSeenAt: new Date()
-            });
+            if (claim.modifiedCount !== 1) {
+                return res.status(409).json({ success: false, error: 'تمت مراجعة الطلب أو انتهت صلاحيته.' });
+            }
         }
         await logAction({
             action: decision === 'approve' ? 'SECURITY_DEVICE_TRANSFER_APPROVED' : 'SECURITY_DEVICE_TRANSFER_REJECTED',
@@ -316,6 +290,9 @@ router.post('/access-requests/:id/:decision', requireSecurityManager, async (req
         }
         return res.json({ success: true });
     } catch (error) {
+        if (error.code === 'SECURITY_ACCESS_REQUEST_NOT_FOUND') {
+            return res.status(409).json({ success: false, error: 'تمت مراجعة الطلب أو انتهت صلاحيته.' });
+        }
         console.error('[SecurityAdmin] access request decision failed:', error.message);
         return res.status(400).json({ success: false, error: 'تعذر تنفيذ قرار الجهاز.' });
     }
