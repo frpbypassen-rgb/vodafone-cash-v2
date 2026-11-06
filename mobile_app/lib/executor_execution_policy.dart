@@ -88,10 +88,11 @@ class ExecutorExecutionPolicy {
   String? validateDigits(String value, {required bool isSplit}) {
     final digits = value.replaceAll(RegExp(r'\D'), '');
     if (digits.isEmpty) return 'رقم المرسل مطلوب.';
-    if (isSplit && splitRequiresFullPhone) {
+    if (isSplit) {
+      if (digits.length == 4) return null;
       return RegExp(r'^01\d{9}$').hasMatch(digits)
           ? null
-          : 'عند تقسيم العملية يجب إدخال 11 رقمًا كاملة.';
+          : 'عند التقسيم أدخل 4 أرقام أو رقم هاتف من 11 رقمًا يبدأ بـ 01.';
     }
     if (!allowedPhoneLengths.contains(digits.length)) {
       return 'طول الرقم غير مسموح. المسموح: $lengthsHint.';

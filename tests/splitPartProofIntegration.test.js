@@ -558,6 +558,44 @@ describe('split part proofs on MongoMemoryReplSet', () => {
         expect(paymentCalls()).toHaveLength(0);
     });
 
+    test('mobile completes a split without uploads even when ordinary manual proof is required', async () => {
+        await ExecutorGroup.updateOne({ _id: group._id }, { $set: {
+            manualAllowedPhoneLengths: [3], manualSplitRequiresFullPhone: true, manualProofRequired: true
+        } });
+        try {
+            const tx = await seedTransfer({ tenant: tenantId });
+            await Transaction.updateOne({ _id: tx._id }, { $set: {
+                status: 'accepted', operatorId: String(employee._id), executorSenderEntries: []
+            } });
+            const complete = (firstPhone) => request(mobileApp)
+                .post('/api/mobile/executor/complete-task/' + tx._id)
+                .set('Authorization', 'Bearer ' + executorToken(tenantId))
+                .set('x-test-tenant', String(tenantId))
+                .send({ executionNumber: firstPhone, senderEntries: [
+                    { phone: firstPhone, amount: 1000 },
+                    { phone: WALLET_B, amount: 1500 }
+                ] });
+            const rejected = await complete('012');
+            expect(rejected.status).toBe(400);
+            expect(rejected.body.code).toBe('INVALID_SENDER_PHONE');
+            expect((await Transaction.findById(tx._id)).status).toBe('accepted');
+
+            const response = await complete('0012');
+            expect(response.status).toBe(200);
+            const completed = await Transaction.findById(tx._id).lean();
+            expect(completed.status).toBe('completed');
+            expect(completed.executorProofImages).toEqual([]);
+            expect(completed.executorSenderEntries).toMatchObject([
+                { phone: '0012', amount: 1000, proofImage: null, customerProof: { status: 'pending' } },
+                { phone: WALLET_B, amount: 1500, proofImage: null, customerProof: { status: 'pending' } }
+            ]);
+        } finally {
+            await ExecutorGroup.updateOne({ _id: group._id }, { $set: {
+                manualAllowedPhoneLengths: [3, 4, 11], manualSplitRequiresFullPhone: true, manualProofRequired: false
+            } });
+        }
+    });
+
     test('mobile retry of a tenant-less transfer stays 404 when the request has a tenant', async () => {
         // The mobile retry route filters tenantId to the request tenant only.
         // complete-task on the same router uses executorTenantScope, which in

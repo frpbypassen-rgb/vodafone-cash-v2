@@ -16,18 +16,20 @@ const normalizeExecutorSenderEntries = ({
     senderPhone,
     operationAmount,
     group = null,
-    policy = null
+    policy = null,
+    mobileSplit = false
 }) => {
     const manualPolicy = policy || readExecutorManualPolicy(group);
     const rawEntries = Array.isArray(requestedSenderEntries)
         ? requestedSenderEntries
         : (senderPhone ? [{ phone: senderPhone }] : []);
     const isSplit = rawEntries.length > 1;
+    const useMobileSplitPolicy = isSplit && mobileSplit;
 
     const entries = rawEntries.map((entry) => {
         const validation = validateSenderPhoneDigits(entry?.phone, {
-            allowedPhoneLengths: manualPolicy.allowedPhoneLengths,
-            splitRequiresFullPhone: manualPolicy.splitRequiresFullPhone,
+            allowedPhoneLengths: useMobileSplitPolicy ? [4, 11] : manualPolicy.allowedPhoneLengths,
+            splitRequiresFullPhone: !useMobileSplitPolicy && manualPolicy.splitRequiresFullPhone,
             isSplit
         });
         if (!validation.ok) {
@@ -60,7 +62,7 @@ const normalizeExecutorSenderEntries = ({
         entries[0].amount = Number(operationAmount || 0);
     }
 
-    if (manualPolicy.proofRequired && entries.length > 0) {
+    if (!useMobileSplitPolicy && manualPolicy.proofRequired && entries.length > 0) {
         if (entries.some((entry) => !entry.proofImage)) {
             throw new ExecutorSenderEntriesError(
                 'PROOF_REQUIRED',

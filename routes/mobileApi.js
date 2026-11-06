@@ -2363,12 +2363,15 @@ router.post('/executor/cancel-task/:id', authenticateJWT, cancelTaskValidator, a
  *                   properties:
  *                     phone:
  *                       type: string
- *                       pattern: '^\\d{11}$'
+ *                       description: عند التقسيم أدخل آخر 4 أرقام أو رقم هاتف كامل من 11 رقمًا يبدأ بـ 01.
  *                       example: "01108172258"
  *                     amount:
  *                       type: number
  *                       minimum: 0.01
  *                       example: 40
+ *                     proofImageBase64:
+ *                       type: string
+ *                       description: صورة إثبات اختيارية لهذا الجزء.
  *     responses:
  *       200:
  *         description: تم إنهاء العملية بنجاح وإرسال الإثبات
@@ -2408,6 +2411,7 @@ router.post('/executor/complete-task/:id', authenticateJWT, completeTaskValidato
             return sendMobileError(res, 409, 'INVALID_STATE', 'الطلب غير متاح للإنهاء', req.correlationId);
         }
         const bankTransfer = isBankTransferOperation(tx);
+        const splitCompletion = !bankTransfer && Array.isArray(requestedSenderEntries) && requestedSenderEntries.length > 1;
         let bankProofPayloads = null;
         if (bankTransfer) {
             try {
@@ -2424,7 +2428,7 @@ router.post('/executor/complete-task/:id', authenticateJWT, completeTaskValidato
             }
         } else if (executionNumber) {
             const executionCheck = validateSenderPhoneDigits(executionNumber, {
-                allowedPhoneLengths: manualPolicy.allowedPhoneLengths,
+                allowedPhoneLengths: splitCompletion ? [4, 11, ...manualPolicy.allowedPhoneLengths] : manualPolicy.allowedPhoneLengths,
                 splitRequiresFullPhone: false,
                 isSplit: false
             });
@@ -2452,7 +2456,8 @@ router.post('/executor/complete-task/:id', authenticateJWT, completeTaskValidato
                     senderPhone: senderPhone || executionNumber,
                     operationAmount: tx.amount,
                     group: emp.groupId,
-                    policy: manualPolicy
+                    policy: manualPolicy,
+                    mobileSplit: splitCompletion
                 });
             } catch (error) {
                 if (error instanceof ExecutorSenderEntriesError) {
@@ -2469,10 +2474,9 @@ router.post('/executor/complete-task/:id', authenticateJWT, completeTaskValidato
         if (uploadedImages.length > 5 || uploadedImages.some((image) => typeof image !== 'string')) {
             return sendMobileError(res, 400, 'INVALID_PROOF_IMAGES', 'يمكن إرفاق خمس صور إثبات كحد أقصى', req.correlationId);
         }
-        if (!bankTransfer && manualPolicy.proofRequired && uploadedImages.length === 0 && senderEntries.every((entry) => !entry.proofImage)) {
+        if (!bankTransfer && !splitCompletion && manualPolicy.proofRequired && uploadedImages.length === 0 && senderEntries.every((entry) => !entry.proofImage)) {
             return sendMobileError(res, 400, 'PROOF_REQUIRED', 'إرفاق صورة الإثبات إجباري لهذا المنفذ.', req.correlationId);
         }
-        const splitCompletion = !bankTransfer && senderEntries.length > 1;
         const executorReceipt = bankTransfer || splitCompletion
             ? null
             : await reserveManualExecutorReceiptReference({ group: emp.groupId });

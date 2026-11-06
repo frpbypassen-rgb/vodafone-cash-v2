@@ -22511,16 +22511,19 @@ class _CompleteTaskDialogState extends State<CompleteTaskDialog> {
       }
       return;
     }
-    final executionNumber = _execution.text.trim();
+    final isSplit = _senderPhones.length > 1;
+    final executionNumber = isSplit
+        ? _senderPhones.first.text.trim()
+        : _execution.text.trim();
     final executionError = _policy.validateDigits(
       executionNumber,
-      isSplit: false,
+      isSplit: isSplit,
     );
     if (executionError != null) {
       setState(() => _error = executionError);
       return;
     }
-    if (_policy.proofRequired && _images.isEmpty) {
+    if (!isSplit && _policy.proofRequired && _images.isEmpty) {
       setState(() => _error = 'إرفاق صورة الإثبات إجباري لهذا المنفذ.');
       return;
     }
@@ -22632,7 +22635,7 @@ class _CompleteTaskDialogState extends State<CompleteTaskDialog> {
                     fontWeight: FontWeight.w800,
                   ),
                 )
-              else
+              else if (_senderPhones.length <= 1)
                 TextField(
                   controller: _execution,
                   textDirection: ui.TextDirection.ltr,
@@ -22678,12 +22681,16 @@ class _CompleteTaskDialogState extends State<CompleteTaskDialog> {
                               controller: _senderPhones[index],
                               textDirection: ui.TextDirection.ltr,
                               keyboardType: TextInputType.phone,
-                              maxLength: _policy.maxDigitLength,
+                              maxLength: _senderPhones.length > 1
+                                  ? 11
+                                  : _policy.maxDigitLength,
                               inputFormatters: [
                                 FilteringTextInputFormatter.digitsOnly,
                               ],
                               decoration: InputDecoration(
-                                labelText: _policy.senderPhoneLabel(index),
+                                labelText: _senderPhones.length > 1
+                                    ? 'رقم الجزء ${index + 1} (4 أو 11 رقمًا)'
+                                    : _policy.senderPhoneLabel(index),
                                 prefixIcon: const Icon(
                                   Icons.phone_android_outlined,
                                 ),
@@ -22729,7 +22736,8 @@ class _CompleteTaskDialogState extends State<CompleteTaskDialog> {
               const SizedBox(height: 4),
               ExecutorProofAttachments(
                 images: _images,
-                requiredProof: _bankTransfer || _policy.proofRequired,
+                requiredProof: _bankTransfer ||
+                    (_senderPhones.length <= 1 && _policy.proofRequired),
                 caption: _bankTransfer
                     ? 'أرفق صورة إثبات التحويل البنكي. تُرسل هذه الصورة للعميل دون إنشاء إيصال تلقائي.'
                     : null,

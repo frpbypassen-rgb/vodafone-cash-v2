@@ -47,6 +47,21 @@ describe('executor sender entries', () => {
         }));
     });
 
+    test('mobile splits accept a 4-digit suffix and a full phone with optional proof', () => {
+        const policy = { allowedPhoneLengths: [3], splitRequiresFullPhone: true, proofRequired: true };
+        const input = { operationAmount: 100, policy, mobileSplit: true, requestedSenderEntries: [
+            { phone: '0012', amount: 40 },
+            { phone: '01095433913', amount: 60, proofImageBase64: 'fixture-image' }
+        ] };
+        expect(normalizeExecutorSenderEntries(input)).toEqual([
+            { phone: '0012', amount: 40, proofImage: null },
+            { phone: '01095433913', amount: 60, proofImage: 'fixture-image' }
+        ]);
+        expect(() => normalizeExecutorSenderEntries({ ...input, requestedSenderEntries: [
+            { phone: '012', amount: 40 }, input.requestedSenderEntries[1]
+        ] })).toThrow(expect.objectContaining({ code: 'INVALID_SENDER_PHONE' }));
+    });
+
     test('rejects malformed sender numbers', () => {
         expect(() => normalizeExecutorSenderEntries({
             operationAmount: 100,
