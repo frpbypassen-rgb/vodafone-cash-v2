@@ -49,15 +49,20 @@ const requireRole = (roles = []) => {
     };
 };
 
+const hasPermission = (session, permission) => {
+    if (!session?.isLoggedIn) return false;
+    if (session.adminRole === 'master') return true;
+    const permissions = new Set(session.adminPermissions || []);
+    return permissions.has('*') || permissions.has(permission);
+};
+
 const requirePermission = (permission) => (req, res, next) => {
     if (!req.session?.isLoggedIn) return requireAuth(req, res, next);
-    if (req.session.adminRole === 'master') return next();
-    const permissions = new Set(req.session.adminPermissions || []);
-    if (permissions.has('*') || permissions.has(permission)) return next();
+    if (hasPermission(req.session, permission)) return next();
     if (req.xhr || String(req.headers?.accept || '').includes('application/json')) {
         return res.status(403).json({ success: false, error: 'ليس لديك الصلاحية المطلوبة.' });
     }
     return res.status(403).render('access_denied', { requiredPermission: permission });
 };
 
-module.exports = { requireAuth, isAuthenticated, requireMaster, requireRole, requirePermission };
+module.exports = { requireAuth, isAuthenticated, requireMaster, requireRole, requirePermission, hasPermission };

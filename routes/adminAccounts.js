@@ -7,6 +7,7 @@ const path = require('path');
 const fs = require('fs');
 const multer = require('multer');
 const { requireAuth, requireMaster } = require('../middlewares/auth');
+const { listPendingExecutorAppRequests } = require('../services/securityControlService');
 const { logAction } = require('../services/auditService');
 const {
     findEditableAccount,
@@ -202,11 +203,15 @@ const renderEditor = async (req, res, { error = '', submitted = null, statusCode
         : null;
     const customerNotifications = ['user','subaccount'].includes(definition.type)
         ? await require('../services/customerNotificationService').status({actor:account,entity:account,actorModel:definition.modelName,isCustomer:true,accountType:definition.type==='subaccount'?'sub_client':'user'}) : null;
+    const employeeDeviceRequests = definition.type === 'executor-employee'
+        ? await listPendingExecutorAppRequests([account._id])
+        : null;
     return res.status(statusCode).render('admin_account_edit', {
         account,
         accountType: definition.type,
         accountLabel: definition.label,
         customerNotifications,
+        employeeDeviceRequests,
         formData: accountToFormData(account, submitted, { companyOwner }),
         options,
         returnUrl: getReturnUrl(definition.type, account),

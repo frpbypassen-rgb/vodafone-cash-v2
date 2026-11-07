@@ -120,6 +120,13 @@
         <% if (['agent', 'company'].includes(accountType)) { %>
         <%- include('partials/admin_portal_settings', { integrationAccount: account, integrationAccountType: accountType }) %>
         <% } %>
+        <% if (locals.employeeDeviceRequests) { %>
+            <%- include('partials/admin_employee_device_requests', {
+                requests: employeeDeviceRequests, canReview: true,
+                review: query.deviceReview, refreshUrl: '/admin/accounts/executor-employee/' + account._id + '/edit',
+                returnToProfile: true
+            }) %>
+        <% } %>
         <form class="editor-form" action="/admin/accounts/<%= accountType %>/<%= account._id %>/edit" method="POST" enctype="multipart/form-data" autocomplete="off">
             <% if (['user','subaccount'].includes(accountType)) { %><input type="hidden" name="loginSecurityRevision" value="<%= value('loginSecurityRevision',0) %>"><% } %>
             <% if (['agent', 'company'].includes(accountType)) { %><input type="hidden" name="profileRevision" value="<%= value('profileRevision', 0) %>"><% } %>

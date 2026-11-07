@@ -706,6 +706,15 @@ const revokeOtherPrincipalDevices = async ({principal,req}) => {
     return {revokedCount:result.modifiedCount || 0};
 };
 
+const listPendingExecutorAppRequests = (employeeIds) => SecurityAccessRequest.find({
+    principalType: 'executor',
+    principalId: { $in: employeeIds.map(String) },
+    channel: 'app',
+    status: 'pending',
+    expiresAt: { $gt: new Date() }
+}).select('principalId requestCode displayName platform ipAddress riskSignals createdAt expiresAt')
+    .sort({ createdAt: -1 }).lean();
+
 const approveDeviceRequest = async ({ request, req, reviewedBy, reviewNote, platformApproval = false }) => {
     const owner = { principalType: request.principalType, principalId: request.principalId, status: 'active' };
     const binding = platformApproval ? null : currentDeviceBinding(req);
@@ -1054,6 +1063,7 @@ module.exports = {
     revokePrincipalDevice,
     revokeOtherPrincipalDevices,
     reviewPrincipalAccessRequest,
+    listPendingExecutorAppRequests,
     approveDeviceRequest,
     ensureSecurityDeviceIndexes,
     applySessionSecurity,

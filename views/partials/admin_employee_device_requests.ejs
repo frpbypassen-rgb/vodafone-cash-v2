@@ -1,0 +1,46 @@
+<section id="employee-device-requests" class="form-section group-container mb-4" aria-labelledby="employee-device-requests-title">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+        <h2 id="employee-device-requests-title" class="h5 fw-bold m-0">
+            <i class="fa-solid fa-mobile-screen-button me-1" aria-hidden="true"></i>
+            طلبات دخول التطبيق <span class="badge rounded-pill text-bg-primary"><%= requests.length %></span>
+        </h2>
+        <a class="btn btn-outline-secondary btn-sm" href="<%= refreshUrl %>#employee-device-requests">تحديث الطلبات</a>
+    </div>
+    <% if (review === 'approve' || review === 'reject') { %>
+        <p class="alert alert-success py-2" role="status"><%= review === 'approve' ? 'تم اعتماد الجهاز. يمكن للموظف إعادة محاولة تسجيل الدخول.' : 'تم رفض طلب اعتماد الجهاز.' %></p>
+    <% } %>
+    <% if (!requests.length) { %>
+        <p class="m-0" style="color:var(--text-muted)">لا توجد طلبات دخول معلّقة.</p>
+    <% } else { %>
+        <p style="color:var(--text-muted)">طابق رمز الطلب مع الرمز الظاهر على هاتف الموظف قبل الموافقة.</p>
+        <ul class="list-unstyled m-0">
+            <% requests.forEach(request => { %>
+                <li class="border-top py-3 d-flex justify-content-between align-items-start gap-3 flex-wrap">
+                    <div class="text-break">
+                        <% if (request.employeeName) { %>
+                            <strong><%= request.employeeName %></strong>
+                            <% if (request.companyName) { %><span> · <%= request.companyName %></span><% } %>
+                            <br>
+                        <% } %>
+                        <strong><bdi><%= request.requestCode %></bdi></strong>
+                        <div class="small"><%= request.displayName || 'جهاز جديد' %><% if (request.platform) { %> · <bdi><%= request.platform %></bdi><% } %></div>
+                        <% if (request.ipAddress) { %><div class="small">عنوان الاتصال <bdi><%= request.ipAddress %></bdi></div><% } %>
+                        <div class="small">ينتهي <%= request.expiresAt.toLocaleString('ar-EG', { timeZone: 'Africa/Cairo' }) %> بتوقيت القاهرة</div>
+                        <% if (request.riskSignals?.length) { %><div class="small">إشارات المخاطر <bdi><%= request.riskSignals.join('، ') %></bdi></div><% } %>
+                    </div>
+                    <% if (canReview) { %>
+                        <div class="d-flex gap-2 flex-wrap">
+                            <% [['approve', 'موافقة', 'btn-success'], ['reject', 'رفض', 'btn-outline-danger']].forEach(([decision, label, buttonClass]) => { %>
+                                <form method="post" action="/admin/security/employees/<%= request.principalId %>/access-requests/<%= request._id %>/<%= decision %>">
+                                    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                                    <% if (returnToProfile) { %><input type="hidden" name="returnTo" value="profile"><% } %>
+                                    <button type="submit" class="btn <%= buttonClass %>" aria-label="<%= label %> <%= request.requestCode %>"><%= label %></button>
+                                </form>
+                            <% }) %>
+                        </div>
+                    <% } %>
+                </li>
+            <% }); %>
+        </ul>
+    <% } %>
+</section>

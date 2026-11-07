@@ -146,6 +146,12 @@
 
         <div class="tab-content mt-4">
             <div class="tab-pane fade <%= activeEmployeeSection === 'executors' ? 'show active' : '' %>" id="executors-tab">
+                <% if (locals.canReadDeviceRequests) { %>
+                    <%- include('partials/admin_employee_device_requests', {
+                        requests: deviceRequests, canReview: canReviewDeviceRequests,
+                        review: query.deviceReview, refreshUrl: '/employees', returnToProfile: false
+                    }) %>
+                <% } %>
                 <% if(execEmployees.length === 0) { %>
                     <div class="col-12 text-center py-5">
                         <i class="fa-solid fa-users-slash fa-4x text-muted opacity-25 mb-3"></i>

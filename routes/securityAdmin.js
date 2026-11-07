@@ -252,12 +252,17 @@ router.post('/policy', requireSecurityManager, requireRecentPasskey, async (req,
     }
 });
 
-router.post('/access-requests/:id/:decision', requireSecurityManager, async (req, res) => {
+router.post([
+    '/access-requests/:id/:decision',
+    '/employees/:employeeId/access-requests/:id/:decision'
+], requireSecurityManager, async (req, res) => {
     try {
         const decision = req.params.decision;
+        const employeeId = req.params.employeeId;
         if (!['approve', 'reject'].includes(decision)) return res.status(400).json({ success: false, error: 'قرار غير صالح.' });
         const request = await SecurityAccessRequest.findOne({
             _id: req.params.id,
+            ...(employeeId ? { principalType: 'executor', principalId: employeeId, channel: 'app' } : {}),
             status: 'pending',
             expiresAt: { $gt: new Date() }
         }).select('+deviceIdHash');
@@ -286,6 +291,13 @@ router.post('/access-requests/:id/:decision', requireSecurityManager, async (req
         // emergency approval workflow available even if a browser extension or
         // another page script fails to load.
         if (req.accepts(['html', 'json']) === 'html') {
+            if (employeeId) {
+                const params = `?deviceReview=${decision}#employee-device-requests`;
+                const returnUrl = req.body.returnTo === 'profile' && req.session.adminRole === 'master'
+                    ? `/admin/accounts/executor-employee/${encodeURIComponent(employeeId)}/edit`
+                    : '/employees';
+                return res.redirect(303, returnUrl + params);
+            }
             return res.redirect(303, '/admin/security');
         }
         return res.json({ success: true });

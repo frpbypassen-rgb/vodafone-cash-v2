@@ -6,7 +6,8 @@ const AgentEmployee = require('../models/AgentEmployee');
 const User = require('../models/User');
 const ExecutorBot = require('../models/ExecutorGroup');
 const ClientBot = require('../models/ClientBot');
-const { requireAuth } = require('../middlewares/auth');
+const { requireAuth, hasPermission } = require('../middlewares/auth');
+const { listPendingExecutorAppRequests } = require('../services/securityControlService');
 
 router.get('/employees', requireAuth, async (req, res) => {
     const [rawExecutorEmployees, rawClientEmployees, rawAgentEmployees, executors, clients, agents] = await Promise.all([
@@ -45,11 +46,22 @@ router.get('/employees', requireAuth, async (req, res) => {
         }))
     ];
 
+    const canReadDeviceRequests = hasPermission(req.session, 'security.read');
+    const employeesById = new Map(execEmployees.map(employee => [String(employee._id), employee]));
+    const deviceRequests = canReadDeviceRequests && employeesById.size
+        ? (await listPendingExecutorAppRequests([...employeesById.keys()])).map(request => {
+            const employee = employeesById.get(request.principalId);
+            return { ...request, employeeName: employee.name, companyName: executorBotsMap[String(employee.botId)] };
+        })
+        : [];
     res.render('employees', {
         execEmployees,
         clientEmployees,
         executorBotsMap,
         clientBotsMap,
+        canReadDeviceRequests,
+        canReviewDeviceRequests: hasPermission(req.session, 'security.manage'),
+        deviceRequests,
         activeEmployeeSection: req.query.section === 'clients' ? 'clients' : 'executors',
         isMaster: req.session.adminRole === 'master',
         query: req.query || {}
