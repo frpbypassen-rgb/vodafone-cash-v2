@@ -1,5 +1,6 @@
 const { logExecutorFailure } = require('../../../services/executorTransactionError');
-const { proofSourceUrl, streamProofImage } = require('../../../services/proofStorageService');
+const { proofSourceUrl, streamProofImage, streamExecutorProof } = require('../../../services/proofStorageService');
+const { getExecutorProofIds } = require('../../../utils/executorProofIds');
 const Employee = require('../../../models/Employee');
 const Transaction = require('../../../models/Transaction');
 const { objectIdString } = require('./access');
@@ -44,15 +45,13 @@ exports.getProxyExecutorImage = async (req, res) => {
             return res.status(403).send('Forbidden');
         }
         const index = req.params.index ? parseInt(req.params.index) : 0;
-        const photoId =
-            Array.isArray(tx.executorProofImages) && tx.executorProofImages.length > index
-                ? tx.executorProofImages[index]
-                : null;
+        const photoId = getExecutorProofIds(tx)[index];
         if (!photoId) return res.status(404).send('No photo');
 
-        await streamProofImage(proofSourceUrl(photoId), res);
+        await streamExecutorProof(photoId, res);
         return;
     } catch (error) {
+        if (error.statusCode === 404) return res.status(404).send('No photo');
         logExecutorFailure('private-proof-image', error);
         res.status(500).send('Server error');
     }

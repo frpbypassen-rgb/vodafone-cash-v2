@@ -199,11 +199,12 @@
                 time: tx.completedAt || (tx.status === 'completed' ? tx.updatedAt : null)
             });
         }
-        const executorProofs = Array.isArray(tx.executorProofImages) ? tx.executorProofImages.filter(Boolean) : [];
-        const offset = partProofs.length > 1
+        const executorProofCount = tx.executorProofCount
+            ?? (Array.isArray(tx.executorProofImages) ? tx.executorProofImages.filter(Boolean).length : 0);
+        const offset = tx.officialProofCount ?? (partProofs.length > 1
             ? partProofs.filter((part) => Number.isInteger(part.receiptIndex) && part.receiptIndex >= 0).length
-            : (officialReceipt ? 1 : 0);
-        executorProofs.forEach((_file, index) => {
+            : (officialReceipt ? 1 : 0));
+        for (let index = 0; index < executorProofCount; index++) {
             items.push({
                 kind: 'executor',
                 label: `إثبات المنفذ ${index + 1}`,
@@ -212,7 +213,7 @@
                 uploader: hasAssignedExecutor(tx) ? String(tx.executorName || tx.assignedExecutorName).trim() : '',
                 time: tx.completedAt || tx.updatedAt || null
             });
-        });
+        }
         return items;
     }
 

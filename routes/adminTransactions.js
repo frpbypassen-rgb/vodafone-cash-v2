@@ -7,6 +7,8 @@ const Transaction = require('../models/Transaction');
 const Ledger = require('../models/Ledger');
 const { createBalanceTransferReceiptProof } = require('../services/balanceTransferReceiptService');
 const { describeSplitPartProofs } = require('../utils/splitPartProofs');
+const { getExecutorProofIds } = require('../utils/executorProofIds');
+const { getClientReceiptProofIds } = require('../services/clientReceiptService');
 const { retrySplitPartProof } = require('../services/splitPartProofService');
 const ExecutorGroup = require('../models/ExecutorGroup');
 const ClientCompany = require('../models/ClientCompany');
@@ -1317,6 +1319,9 @@ router.get('/transactions/:id/details', async (req, res) => {
         }
         
         const transaction = typeof tx.toObject === 'function' ? tx.toObject() : tx;
+        const officialProofIds = getClientReceiptProofIds(tx);
+        transaction.officialProofCount = officialProofIds.length;
+        transaction.executorProofCount = getExecutorProofIds(tx, officialProofIds).length;
         const partProofs = describeSplitPartProofs(tx);
         if (partProofs.length) transaction.partProofs = partProofs;
         res.json({ success: true, transaction, ledgerInfo, balanceTransferPair });

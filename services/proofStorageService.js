@@ -3,6 +3,9 @@
 const fs = require('fs');
 const path = require('path');
 const axios = require('axios');
+const { parseProofImage } = require('./executorProofStorageService');
+const { inlineExecutorProof } = require('../utils/executorProofIds');
+const { randomUUID } = require('node:crypto');
 
 const PROOF_UPLOAD_DIR = path.join(process.cwd(), 'uploads', 'proofs');
 
@@ -89,9 +92,41 @@ const streamProofImage = async (sourceUrl, res) => {
     upstream.data.pipe(res);
 };
 
+const streamExecutorProof = async (proofId, res) => {
+    if (!inlineExecutorProof(proofId)) {
+        return streamProofImage(proofSourceUrl(proofId), res);
+    }
+    let image;
+    try {
+        image = parseProofImage(proofId, { allowMimeMismatch: true });
+    } catch (_) {
+        throw Object.assign(new Error('PROOF_NOT_FOUND'), { statusCode: 404, code: 'NOT_FOUND' });
+    }
+    res.setHeader('Cache-Control', 'private, no-store');
+    res.type(image.extension).send(image.buffer);
+};
+
+const persistExecutorPartProofs = (entries, txId) => {
+    // Mobile builds can label gallery PNG/WebP bytes as JPEG.
+    const parsed = entries.map(entry => entry.proofImage
+        ? parseProofImage(entry.proofImage, { allowMimeMismatch: true })
+        : null);
+    if (parsed.some(Boolean)) fs.mkdirSync(PROOF_UPLOAD_DIR, { recursive: true });
+    const safeId = String(txId).replace(/[^\w.-]/g, '_');
+    return entries.map((entry, index) => {
+        const image = parsed[index];
+        if (!image) return entry;
+        const name = `${safeId}_sender_${index + 1}_${randomUUID()}.${image.extension}`;
+        fs.writeFileSync(path.join(PROOF_UPLOAD_DIR, name), image.buffer);
+        return { ...entry, proofImage: `proofs/${name}` };
+    });
+};
+
 module.exports = {
     proofFilePath,
     proofSourceUrl,
     saveProofImage,
-    streamProofImage
+    streamProofImage,
+    streamExecutorProof,
+    persistExecutorPartProofs
 };

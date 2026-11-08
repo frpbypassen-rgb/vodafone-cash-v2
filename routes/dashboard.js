@@ -12,7 +12,8 @@ const ClientServiceRequest = require('../models/ClientServiceRequest');
 const RegistrationRequest = require('../models/RegistrationRequest');
 const { requireAuth } = require('../middlewares/auth');
 const { syncBotBalance } = require('../utils/helpers');
-const { proofSourceUrl, streamProofImage } = require('../services/proofStorageService');
+const { proofSourceUrl, streamProofImage, streamExecutorProof } = require('../services/proofStorageService');
+const { getExecutorProofIds } = require('../utils/executorProofIds');
 const { getClientReceiptProofIds } = require('../services/clientReceiptService');
 const { reversalService } = require('../src/Application/Services/ReversalService');
 const { repriceTransaction, editTransactionAmount } = require('../services/adminFinancialMutationService');
@@ -44,17 +45,18 @@ router.get(['/proxy/image/:id', '/proxy/image/:id/:index'], requireAuth, async (
 
         const index = req.params.index ? parseInt(req.params.index) : 0;
         const customerProofs = getClientReceiptProofIds(tx);
-        const executorProofs = (Array.isArray(tx.executorProofImages) ? tx.executorProofImages : [])
-            .map((value) => String(value || '').trim())
-            .filter((value) => value && !customerProofs.includes(value));
-        const adminProofs = [...customerProofs, ...executorProofs];
-        const photoId = adminProofs[index];
+        const executorProofs = getExecutorProofIds(tx, customerProofs);
+        const photoId = index < customerProofs.length ? customerProofs[index] : executorProofs[index - customerProofs.length];
 
         if (!photoId) return res.status(404).send('لا توجد صورة إثبات');
 
-        await streamProofImage(proofSourceUrl(photoId), res);
+        if (index < customerProofs.length) await streamProofImage(proofSourceUrl(photoId), res);
+        else await streamExecutorProof(photoId, res);
         return;
-    } catch (error) { res.status(500).send('خطأ داخلي'); }
+    } catch (error) {
+        if (error.statusCode === 404) return res.status(404).send('لا توجد صورة إثبات');
+        return res.status(500).send('خطأ داخلي');
+    }
 });
 
 router.get('/', requireAuth, async (req, res) => {

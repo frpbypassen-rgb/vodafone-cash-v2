@@ -10,6 +10,7 @@ const {
 const { createReceiptImageUrl } = require('../services/receiptShareService');
 const { readExecutorManualPolicy, toPublicExecutionPolicy } = require('../utils/executorManualPolicy');
 const { bankLabelForTransaction } = require('../utils/egyptianBanks');
+const { getExecutorProofIds } = require('../utils/executorProofIds');
 
 const receiptFields = (tx) => {
     const hasProofImage = Boolean(tx.receiptUrl || tx.proofImage || (tx.proofImages && tx.proofImages.length > 0));
@@ -21,19 +22,20 @@ const receiptFields = (tx) => {
     };
 };
 
-const mapSenderEntries = (tx) => {
+const mapSenderEntries = (tx, canViewExecutorEvidence) => {
     const entries = Array.isArray(tx.executorSenderEntries) ? tx.executorSenderEntries : [];
     const customerImages = entries
         .filter((entry) => entry?.status === 'success' && entry?.customerProof?.imageId)
         .map((entry) => String(entry.customerProof.imageId));
+    const executorImages = canViewExecutorEvidence ? getExecutorProofIds(tx) : [];
     return entries.map((entry) => {
         const imageId = String(entry?.customerProof?.imageId || '');
         const receiptIndex = imageId ? customerImages.indexOf(imageId) : -1;
+        const proofIndex = executorImages.indexOf(entry.proofImage);
         return {
             phone: entry.phone || null,
             amount: entry.amount === undefined || entry.amount === null ? null : Number(entry.amount),
-            proofImage: entry.proofImage || null,
-            proofImageUrl: entry.proofImage ? `/executor-portal/proxy/image/${entry.proofImage}` : null,
+            proofImageUrl: proofIndex >= 0 ? `/executor-portal/proxy/executor-image/${tx._id}/${proofIndex}` : null,
             ...(entry.partId ? {
                 partId: String(entry.partId),
                 status: entry.status || null,
@@ -50,7 +52,7 @@ const mapSenderEntries = (tx) => {
 
 const managerExecutorEvidence = (tx, canView) => {
     if (!canView) return {};
-    const executorProofImages = Array.isArray(tx.executorProofImages) ? tx.executorProofImages : [];
+    const executorProofImages = getExecutorProofIds(tx);
     return {
         executorExecutionNumber: tx.executorExecutionNumber || null,
         executorSenderPhone: tx.executorSenderPhone || null,
@@ -97,7 +99,7 @@ const toClientReportDto = (data) => {
             executorRatingNote: tx.executorRatingNote || null,
             executorRatedAt: tx.executorRatedAt ? new Date(tx.executorRatedAt).toISOString() : null,
             voiceNote: tx.voiceNote || null,
-            executorSenderEntries: mapSenderEntries(tx),
+            executorSenderEntries: mapSenderEntries(tx, canViewExecutorEvidence),
             ...receiptFields(tx),
             ...managerExecutorEvidence(tx, canViewExecutorEvidence)
         })),
@@ -123,7 +125,7 @@ const toClientReportDto = (data) => {
             executorRatingNote: tx.executorRatingNote || null,
             executorRatedAt: tx.executorRatedAt ? new Date(tx.executorRatedAt).toISOString() : null,
             voiceNote: tx.voiceNote || null,
-            executorSenderEntries: mapSenderEntries(tx),
+            executorSenderEntries: mapSenderEntries(tx, canViewExecutorEvidence),
             ...receiptFields(tx),
             ...managerExecutorEvidence(tx, canViewExecutorEvidence)
         })),
@@ -145,7 +147,7 @@ const toClientReportDto = (data) => {
             executorRatingNote: tx.executorRatingNote || null,
             executorRatedAt: tx.executorRatedAt ? new Date(tx.executorRatedAt).toISOString() : null,
             voiceNote: tx.voiceNote || null,
-            executorSenderEntries: mapSenderEntries(tx),
+            executorSenderEntries: mapSenderEntries(tx, canViewExecutorEvidence),
             ...receiptFields(tx),
             ...managerExecutorEvidence(tx, canViewExecutorEvidence)
         })),

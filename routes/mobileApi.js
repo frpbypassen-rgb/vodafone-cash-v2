@@ -26,7 +26,8 @@ const requireIdempotencyKey = require('../middlewares/requireIdempotencyKey');
 const { logAction } = require('../services/auditService');
 const { verifyAndUpgradePassword } = require('../utils/helpers');
 const { completedTransferLedgerInc } = require('../utils/executorServiceLedger');
-const { proofSourceUrl, saveProofImage, streamProofImage } = require('../services/proofStorageService');
+const { proofSourceUrl, saveProofImage, streamProofImage, streamExecutorProof, persistExecutorPartProofs } = require('../services/proofStorageService');
+const { getExecutorProofIds } = require('../utils/executorProofIds');
 const { createReceiptImageUrl } = require('../services/receiptShareService');
 const { getClientReceiptProofIds } = require('../services/clientReceiptService');
 const { saveProfilePhoto, streamProfilePhoto, removeProfilePhoto } = require('../services/profilePhotoStorageService');
@@ -315,10 +316,10 @@ const receiptTicketOwner = (user = {}) => [
     user.executorGroupId || ''
 ].join('|');
 
-const createReceiptTicket = (fileUrl, user) => {
+const createReceiptTicket = (image, user) => {
     const ticket = crypto.randomBytes(32).toString('hex');
     receiptTickets.set(ticket, {
-        fileUrl,
+        ...image,
         owner: receiptTicketOwner(user),
         expiresAt: Date.now() + RECEIPT_TICKET_TTL_MS
     });
@@ -344,6 +345,9 @@ const consumeReceiptTicket = (ticket, user) => {
 const buildReceiptProxyUrl = (req, ticket) => {
     return `${req.protocol}://${req.get('host')}/api/mobile/transaction/image/content?ticket=${ticket}`;
 };
+
+const executorOwnsReceipt = (tx, groupId) => [tx.executorGroupId, tx.managerGroupId]
+    .some(id => id && String(id) === groupId);
 
 const toExecutorTaskDto = (tx, currentExecutorId = null) => {
     const recipient = buildExecutorTaskRecipient(tx, currentExecutorId);
@@ -2477,6 +2481,14 @@ router.post('/executor/complete-task/:id', authenticateJWT, completeTaskValidato
         if (!bankTransfer && !splitCompletion && manualPolicy.proofRequired && uploadedImages.length === 0 && senderEntries.every((entry) => !entry.proofImage)) {
             return sendMobileError(res, 400, 'PROOF_REQUIRED', 'إرفاق صورة الإثبات إجباري لهذا المنفذ.', req.correlationId);
         }
+        if (splitCompletion) {
+            try {
+                senderEntries = persistExecutorPartProofs(senderEntries, tx.customId || tx._id);
+            } catch (error) {
+                if (error.message !== 'INVALID_PROOF_IMAGE') throw error;
+                return sendMobileError(res, 400, 'INVALID_PROOF_IMAGE', 'صورة إثبات الجزء غير صالحة', req.correlationId);
+            }
+        }
         const executorReceipt = bankTransfer || splitCompletion
             ? null
             : await reserveManualExecutorReceiptReference({ group: emp.groupId });
@@ -2637,7 +2649,19 @@ router.get('/transaction/image/content', authenticateJWT, async (req, res) => {
             return sendMobileError(res, ticket.status, ticket.code, ticket.message, req.correlationId);
         }
 
-        await streamProofImage(ticket.entry.fileUrl, res);
+        const { fileUrl, transactionId, evidenceIndex } = ticket.entry;
+        if (transactionId) {
+            const tx = req.tenant
+                ? await Transaction.findOne({ _id: transactionId, tenantId: req.tenant._id })
+                : await Transaction.findById(transactionId);
+            const proofId = tx && executorOwnsReceipt(tx, req.user.executorGroupId)
+                ? getExecutorProofIds(tx)[evidenceIndex]
+                : null;
+            if (!proofId) return sendMobileError(res, 404, 'NOT_FOUND', 'لا توجد صورة إثبات', req.correlationId);
+            await streamExecutorProof(proofId, res);
+        } else {
+            await streamProofImage(fileUrl, res);
+        }
         return;
     } catch (e) {
         if (e && e.statusCode) {
@@ -2701,8 +2725,7 @@ router.get('/transaction/image/:id', authenticateJWT, async (req, res) => {
 
         let hasAccess = false;
         if (accountType === 'executor') {
-            if (tx.executorGroupId && tx.executorGroupId.toString() === executorGroupId) hasAccess = true;
-            if (tx.managerGroupId && tx.managerGroupId.toString() === executorGroupId) hasAccess = true;
+            hasAccess = executorOwnsReceipt(tx, executorGroupId);
         } else if (accountType === 'client_company') {
             const emp = await ClientEmployee.findById(userId);
             if (emp && tx.companyId && tx.companyId.toString() === emp.companyId.toString()) hasAccess = true;
@@ -2731,29 +2754,33 @@ router.get('/transaction/image/:id', authenticateJWT, async (req, res) => {
         }
 
         const evidenceSource = String(req.query.source || '').trim().toLowerCase();
-        let photoId;
-        if (evidenceSource === 'executor') {
+        const metadata = req.query.metadata === '1';
+        const privateEvidence = evidenceSource === 'executor';
+        let canViewExecutor = false;
+        if (accountType === 'executor' && (privateEvidence || metadata)) {
             const employee = await Employee.findById(userId).lean();
-            if (accountType !== 'executor' || employee?.role !== 'manager') {
-                return sendMobileError(res, 403, 'FORBIDDEN', 'صور إثبات المنفذ متاحة للمدير فقط', req.correlationId);
-            }
-            const evidenceIndex = Math.max(0, Number.parseInt(req.query.index, 10) || 0);
-            photoId = Array.isArray(tx.executorProofImages) ? tx.executorProofImages[evidenceIndex] : null;
-        } else {
-            photoId = tx.proofImages && tx.proofImages.length > 0 ? tx.proofImages[0] : tx.proofImage;
+            canViewExecutor = employee?.role === 'manager';
         }
+        if (privateEvidence && !canViewExecutor) {
+            return sendMobileError(res, 403, 'FORBIDDEN', 'صور إثبات المنفذ متاحة للمدير فقط', req.correlationId);
+        }
+        const official = getClientReceiptProofIds(tx);
+        const executor = canViewExecutor ? getExecutorProofIds(tx) : [];
+        if (metadata) {
+            return res.json({ success: true, officialProofCount: official.length, executorProofCount: executor.length });
+        }
+        const index = Number(req.query.index ?? 0);
+        if (!Number.isInteger(index) || index < 0) {
+            return sendMobileError(res, 400, 'INVALID_IMAGE_INDEX', 'رقم الصورة غير صالح', req.correlationId);
+        }
+        const photoId = (privateEvidence ? executor : official)[index];
         if (!photoId) {
             return sendMobileError(res, 404, 'NOT_FOUND', 'لا توجد صورة إثبات', req.correlationId);
         }
 
-        // 🟢 قمنا بإلغاء التليجرام. يجب إرجاع رابط الصورة من النظام نفسه.
-        const fileLink = { href: proofSourceUrl(photoId) };
-
-        if (!fileLink) {
-            return sendMobileError(res, 404, 'NOT_FOUND', 'لا يمكن جلب الصورة، ربما انتهت صلاحيتها', req.correlationId);
-        }
-
-        const ticket = createReceiptTicket(fileLink.href, req.user);
+        const ticket = createReceiptTicket(privateEvidence
+            ? { transactionId: String(tx._id), evidenceIndex: index }
+            : { fileUrl: proofSourceUrl(photoId) }, req.user);
         return res.json({
             success: true,
             url: buildReceiptProxyUrl(req, ticket),

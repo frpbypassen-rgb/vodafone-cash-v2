@@ -7,10 +7,11 @@ const { parseExecutorImageDataUrl } = require('../utils/executorImageValidation'
 
 const MAX_PROOF_IMAGES = 5;
 const MAX_PROOF_BYTES = 8 * 1024 * 1024;
-const parseProofImage = (value) => {
+const parseProofImage = (value, { allowMimeMismatch = false } = {}) => {
     return parseExecutorImageDataUrl(value, {
         maxBytes: MAX_PROOF_BYTES,
         allowWrappedBase64: true,
+        allowMimeMismatch,
         errorCode: 'INVALID_PROOF_IMAGE'
     });
 };
@@ -85,6 +86,7 @@ const saveProviderReceiptProof = ({ tx, receiptBase64 }) => {
 
 module.exports = {
     MAX_PROOF_IMAGES,
+    parseProofImage,
     getProofImages,
     saveProofBuffer,
     saveProofImageBase64,

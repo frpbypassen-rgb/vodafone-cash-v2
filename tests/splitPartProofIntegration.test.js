@@ -40,6 +40,8 @@ const manualExecutorReceipt = require('../utils/manualExecutorReceipt');
 const { preparePersistedSenderEntries } = require('../utils/splitPartProofs');
 const { issueSplitPartProofs, retrySplitPartProof } = require('../services/splitPartProofService');
 const adminTransactions = require('../routes/adminTransactions');
+const dashboard = require('../routes/dashboard');
+const { collectProofs } = require('../public/js/admin-operation-details');
 const executorPortal = require('../routes/executorPortal');
 const mobileApi = require('../routes/mobileApi');
 
@@ -234,6 +236,7 @@ adminApp.use((req, _res, next) => {
     next();
 });
 adminApp.use(adminTransactions);
+adminApp.use(dashboard);
 
 const mobileApp = express();
 mobileApp.use(express.json());
@@ -593,6 +596,55 @@ describe('split part proofs on MongoMemoryReplSet', () => {
             await ExecutorGroup.updateOne({ _id: group._id }, { $set: {
                 manualAllowedPhoneLengths: [3, 4, 11], manualSplitRequiresFullPhone: true, manualProofRequired: false
             } });
+        }
+    });
+
+    test('mobile split completion stores the part upload and rejects a bad image before completion', async () => {
+        const tx = await seedTransfer({ tenant: tenantId });
+        await Transaction.updateOne({ _id: tx._id }, { $set: {
+            status: 'accepted', operatorId: String(employee._id), executorSenderEntries: []
+        } });
+        const png = createCanvas(2, 2).toDataURL('image/png');
+        const complete = (proofImageBase64) => request(mobileApp)
+            .post('/api/mobile/executor/complete-task/' + tx._id)
+            .set('Authorization', 'Bearer ' + executorToken(tenantId))
+            .set('x-test-tenant', String(tenantId))
+            .send({ executionNumber: '0012', senderEntries: [
+                { phone: '0012', amount: 1000, proofImageBase64 },
+                { phone: WALLET_B, amount: 1500 }
+            ] });
+        await withStableFinance(async () => {
+            const rejected = await complete('data:image/png;base64,not-an-image');
+            expect(rejected.status).toBe(400);
+            expect(rejected.body.code).toBe('INVALID_PROOF_IMAGE');
+        });
+        await complete(png.replace('image/png', 'image/jpeg')).expect(200);
+        const saved = await Transaction.findById(tx._id).lean();
+        expect(saved.status).toBe('completed');
+        expect(saved.executorSenderEntries[1].proofImage).toBeNull();
+        const fileId = saved.executorSenderEntries[0].proofImage;
+        expect(fileId).toMatch(/^proofs\/TEST-REF-.*_sender_1_.*\.png$/);
+        expect(fs.readFileSync(path.join(process.cwd(), 'uploads', fileId))).toEqual(Buffer.from(png.split(',')[1], 'base64'));
+    });
+
+    test('admin gallery streams official and private split proofs by the displayed indices', async () => {
+        const official = 'proofs/TEST-REF-ADMIN-SPLIT-official.png';
+        const tx = await seedTransfer({ imageId: official, proofStatus: 'sent' });
+        const png = createCanvas(2, 2).toDataURL('image/png');
+        const officialBytes = createCanvas(3, 3).toBuffer('image/png');
+        const executorBytes = Buffer.from(png.split(',')[1], 'base64');
+        fs.mkdirSync(PROOF_DIR, { recursive: true });
+        fs.writeFileSync(path.join(process.cwd(), 'uploads', official), officialBytes);
+        await Transaction.updateOne({ _id: tx._id }, {
+            $set: { 'executorSenderEntries.0.proofImage': png, 'executorSenderEntries.1.customerProof.imageId': null }
+        });
+
+        const detail = await request(adminApp).get(`/transactions/${tx._id}/details`).expect(200);
+        const items = collectProofs(detail.body.transaction).filter(item => item.url);
+        expect(items.map(item => item.kind)).toEqual(['official', 'executor']);
+        for (const item of items) {
+            const image = await request(adminApp).get(item.url).expect(200).expect('Content-Type', /image\/png/);
+            expect(image.body).toEqual(item.kind === 'official' ? officialBytes : executorBytes);
         }
     });
 

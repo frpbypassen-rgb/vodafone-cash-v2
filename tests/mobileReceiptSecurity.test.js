@@ -37,7 +37,9 @@ jest.mock('../middlewares/jwtAuth', () => ({
     JWT_SECRET: 'test-secret-key-that-is-long-enough-32chars',
     JWT_REFRESH_SECRET: 'test-refresh-secret-key-long-enough-32chars',
     authenticateJWT: (req, res, next) => {
-        req.user = { userId: 'user-id-123', accountType: 'client_user', telegramId: '99887766' };
+        req.user = req.get('x-test-executor') === '1'
+            ? { userId: 'manager-id', accountType: 'executor', executorGroupId: 'group-id' }
+            : { userId: 'user-id-123', accountType: 'client_user', telegramId: '99887766' };
         next();
     }
 }));
@@ -57,6 +59,7 @@ jest.mock('axios', () => ({
 }));
 
 const Transaction = require('../models/Transaction');
+const Employee = require('../models/Employee');
 const axios = require('axios');
 const app = express();
 app.use(express.json());
@@ -156,5 +159,40 @@ describe('🖼️ Contract Tests: Receipt Security (Mobile API)', () => {
             code: 'NOT_FOUND'
         }));
         expect(axios.get).toHaveBeenCalledTimes(1);
+    });
+
+    test('split receipts list official images and return inline part uploads only to the manager', async () => {
+        const png = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/lZ0AAAAASUVORK5CYII=';
+        Transaction.findById.mockResolvedValue({
+            _id: 'split-id', userId: 'user-id-123', executorGroupId: 'group-id',
+            proofImages: ['official-1', 'official-2'],
+            executorSenderEntries: [
+                { partId: '1', status: 'success', proofImage: 'data:image/jpeg;base64,' + png, customerProof: { key: 'split:1', imageId: 'official-1' } },
+                { partId: '2', status: 'success', customerProof: { key: 'split:2', imageId: 'official-2' } }
+            ]
+        });
+        const employee = jest.spyOn(Employee, 'findById').mockReturnValue({ lean: async () => ({ role: 'manager' }) });
+        try {
+            const base = '/transaction/image/split-id';
+            const catalog = await request(app).get(base + '?metadata=1').set('x-test-executor', '1').expect(200);
+            expect(catalog.body).toMatchObject({ officialProofCount: 2, executorProofCount: 1 });
+            const customer = await request(app).get(base + '?metadata=1').expect(200);
+            expect(customer.body).toMatchObject({ officialProofCount: 2, executorProofCount: 0 });
+            await request(app).get(base + '?source=executor').expect(403);
+            const ticket = await request(app).get(base + '?source=executor').set('x-test-executor', '1').expect(200);
+            expect(ticket.body.url).not.toContain(png);
+            const contentPath = new URL(ticket.body.url).pathname.replace('/api/mobile', '') + new URL(ticket.body.url).search;
+            await request(app).get(contentPath).expect(403);
+            const image = await request(app).get(contentPath).set('x-test-executor', '1').expect(200).expect('Content-Type', /image\/png/);
+            expect(image.body).toEqual(Buffer.from(png, 'base64'));
+
+            const secondTicket = await request(app).get(base + '?source=executor').set('x-test-executor', '1').expect(200);
+            const movedUrl = new URL(secondTicket.body.url);
+            Transaction.findById.mockResolvedValue({ executorGroupId: 'other-group', executorProofImages: ['other.png'] });
+            await request(app).get(movedUrl.pathname.replace('/api/mobile', '') + movedUrl.search)
+                .set('x-test-executor', '1').expect(404);
+        } finally {
+            employee.mockRestore();
+        }
     });
 });

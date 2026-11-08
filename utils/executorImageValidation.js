@@ -19,6 +19,7 @@ const parseExecutorImageDataUrl = (value, options = {}) => {
         maxPixels = DEFAULT_MAX_PIXELS,
         maxDimension = DEFAULT_MAX_DIMENSION,
         allowWrappedBase64 = false,
+        allowMimeMismatch = false,
         errorCode = 'INVALID_IMAGE'
     } = options;
     if (!Number.isSafeInteger(maxBytes) || maxBytes <= 0 || typeof value !== 'string') {
@@ -47,12 +48,13 @@ const parseExecutorImageDataUrl = (value, options = {}) => {
     const detectedExtension = MIME_TYPES[String(metadata.type || '').toLowerCase()];
     const width = Number(metadata.width || 0);
     const height = Number(metadata.height || 0);
-    if (detectedExtension !== extension || !Number.isSafeInteger(width) || !Number.isSafeInteger(height)
+    if (!detectedExtension || (!allowMimeMismatch && detectedExtension !== extension)
+        || !Number.isSafeInteger(width) || !Number.isSafeInteger(height)
         || width <= 0 || height <= 0 || width > maxDimension || height > maxDimension
         || width * height > maxPixels) {
         throw new Error(errorCode);
     }
-    return { buffer, extension, width, height };
+    return { buffer, extension: detectedExtension, width, height };
 };
 
 module.exports = {

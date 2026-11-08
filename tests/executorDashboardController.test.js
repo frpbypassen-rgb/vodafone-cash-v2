@@ -11,7 +11,8 @@ jest.mock('../models/ClientEmployee');
 jest.mock('../services/auditService', () => ({ logAction: jest.fn().mockResolvedValue(true) }));
 jest.mock('../services/proofStorageService', () => ({
     proofSourceUrl: jest.fn((value) => `/proofs/${value}`),
-    streamProofImage: jest.fn().mockResolvedValue(true)
+    streamProofImage: jest.fn().mockResolvedValue(true),
+    streamExecutorProof: jest.fn().mockResolvedValue(true)
 }));
 jest.mock('../services/executorTaskRoutingService', () => ({
     ...jest.requireActual('../services/executorTaskRoutingService'),
@@ -69,7 +70,7 @@ const Employee = require('../models/Employee');
 const logger = require('../utils/logger');
 const depositService = require('../services/executorDepositRequestService');
 const quickExecuteService = require('../services/executorQuickExecuteService');
-const { proofSourceUrl, streamProofImage } = require('../services/proofStorageService');
+const { proofSourceUrl, streamProofImage, streamExecutorProof } = require('../services/proofStorageService');
 const mobileWebParityService = require('../services/mobileWebParityService');
 const poolService = require('../services/executorBalancePoolService');
 const { findOwnedAcceptedExecutorTask } = require('../services/executorTaskRoutingService');
@@ -449,7 +450,7 @@ describe('Executor dashboard group ownership', () => {
         Transaction.findById.mockResolvedValue({ executorGroupId: 'group-1', executorProofImages: ['private.png'] });
         const res = response();
         await controller.getProxyExecutorImage({ params: { id: 'tx-1', index: '0' }, session: {}, executorEmployee: { role: 'manager', groupId: { _id: 'group-1' } } }, res);
-        expect(streamProofImage).toHaveBeenCalledWith('/proofs/private.png', res);
+        expect(streamExecutorProof).toHaveBeenCalledWith('private.png', res);
     });
 
     test('batches live-task housekeeping and keeps the completed list bounded', async () => {
