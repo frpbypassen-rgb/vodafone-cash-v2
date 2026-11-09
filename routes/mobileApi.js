@@ -27,7 +27,7 @@ const { logAction } = require('../services/auditService');
 const { verifyAndUpgradePassword } = require('../utils/helpers');
 const { completedTransferLedgerInc } = require('../utils/executorServiceLedger');
 const { proofSourceUrl, saveProofImage, streamProofImage, streamExecutorProof, persistExecutorPartProofs } = require('../services/proofStorageService');
-const { getExecutorProofIds } = require('../utils/executorProofIds');
+const { canViewExecutorProofs, getExecutorProofIds } = require('../utils/executorProofIds');
 const { createReceiptImageUrl } = require('../services/receiptShareService');
 const { getClientReceiptProofIds } = require('../services/clientReceiptService');
 const { saveProfilePhoto, streamProfilePhoto, removeProfilePhoto } = require('../services/profilePhotoStorageService');
@@ -348,6 +348,11 @@ const buildReceiptProxyUrl = (req, ticket) => {
 
 const executorOwnsReceipt = (tx, groupId) => [tx.executorGroupId, tx.managerGroupId]
     .some(id => id && String(id) === groupId);
+
+const canReadPrivateReceipt = async (tx, user) => {
+    const employee = await Employee.findById(user.userId).lean();
+    return canViewExecutorProofs(tx, employee?.role, user.userId);
+};
 
 const toExecutorTaskDto = (tx, currentExecutorId = null) => {
     const recipient = buildExecutorTaskRecipient(tx, currentExecutorId);
@@ -2655,6 +2660,7 @@ router.get('/transaction/image/content', authenticateJWT, async (req, res) => {
                 ? await Transaction.findOne({ _id: transactionId, tenantId: req.tenant._id })
                 : await Transaction.findById(transactionId);
             const proofId = tx && executorOwnsReceipt(tx, req.user.executorGroupId)
+                && await canReadPrivateReceipt(tx, req.user)
                 ? getExecutorProofIds(tx)[evidenceIndex]
                 : null;
             if (!proofId) return sendMobileError(res, 404, 'NOT_FOUND', 'لا توجد صورة إثبات', req.correlationId);
@@ -2758,11 +2764,10 @@ router.get('/transaction/image/:id', authenticateJWT, async (req, res) => {
         const privateEvidence = evidenceSource === 'executor';
         let canViewExecutor = false;
         if (accountType === 'executor' && (privateEvidence || metadata)) {
-            const employee = await Employee.findById(userId).lean();
-            canViewExecutor = employee?.role === 'manager';
+            canViewExecutor = await canReadPrivateReceipt(tx, req.user);
         }
         if (privateEvidence && !canViewExecutor) {
-            return sendMobileError(res, 403, 'FORBIDDEN', 'صور إثبات المنفذ متاحة للمدير فقط', req.correlationId);
+            return sendMobileError(res, 403, 'FORBIDDEN', 'غير مصرح لك بعرض صور المنفذ لهذه العملية', req.correlationId);
         }
         const official = getClientReceiptProofIds(tx);
         const executor = canViewExecutor ? getExecutorProofIds(tx) : [];

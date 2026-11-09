@@ -143,6 +143,24 @@ describe('executor employee reports', () => {
         expect(dto.cancelledOperations[0].executorName).toBeNull();
     });
 
+    test('employee report includes own proof links without manager-only execution data', async () => {
+        const report = await getExecutorReports({
+            executorId: 'employee-1', dateType: 'day', dateValue: '2026-08-14'
+        });
+        const tx = report.operations[0];
+        tx.executorProofImages = ['own.png'];
+        tx.executorExecutionNumber = 'manager-only';
+        const [own, teammate] = toClientReportDto({
+            ...report, operations: [tx, { ...tx, operatorId: 'employee-2' }]
+        }).operations;
+        expect(own).toMatchObject({
+            executorProofCount: 1,
+            executorProofImageUrls: ['/executor-portal/proxy/executor-image/completed-1/0']
+        });
+        expect(own).not.toHaveProperty('executorExecutionNumber');
+        expect(teammate).not.toHaveProperty('executorProofImageUrls');
+    });
+
     test('includes legacy execution rows in the configured single-tenant report scope', async () => {
         const previousTenantMode = process.env.TENANT_MODE;
         process.env.TENANT_MODE = 'single';

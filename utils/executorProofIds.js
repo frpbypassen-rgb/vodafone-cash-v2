@@ -3,6 +3,13 @@
 const inlineExecutorProof = (value) => /^data:image\/(?:jpeg|jpg|png|webp);base64,/i.test(value);
 const partFile = /^(?:\/?uploads\/)?(?:proofs\/)?[\w.-]+\.(?:jpe?g|png|webp)$/i;
 
+const canViewExecutorProofs = (tx, role, employeeId) => role === 'manager' || (
+    (role === 'operator' || role === 'external')
+    && tx.status === 'completed'
+    && Boolean(employeeId)
+    && String(tx.operatorId || '') === String(employeeId)
+);
+
 const getExecutorProofIds = (tx, official = []) => {
     const uploads = Array.isArray(tx.executorProofImages) ? tx.executorProofImages : [];
     const entries = Array.isArray(tx.executorSenderEntries) ? tx.executorSenderEntries : [];
@@ -25,4 +32,4 @@ const getExecutorProofIds = (tx, official = []) => {
         .filter(value => typeof value === 'string' && value && !official.includes(value));
 };
 
-module.exports = { getExecutorProofIds, inlineExecutorProof };
+module.exports = { canViewExecutorProofs, getExecutorProofIds, inlineExecutorProof };

@@ -453,6 +453,20 @@ describe('Executor dashboard group ownership', () => {
         expect(streamExecutorProof).toHaveBeenCalledWith('private.png', res);
     });
 
+    test('operator can read their own completed proof but not a teammate’s proof', async () => {
+        const tx = { executorGroupId: 'group-1', operatorId: 'emp-1', status: 'completed', executorProofImages: ['private.png'] };
+        Transaction.findById.mockResolvedValue(tx);
+        const req = { params: { id: 'tx-1', index: '0' }, session: {}, executorEmployee: { _id: 'emp-1', role: 'operator', groupId: 'group-1' } };
+        const res = response();
+        await controller.getProxyExecutorImage(req, res);
+        expect(streamExecutorProof).toHaveBeenCalledWith('private.png', res);
+
+        tx.operatorId = 'emp-2';
+        await controller.getProxyExecutorImage(req, res);
+        expect(res.status).toHaveBeenCalledWith(403);
+        expect(streamExecutorProof).toHaveBeenCalledTimes(1);
+    });
+
     test('batches live-task housekeeping and keeps the completed list bounded', async () => {
         const task = {
             _id: 'task-1',

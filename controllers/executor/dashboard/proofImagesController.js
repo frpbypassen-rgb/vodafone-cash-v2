@@ -1,6 +1,6 @@
 const { logExecutorFailure } = require('../../../services/executorTransactionError');
 const { proofSourceUrl, streamProofImage, streamExecutorProof } = require('../../../services/proofStorageService');
-const { getExecutorProofIds } = require('../../../utils/executorProofIds');
+const { canViewExecutorProofs, getExecutorProofIds } = require('../../../utils/executorProofIds');
 const Employee = require('../../../models/Employee');
 const Transaction = require('../../../models/Transaction');
 const { objectIdString } = require('./access');
@@ -41,7 +41,7 @@ exports.getProxyExecutorImage = async (req, res) => {
         const employeeGroupId = objectIdString(emp?.groupId);
         const ownsExecutorTask = objectIdString(tx.executorGroupId) === employeeGroupId;
         const ownsManagerTask = objectIdString(tx.managerGroupId) === employeeGroupId;
-        if (!emp || emp.role !== 'manager' || (!ownsExecutorTask && !ownsManagerTask)) {
+        if (!employeeGroupId || (!ownsExecutorTask && !ownsManagerTask) || !canViewExecutorProofs(tx, emp.role, emp._id)) {
             return res.status(403).send('Forbidden');
         }
         const index = req.params.index ? parseInt(req.params.index) : 0;

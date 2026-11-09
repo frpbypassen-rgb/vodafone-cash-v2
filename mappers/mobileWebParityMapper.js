@@ -10,7 +10,7 @@ const {
 const { createReceiptImageUrl } = require('../services/receiptShareService');
 const { readExecutorManualPolicy, toPublicExecutionPolicy } = require('../utils/executorManualPolicy');
 const { bankLabelForTransaction } = require('../utils/egyptianBanks');
-const { getExecutorProofIds } = require('../utils/executorProofIds');
+const { canViewExecutorProofs, getExecutorProofIds } = require('../utils/executorProofIds');
 
 const receiptFields = (tx) => {
     const hasProofImage = Boolean(tx.receiptUrl || tx.proofImage || (tx.proofImages && tx.proofImages.length > 0));
@@ -22,12 +22,11 @@ const receiptFields = (tx) => {
     };
 };
 
-const mapSenderEntries = (tx, canViewExecutorEvidence) => {
+const mapSenderEntries = (tx, executorImages) => {
     const entries = Array.isArray(tx.executorSenderEntries) ? tx.executorSenderEntries : [];
     const customerImages = entries
         .filter((entry) => entry?.status === 'success' && entry?.customerProof?.imageId)
         .map((entry) => String(entry.customerProof.imageId));
-    const executorImages = canViewExecutorEvidence ? getExecutorProofIds(tx) : [];
     return entries.map((entry) => {
         const imageId = String(entry?.customerProof?.imageId || '');
         const receiptIndex = imageId ? customerImages.indexOf(imageId) : -1;
@@ -50,23 +49,28 @@ const mapSenderEntries = (tx, canViewExecutorEvidence) => {
     });
 };
 
-const managerExecutorEvidence = (tx, canView) => {
-    if (!canView) return {};
-    const executorProofImages = getExecutorProofIds(tx);
+const reportExecutorEvidence = (tx, role, employeeId) => {
+    const canView = canViewExecutorProofs(tx, role, employeeId);
+    const executorProofImages = canView ? getExecutorProofIds(tx) : [];
     return {
-        executorExecutionNumber: tx.executorExecutionNumber || null,
-        executorSenderPhone: tx.executorSenderPhone || null,
-        executorProofCount: executorProofImages.length,
-        executorProofImageUrls: executorProofImages.map((_, index) =>
-            `/executor-portal/proxy/executor-image/${tx._id}/${index}`
-        )
+        executorSenderEntries: mapSenderEntries(tx, executorProofImages),
+        ...(canView ? {
+            executorProofCount: executorProofImages.length,
+            executorProofImageUrls: executorProofImages.map((_, index) =>
+                `/executor-portal/proxy/executor-image/${tx._id}/${index}`
+            )
+        } : {}),
+        ...(role === 'manager' ? {
+            executorExecutionNumber: tx.executorExecutionNumber || null,
+            executorSenderPhone: tx.executorSenderPhone || null
+        } : {})
     };
 };
 
 const toClientReportDto = (data) => {
     const isPersonalReport = data.scope === 'employee';
     const isExternalPersonalReport = isPersonalReport && data.role === 'external';
-    const canViewExecutorEvidence = data.role === 'manager';
+    const employeeId = isPersonalReport ? data.targetEmployee?.id : null;
     return {
         previousBalance: Number(data.previousBalance || 0),
         periodBalance: Number(data.periodBalance || 0),
@@ -99,9 +103,8 @@ const toClientReportDto = (data) => {
             executorRatingNote: tx.executorRatingNote || null,
             executorRatedAt: tx.executorRatedAt ? new Date(tx.executorRatedAt).toISOString() : null,
             voiceNote: tx.voiceNote || null,
-            executorSenderEntries: mapSenderEntries(tx, canViewExecutorEvidence),
             ...receiptFields(tx),
-            ...managerExecutorEvidence(tx, canViewExecutorEvidence)
+            ...reportExecutorEvidence(tx, data.role, employeeId)
         })),
         pendingOperations: (data.pendingOperations || []).map((tx, index) => ({
             serialNumber: index + 1,
@@ -125,9 +128,8 @@ const toClientReportDto = (data) => {
             executorRatingNote: tx.executorRatingNote || null,
             executorRatedAt: tx.executorRatedAt ? new Date(tx.executorRatedAt).toISOString() : null,
             voiceNote: tx.voiceNote || null,
-            executorSenderEntries: mapSenderEntries(tx, canViewExecutorEvidence),
             ...receiptFields(tx),
-            ...managerExecutorEvidence(tx, canViewExecutorEvidence)
+            ...reportExecutorEvidence(tx, data.role, employeeId)
         })),
         cancelledOperations: (data.cancelledOperations || []).map((tx, index) => ({
             serialNumber: index + 1,
@@ -147,9 +149,8 @@ const toClientReportDto = (data) => {
             executorRatingNote: tx.executorRatingNote || null,
             executorRatedAt: tx.executorRatedAt ? new Date(tx.executorRatedAt).toISOString() : null,
             voiceNote: tx.voiceNote || null,
-            executorSenderEntries: mapSenderEntries(tx, canViewExecutorEvidence),
             ...receiptFields(tx),
-            ...managerExecutorEvidence(tx, canViewExecutorEvidence)
+            ...reportExecutorEvidence(tx, data.role, employeeId)
         })),
         deposits: (data.deposits || []).map(tx => ({
             id: String(tx._id),

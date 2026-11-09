@@ -17542,9 +17542,7 @@ class _ExecutorReportsScreenState extends State<ExecutorReportsScreen>
               padding: const EdgeInsets.only(bottom: 9),
               child: ExecutorReportOperationTile(
                 operation: operation,
-                onTap: canViewEvidence
-                    ? () => _openReportOperation(operation, canViewEvidence)
-                    : null,
+                onTap: () => _openReportOperation(operation, canViewEvidence),
               ),
             ),
           ),
@@ -18735,6 +18733,8 @@ class ExecutorReportOperationSheet extends StatelessWidget {
                       ],
                     ),
                   ),
+                ],
+                if (canViewEvidence || proofCount > 0) ...[
                   const SizedBox(height: 10),
                   if (proofCount == 0)
                     const EmptyPanel(

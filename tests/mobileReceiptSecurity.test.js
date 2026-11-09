@@ -38,7 +38,7 @@ jest.mock('../middlewares/jwtAuth', () => ({
     JWT_REFRESH_SECRET: 'test-refresh-secret-key-long-enough-32chars',
     authenticateJWT: (req, res, next) => {
         req.user = req.get('x-test-executor') === '1'
-            ? { userId: 'manager-id', accountType: 'executor', executorGroupId: 'group-id' }
+            ? { userId: req.get('x-test-employee') || 'manager-id', accountType: 'executor', executorGroupId: 'group-id' }
             : { userId: 'user-id-123', accountType: 'client_user', telegramId: '99887766' };
         next();
     }
@@ -161,7 +161,7 @@ describe('🖼️ Contract Tests: Receipt Security (Mobile API)', () => {
         expect(axios.get).toHaveBeenCalledTimes(1);
     });
 
-    test('split receipts list official images and return inline part uploads only to the manager', async () => {
+    test('split receipts return inline part uploads to a manager and exclude them from customer receipts', async () => {
         const png = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/lZ0AAAAASUVORK5CYII=';
         Transaction.findById.mockResolvedValue({
             _id: 'split-id', userId: 'user-id-123', executorGroupId: 'group-id',
@@ -191,6 +191,36 @@ describe('🖼️ Contract Tests: Receipt Security (Mobile API)', () => {
             Transaction.findById.mockResolvedValue({ executorGroupId: 'other-group', executorProofImages: ['other.png'] });
             await request(app).get(movedUrl.pathname.replace('/api/mobile', '') + movedUrl.search)
                 .set('x-test-executor', '1').expect(404);
+        } finally {
+            employee.mockRestore();
+        }
+    });
+
+    test('an operator can open only the executor uploads of their own completed operation', async () => {
+        const png = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/lZ0AAAAASUVORK5CYII=';
+        const tx = {
+            _id: 'split-id', operatorId: 'operator-1', status: 'completed', executorGroupId: 'group-id',
+            executorSenderEntries: [{ proofImage: 'data:image/png;base64,' + png }]
+        };
+        Transaction.findById.mockResolvedValue(tx);
+        const employee = jest.spyOn(Employee, 'findById').mockReturnValue({ lean: async () => ({ role: 'operator' }) });
+        try {
+            const get = (url, id = 'operator-1') => request(app).get(url)
+                .set('x-test-executor', '1').set('x-test-employee', id);
+            const base = '/transaction/image/split-id';
+            const own = await get(base + '?metadata=1').expect(200);
+            expect(own.body.executorProofCount).toBe(1);
+            const other = await get(base + '?metadata=1', 'operator-2').expect(200);
+            expect(other.body.executorProofCount).toBe(0);
+            await get(base + '?source=executor', 'operator-2').expect(403);
+            const ticket = await get(base + '?source=executor').expect(200);
+            const url = new URL(ticket.body.url);
+            const contentPath = url.pathname.replace('/api/mobile', '') + url.search;
+            await get(contentPath, 'operator-2').expect(403);
+            const image = await get(contentPath).expect(200).expect('Content-Type', /image\/png/);
+            expect(image.body).toEqual(Buffer.from(png, 'base64'));
+            tx.status = 'accepted';
+            await get(base + '?source=executor').expect(403);
         } finally {
             employee.mockRestore();
         }
