@@ -84,7 +84,8 @@ const findByCredentials = async (username, password, tenantId) => {
     const execDocs = await Employee.find(execQuery).populate('groupId');
 
     for (const execDoc of execDocs) {
-        const isMatch = await _comparePassword(searchPass, execDoc.webPassword, Employee, execDoc._id);
+        const isMatch = await _comparePassword(password, execDoc.webPassword, Employee, execDoc._id)
+            || (password !== searchPass && await _comparePassword(searchPass, execDoc.webPassword, Employee, execDoc._id));
         if (!isMatch) continue;
         if (execDoc.status !== 'active') return { error: 'ACCOUNT_BANNED', accountType: 'executor' };
         const executorGroupId = execDoc.groupId ? execDoc.groupId._id : (execDoc.botId ? execDoc.botId._id : null);

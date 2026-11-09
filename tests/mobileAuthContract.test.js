@@ -347,6 +347,24 @@ describe('🔐 Contract Tests: Auth (Mobile API)', () => {
         expect(scanRawResponseFields(res.body)).toEqual([]);
     });
 
+    test('POST /login preserves the exact executor password as typed on the website', async () => {
+        const password = '  executor-password  ';
+        bcrypt.compare.mockImplementation(async input => input === password);
+        Employee.find.mockReturnValue({ populate: jest.fn().mockResolvedValue([{
+            _id: 'whitespace-executor-id',
+            name: 'Executor Test',
+            status: 'active',
+            role: 'operator',
+            webPassword: '$2b$12$hashed',
+            groupId: { _id: 'whitespace-group-id', name: 'Executor Group', status: 'active', balance: 0 }
+        }]) });
+        const response = await request(app).post('/login')
+            .send({ username: 'whitespace-executor', password });
+        expect(response.status).toBe(200);
+        expect(response.body).toMatchObject({ success: true, accountType: 'executor' });
+        expect(bcrypt.compare).toHaveBeenCalledWith(password, '$2b$12$hashed');
+    });
+
     test('T014 & T015: POST /login should return official executor context only under context', async () => {
         const mockExecutor = {
             _id: 'executor-id-123',

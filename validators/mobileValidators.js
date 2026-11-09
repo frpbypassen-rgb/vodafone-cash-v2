@@ -6,6 +6,7 @@ const { body, validationResult } = require('express-validator');
 const { sendMobileError } = require('../mappers/mobileErrorMapper');
 const { getEnabledMobileTransferServiceKeys, getTransferServiceDefinition } = require('../utils/mobileTransferServiceCatalog');
 const { normalizeStoredBank } = require('../utils/egyptianBanks');
+const { EXECUTOR_PASSWORD_MAX_LENGTH } = require('../utils/executorPasswordPolicy');
 
 /**
  * Middleware Ù„Ù„ØªØ­Ù‚Ù‚ Ù…Ù† Ù†ØªØ§Ø¦Ø¬ Ø§Ù„Ù€ validation ÙˆØ¥Ø±Ø¬Ø§Ø¹ Ø®Ø·Ø£ Ù…ÙˆØ­Ø¯
@@ -52,9 +53,9 @@ const loginValidator = [
         .isLength({ min: 3, max: 50 }).withMessage('Ø§Ø³Ù… Ø§Ù„Ù…Ø³ØªØ®Ø¯Ù… ÙŠØ¬Ø¨ Ø£Ù† ÙŠÙƒÙˆÙ† Ø¨ÙŠÙ† 3 Ùˆ50 Ø­Ø±Ù')
         .escape(),
     body('password')
-        .trim()
-        .notEmpty().withMessage('ÙƒÙ„Ù…Ø© Ø§Ù„Ù…Ø±ÙˆØ± Ù…Ø·Ù„ÙˆØ¨Ø©')
-        .isLength({ min: 4, max: 100 }).withMessage('ÙƒÙ„Ù…Ø© Ø§Ù„Ù…Ø±ÙˆØ± ÙŠØ¬Ø¨ Ø£Ù† ØªÙƒÙˆÙ† 4 Ø£Ø­Ø±Ù Ø¹Ù„Ù‰ Ø§Ù„Ø£Ù‚Ù„'),
+        .isString().withMessage('كلمة المرور مطلوبة').bail()
+        .custom(value => value.trim().length >= 4 && value.length <= EXECUTOR_PASSWORD_MAX_LENGTH)
+        .withMessage('كلمة المرور يجب أن تكون بين 4 و128 حرفًا'),
     validate
 ];
 

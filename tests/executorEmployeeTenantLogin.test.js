@@ -58,8 +58,14 @@ test('repairs website-only executor login without loosening the mobile tenant bo
     });
     await expect(findByCredentials('old_operator', password, tenantId)).resolves.toBeNull();
 
-    await expect(backfillExecutorEmployeeTenant({ tenantId, apply: true })).resolves.toMatchObject({
-        mode: 'apply', candidates: 1, modified: 1, remainingUnassigned: 2
+    await expect(backfillExecutorEmployeeTenant({ tenantId, username: 'foreign', apply: true })).resolves.toMatchObject({
+        account: 'group-not-in-configured-tenant', modified: 0
+    });
+    await expect(backfillExecutorEmployeeTenant({ tenantId, username: 'OLD_OPERATOR' })).resolves.toMatchObject({
+        account: 'eligible', candidates: 1, modified: 0
+    });
+    await expect(backfillExecutorEmployeeTenant({ tenantId, username: 'old_operator@ahram.com', apply: true })).resolves.toMatchObject({
+        mode: 'apply', account: 'eligible', candidates: 1, modified: 1
     });
     await expect(findByCredentials('old_operator', password, tenantId)).resolves.toMatchObject({
         accountType: 'executor', executorGroupId: ownGroup
