@@ -399,12 +399,14 @@ describe('Executor dashboard group ownership', () => {
                 balancePoolId: 'pool-nour'
             },
             managerEmp: { _id: 'manager-1', name: 'مدير', groupId: 'group-1' },
+            tenant: { _id: 'tenant-1' },
             session: { executorId: 'manager-1' }
         };
         const res = response();
 
         await controller.postEmployeesCreate(req, res);
 
+        expect(Employee.create).toHaveBeenCalledWith(expect.objectContaining({ tenantId: 'tenant-1' }));
         expect(poolService.attachMembers).toHaveBeenCalledWith({
             manager: req.managerEmp,
             poolId: 'pool-nour',
@@ -415,6 +417,13 @@ describe('Executor dashboard group ownership', () => {
             employeeId: 'ahmed',
             poolAttachError: null
         }));
+
+        const mismatched = response();
+        await controller.postEmployeesCreate({
+            ...req, managerEmp: { ...req.managerEmp, groupId: { _id: 'group-1', tenantId: 'other-tenant' } }
+        }, mismatched);
+        expect(mismatched.status).toHaveBeenCalledWith(403);
+        expect(Employee.create).toHaveBeenCalledTimes(1);
     });
 
     test('streams proof images for a transaction owned by a populated executor group', async () => {

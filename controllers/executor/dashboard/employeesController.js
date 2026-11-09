@@ -21,6 +21,7 @@ const {
     snapshotCompanyBalances,
 } = require('../../../services/executorBalancePoolService');
 const { belongsToGroup } = require('./access');
+const { tenantWriteId } = require('../../../utils/tenantScope');
 
 exports.getEmployees = async (req, res) => {
     const emp = req.managerEmp || (await Employee.findById(req.session.executorId).populate('groupId'));
@@ -88,6 +89,12 @@ exports.postEmployeesCreate = async (req, res) => {
 
         const finalUsername = normalizeExecutorUsername(webUsername);
         const finalPhone = normalizeExecutorPhone(phone);
+        const groupTenant = req.managerEmp.groupId?.tenantId;
+        const managerTenant = req.managerEmp.tenantId;
+        const tenantId = tenantWriteId(req) || groupTenant || managerTenant;
+        if ([groupTenant, managerTenant].some(id => id && String(id) !== String(tenantId))) {
+            return res.status(403).json({ success: false, error: 'مجموعة التنفيذ لا تتبع المؤسسة الحالية.' });
+        }
         const existing = await Employee.exists({
             webUsername: new RegExp(`^${escapeRegex(finalUsername)}$`, 'i'),
         });
@@ -100,6 +107,7 @@ exports.postEmployeesCreate = async (req, res) => {
             groupId: req.managerEmp.groupId,
             webUsername: finalUsername,
             webPassword,
+            tenantId,
         });
 
         await logAction({
