@@ -37,6 +37,7 @@ import 'executor_ui.dart';
 import 'external_link.dart';
 import 'language_controller.dart';
 import 'mobile_api.dart';
+import 'registration_type_picker.dart';
 import 'mobile_notification_catalog.dart';
 import 'mobile_push_service.dart';
 import 'rate_alerts/rate_alert_overlay.dart';
@@ -647,31 +648,6 @@ class _AhramLoginWordmark extends StatelessWidget {
   }
 }
 
-enum RegistrationAccountType { direct, company, agent, newClient }
-
-extension RegistrationAccountTypeDetails on RegistrationAccountType {
-  String get title => switch (this) {
-    RegistrationAccountType.direct => 'عميل مباشر',
-    RegistrationAccountType.company => 'حساب شركة',
-    RegistrationAccountType.agent => 'وكيل منطقة',
-    RegistrationAccountType.newClient => 'عميل جديد',
-  };
-
-  String get subtitle => switch (this) {
-    RegistrationAccountType.direct => 'حساب مستقل للعميل',
-    RegistrationAccountType.company => 'إدارة حسابات الشركة',
-    RegistrationAccountType.agent => 'إدارة عملاء المنطقة',
-    RegistrationAccountType.newClient => 'عميل تابع لوكيل',
-  };
-
-  IconData get icon => switch (this) {
-    RegistrationAccountType.direct => Icons.person_outline_rounded,
-    RegistrationAccountType.company => Icons.business_outlined,
-    RegistrationAccountType.agent => Icons.map_outlined,
-    RegistrationAccountType.newClient => Icons.person_add_alt_1_outlined,
-  };
-}
-
 class RegistrationScreen extends StatefulWidget {
   const RegistrationScreen({super.key, required this.api});
 
@@ -1258,42 +1234,6 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
     );
   }
 
-  Widget _typeSelection() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        const _RegistrationPageHeader(
-          overline: 'فتح حساب جديد',
-          title: 'اختر نوع الحساب',
-          subtitle: 'حدد الحساب المناسب لبدء طلب التسجيل.',
-        ),
-        const SizedBox(height: 24),
-        LayoutBuilder(
-          builder: (context, constraints) {
-            final width = constraints.maxWidth >= 560
-                ? (constraints.maxWidth - 14) / 2
-                : constraints.maxWidth;
-            return Wrap(
-              spacing: 14,
-              runSpacing: 14,
-              children: RegistrationAccountType.values
-                  .map(
-                    (type) => SizedBox(
-                      width: width,
-                      child: _RegistrationTypeCard(
-                        type: type,
-                        onTap: () => _selectType(type),
-                      ),
-                    ),
-                  )
-                  .toList(),
-            );
-          },
-        ),
-      ],
-    );
-  }
-
   Widget _successView() {
     final request = _completedRequest!;
     final isAgentApproval = _type == RegistrationAccountType.newClient;
@@ -1374,19 +1314,14 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
   @override
   Widget build(BuildContext context) {
     final type = _type;
+    if (type == null) return RegistrationTypePicker(onSelect: _selectType);
     return Scaffold(
       appBar: AppBar(
-        title: Text(type == null ? 'إنشاء حساب' : type.title),
+        title: Text(type.title),
         leading: IconButton(
-          tooltip: type == null ? 'العودة' : 'اختيار نوع الحساب',
-          icon: Icon(
-            type == null
-                ? Icons.arrow_back_rounded
-                : Icons.arrow_forward_rounded,
-          ),
-          onPressed: type == null
-              ? () => Navigator.of(context).pop()
-              : _changeType,
+          tooltip: 'اختيار نوع الحساب',
+          icon: const BackButtonIcon(),
+          onPressed: _changeType,
         ),
         actions: [
           Padding(
@@ -1403,8 +1338,6 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
               constraints: const BoxConstraints(maxWidth: 760),
               child: _completedRequest != null
                   ? _successView()
-                  : type == null
-                  ? _typeSelection()
                   : Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
@@ -1422,131 +1355,6 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
           ),
         ),
       ),
-    );
-  }
-}
-
-class _RegistrationTypeCard extends StatelessWidget {
-  const _RegistrationTypeCard({required this.type, required this.onTap});
-
-  final RegistrationAccountType type;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-    final dark = Theme.of(context).brightness == Brightness.dark;
-    return Material(
-      color: colors.surface,
-      borderRadius: BorderRadius.circular(14),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(14),
-        child: Container(
-          height: 156,
-          padding: const EdgeInsets.all(17),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: colors.outlineVariant),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    width: 42,
-                    height: 42,
-                    decoration: BoxDecoration(
-                      color: colors.primary.withValues(
-                        alpha: dark ? 0.22 : 0.10,
-                      ),
-                      borderRadius: BorderRadius.circular(11),
-                    ),
-                    child: Icon(type.icon, color: colors.primary, size: 23),
-                  ),
-                  const Spacer(),
-                  Icon(
-                    Icons.arrow_back_rounded,
-                    color: colors.onSurfaceVariant,
-                  ),
-                ],
-              ),
-              const Spacer(),
-              Text(
-                type.title,
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w900,
-                  color: colors.onSurface,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                type.subtitle,
-                style: TextStyle(fontSize: 12, color: colors.onSurfaceVariant),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _RegistrationPageHeader extends StatelessWidget {
-  const _RegistrationPageHeader({
-    required this.overline,
-    required this.title,
-    required this.subtitle,
-  });
-
-  final String overline;
-  final String title;
-  final String subtitle;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            const BrandMark(compact: true),
-            const Spacer(),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              decoration: BoxDecoration(
-                color: colors.primary.withValues(alpha: 0.10),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Text(
-                overline,
-                style: TextStyle(
-                  color: colors.primary,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 30),
-        Text(
-          title,
-          style: TextStyle(
-            color: colors.onSurface,
-            fontSize: 28,
-            fontWeight: FontWeight.w900,
-          ),
-        ),
-        const SizedBox(height: 7),
-        Text(
-          subtitle,
-          style: TextStyle(color: colors.onSurfaceVariant, height: 1.5),
-        ),
-      ],
     );
   }
 }
@@ -22497,6 +22305,7 @@ class _CompleteTaskDialogState extends State<CompleteTaskDialog> {
             .toList();
         await widget.api.completeTask(
           id: '${widget.task['id']}',
+          executionNumber: '',
           imageBase64: proofImages.first,
           imagesBase64: proofImages,
         );

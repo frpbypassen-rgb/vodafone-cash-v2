@@ -68,6 +68,7 @@ flutter:
 
   assets:
     - assets/images/alahrampay-logo.jpg
+    - assets/images/pharaonic-login-hero.jpg
     - assets/images/executor-live-bell.png
 
   fonts:

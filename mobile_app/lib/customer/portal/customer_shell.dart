@@ -377,18 +377,16 @@ class _CustomerSidebar extends StatelessWidget {
       width: width,
       decoration: BoxDecoration(
         color: sidebarBg,
-        border: Border(
-          left: BorderSide(color: borderColor),
-          boxShadow: isDark
-              ? [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.28),
-                    blurRadius: 18,
-                    offset: const Offset(4, 0),
-                  ),
-                ]
-              : null,
-        ),
+        border: Border(left: BorderSide(color: borderColor)),
+        boxShadow: isDark
+            ? [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.28),
+                  blurRadius: 18,
+                  offset: const Offset(4, 0),
+                ),
+              ]
+            : null,
       ),
       child: SafeArea(
         child: Column(
