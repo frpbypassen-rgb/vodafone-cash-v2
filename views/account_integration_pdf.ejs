@@ -50,13 +50,19 @@
         .split { display: grid; grid-template-columns: 1.05fr .95fr; gap: 8mm; }
         .callout { padding: 4mm; border-right: 4px solid #00a6a6; background: #edfafa; color: #174c56; }
         .steps { margin: 0; padding: 0; list-style: none; counter-reset: step; }
-        .steps li { position: relative; min-height: 15mm; padding: 3mm 13mm 3mm 3mm; border-bottom: 1px solid #e2e8f0; }
+        .steps li { position: relative; min-height: 13mm; padding: 3mm 13mm 3mm 3mm; border-bottom: 1px solid #e2e8f0; }
         .steps li::before { counter-increment: step; content: counter(step); position: absolute; right: 0; top: 3mm; display: flex; align-items: center; justify-content: center; width: 8mm; height: 8mm; border-radius: 50%; background: #14546a; color: #fff; font-size: 9px; font-weight: 700; }
         .service-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 3mm; }
         .service-card { padding: 4mm; border: 1px solid #d9e3e7; border-top: 3px solid #00a6a6; background: #fff; }
         .service-card small { display: block; color: #64748b; }
         .service-card strong { display: block; margin-top: 1mm; color: #17212b; }
         .service-rate { margin-top: 2mm; color: #14546a; font-size: 12px; font-weight: 700; direction: ltr; text-align: right; }
+        .request-grid, .bank-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 3mm; }
+        .request-card { border: 1px solid #d9e3e7; padding: 3mm; break-inside: avoid; }
+        .request-card h3 { margin: 0; }
+        .request-card .code-block { margin: 2mm 0; padding: 2mm 3mm; }
+        .request-card p { margin: 0; }
+        .bank-item { display: flex; justify-content: space-between; gap: 3mm; border-bottom: 1px solid #d9e3e7; padding: 1mm 2mm; }
         .muted { color: #64748b; }
         .small { font-size: 9px; }
     </style>
@@ -124,13 +130,14 @@
         <h2>الخدمات والأسعار المعتمدة</h2>
         <p class="section-intro">تُحسب تكلفة العملية بالدينار الليبي وفق المعادلة: <code>cost_lyd = amount / exchange_rate</code>. الأسعار التالية تعكس إعدادات الحساب وقت إصدار الوثيقة.</p>
         <div class="service-grid">
-            <% services.forEach((service) => { %><div class="service-card"><small><code><%= service.key %></code></small><strong><%= service.label %></strong><div class="service-rate"><%= service.rate %> LYD</div></div><% }) %>
+            <% services.forEach((service) => { %><div class="service-card"><small><code><%= service.key %></code></small><strong><%= service.label %></strong><div class="service-rate"><%= service.rate %></div></div><% }) %>
         </div>
         <h2 style="margin-top: 9mm;">المسارات الفنية</h2>
         <table class="endpoint-table">
             <thead><tr><th>العملية</th><th>الطلب</th><th>المسار</th><th>الغرض</th></tr></thead>
             <tbody>
                 <tr><td>الاستعلام عن الرصيد</td><td><code>GET</code></td><td><code><%= api.balanceUrl %></code></td><td>إرجاع اسم الجهة والرصيد وسعر الكاش الحالي.</td></tr>
+                <tr><td>قراءة أسعار الخدمات</td><td><code>GET</code></td><td><code><%= api.ratesUrl %></code></td><td>قراءة أسعار الحساب الحالية في <code>service_rates</code>. لاستقبال التحديث تلقائيًا اشترك في <code>rates.updated</code> من صفحة Webhooks.</td></tr>
                 <tr><td>إنشاء تحويل</td><td><code>POST</code></td><td><code><%= api.transferUrl %></code></td><td>استلام التحويل وخصم تكلفته عند قبول الطلب، مع رقم واتساب اختياري للإيصال.</td></tr>
                 <tr><td>متابعة التحويل</td><td><code>GET</code></td><td><code><%= api.statusUrl %></code></td><td>الاستعلام عن الحالة وأرقام التنفيذ وقيمة كل رقم وسبب الإلغاء عند توفره.</td></tr>
             </tbody>
@@ -143,6 +150,33 @@
 
     <section class="page">
         <div class="brand-line"></div>
+        <h2>أمثلة الربط حسب الخدمة</h2>
+        <p class="section-intro">أرسل جسم الطلب المناسب بصيغة JSON إلى <code>POST <%= api.transferUrl %></code> مع <code>x-api-key</code> و<code>Content-Type: application/json</code>. استخدم <code>Idempotency-Key</code> مختلفًا لكل تحويل جديد. الأرقام أدناه عينات للشرح.</p>
+        <div class="request-grid">
+            <% services.forEach(service => { %>
+                <article class="request-card">
+                    <h3><%= service.label %></h3>
+                    <pre class="code-block"><%= service.requestJson %></pre>
+                    <p class="small"><%= service.requestNote %></p>
+                </article>
+            <% }); %>
+        </div>
+        <p class="small muted">بريد حساب وبريد بطاقة خدمتا تحويل بريدي. حقل إرسال الإيصال في واجهة التاجر هو <code>whatsapp_number</code>.</p>
+    </section>
+
+    <section class="page">
+        <div class="brand-line"></div>
+        <h2>دليل رموز البنوك المصرية</h2>
+        <p class="section-intro">عند إرسال <code>transfer_type: bank_account</code>، اختر رمزًا من هذه القائمة وضعه في <code>bank_code</code>. يرد الخادم بالرمز <code>BANK_REQUIRED</code> عند غياب البنك، و<code>BANK_INVALID</code> عند اختيار بنك غير معتمد.</p>
+        <div class="bank-grid">
+            <% banks.forEach(bank => { %>
+                <div class="bank-item"><span><%= bank.nameAr %></span><code><%= bank.code %></code></div>
+            <% }); %>
+        </div>
+    </section>
+
+    <section class="page">
+        <div class="brand-line"></div>
         <h2>حقول طلب التحويل</h2>
         <table class="field-table">
             <thead><tr><th>الحقل</th><th>النوع</th><th>إلزامي</th><th>الوصف والقيود</th></tr></thead>
@@ -150,6 +184,7 @@
                 <tr><td><code>target_number</code></td><td><code>string</code></td><td>نعم</td><td>رقم المستفيد، ويجب أن يتكون من 11 رقمًا.</td></tr>
                 <tr><td><code>amount</code></td><td><code>number</code></td><td>نعم</td><td>قيمة التحويل بالجنيه المصري من <strong><%= transferPolicy.minAmount %></strong> إلى <strong><%= transferPolicy.maxAmount.toLocaleString('en-US') %></strong> لكل عملية.</td></tr>
                 <tr><td><code>transfer_type</code></td><td><code>string</code></td><td>لا</td><td>نوع الخدمة. القيمة الافتراضية <code>vodafone</code> عند عدم إرساله.</td></tr>
+                <tr><td><code>bank_code</code></td><td><code>string</code></td><td>للتحويل البنكي</td><td>رمز البنك المستفيد من القائمة. يقبل الخادم <code>bank_name</code> كبديل.</td></tr>
                 <tr><td><code><%= transferPolicy.acceptedWhatsAppField %></code></td><td><code>string</code></td><td>لا</td><td>رقم واتساب الذي يجب أن يستلم الإيصال بعد اكتمال العملية. يُنظَّف ويُحفظ بصيغة دولية. يدعم النظام الاسم القديم <code><%= transferPolicy.compatibilityWhatsAppField %></code> للتوافق فقط.</td></tr>
             </tbody>
         </table>
@@ -157,13 +192,19 @@
         <pre class="code-block"><%= examples.transferJson %></pre>
         <h3>استجابة قبول نموذجية</h3>
         <pre class="code-block"><%= examples.transferResponse %></pre>
+        <div class="callout">احفظ <code>invoice_number</code> عند قبول الطلب، واستعمله في استعلام الحالة.</div>
+    </section>
+
+    <section class="page">
+        <div class="brand-line"></div>
+        <h2>أمثلة متابعة التحويل</h2>
         <h3>متابعة فاتورة سابقة</h3>
         <pre class="code-block"><%= examples.statusCurl %></pre>
         <h3>استجابة متابعة مكتملة - تنفيذ مقسم</h3>
         <pre class="code-block"><%= examples.statusResponse %></pre>
         <h3>استجابة متابعة ملغاة</h3>
         <pre class="code-block"><%= examples.cancelledStatusResponse %></pre>
-        <div class="callout">احفظ <code>invoice_number</code> مباشرة عند قبول الطلب. يعرض <code>executed_numbers</code> قائمة آمنة من <code>phone_number</code> و<code>amount_egp</code> لكل رقم نُفذت عليه العملية؛ عند عدم التقسيم تكون القائمة فارغة أو تحتوي رقمًا واحدًا. وتظهر <code>cancellation_reason</code> و<code>cancellation_number</code> و<code>cancelled_at</code> فقط عندما تكون حالة العملية ملغاة أو مرفوضة.</div>
+        <div class="callout">يعرض <code>executed_numbers</code> رقم التنفيذ والمبلغ لكل جزء. عند عدم التقسيم تكون القائمة فارغة أو تحتوي رقمًا واحدًا. وتظهر بيانات الإلغاء عند رفض العملية أو إلغائها.</div>
     </section>
 
     <section class="page">

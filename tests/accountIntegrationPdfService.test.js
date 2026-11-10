@@ -3,6 +3,8 @@
 const fs = require('fs');
 const path = require('path');
 const ejs = require('ejs');
+const { normalizeStoredBank, EGYPTIAN_BANKS } = require('../utils/egyptianBanks');
+const { resolveTransferServiceKey } = require('../utils/rateHelper');
 
 jest.mock('../services/reportPdfService', () => ({
     findBrowserExecutable: jest.fn(),
@@ -65,6 +67,18 @@ describe('Account integration PDF document data', () => {
         expect(documentData.examples.transferResponse).toContain('executor_number');
         expect(documentData.examples.statusResponse).toContain('executed_numbers');
         expect(documentData.examples.cancelledStatusResponse).toContain('cancellation_reason');
+        expect(documentData.services).toHaveLength(6);
+        for (const service of documentData.services) {
+            const request = JSON.parse(service.requestJson);
+            expect(resolveTransferServiceKey(request.transfer_type)).toBe(service.key);
+            expect(request.target_number).toMatch(/^\d{11}$/);
+            expect(request.amount).toBeGreaterThanOrEqual(documentData.transferPolicy.minAmount);
+            expect(request.amount).toBeLessThanOrEqual(documentData.transferPolicy.maxAmount);
+            const bank = normalizeStoredBank({ transferType: service.key, bankCode: request.bank_code });
+            expect(bank.error).toBeNull();
+            expect(bank.required).toBe(service.key === 'bank_account');
+        }
+        expect(documentData.banks).toBe(EGYPTIAN_BANKS);
     });
 
     test('renders a complete Arabic document with the assigned key and account data', () => {
@@ -83,12 +97,18 @@ describe('Account integration PDF document data', () => {
         expect(html).toContain('شركة الربط التجريبية');
         expect(html).toContain('company-private-key-123');
         expect(html).toContain('/api/v1/merchant/transfer');
+        expect(html).toContain('/api/v1/merchant/rates');
+        expect(html).toContain('rates.updated');
         expect(html).toContain('whatsapp_number');
         expect(html).toContain('50,000');
         expect(html).toContain('يتوقف المفتاح السابق فورًا');
         expect(html).toContain('واتساب فقط');
         expect(html).toContain('executed_numbers');
         expect(html).toContain('cancellation_reason');
+        expect(html).toContain('أمثلة الربط حسب الخدمة');
+        expect(html).toContain('دليل رموز البنوك المصرية');
+        expect(html).toContain('BANK_REQUIRED');
+        expect(html).toContain('BANK_INVALID');
     });
 
     test('uses a configured public origin before forwarded request headers', () => {

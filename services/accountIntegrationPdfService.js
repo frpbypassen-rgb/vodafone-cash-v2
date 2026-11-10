@@ -6,6 +6,7 @@ const {
     logoDataUri,
     renderView
 } = require('./reportPdfService');
+const { EGYPTIAN_BANKS } = require('../utils/egyptianBanks');
 
 const SERVICE_LABELS = Object.freeze({
     vodafone: 'محافظ كاش',
@@ -19,6 +20,23 @@ const SERVICE_LABELS = Object.freeze({
 const API_PATH = '/api/v1/merchant';
 const MERCHANT_TRANSFER_MIN_AMOUNT = 100;
 const MERCHANT_TRANSFER_MAX_AMOUNT = 50000;
+const SAMPLE_TARGET = '01000000000';
+const SERVICE_REQUEST_NOTES = Object.freeze({
+    vodafone: 'أرسل رقم المحفظة المستفيدة في target_number. يمكن تحديد رقم واتساب مستقل لاستلام الإيصال.',
+    post_account: 'استخدم رمز بريد الحساب. إذا كان معرّف الحساب البريدي لا يطابق شرط 11 رقمًا، نسّق مسار الإدخال مع الإدارة قبل الإرسال.',
+    post_card: 'استخدم رمز بريد البطاقة بعد تأكيد طريقة التنفيذ مع الإدارة. هذه الواجهة لا تستقبل صورة البطاقة أو رقمًا قوميًا من 14 رقمًا.',
+    bank_account: 'أرسل bank_code من دليل البنوك. حقل target_number في هذه الواجهة يقبل 11 رقمًا، والـIBAN لا يطابق هذه الصيغة.',
+    sefa_niger: 'أكد مع الإدارة صيغة رقم المستفيد ووحدة مبلغ هذه الخدمة قبل إرسال طلب إنتاج.',
+    bankak_sudan: 'أكد مع الإدارة صيغة رقم المستفيد ووحدة مبلغ هذه الخدمة قبل إرسال طلب إنتاج.'
+});
+
+const serviceRequest = (key) => ({
+    target_number: SAMPLE_TARGET,
+    amount: 1000,
+    transfer_type: key,
+    ...(key === 'bank_account' ? { bank_code: 'nbe' } : {}),
+    ...(key === 'vodafone' ? { whatsapp_number: '01100000000' } : {})
+});
 
 const normalizeOrigin = (value) => String(value || '').trim().replace(/\/+$/, '');
 
@@ -88,6 +106,7 @@ const buildIntegrationDocumentData = ({
             origin,
             basePath,
             balanceUrl: `${basePath}/balance`,
+            ratesUrl: `${basePath}/rates`,
             transferUrl: `${basePath}/transfer`,
             statusUrl: `${basePath}/status/{invoice_number}`
         },
@@ -100,8 +119,11 @@ const buildIntegrationDocumentData = ({
         services: Object.entries(SERVICE_LABELS).map(([key, label]) => ({
             key,
             label,
-            rate: formatRate(serviceRates[key])
+            rate: formatRate(serviceRates[key]),
+            requestJson: JSON.stringify(serviceRequest(key), null, 2),
+            requestNote: SERVICE_REQUEST_NOTES[key]
         })),
+        banks: EGYPTIAN_BANKS,
         examples: {
             balanceCurl: `curl --request GET "${basePath}/balance" \\\n  --header "x-api-key: <API_KEY>" \\\n  --header "Accept: application/json"`,
             transferCurl: `curl --request POST "${basePath}/transfer" \\\n  --header "x-api-key: <API_KEY>" \\\n  --header "Content-Type: application/json" \\\n  --header "Accept: application/json" \\\n  --data '{\n    "target_number": "01012345678",\n    "amount": 1000,\n    "transfer_type": "vodafone",\n    "whatsapp_number": "01108172258"\n  }'`,
