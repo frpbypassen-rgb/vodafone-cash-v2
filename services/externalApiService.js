@@ -6,6 +6,7 @@ const path = require('path');
 const { renderApiReceiptWithBrowser } = require('./apiReceiptBrowserService');
 const { SYSTEM_TIME_ZONE } = require('../config/systemTime');
 const { getApiProviderPreset } = require('../utils/apiProviderPresets');
+const logger = require('../utils/logger');
 const {
     UNRESOLVED_CODE,
     claimProviderDispatch,
@@ -174,7 +175,24 @@ const refuseResolvedProvider = (config) => {
     return null;
 };
 
-const authorizeApiProvider = async (config, addLog) => {
+const logPreflightAuthFailure = (response) => {
+    const status = response?.status;
+    const code = String(response?.data?.Code ?? '');
+    const header = String(response?.headers?.['retry-after'] ?? '').trim();
+    const date = Date.parse(header);
+    let retryAfterSeconds = null;
+    if (/^\d{1,9}$/.test(header)) retryAfterSeconds = Number(header);
+    else if (Number.isFinite(date) && new Date(date).toUTCString() === header) {
+        retryAfterSeconds = Math.max(0, Math.ceil((date - Date.now()) / 1000));
+    }
+    logger.warn('PROVIDER_PREFLIGHT_AUTH_FAILED', {
+        providerHttpStatus: Number.isInteger(status) && status >= 100 && status <= 599 ? status : null,
+        providerCode: /^\d{1,9}$/.test(code) ? Number(code) : null,
+        retryAfterSeconds
+    });
+};
+
+const authorizeApiProvider = async (config, addLog, onRejected) => {
     const blocked = providerCallBlock() || refuseResolvedProvider(config);
     if (blocked) {
         addLog(blocked.code, blocked.message);
@@ -199,6 +217,7 @@ const authorizeApiProvider = async (config, addLog) => {
         const authRes = await axios.post(`${config.baseUrl}/api/Account/GetToken`, authPayload, { headers: config.defaultHeaders, timeout: 15000 });
 
         if (authRes.data.Code !== 200 || !authRes.data.Data || !authRes.data.Data.Access_Token) {
+            onRejected?.(authRes);
             addLog("AUTH_FAIL", authRes.data.Message || "تم رفض تسجيل الدخول من الشركة");
             return { success: false, message: 'فشل تسجيل الدخول لشركة زين' };
         }
@@ -330,7 +349,7 @@ const runApiTransferPreflight = async (apiBot, input = {}) => {
         checks.push({ key: 'configuration', label: 'إعدادات الخدمة', status: 'success', message: 'البيانات الأساسية مكتملة' });
 
         stage = 'authentication';
-        const auth = await authorizeApiProvider(config, addLog);
+        const auth = await authorizeApiProvider(config, addLog, logPreflightAuthFailure);
         if (!auth.success) {
             checks.push({ key: 'authentication', label: 'تسجيل الدخول للمزود', status: 'failed', message: auth.message });
             return { success: false, stage, message: auth.message, checks, processLog: processLog.join('\n') };
@@ -381,6 +400,7 @@ const runApiTransferPreflight = async (apiBot, input = {}) => {
             processLog: processLog.join('\n')
         };
     } catch (error) {
+        if (stage === 'authentication') logPreflightAuthFailure(error?.response);
         const message = errorMessage(error, 'تعذر الاتصال بالمزود أثناء اختبار التحويل');
         addLog(`${String(stage || 'system').toUpperCase()}_ERROR`, message);
         checks.push({ key: stage, label: 'اتصال مزود الخدمة', status: 'failed', message });

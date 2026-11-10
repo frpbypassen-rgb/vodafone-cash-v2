@@ -3,6 +3,7 @@
 jest.mock('axios', () => ({
     post: jest.fn()
 }));
+jest.mock('../utils/logger', () => ({ warn: jest.fn() }));
 
 jest.mock('../services/providerDispatchClaimService', () => {
     const actual = jest.requireActual('../services/providerDispatchClaimService');
@@ -32,6 +33,7 @@ jest.mock('../services/providerDispatchClaimService', () => {
 });
 
 const axios = require('axios');
+const logger = require('../utils/logger');
 const {
     executeTransferViaApi,
     getApiProviderBalance,
@@ -226,6 +228,38 @@ describe('externalApiService', () => {
             })
         );
         expect(axios.post.mock.calls.some(([url]) => String(url).includes('/Transactions/Payment'))).toBe(false);
+    });
+
+    test.each([
+        ['60', 60],
+        ['Thu, 01 Jan 1970 00:00:00 GMT', 0],
+        [undefined, null],
+        ['untrusted-header-value', null]
+    ])('logs safe provider auth diagnostics for Retry-After %s', async (header, retryAfterSeconds) => {
+        axios.post.mockRejectedValueOnce({
+            response: { status: 429, headers: { 'retry-after': header }, data: { message: 'private response text' } },
+            config: { data: 'private request data' }
+        });
+        const result = await runApiTransferPreflight({
+            apiUrl: 'https://zayn.example', apiUsername: 'api-user', apiPassword: 'api-pass'
+        }, { phone: '01000000000', amount: 5 });
+
+        expect(result).toMatchObject({ success: false, stage: 'authentication' });
+        expect(logger.warn).toHaveBeenCalledWith('PROVIDER_PREFLIGHT_AUTH_FAILED', {
+            providerHttpStatus: 429, providerCode: null, retryAfterSeconds
+        });
+        expect(axios.post).toHaveBeenCalledTimes(1);
+    });
+
+    test('logs the provider business code when the provider rejects auth within HTTP 200', async () => {
+        axios.post.mockResolvedValueOnce({ status: 200, data: { Code: '429', Message: 'Too many attempts' } });
+        await runApiTransferPreflight({
+            apiUrl: 'https://zayn.example', apiUsername: 'api-user', apiPassword: 'api-pass'
+        }, { phone: '01000000000', amount: 5 });
+
+        expect(logger.warn).toHaveBeenCalledWith('PROVIDER_PREFLIGHT_AUTH_FAILED', {
+            providerHttpStatus: 200, providerCode: 429, retryAfterSeconds: null
+        });
     });
 
     test('reports the inquiry stage and provider message when safe transfer preflight fails', async () => {
