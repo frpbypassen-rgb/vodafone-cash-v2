@@ -265,8 +265,13 @@ const runMerchantWebhookTick=async()=>{
     workerBusy=true;
     try{
         const outbox=require('./merchantWebhookOutboxService');
-        const result=await outbox.drain();
-        if(result.failed)logger.warn('Merchant webhook outbox staging will retry',{failed:result.failed});
+        try {
+            const result = await outbox.drain();
+            if (result.failed) logger.warn('Merchant webhook outbox staging will retry', { failed: result.failed });
+        } catch (error) {
+            // Already-staged deliveries can still be sent if the outbox scan fails.
+            logger.error('Merchant webhook outbox scan failed', { error: error.message });
+        }
         try {
             const rates = await require('./merchantRateWebhookService').stageMerchantRateWebhooks();
             if (rates.failed) logger.warn('Merchant rate webhook staging will retry', { failed: rates.failed });

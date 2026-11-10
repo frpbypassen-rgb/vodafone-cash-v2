@@ -12,6 +12,8 @@ IP enforcement reads the TCP peer. It follows `X-Forwarded-For` only when Expres
 
 Before enabling behind IIS/ARR, an operator must verify the real proxy chain and confirm its forwarding-header append/overwrite behavior. For a **verified** IIS proxy on the same host, `TRUST_PROXY=loopback` is an example; remote proxies require their explicit addresses or narrow networks. Do not use broad private networks or trust-all as a shortcut. This implementation does not change the live environment or perform a production restart/cutover.
 
+The IP policy accepts a valid `IPv4:port` or `[IPv6]:port` from the trusted forwarding chain and matches the address alone. Enter bare addresses in the allowlist. After a guarded restart, verify from an external client that spoofing the forwarding header does not let an unlisted IP access the API.
+
 Reference: [Express reverse-proxy configuration](https://expressjs.com/en/guide/behind-proxies/).
 
 ## Verification

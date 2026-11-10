@@ -28,6 +28,19 @@ const parseAddresses = (list) => {
     if (values.some((ip) => !ip)) throw invalid();
     return [...new Set(values)];
 };
+const normalizeForwardedIp = (value) => {
+    const token = value.trim();
+    const address = normalizeIp(token);
+    if (address) return address;
+
+    // A trusted proxy can include the client's source port in its forwarded address.
+    const endpoint = /^(?:([\d.]+)|\[([^\]]+)\]):([1-9]\d{0,4})$/.exec(token);
+    if (!endpoint || Number(endpoint[3]) > 65535) return null;
+    const [, ipv4, ipv6] = endpoint;
+    return isIP(ipv4 || ipv6) === (ipv4 ? 4 : 6)
+        ? normalizeIp(ipv4 || ipv6)
+        : null;
+};
 const trustedNetworks = (settings) => {
     if (!Array.isArray(settings) && typeof settings !== 'string') return null;
     const entries = Array.isArray(settings)
@@ -83,7 +96,7 @@ const sourceIp = (req) => {
     let current = peer;
     for (const raw of chain.reverse()) {
         if (!isTrusted(current)) return current;
-        current = normalizeIp(raw);
+        current = normalizeForwardedIp(raw);
         if (!current) return null;
     }
     return current;

@@ -4,6 +4,7 @@ jest.mock('../services/merchantWebhookOutboxService',()=>({drain:jest.fn(),queue
 jest.mock('../models/MerchantWebhookDelivery',()=>({find:jest.fn(()=>({sort:()=>({limit:()=>({select:()=>({lean:async()=>[]})})})}))}));
 jest.mock('../utils/logger',()=>({warn:jest.fn(),error:jest.fn(),info:jest.fn()}));
 const outbox=require('../services/merchantWebhookOutboxService');
+const Delivery=require('../models/MerchantWebhookDelivery');
 const logger=require('../utils/logger');
 const {runMerchantWebhookTick}=require('../services/merchantWebhookService');
 const previous=process.env.MERCHANT_WEBHOOK_WORKER_ENABLED;
@@ -23,4 +24,15 @@ test('overlapping ticks are coalesced and lag warnings contain only aggregate co
 test('a disabled worker does not inspect or process queued financial documents',async()=>{
  process.env.MERCHANT_WEBHOOK_WORKER_ENABLED='false';outbox.drain.mockClear();outbox.queueStats.mockClear();
  expect(await runMerchantWebhookTick()).toEqual({skipped:true});expect(outbox.drain).not.toHaveBeenCalled();expect(outbox.queueStats).not.toHaveBeenCalled();
+});
+test('an outbox scan failure does not stop dispatch of already queued webhooks', async () => {
+    process.env.MERCHANT_WEBHOOK_WORKER_ENABLED = 'true';
+    Delivery.find.mockClear();
+    outbox.drain.mockRejectedValueOnce(new Error('outbox query failed'));
+    const stats = { available: true, delayed: false, pendingDeliveries: 0 };
+    outbox.queueStats.mockResolvedValueOnce(stats);
+
+    await expect(runMerchantWebhookTick()).resolves.toEqual(stats);
+    expect(Delivery.find).toHaveBeenCalledTimes(1);
+    expect(logger.error).toHaveBeenCalledWith('Merchant webhook outbox scan failed', { error: 'outbox query failed' });
 });

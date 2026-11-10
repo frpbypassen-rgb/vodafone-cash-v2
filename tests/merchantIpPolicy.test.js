@@ -63,3 +63,13 @@ test('disabled policy preserves access; enabled empty/invalid policy fails close
         }),
     ).toBe(false);
 });
+test('accepts ARR forwarding tokens with source ports only through an explicitly trusted proxy', () => {
+    const trust = ['loopback'];
+    expect(sourceIp(request('127.0.0.1', '192.0.2.1, 198.51.100.2:59321', trust))).toBe('198.51.100.2');
+    expect(sourceIp(request('::1', '[2001:db8::2]:59321', trust))).toBe('2001:db8::2');
+    expect(sourceIp(request('198.51.100.2', '192.0.2.1:443', trust))).toBe('198.51.100.2');
+    expect(sourceIp(request('127.0.0.1', '192.0.2.1:443', 1))).toBeNull();
+    for (const token of ['192.0.2.1:65536', '192.0.2.1:0', '[192.0.2.1]:443', '[2001:db8::2]:abc']) {
+        expect(sourceIp(request('127.0.0.1', token, trust))).toBeNull();
+    }
+});
