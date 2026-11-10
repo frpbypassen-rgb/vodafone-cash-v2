@@ -29,6 +29,7 @@ const {
 const { normalizeWhatsAppPhone } = require('../services/whatsappService');
 const { sanitizeStatementText } = require('../utils/accountStatementPrivacy');
 const { normalizeStoredBank } = require('../utils/egyptianBanks');
+const { buildMerchantRates } = require('../utils/merchantRates');
 const logger = require('../utils/logger');
 const { apiKeyQuery } = require('../utils/merchantIntegrationPolicy');
 const merchantIdempotency = require('../services/merchantIdempotencyService');
@@ -261,6 +262,16 @@ router.get('/balance', merchantApiAuth, async (req, res) => {
             exchange_rate: customRate
         }
     });
+});
+
+router.get('/rates', merchantApiAuth, async (req, res) => {
+    res.set('Cache-Control', 'no-store');
+    try {
+        const settings = await Settings.findOne({}).lean();
+        return res.json({ status: 'success', data: buildMerchantRates(req.merchant, settings) });
+    } catch (_) {
+        return res.status(500).json({ status: 'failed', message: 'تعذر قراءة أسعار الخدمات.' });
+    }
 });
 
 router.post('/transfer', merchantApiAuth, async (req, res) => {

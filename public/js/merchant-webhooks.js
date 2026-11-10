@@ -4,12 +4,14 @@
         'transfer.created',
         'transfer.completed',
         'transfer.cancelled',
+        'rates.updated',
     ];
     const eventLabel = (value) =>
         ({
             'transfer.created': 'إنشاء عملية',
             'transfer.completed': 'اكتمال عملية',
             'transfer.cancelled': 'إلغاء عملية',
+            'rates.updated': 'تحديث أسعار الخدمات',
         })[value] || 'حدث عملية';
     const escapeHtml = (value) =>
         String(value ?? '').replace(
@@ -398,7 +400,7 @@
         }
         openEditor(endpoint) {
             if (this.busy) return;
-            const selected = endpoint?.events || EVENTS;
+            const selected = endpoint?.events || EVENTS.filter((event) => event !== 'rates.updated');
             this.showDialog(
                 endpoint ? 'تعديل الرابط' : 'إضافة رابط',
                 `<label class="wh-field">الاسم<input class="wh-input" name="name" required maxlength="100" autocomplete="off" placeholder="نظام المحاسبة" value="${escapeHtml(endpoint?.name || '')}"></label><label class="wh-field">رابط HTTPS<input class="wh-input" name="url" type="url" dir="ltr" required maxlength="2048" autocomplete="off" placeholder="https://example.com/webhooks/ahrampay" value="${escapeHtml(endpoint?.url || '')}"></label><fieldset class="wh-fieldset"><legend>الأحداث</legend>${EVENTS.map((event) => `<label class="wh-check"><input type="checkbox" name="events" value="${event}" ${selected.includes(event) ? 'checked' : ''}><span>${eventLabel(event)}</span></label>`).join('')}</fieldset>`,

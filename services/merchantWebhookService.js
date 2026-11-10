@@ -14,8 +14,10 @@ const { tenantMode } = require('../middlewares/tenantResolver');
 const { isMerchantWebhookWorkerEnabled } = require('../utils/runtimeControls');
 const { LOCK_TIMEOUT_MS, pendingWebhookFilter } = require('../utils/merchantWebhookDeliveryQuery');
 const { webhooksAllowed } = require('./merchantIntegrationService');
+const { MERCHANT_RATES_UPDATED } = require('../utils/merchantRates');
 
-const EVENTS = Object.freeze(['transfer.created', 'transfer.completed', 'transfer.cancelled']);
+const TRANSFER_EVENTS = ['transfer.created', 'transfer.completed', 'transfer.cancelled'];
+const EVENTS = Object.freeze([...TRANSFER_EVENTS, MERCHANT_RATES_UPDATED]);
 const MAX_ATTEMPTS = 6;
 const RETRY_DELAYS_MS = [60_000, 5 * 60_000, 30 * 60_000, 2 * 60 * 60_000, 6 * 60 * 60_000, 24 * 60 * 60_000];
 
@@ -130,9 +132,16 @@ const deliverWebhook = async (deliveryId) => {
     if (webhookHttpDisabled()) return { skipped: true, reason: 'MERCHANT_WEBHOOK_DISABLED' };
     const delivery = await claimDelivery(deliveryId);
     if (!delivery) return null;
-    const endpoint = await MerchantWebhookEndpoint.findOne({ _id: delivery.endpointId, enabled: true }).select('+secretEncrypted');
+    const endpoint = await MerchantWebhookEndpoint.findOne({
+        _id: delivery.endpointId,
+        enabled: true,
+        ...(delivery.eventType === MERCHANT_RATES_UPDATED ? { events: MERCHANT_RATES_UPDATED } : {})
+    }).select('+secretEncrypted');
     if (!endpoint) {
-        await MerchantWebhookDelivery.updateOne({ _id: delivery._id }, { $set: { status: 'failed', lastError: 'ENDPOINT_DISABLED', lockedAt: null } });
+        await MerchantWebhookDelivery.updateOne({ _id: delivery._id }, { $set: {
+            status: 'failed', lastError: 'ENDPOINT_DISABLED', lockedAt: null,
+            ...(delivery.eventType === MERCHANT_RATES_UPDATED ? { nextAttemptAt: null } : {})
+        } });
         return null;
     }
 
@@ -205,7 +214,7 @@ const deliverWebhook = async (deliveryId) => {
 };
 
 const enqueueTransactionWebhook = async (eventType, transaction, options = {}) => {
-    if (!EVENTS.includes(eventType) || !transaction) return [];
+    if (!TRANSFER_EVENTS.includes(eventType) || !transaction) return [];
     const owner = await resolveOwner(transaction);
     if (!owner) return [];
     if (!await webhooksAllowed({ ...owner, tenantId: transaction.tenantId })) return [];
@@ -258,6 +267,12 @@ const runMerchantWebhookTick=async()=>{
         const outbox=require('./merchantWebhookOutboxService');
         const result=await outbox.drain();
         if(result.failed)logger.warn('Merchant webhook outbox staging will retry',{failed:result.failed});
+        try {
+            const rates = await require('./merchantRateWebhookService').stageMerchantRateWebhooks();
+            if (rates.failed) logger.warn('Merchant rate webhook staging will retry', { failed: rates.failed });
+        } catch (error) {
+            logger.error('Merchant rate webhook scan failed', { error: error.message });
+        }
         await processPendingWebhooks();
         const stats=await outbox.queueStats();
         require('../middlewares/metrics').recordWebhookQueue(stats);

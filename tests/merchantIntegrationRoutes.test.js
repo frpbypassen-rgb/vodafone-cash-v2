@@ -62,7 +62,7 @@ const post = (url, body) =>
 for (const kind of ['company', 'agent']) {
     test(`${kind}: owner IP policy rejects spoofing and blocks all merchant routes before financial work`, async () => {
         const isCompany=kind==='company', Model=isCompany?Company:User;
-        const entity=await Model.create(isCompany?{name:'IP Company'}:{name:'IP Agency',role:'agent',webUsername:'ip-owner',webPassword:'test-password-123'});
+        const entity=await Model.create(isCompany?{name:'IP Company',tier:1}:{name:'IP Agency',tier:1,role:'agent',webUsername:'ip-owner',webPassword:'test-password-123'});
         const actor=isCompany?await Employee.create({name:'Owner',companyId:entity._id,role:'owner',webUsername:'ip-owner',webPassword:'test-password-123'}):entity;
         session={...session,isClientLoggedIn:true,accountType:isCompany?'company':'user',clientId:actor._id};
         const base=isCompany?'/client':'/agent-portal', workspace={entity,isCompany,isAgent:!isCompany,permissions:{owner:true}};
@@ -76,15 +76,24 @@ for (const kind of ['company', 'agent']) {
         expect((await save({ipAllowlistEnabled:true,allowedIps:['127.0.0.1']},{currentPassword:'wrong'})).status).toBe(400);
         expect((await request(app).post(base+'/api/integrations/ip-policy').send({ipAllowlistEnabled:true,allowedIps:['127.0.0.1']})).status).toBe(403);
         const balance=(xff)=>{const req=request(app).get('/api/v1/merchant/balance').set('x-api-key',token);return xff?req.set('X-Forwarded-For',xff):req;};
+        const rates=()=>request(app).get('/api/v1/merchant/rates').set('x-api-key',token);
         const enabledPolicy = await save({ipAllowlistEnabled:true,allowedIps:['127.0.0.1']});
         expect(enabledPolicy.status).toBe(200);
         expect(enabledPolicy.body.data.keyActive).toBe(true);
         expect(JSON.stringify(enabledPolicy.body)).not.toContain(token);
         expect((await balance()).status).toBe(200);
+        const prices=await rates();
+        expect(prices.status).toBe(200);
+        expect(prices.headers['cache-control']).toBe('no-store');
+        expect(prices.body.data).toEqual({
+            exchange_rate: 6.4,
+            service_rates: {vodafone:6.4,post_account:6.35,post_card:6.25,bank_account:6.3,sefa_niger:15,bankak_sudan:6.6},
+        });
         const previousRevision=(await current()).revision;
         expect((await save({ipAllowlistEnabled:true,allowedIps:['192.0.2.1']})).status).toBe(200);
         expect((await save({ipAllowlistEnabled:false,allowedIps:[]},{revision:previousRevision})).status).toBe(409);
         expect((await balance('192.0.2.1')).status).toBe(403);
+        expect((await rates()).status).toBe(403);
         expect((await request(app).post('/api/v1/merchant/transfer').set('x-api-key',token).send({})).status).toBe(403);
         expect((await request(app).get('/api/v1/merchant/status/nonexistent').set('x-api-key',token)).status).toBe(403);
         expect(await Transaction.countDocuments({})).toBe(0);
@@ -100,7 +109,7 @@ for (const kind of ['company', 'agent']) {
         expect((await save({ipAllowlistEnabled:false,allowedIps:[]})).status).toBe(200);
         expect((await balance()).status).toBe(200);
         expect((await Model.findById(entity._id)).balance).toBe(0);
-    }, 15000); // Exercises multiple real password checks and database round-trips, not a latency budget.
+    }, 30000); // Exercises multiple real password checks and database round-trips, not a latency budget.
     test(`${kind}: actual admin and portal routes enforce flags, password, CSRF and revocation`, async () => {
         const isCompany = kind === 'company';
         const entity = await (isCompany ? Company : User).create(

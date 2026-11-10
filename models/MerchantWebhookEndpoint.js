@@ -1,6 +1,7 @@
 'use strict';
 
 const mongoose = require('mongoose');
+const { MERCHANT_RATES_UPDATED } = require('../utils/merchantRates');
 
 const merchantWebhookEndpointSchema = new mongoose.Schema({
     tenantId: { type: mongoose.Schema.Types.ObjectId, ref: 'Tenant', index: true },
@@ -10,7 +11,11 @@ const merchantWebhookEndpointSchema = new mongoose.Schema({
     url: { type: String, required: true, trim: true, maxlength: 2048 },
     secretEncrypted: { type: String, required: true, select: false },
     secretHint: { type: String, default: '' },
-    events: [{ type: String, enum: ['transfer.created', 'transfer.completed', 'transfer.cancelled'] }],
+    events: [{ type: String, enum: ['transfer.created', 'transfer.completed', 'transfer.cancelled', MERCHANT_RATES_UPDATED] }],
+    rateSnapshot: {
+        type: new mongoose.Schema({ signature: String, sequence: Number }, { _id: false }),
+        select: false
+    },
     enabled: { type: Boolean, default: true, index: true },
     failureCount: { type: Number, default: 0 },
     lastAttemptAt: { type: Date, default: null },
@@ -22,6 +27,7 @@ const merchantWebhookEndpointSchema = new mongoose.Schema({
 
 merchantWebhookEndpointSchema.index({ tenantId: 1, ownerModel: 1, ownerId: 1, createdAt: -1 });
 merchantWebhookEndpointSchema.index({ enabled: 1, events: 1 });
+merchantWebhookEndpointSchema.index({ enabled: 1, events: 1, _id: 1 });
 
 module.exports = mongoose.models.MerchantWebhookEndpoint
     || mongoose.model('MerchantWebhookEndpoint', merchantWebhookEndpointSchema);

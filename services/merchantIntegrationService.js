@@ -149,17 +149,22 @@ const setAdminAccess = async (Model, scope, flags, revision, updatedBy = 'الإ
     }
     return row;
 };
-const webhooksAllowed = async (owner) => {
+const webhookOwnerQuery = (owner) => {
     const Model = owner.ownerModel === 'ClientCompany' ? Company : owner.ownerModel === 'User' ? User : null;
-    if (!Model) return false;
-    return Boolean(
-        await Model.exists({
+    if (!Model) return null;
+    return {
+        Model,
+        filter: {
             _id: owner.ownerId,
             status: 'active',
             ...(tenantMode() === 'multi' ? { tenantId: owner.tenantId || { $in: [] } } : {}),
             ...(owner.ownerModel === 'User' ? { role: 'agent' } : {}),
             'integrationAccess.webhooksEnabled': true,
-        })
-    );
+        }
+    };
 };
-module.exports = { describeStatus, getStatus, getActivity, setIpPolicy, rotateKey, revokeKey, setAdminAccess, assertOwner, webhooksAllowed, fail };
+const webhooksAllowed = async (owner) => {
+    const query = webhookOwnerQuery(owner);
+    return Boolean(query && await query.Model.exists(query.filter));
+};
+module.exports = { describeStatus, getStatus, getActivity, setIpPolicy, rotateKey, revokeKey, setAdminAccess, assertOwner, webhooksAllowed, webhookOwnerQuery, fail };

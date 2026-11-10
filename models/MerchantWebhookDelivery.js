@@ -1,6 +1,7 @@
 'use strict';
 
 const mongoose = require('mongoose');
+const { MERCHANT_RATES_UPDATED } = require('../utils/merchantRates');
 
 const merchantWebhookDeliverySchema = new mongoose.Schema({
     tenantId: { type: mongoose.Schema.Types.ObjectId, ref: 'Tenant', index: true },
@@ -8,7 +9,7 @@ const merchantWebhookDeliverySchema = new mongoose.Schema({
     ownerModel: { type: String, enum: ['ClientCompany', 'User'], required: true },
     ownerId: { type: mongoose.Schema.Types.ObjectId, required: true },
     eventId: { type: String, required: true, maxlength: 180 },
-    eventType: { type: String, required: true, enum: ['transfer.created', 'transfer.completed', 'transfer.cancelled'], index: true },
+    eventType: { type: String, required: true, enum: ['transfer.created', 'transfer.completed', 'transfer.cancelled', MERCHANT_RATES_UPDATED], index: true },
     payload: { type: mongoose.Schema.Types.Mixed, required: true },
     status: { type: String, enum: ['pending', 'sending', 'delivered', 'failed'], default: 'pending', index: true },
     attemptCount: { type: Number, default: 0 },

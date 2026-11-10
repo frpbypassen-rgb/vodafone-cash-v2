@@ -1,4 +1,5 @@
 'use strict';
+jest.mock('../services/merchantRateWebhookService',()=>({stageMerchantRateWebhooks:jest.fn(async()=>({staged:0,failed:0}))}));
 jest.mock('../services/merchantWebhookOutboxService',()=>({drain:jest.fn(),queueStats:jest.fn()}));
 jest.mock('../models/MerchantWebhookDelivery',()=>({find:jest.fn(()=>({sort:()=>({limit:()=>({select:()=>({lean:async()=>[]})})})}))}));
 jest.mock('../utils/logger',()=>({warn:jest.fn(),error:jest.fn(),info:jest.fn()}));
