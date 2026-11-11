@@ -1,6 +1,9 @@
 module.exports = {
   preset: 'ts-jest',
   testEnvironment: 'node',
+  // Recycle the serial worker so VM module contexts cannot exhaust CI memory.
+  maxWorkers: 1,
+  workerIdleMemoryLimit: '512MB',
   testMatch: ['**/tests/**/*.test.js', '**/tests/**/*.test.ts'],
   testPathIgnorePatterns: ['<rootDir>/delivery/', '<rootDir>/ahram_app/'],
   transform: {

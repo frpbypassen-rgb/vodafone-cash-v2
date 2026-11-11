@@ -92,6 +92,23 @@ test('colliding agent phone and username cannot expose another wallet invoice', 
     await User.updateOne({ _id: owner._id }, { $set: { phone: '0919999999' } });
     expect((await status('audit-owner-token')).status).toBe(200);
     expect((await status('audit-other-token')).status).toBe(404);
+    const previousMode = process.env.TENANT_MODE;
+    const previousDefault = process.env.DEFAULT_TENANT_ID;
+    try {
+        const tenantId = new mongoose.Types.ObjectId();
+        process.env.TENANT_MODE = 'multi';
+        process.env.DEFAULT_TENANT_ID = String(tenantId);
+        await User.updateOne({ _id: owner._id }, { $set: { tenantId } });
+        await Transaction.updateOne({ customId: 'AUDIT-PRIVATE-INVOICE' }, { $set: { tenantId } });
+        expect((await status('audit-owner-token')).status).toBe(200);
+        await Transaction.updateOne({ customId: 'AUDIT-PRIVATE-INVOICE' }, { $unset: { tenantId: 1 } });
+        expect((await status('audit-owner-token')).status).toBe(200);
+    } finally {
+        if (previousMode === undefined) delete process.env.TENANT_MODE;
+        else process.env.TENANT_MODE = previousMode;
+        if (previousDefault === undefined) delete process.env.DEFAULT_TENANT_ID;
+        else process.env.DEFAULT_TENANT_ID = previousDefault;
+    }
 });
 const send = (token, key, data = body) => {
     const r = request(app)

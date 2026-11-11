@@ -7,7 +7,7 @@ const path = require('node:path');
 const os = require('node:os');
 const net = require('node:net');
 const crypto = require('node:crypto');
-const { spawn, fork } = require('node:child_process');
+const { spawn, fork, execFileSync } = require('node:child_process');
 const { performance, monitorEventLoopDelay } = require('node:perf_hooks');
 const root = path.resolve(__dirname, '..');
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -120,8 +120,11 @@ const cleanEnvironment = () =>
 const main = async () => {
     const output = path.resolve(option('--output', path.join(root, 'outputs/isolated-system-load.json')));
     const seconds = Number(option('--seconds', '15'));
+    const amount = Number(option('--amount', '100'));
+    const stressToFailure = process.argv.includes('--stress-to-failure');
+    const expectedCost = Number((amount / 5).toFixed(3));
     const steps = String(option('--steps', '1,5,10,25,50,100,200,400')).split(',').map(Number);
-    if (!(seconds >= 3 && seconds <= 120) || steps.some((n) => !Number.isInteger(n) || n < 1 || n > 1000)) {
+    if (!(seconds >= 3 && seconds <= 120) || !Number.isFinite(amount) || amount < 100 || amount > 50000 || steps.some((n) => !Number.isInteger(n) || n < 1 || n > 1000)) {
         throw new Error('INVALID_LOAD_LIMITS');
     }
     fs.mkdirSync(path.dirname(output), { recursive: true });
@@ -140,7 +143,8 @@ const main = async () => {
     const report = {
         runId,
         startedAt: new Date().toISOString(),
-        baseCommit: '2815206',
+        sourceCommit: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8', windowsHide: true }).trim(),
+        sourceDirty: Boolean(execFileSync('git', ['status', '--porcelain'], { cwd: root, encoding: 'utf8', windowsHide: true }).trim()),
         method: 'Full app.js, real loopback HTTP, disposable Mongo replica set and Redis, synthetic wallets',
         host: {
             platform: process.platform,
@@ -155,6 +159,8 @@ const main = async () => {
             globalRateLimitMax: 1000000,
             requestTimeoutMs: 25000,
             measuredSecondsPerStep: seconds,
+            transferAmount: amount,
+            stressToFailure,
         },
         stages: [],
         samples: [],
@@ -348,7 +354,7 @@ const main = async () => {
                         ? {
                               body: JSON.stringify({
                                   target_number: String(1000000000 + index).padStart(11, '0'),
-                                  amount: 100,
+                                  amount,
                                   transfer_type: 'vodafone',
                               }),
                           }
@@ -449,8 +455,8 @@ const main = async () => {
             save();
             stage.passed =
                 stage.infrastructureErrorFraction <= 0.02 &&
-                stage.paths.transfer.successful > 0 &&
-                stage.paths.transfer.p95Ms <= 10000 &&
+                stage.paths.transfer.successful / Math.max(1, stage.paths.transfer.requests) >= 0.98 &&
+                (stressToFailure || stage.paths.transfer.p95Ms <= 10000) &&
                 appProcess.exitCode === null &&
                 appProcess.signalCode === null &&
                 !(report.samples.at(-1)?.rssMiB > 1536);
@@ -496,7 +502,7 @@ const main = async () => {
                 });
             }
         }
-        const transactions = await Transaction.find({}).select('+idempotencyKey').lean();
+        const transactions = await Transaction.find({}).select('+idempotencyKey +clientActorId +clientActorModel').lean();
         const ledgers = await Ledger.find({}).lean();
         const byReference = new Map();
         for (const ledger of ledgers) {
@@ -518,10 +524,10 @@ const main = async () => {
                 rows[0]?.entityModel !== owner.model ||
                 rows[0]?.type !== 'TRANSFER' ||
                 rows[0]?.settledCurrency !== 'LYD' ||
-                rows[0]?.amount !== -20 ||
-                tx.amount !== 100 ||
+                rows[0]?.amount !== -expectedCost ||
+                tx.amount !== amount ||
                 tx.exchangeRate !== 5 ||
-                tx.costLYD !== 20 ||
+                tx.costLYD !== expectedCost ||
                 references.has(tx.customId) ||
                 !tx.idempotencyKey ||
                 keys.has(tx.idempotencyKey)
@@ -576,6 +582,8 @@ const main = async () => {
                     committed: keys.has(key),
                 };
             });
+        const databaseStatus = await mongoose.connection.db.admin().serverStatus();
+        report.mongoTransactionMetrics = databaseStatus.transactions;
         report.invariants.successfulTransferResponses = successfulTransfers.length;
         report.invariants.unacknowledgedCommittedTransfers = transactions.length - successfulTransfers.length;
         report.invariants.passed =

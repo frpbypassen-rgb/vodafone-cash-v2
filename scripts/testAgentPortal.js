@@ -22,7 +22,7 @@ for (const key of ['JWT_SECRET', 'JWT_REFRESH_SECRET', 'SESSION_SECRET', 'OTP_SE
 }
 const result = spawnSync(
     process.execPath,
-    [require.resolve('jest/bin/jest'), '--runInBand', '--runTestsByPath', ...files, ...process.argv.slice(2)],
+    ['--experimental-vm-modules', require.resolve('jest/bin/jest'), '--runInBand', '--runTestsByPath', ...files, ...process.argv.slice(2)],
     { cwd: root, env: environment, stdio: 'inherit', windowsHide: true, timeout: 15 * 60 * 1000 }
 );
 if (result.error) {

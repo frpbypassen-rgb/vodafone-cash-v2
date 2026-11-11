@@ -146,3 +146,20 @@ test('wallet tenant context cannot credit an account belonging to another tenant
         else process.env.DEFAULT_TENANT_ID = previousDefault;
     }
 });
+
+
+test('notification failures preserve successful request creation and committed approval', async () => {
+    const { owner } = await fixture();
+    await Promise.all([Transaction.deleteMany({}), SupportTicket.deleteMany({})]);
+    jest.spyOn(require('../models/Admin'), 'find').mockReturnValueOnce({
+        select: () => ({ lean: () => Promise.reject(new Error('AUDIT_NOTIFICATION_UNAVAILABLE')) })
+    });
+    const created = await createClientDepositRequest({ client: owner, amount: 50, note: 'test notification failure' });
+    const tx = await Transaction.findById(created.id);
+    require('../services/clientNotificationService').notifyBalanceAdjustment
+        .mockRejectedValueOnce(new Error('AUDIT_NOTIFICATION_UNAVAILABLE'));
+    await expect(resolveClientDepositTicket({ ticketId: tx.depositRequest.supportTicketId, admin, approved: true }))
+        .resolves.toHaveProperty('transaction.status', 'deposit');
+    expect((await User.findById(owner._id)).balance).toBe(50);
+    expect(await Ledger.countDocuments()).toBe(1);
+});

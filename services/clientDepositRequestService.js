@@ -7,6 +7,7 @@ const Notification = require('../models/Notification');
 const SupportTicket = require('../models/SupportTicket');
 const Transaction = require('../models/Transaction');
 const User = require('../models/User');
+const logger = require('../utils/logger');
 const {
     updateBalanceWithLedger,
     isMongoTransactionFallbackError,
@@ -189,7 +190,9 @@ async function createClientDepositRequest({ client, amount, note }) {
     await notifyAdmins({
         title: 'طلب إيداع جديد من عميل مباشر',
         message: `${client.name || userKey}: ${customId} بقيمة ${parsedAmount} LYD`,
-    });
+    }).catch((error) => logger.warn('Client deposit notification failed after request commit', {
+        event: 'client_deposit_notification_failed', customId, code: error.code || error.name,
+    }));
 
     return {
         id: objectId(tx._id),

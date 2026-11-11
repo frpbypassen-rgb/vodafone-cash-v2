@@ -17,7 +17,7 @@ for (const key of ['JWT_SECRET', 'JWT_REFRESH_SECRET', 'SESSION_SECRET', 'OTP_SE
     environment[key] = crypto.randomBytes(32).toString('hex');
 }
 const result = spawnSync(process.execPath, [
-    require.resolve('jest/bin/jest'), '--runInBand', '--runTestsByPath',
+    '--experimental-vm-modules', require.resolve('jest/bin/jest'), '--runInBand', '--runTestsByPath',
     ...files, ...process.argv.slice(2)
 ], { cwd: root, env: environment, stdio: 'inherit', windowsHide: true, timeout: 15 * 60 * 1000 });
 if (result.error) {

@@ -481,8 +481,14 @@ router.post('/transfer', merchantApiAuth, async (req, res) => {
 
 router.get('/status/:reference_id', merchantApiAuth, async (req, res) => {
     try {
-        const tenantFilter = require('../middlewares/tenantResolver').tenantMode() === 'multi'
-            ? { tenantId: req.merchant.tenantId || null } : {};
+        let tenantFilter = {};
+        if (require('../middlewares/tenantResolver').tenantMode() === 'multi') {
+            const tenantId = req.merchant.tenantId || null;
+            tenantFilter = { tenantId };
+            if (tenantId && String(tenantId) === String(process.env.DEFAULT_TENANT_ID || '').trim()) {
+                tenantFilter = { $or: [{ tenantId }, { tenantId: null }] };
+            }
+        }
         const ownershipFilter = req.merchant.merchantType === 'agent'
             ? {
                 clientActorModel: 'User',
