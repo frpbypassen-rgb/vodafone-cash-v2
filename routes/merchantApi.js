@@ -416,6 +416,7 @@ router.post('/transfer', merchantApiAuth, async (req, res) => {
 
             const balanceAfter = Number(updatedMerchant.balance || 0);
             const ledgerEntry = new Ledger({
+                tenantId: req.merchant.tenantId || req.tenant?._id || undefined,
                 entityId: req.merchant._id,
                 entityModel: req.merchant.entityModel,
                 transactionId: customId,
@@ -480,17 +481,33 @@ router.post('/transfer', merchantApiAuth, async (req, res) => {
 
 router.get('/status/:reference_id', merchantApiAuth, async (req, res) => {
     try {
+        const tenantFilter = require('../middlewares/tenantResolver').tenantMode() === 'multi'
+            ? { tenantId: req.merchant.tenantId || null } : {};
         const ownershipFilter = req.merchant.merchantType === 'agent'
             ? {
-                userId: req.merchant.transactionUserId,
+                clientActorModel: 'User',
+                clientActorId: req.merchant._id,
                 companyId: null,
                 isSubAccountTx: { $ne: true }
             }
             : { companyId: req.merchant._id };
-        const tx = await Transaction.findOne({
+        let tx = await Transaction.findOne({
             ...ownershipFilter,
+            ...tenantFilter,
             customId: req.params.reference_id
         }).select('+executorExecutionNumber +executorSenderEntries').lean();
+        if (!tx && req.merchant.merchantType === 'agent') {
+            const legacy = await Transaction.findOne({
+                ...tenantFilter, customId: req.params.reference_id,
+                companyId: null, isSubAccountTx: { $ne: true },
+                clientActorId: null, clientActorModel: { $in: [null, 'User'] }
+            }).select('+executorExecutionNumber +executorSenderEntries').lean();
+            // A historical wallet debit binds legacy invoices even after a phone or username changes.
+            if (legacy && await Ledger.exists({
+                ...tenantFilter, entityId: req.merchant._id, entityModel: 'User',
+                transactionId: legacy.customId, type: 'TRANSFER', amount: { $lt: 0 }
+            })) tx = legacy;
+        }
         if (!tx) {
             return res.status(404).json({ status: 'failed', message: 'لا يوجد طلب بهذا الرقم المرجعي' });
         }

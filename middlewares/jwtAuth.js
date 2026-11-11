@@ -59,18 +59,26 @@ const ensureActiveExecutor = async (decodedUser) => {
 };
 
 const ensureActiveCustomerSession = async (decodedUser) => {
-    if (!decodedUser || !['client_user', 'sub_client', 'agent_staff'].includes(decodedUser.accountType)) return true;
+    if (!decodedUser || !['client_user', 'client_company', 'sub_client', 'agent_staff'].includes(decodedUser.accountType)) return true;
 
     const Model = decodedUser.accountType === 'sub_client'
         ? require('../models/SubAccount')
-        : decodedUser.accountType === 'agent_staff' ? require('../models/AgentEmployee') : require('../models/User');
-    const account = await Model.findById(decodedUser.userId).select('status sessionVersion agentId');
+        : decodedUser.accountType === 'client_company' ? require('../models/ClientEmployee')
+            : decodedUser.accountType === 'agent_staff' ? require('../models/AgentEmployee') : require('../models/User');
+    const account = await Model.findById(decodedUser.userId).select('status sessionVersion agentId companyId tenantId');
     const accountIsActive = Boolean(
         account
         && account.status === 'active'
         && Number(account.sessionVersion || 0) === Number(decodedUser.sessionVersion || 0)
     );
     if (!accountIsActive) return false;
+    if (decodedUser.tenantId && account.tenantId && cleanId(decodedUser.tenantId) !== cleanId(account.tenantId)) return false;
+    if (decodedUser.accountType === 'client_company') {
+        if (decodedUser.companyId && cleanId(decodedUser.companyId) !== cleanId(account.companyId)) return false;
+        const company = await require('../models/ClientCompany').findById(account.companyId).select('status tenantId');
+        if (!company || company.status !== 'active') return false;
+        if (decodedUser.tenantId && company.tenantId && cleanId(decodedUser.tenantId) !== cleanId(company.tenantId)) return false;
+    }
     if (decodedUser.accountType === 'agent_staff') {
         const agent = await require('../models/User').findById(account.agentId).select('status role');
         if (!agent || agent.status !== 'active' || agent.role !== 'agent') return false;

@@ -147,6 +147,8 @@ void main() {
     expect(find.text('الدعم'), findsOneWidget);
     expect(find.byIcon(Icons.support_agent_outlined), findsOneWidget);
     expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(seconds: 13));
   });
 
   testWidgets('shows support without employee management for an accountant', (
@@ -192,6 +194,8 @@ void main() {
 
     expect(find.text('الدعم'), findsOneWidget);
     expect(find.text('الموظفون'), findsNothing);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(seconds: 13));
   });
 
   testWidgets('renders an executor support ticket card on a phone viewport', (

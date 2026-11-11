@@ -763,6 +763,7 @@ const approveDeviceRequest = async ({ request, req, reviewedBy, reviewNote, plat
             return { ...nextDevice, _id };
         });
         deviceBindingCache.clear();
+        Object.assign(request, { status: 'approved', reviewedBy, reviewedAt: now, reviewNote });
         return { request, device };
     } finally {
         await dbSession.endSession();
@@ -831,61 +832,24 @@ const reviewPrincipalAccessRequest = async ({
             reviewNote: String(reviewNote || '').slice(0, 500)
         });
     }
-    request.status = approve ? 'approved' : 'rejected';
+    if (approve) return approveDeviceRequest({
+        request, req,
+        reviewedBy: String(reviewedBy || principal.principalName || principal.principalId).slice(0, 160),
+        reviewNote: String(reviewNote || '').slice(0, 500)
+    });
+    request.status = 'rejected';
     request.reviewedBy = String(reviewedBy || principal.principalName || principal.principalId).slice(0, 160);
     request.reviewedAt = new Date();
     request.reviewNote = String(reviewNote || '').slice(0, 500);
-    if (!approve) {
-        const claim = await SecurityAccessRequest.updateOne(
-            { _id: request._id, status: 'pending', expiresAt: { $gt: request.reviewedAt } },
-            { $set: { status: request.status, reviewedBy: request.reviewedBy, reviewedAt: request.reviewedAt,
-                reviewNote: request.reviewNote } }
-        );
-        if (claim.modifiedCount !== 1) {
-            throw Object.assign(new Error('Request already reviewed'), { code: 'SECURITY_ACCESS_REQUEST_NOT_FOUND' });
-        }
-        return { request, device: null };
-    }
-
-    const requestChannelName = request.channel || 'web';
-    await SecurityDevice.updateMany(
-        {
-            principalType: principal.principalType,
-            principalId: principal.principalId,
-            channel: requestChannelName,
-            status: 'active'
-        },
-        {
-            $set: {
-                status: 'revoked',
-                revokedAt: new Date(),
-                revokedReason: 'replaced_by_approved_device'
-            }
-        }
+    const claim = await SecurityAccessRequest.updateOne(
+        { _id: request._id, status: 'pending', expiresAt: { $gt: request.reviewedAt } },
+        { $set: { status: request.status, reviewedBy: request.reviewedBy, reviewedAt: request.reviewedAt,
+            reviewNote: request.reviewNote } }
     );
-    const device = await SecurityDevice.create({
-        principalType: principal.principalType,
-        principalId: principal.principalId,
-        principalName: principal.principalName || request.principalName || '',
-        tenantId: request.tenantId || null,
-        channel: requestChannelName,
-        deviceIdHash: request.deviceIdHash,
-        displayName: request.displayName,
-        deviceType: request.deviceType,
-        platform: request.platform,
-        browser: request.browser,
-        userAgent: request.userAgent,
-        firstIp: request.ipAddress,
-        lastIp: request.ipAddress,
-        firstLocation: request.location || null,
-        lastLocation: request.location || null,
-        status: 'active',
-        approvedBy: request.reviewedBy,
-        approvedAt: new Date(),
-        lastSeenAt: new Date()
-    });
-    await request.save();
-    return { request, device };
+    if (claim.modifiedCount !== 1) {
+        throw Object.assign(new Error('Request already reviewed'), { code: 'SECURITY_ACCESS_REQUEST_NOT_FOUND' });
+    }
+    return { request, device: null };
 };
 
 const backfillMissingSecurityChannels = async () => {

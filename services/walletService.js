@@ -30,6 +30,13 @@ const isMongoTransactionFallbackError = (error) => {
         || message.includes('retryable writes')
         || message.includes('mongos');
 };
+const walletTenantScope = (tenantId) => {
+    if (!tenantId) return {};
+    const defaultTenant = String(process.env.DEFAULT_TENANT_ID || '').trim();
+    return defaultTenant && String(tenantId) === defaultTenant
+        ? { $or: [{ tenantId }, { tenantId: null }] }
+        : { tenantId };
+};
 
 /**
  * تحديث رصيد حساب مع تسجيل قيد في دفتر الأستاذ بشكل ذري
@@ -61,6 +68,7 @@ const updateBalanceWithLedger = async (entityModel, entityId, amount, type, tran
         const filter = amount < 0 && !allowNegative
             ? { _id: entityId, balance: { $gte: minBalance + Math.abs(amount) } }
             : { _id: entityId };
+        Object.assign(filter, walletTenantScope(requestedTenantId));
 
         const account = await Model.findOneAndUpdate(
             filter,
@@ -153,6 +161,7 @@ const executeFallback = async (
     const filter = amount < 0 && !allowNegative
         ? { _id: entityId, balance: { $gte: minBalance + Math.abs(amount) } }
         : { _id: entityId };
+    Object.assign(filter, walletTenantScope(requestedTenantId));
 
     const account = await Model.findOneAndUpdate(
         filter,

@@ -237,7 +237,7 @@ class AhramNotificationHub {
     );
 
     await _localNotifications.initialize(
-      const InitializationSettings(
+      settings: const InitializationSettings(
         android: androidSettings,
         iOS: darwinSettings,
       ),
@@ -401,10 +401,10 @@ class AhramNotificationHub {
     );
 
     await _localNotifications.show(
-      notification.id.hashCode,
-      notification.title,
-      notification.body,
-      NotificationDetails(
+      id: notification.id.hashCode,
+      title: notification.title,
+      body: notification.body,
+      notificationDetails: NotificationDetails(
         android: androidDetails,
         iOS: darwinDetails,
       ),

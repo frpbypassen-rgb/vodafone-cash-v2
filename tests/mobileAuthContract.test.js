@@ -251,6 +251,8 @@ describe('🔐 Contract Tests: Auth (Mobile API)', () => {
         expect(res.body.success).toBe(true);
         expect(res.body.accountType).toBe('client_company');
         expect(res.body.id).toBe('company-employee-id');
+        expect(require('jsonwebtoken').decode(res.body.token).companyId).toBe('company-id-123');
+        expect(require('jsonwebtoken').decode(res.body.refreshToken).companyId).toBe('company-id-123');
         expect(res.body.name).toBe('Company Employee');
         expect(res.body.balance).toBe(25000);
         expect(res.body.exchangeRate).toBe(6.45);

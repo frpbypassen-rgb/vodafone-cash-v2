@@ -209,7 +209,9 @@ describe('admin account management service', () => {
 
     test('updates a company employee association, role, and permissions', async () => {
         const account = makeAccount({
-            companyId: IDS.owner,
+            companyId: IDS.account,
+            sessionVersion: 2,
+            refreshToken: 'previous-company-session',
             role: 'employee',
             canViewAllReports: false,
             canManageCompany: false,
@@ -243,6 +245,8 @@ describe('admin account management service', () => {
         expect(account.canManageCompany).toBe(true);
         expect(account.canCreateCompanyStaff).toBe(false);
         expect(String(account.companyId)).toBe(IDS.owner);
+        expect(account.sessionVersion).toBe(3);
+        expect(account.refreshToken).toBeUndefined();
         expect(account.email).toBe('staff@example.com');
         expect(account.otpDeliveryChannel).toBe('email');
         expect(result.changedFields).toEqual(expect.arrayContaining(['role', 'canViewAllReports', 'canManageCompany']));

@@ -544,6 +544,10 @@ const setEmployeeOwner = async (type, account, payload) => {
         assertValidId(payload.companyId);
         const company = await ClientCompany.findOne({ _id: payload.companyId, status: { $ne: 'deleted' } }).select('_id').lean();
         if (!company) throw new AdminAccountManagementError('INVALID_COMPANY', 'companyId');
+        if (account.companyId && String(account.companyId) !== String(company._id)) {
+            account.sessionVersion = Number(account.sessionVersion || 0) + 1;
+            account.refreshToken = undefined;
+        }
         account.companyId = company._id;
         return;
     }

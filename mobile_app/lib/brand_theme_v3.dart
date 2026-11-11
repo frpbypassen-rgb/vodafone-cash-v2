@@ -393,7 +393,7 @@ abstract final class AhramThemeV3 {
       // ═══════════════════════════════════════════════════════════════════════
       // Card
       // ═══════════════════════════════════════════════════════════════════════
-      cardTheme: CardTheme(
+      cardTheme: CardThemeData(
         color: isDark ? AhramColorsV3.surfaceDark : Colors.white,
         elevation: 0,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),

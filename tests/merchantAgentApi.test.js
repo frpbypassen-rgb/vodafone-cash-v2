@@ -2,6 +2,7 @@
 
 const request = require('supertest');
 const express = require('express');
+jest.mock('../middlewares/tenantResolver', () => ({ tenantMode: () => 'single' }));
 
 jest.mock('../models/ClientBot', () => ({ findOne: jest.fn(), findOneAndUpdate: jest.fn() }));
 jest.mock('../models/User', () => ({ findOne: jest.fn(), findOneAndUpdate: jest.fn() }));

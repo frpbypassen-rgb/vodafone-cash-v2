@@ -2,6 +2,7 @@
 
 const Transaction = require('../models/Transaction');
 const logger = require('../utils/logger');
+const { isDeepStrictEqual } = require('node:util');
 
 const executorTaskIndexes = [
     {
@@ -129,13 +130,28 @@ const adminDashboardIndexes = [
 
 const ensurePerformanceIndexes = async () => {
     try {
-        await Transaction.collection.createIndexes([
+        let existing;
+        try {
+            existing = await Transaction.collection.listIndexes().toArray();
+        } catch (error) {
+            if (error.code !== 26) throw error;
+            existing = [];
+        }
+        const desired = [
             ...executorTaskIndexes,
             ...transferCooldownIndexes,
             ...clientPortalIndexes,
             ...liveOperationsIndexes,
             ...adminDashboardIndexes
-        ]);
+        ];
+        const missing = desired.filter(index => !existing.some(current =>
+            JSON.stringify(current.key) === JSON.stringify(index.key)
+            && Boolean(current.unique) === Boolean(index.unique)
+            && Boolean(current.sparse) === Boolean(index.sparse)
+            && isDeepStrictEqual(current.partialFilterExpression, index.partialFilterExpression)
+            && !current.collation
+        ));
+        if (missing.length) await Transaction.collection.createIndexes(missing);
         logger.info('Transaction performance indexes are ready');
         return true;
     } catch (error) {

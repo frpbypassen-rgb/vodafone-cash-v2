@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
-import 'package:intl/date_symbol_data_initialize.dart';
+import 'package:intl/date_symbol_data_local.dart';
 
 // ═════════════════════════════════════════════════════════════════════════════
 // Imports الأصلية
@@ -376,7 +376,7 @@ class _AhramSplashTitleV3 extends StatelessWidget {
             letterSpacing: 0,
             shadows: [
               Shadow(
-                color: Colors.black.withOpacity(0.5),
+                color: Color(0x80000000),
                 blurRadius: 15,
                 offset: const Offset(0, 6),
               ),

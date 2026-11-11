@@ -1,7 +1,7 @@
 'use strict';
 
 jest.mock('../models/Transaction', () => ({
-    collection: { createIndexes: jest.fn() }
+    collection: { createIndexes: jest.fn(), listIndexes: jest.fn(() => ({ toArray: async () => [] })) }
 }));
 jest.mock('../utils/logger', () => ({
     info: jest.fn(),

@@ -42,7 +42,8 @@ const {
 const {
     repriceTransaction,
     editTransactionAmount,
-    reassignTransactionExecutor
+    reassignTransactionExecutor,
+    withOptionalMongoTransaction
 } = require('../services/adminFinancialMutationService');
 const eventBus = require('../services/eventBus');
 const { sendCompletedTransactionReceipt } = require('../services/whatsappReceiptDeliveryService');
@@ -841,9 +842,11 @@ router.post('/transaction/:id/accept-deposit-web', async (req, res) => {
         const tx = await Transaction.findOne(adminTxById(req, req.params.id));
         if (!tx || tx.status !== 'deposit_pending') return res.json({ success: false, error: 'الطلب غير متاح' });
 
-        if (tx.depositRequest?.submittedByRole === 'client' && tx.depositRequest?.supportTicketId) {
-            const { resolveClientDepositTicket } = require('../services/clientDepositRequestService');
-            await resolveClientDepositTicket({
+        if (tx.depositRequest?.supportTicketId) {
+            const review = tx.depositRequest.submittedByRole === 'client'
+                ? require('../services/clientDepositRequestService').resolveClientDepositTicket
+                : require('../services/executorDepositRequestService').resolveDepositTicket;
+            await review({
                 ticketId: String(tx.depositRequest.supportTicketId),
                 admin: actor,
                 approved: true
@@ -857,16 +860,19 @@ router.post('/transaction/:id/accept-deposit-web', async (req, res) => {
             return res.json({ success: true });
         }
 
-        let fileId = `deposit_${Date.now()}.jpg`;
-        Object.assign(tx, performedFields(actor));
-        tx.status = 'deposit'; tx.proofImage = fileId; tx.updatedAt = actor.at;
-        if (tx.depositRequest) {
-            tx.depositRequest.reviewedById = actor.id;
-            tx.depositRequest.reviewedByName = actor.name;
-            tx.depositRequest.reviewedAt = actor.at;
-        }
-        await Transaction.updateOne({ _id: tx._id }, { $set: { executorWebAlert: { type: 'success', text: `تم قبول طلب الإيداع بقيمة ${tx.amount} EGP وتمت إضافة الرصيد لحسابك بنجاح.`, imageUrl: `/proxy/image/${tx._id}/0` } } }, { strict: false });
-        await tx.save(); if (tx.executorGroupId) await syncBotBalance(tx.executorGroupId);
+        await withOptionalMongoTransaction(async (session) => {
+            const updated = await Transaction.findOneAndUpdate({
+                ...adminTxById(req, tx._id), status: 'deposit_pending'
+            }, { $set: {
+                ...performedFields(actor), status: 'deposit',
+                'depositRequest.reviewedById': actor.id,
+                'depositRequest.reviewedByName': actor.name,
+                'depositRequest.reviewedAt': actor.at,
+                executorWebAlert: { type: 'success', text: `تم قبول طلب الإيداع بقيمة ${tx.amount} EGP وتمت إضافة الرصيد لحسابك بنجاح.` }
+            } }, { returnDocument: 'after', ...(session ? { session } : {}) });
+            if (!updated) throw new Error('تمت مراجعة الطلب مسبقًا.');
+            if (updated.executorGroupId) await syncBotBalance(updated.executorGroupId, { session });
+        });
         await auditAdminAction(req, actor, {
             action: 'DEPOSIT_APPROVED',
             targetId: tx._id,
@@ -886,9 +892,11 @@ router.post('/transaction/:id/reject-deposit-web', async (req, res) => {
         const { reason } = req.body; const tx = await Transaction.findOne(adminTxById(req, req.params.id));
         if (!tx || tx.status !== 'deposit_pending') return res.redirect('/transactions');
 
-        if (tx.depositRequest?.submittedByRole === 'client' && tx.depositRequest?.supportTicketId) {
-            const { resolveClientDepositTicket } = require('../services/clientDepositRequestService');
-            await resolveClientDepositTicket({
+        if (tx.depositRequest?.supportTicketId) {
+            const review = tx.depositRequest.submittedByRole === 'client'
+                ? require('../services/clientDepositRequestService').resolveClientDepositTicket
+                : require('../services/executorDepositRequestService').resolveDepositTicket;
+            await review({
                 ticketId: String(tx.depositRequest.supportTicketId),
                 admin: actor,
                 approved: false,
@@ -903,18 +911,19 @@ router.post('/transaction/:id/reject-deposit-web', async (req, res) => {
             return res.redirect('/transactions');
         }
 
-        tx.status = 'rejected';
-        Object.assign(tx, cancellationFields(actor));
-        tx.cancelledAt = actor.at;
-        if (tx.depositRequest) {
-            tx.depositRequest.reviewedById = actor.id;
-            tx.depositRequest.reviewedByName = actor.name;
-            tx.depositRequest.reviewedAt = actor.at;
-            tx.depositRequest.rejectionReason = reason || '';
-        }
-        appendAdminNote(tx, `[تم رفض الإيداع بواسطة: ${actor.name} | السبب: ${reason || '---'}]`); tx.updatedAt = actor.at;
-        await Transaction.updateOne({ _id: tx._id }, { $set: { executorWebAlert: { type: 'error', text: `تم رفض طلب الإيداع بقيمة ${tx.amount} EGP.<br><b>السبب:</b> ${reason}` } } }, { strict: false });
-        await tx.save();
+        const cleanReason = String(reason || '').trim().slice(0, 1000);
+        const rejected = await Transaction.findOneAndUpdate({
+            ...adminTxById(req, tx._id), status: 'deposit_pending'
+        }, { $set: {
+            status: 'rejected', ...cancellationFields(actor), cancelledAt: actor.at,
+            'depositRequest.reviewedById': actor.id,
+            'depositRequest.reviewedByName': actor.name,
+            'depositRequest.reviewedAt': actor.at,
+            'depositRequest.rejectionReason': cleanReason,
+            adminNotes: appendNoteText(tx.adminNotes, `[تم رفض الإيداع بواسطة: ${actor.name} | السبب: ${cleanReason || '---'}]`),
+            executorWebAlert: { type: 'error', text: `تم رفض طلب الإيداع بقيمة ${tx.amount} EGP. السبب: ${cleanReason}` }
+        } }, { returnDocument: 'after' });
+        if (!rejected) return res.redirect('/transactions');
         await auditAdminAction(req, actor, {
             action: 'DEPOSIT_REJECTED',
             targetId: tx._id,

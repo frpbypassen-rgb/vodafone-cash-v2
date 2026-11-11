@@ -1,13 +1,13 @@
 'use strict';
 const mongoose=require('mongoose');
-const {MongoMemoryServer}=require('mongodb-memory-server');
+const {MongoMemoryReplSet}=require('mongodb-memory-server');
 const SecurityDevice=require('../models/SecurityDevice');
 const AccessRequest=require('../models/SecurityAccessRequest');
 const SecurityState=require('../models/SecurityState');
 const security=require('../services/securityControlService');
 let mongo,principal,req,web,app,foreign;
 jest.setTimeout(120000);
-beforeAll(async()=>{mongo=await MongoMemoryServer.create({binary:{version:'7.0.24'}});await mongoose.connect(mongo.getUri());await SecurityDevice.init();});
+beforeAll(async()=>{mongo=await MongoMemoryReplSet.create({binary:{version:'7.0.24'},replSet:{count:1}});await mongoose.connect(mongo.getUri());await SecurityDevice.init();});
 afterAll(async()=>{await mongoose.disconnect();await mongo.stop();});
 beforeEach(async()=>{
     await Promise.all([SecurityDevice.deleteMany({}),AccessRequest.deleteMany({}),SecurityState.deleteMany({})]);security.invalidateStateCache();
@@ -63,9 +63,10 @@ test('required administration approval is enforced by the server',async()=>{
 });
 test('permitted approval replaces only the old device in the same account and channel',async()=>{
     await SecurityState.create({key:'global',adminApprovalRequired:false});security.invalidateStateCache();
-    const request=await pending();const result=await security.reviewPrincipalAccessRequest({principal,requestId:request._id,approve:true});
+    const request=await pending();const result=await security.reviewPrincipalAccessRequest({principal,requestId:request._id,approve:true,req});
     expect(result.device.status).toBe('active');
-    expect((await SecurityDevice.findById(web._id)).status).toBe('revoked');
+    expect((await SecurityDevice.findById(web._id).select('+deviceIdHash')).deviceIdHash).toBe(security.hashDeviceId('new-device'));
+    expect(await SecurityDevice.countDocuments({...principal,status:'revoked',revokedReason:'replaced_by_approved_device'})).toBe(1);
     expect((await SecurityDevice.findById(app._id)).status).toBe('active');
     expect((await SecurityDevice.findById(foreign._id)).status).toBe('active');
 });

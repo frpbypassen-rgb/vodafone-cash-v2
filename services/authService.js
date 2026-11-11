@@ -490,6 +490,7 @@ const login = async (username, password, req) => {
             accountType,
             telegramId,
             executorGroupId,
+            ...(accountType === 'client_company' ? { companyId: cleanId(account.companyId) } : {}),
             sessionVersion: Number(account.sessionVersion || 0),
             sessionId: mobileSessionId,
             tenantId,
@@ -502,6 +503,7 @@ const login = async (username, password, req) => {
         {
             userId: account._id,
             accountType,
+            ...(accountType === 'client_company' ? { companyId: cleanId(account.companyId) } : {}),
             sessionVersion: Number(account.sessionVersion || 0),
             sessionId: mobileSessionId,
             tenantId,
@@ -785,6 +787,7 @@ const refreshAccessToken = async (refreshToken, req) => {
                     : account && account.refreshToken === refreshToken;
 
                 if (!account || !refreshTokenMatches || account.status !== 'active'
+                    || (accountType === 'client_company' && decoded.companyId && cleanId(account.companyId) !== cleanId(decoded.companyId))
                     || Number(account.sessionVersion || 0) !== Number(decoded.sessionVersion || 0)) {
                     if (deviceSession && deviceSession.refreshTokenHash !== presentedTokenHash) {
                         await MobileDeviceSession.updateOne(
@@ -828,6 +831,7 @@ const refreshAccessToken = async (refreshToken, req) => {
                     {
                         userId: account._id,
                         accountType,
+                        ...(accountType === 'client_company' ? { companyId: cleanId(account.companyId) } : {}),
                         sessionVersion: Number(account.sessionVersion || 0),
                         sessionId: nextSessionId,
                         tenantId,
@@ -843,6 +847,7 @@ const refreshAccessToken = async (refreshToken, req) => {
                         accountType,
                         telegramId,
                         executorGroupId,
+                        ...(accountType === 'client_company' ? { companyId: cleanId(account.companyId) } : {}),
                         sessionVersion: Number(account.sessionVersion || 0),
                         sessionId: nextSessionId,
                         tenantId,

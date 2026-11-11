@@ -32,6 +32,13 @@ const mobileApi = require('../routes/mobileApi');
 const app = express();
 app.use(express.json());
 app.use('/api/mobile', mobileApi);
+const adminApp = express();
+adminApp.use(express.json());
+adminApp.use((req, _res, next) => {
+    req.session = { isLoggedIn: true, adminRole: 'master', adminId: 'audit-admin', adminName: 'Audit admin' };
+    next();
+});
+adminApp.use(require('../routes/adminTransactions'));
 
 jest.setTimeout(45000);
 let replica;
@@ -40,6 +47,32 @@ beforeAll(async () => {
     replica = await MongoMemoryReplSet.create({ replSet: { count: 1, storageEngine: 'wiredTiger' } });
     await mongoose.connect(replica.getUri());
     await Promise.all([Transaction.init(), SupportTicket.init(), PushNotificationOutbox.init(), Notification.init()]);
+});
+
+test('admin web review updates the same ticket and atomic state used by executor managers', async () => {
+    const group = await ExecutorGroup.create({ name: 'Audit admin deposit group' });
+    const transaction = await Transaction.create({
+        customId: 'AUDIT-ADMIN-DEPOSIT', executorGroupId: group._id, amount: 100,
+        status: 'deposit_pending', depositRequest: { submittedByRole: 'admin' }
+    });
+    const ticket = await SupportTicket.create({
+        entityType: 'executor_group', entityId: group._id, name: group.name,
+        metadata: { type: 'executor_deposit', depositRequest: {
+            transactionId: transaction.id, customId: transaction.customId, amount: 100, status: 'pending', submittedByRole: 'admin'
+        } }
+    });
+    transaction.depositRequest.supportTicketId = ticket._id;
+    await transaction.save();
+    const approved = await request(adminApp).post('/transaction/' + transaction.id + '/accept-deposit-web');
+    expect(approved.body).toEqual({ success: true });
+    const final = await Transaction.findById(transaction._id);
+    expect(final.status).toBe('deposit');
+    expect(final.proofImage || '').not.toMatch(/^deposit_\d+\.jpg$/);
+    expect((await SupportTicket.findById(ticket._id)).metadata.depositRequest.status).toBe('approved');
+    expect((await ExecutorGroup.findById(group._id)).balance).toBe(100);
+    await request(adminApp).post('/transaction/' + transaction.id + '/reject-deposit-web').send({ reason: 'late rejection' });
+    expect((await Transaction.findById(transaction._id)).status).toBe('deposit');
+    expect((await ExecutorGroup.findById(group._id)).balance).toBe(100);
 });
 
 afterAll(async () => {

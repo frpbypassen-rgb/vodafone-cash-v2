@@ -7,6 +7,7 @@ void main() {
     'defines a custom Android channel and sound for every executor event',
     () {
       const requiredCategories = <String>{
+        'client_general',
         'executor_task_new',
         'executor_task_routed',
         'executor_task_reminder',
@@ -23,6 +24,11 @@ void main() {
       expect(mobileNotificationDefinitions.keys.toSet(), requiredCategories);
       for (final definition in mobileNotificationDefinitions.values) {
         expect(definition.channelId, isNotEmpty);
+        if (definition.category == 'client_general') {
+          expect(definition.sound, 'default');
+          expect(definition.route, 'notifications');
+          continue;
+        }
         expect(definition.sound, startsWith('ahram_'));
         expect(<String>{
           'tasks',

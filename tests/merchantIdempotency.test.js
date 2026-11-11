@@ -63,6 +63,36 @@ const body = {
     amount: 1000,
     transfer_type: 'vodafone',
 };
+test('colliding agent phone and username cannot expose another wallet invoice', async () => {
+    const owner = await User.create({
+        name: 'Invoice owner', role: 'agent', phone: '0911234567', webUsername: 'invoice-owner',
+        webPassword: 'test-password', apiToken: 'audit-owner-token', integrationAccess: { apiEnabled: true }
+    });
+    await User.create({
+        name: 'Unrelated agent', role: 'agent', webUsername: '0911234567',
+        webPassword: 'test-password', apiToken: 'audit-other-token', integrationAccess: { apiEnabled: true }
+    });
+    await Transaction.create({
+        userId: owner.phone, customId: 'AUDIT-PRIVATE-INVOICE', status: 'pending', amount: 100,
+        clientActorModel: 'User', clientActorId: owner._id
+    });
+    const status = token => request(app).get('/api/v1/merchant/status/AUDIT-PRIVATE-INVOICE').set('x-api-key', token);
+    expect((await status('audit-other-token')).status).toBe(404);
+    expect((await status('audit-owner-token')).status).toBe(200);
+    await User.updateOne({ _id: owner._id }, { $set: { phone: '0919999999' } });
+    expect((await status('audit-owner-token')).status).toBe(200);
+    await User.updateOne({ _id: owner._id }, { $set: { phone: '0911234567' } });
+    await Transaction.updateOne({ customId: 'AUDIT-PRIVATE-INVOICE' }, { $unset: { clientActorId: 1, clientActorModel: 1 } });
+    await Ledger.create({
+        entityId: owner._id, entityModel: 'User', transactionId: 'AUDIT-PRIVATE-INVOICE',
+        type: 'TRANSFER', amount: -20, balanceBefore: 100, balanceAfter: 80
+    });
+    expect((await status('audit-other-token')).status).toBe(404);
+    expect((await status('audit-owner-token')).status).toBe(200);
+    await User.updateOne({ _id: owner._id }, { $set: { phone: '0919999999' } });
+    expect((await status('audit-owner-token')).status).toBe(200);
+    expect((await status('audit-other-token')).status).toBe(404);
+});
 const send = (token, key, data = body) => {
     const r = request(app)
         .post('/api/v1/merchant/transfer')
