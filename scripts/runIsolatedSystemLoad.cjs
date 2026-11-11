@@ -37,6 +37,22 @@ const worker = () => {
     }
     const connect = net.Socket.prototype.connect;
     let blockedConnections = 0;
+    let activeRequests = 0;
+    const serverPrototype = require('node:http').Server.prototype;
+    const emit = serverPrototype.emit;
+    serverPrototype.emit = function (event, ...args) {
+        if (event === 'request') {
+            const response = args[1];
+            const end = response.end;
+            let ended = false;
+            activeRequests++;
+            response.end = function (...endArgs) {
+                if (!ended) { ended = true; activeRequests--; }
+                return end.apply(this, endArgs);
+            };
+        }
+        return emit.call(this, event, ...args);
+    };
     net.Socket.prototype.connect = function (...args) {
         const first = Array.isArray(args[0]) ? args[0][0] : args[0];
         const host =
@@ -61,6 +77,7 @@ const worker = () => {
                 eventLoopP99Ms: delay.percentile(99) / 1e6,
                 cpu: process.cpuUsage(),
                 blockedConnections,
+                activeRequests,
             });
         delay.reset();
     }, 1000);
@@ -444,11 +461,14 @@ const main = async () => {
             await sleep(500);
         }
         activeStage = 'drain';
+        const drainStarted = Date.now();
         let previousCount = -1,
             stable = 0;
         for (let attempt = 0; attempt < 30 && stable < 5; attempt++) {
             const count = await Transaction.countDocuments({});
-            stable = count === previousCount ? stable + 1 : 0;
+            const sample = report.samples.at(-1);
+            const idle = sample?.activeRequests === 0 && new Date(sample.at).getTime() >= drainStarted;
+            stable = count === previousCount && idle ? stable + 1 : 0;
             previousCount = count;
             await sleep(1000);
         }
