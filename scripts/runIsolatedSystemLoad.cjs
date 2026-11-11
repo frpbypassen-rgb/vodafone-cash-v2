@@ -47,7 +47,10 @@ const worker = () => {
             let ended = false;
             activeRequests++;
             response.end = function (...endArgs) {
-                if (!ended) { ended = true; activeRequests--; }
+                if (!ended) {
+                    ended = true;
+                    activeRequests--;
+                }
                 return end.apply(this, endArgs);
             };
         }
@@ -124,7 +127,13 @@ const main = async () => {
     const stressToFailure = process.argv.includes('--stress-to-failure');
     const expectedCost = Number((amount / 5).toFixed(3));
     const steps = String(option('--steps', '1,5,10,25,50,100,200,400')).split(',').map(Number);
-    if (!(seconds >= 3 && seconds <= 120) || !Number.isFinite(amount) || amount < 100 || amount > 50000 || steps.some((n) => !Number.isInteger(n) || n < 1 || n > 1000)) {
+    if (
+        !(seconds >= 3 && seconds <= 120) ||
+        !Number.isFinite(amount) ||
+        amount < 100 ||
+        amount > 50000 ||
+        steps.some((n) => !Number.isInteger(n) || n < 1 || n > 1000)
+    ) {
         throw new Error('INVALID_LOAD_LIMITS');
     }
     fs.mkdirSync(path.dirname(output), { recursive: true });
@@ -143,8 +152,18 @@ const main = async () => {
     const report = {
         runId,
         startedAt: new Date().toISOString(),
-        sourceCommit: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8', windowsHide: true }).trim(),
-        sourceDirty: Boolean(execFileSync('git', ['status', '--porcelain'], { cwd: root, encoding: 'utf8', windowsHide: true }).trim()),
+        sourceCommit: execFileSync('git', ['rev-parse', 'HEAD'], {
+            cwd: root,
+            encoding: 'utf8',
+            windowsHide: true,
+        }).trim(),
+        sourceDirty: Boolean(
+            execFileSync('git', ['status', '--porcelain'], {
+                cwd: root,
+                encoding: 'utf8',
+                windowsHide: true,
+            }).trim()
+        ),
         method: 'Full app.js, real loopback HTTP, disposable Mongo replica set and Redis, synthetic wallets',
         host: {
             platform: process.platform,
@@ -470,7 +489,8 @@ const main = async () => {
         const drainStarted = Date.now();
         let previousCount = -1,
             stable = 0;
-        for (let attempt = 0; attempt < 30 && stable < 5; attempt++) {
+        const drainAttempts = stressToFailure ? 180 : 30;
+        for (let attempt = 0; attempt < drainAttempts && stable < 5; attempt++) {
             const count = await Transaction.countDocuments({});
             const sample = report.samples.at(-1);
             const idle = sample?.activeRequests === 0 && new Date(sample.at).getTime() >= drainStarted;
@@ -502,7 +522,9 @@ const main = async () => {
                 });
             }
         }
-        const transactions = await Transaction.find({}).select('+idempotencyKey +clientActorId +clientActorModel').lean();
+        const transactions = await Transaction.find({})
+            .select('+idempotencyKey +clientActorId +clientActorModel')
+            .lean();
         const ledgers = await Ledger.find({}).lean();
         const byReference = new Map();
         for (const ledger of ledgers) {
@@ -512,6 +534,7 @@ const main = async () => {
         }
         const committedIds = new Set(transactions.map((tx) => String(tx._id)));
         const byId = new Map(transactions.map((tx) => [String(tx._id), tx]));
+        const byKey = new Map(transactions.map((tx) => [tx.idempotencyKey, tx]));
         const references = new Set(),
             keys = new Set();
         for (const tx of transactions) {
@@ -580,8 +603,48 @@ const main = async () => {
                     status: item.status,
                     code: item.code,
                     committed: keys.has(key),
+                    transactionId: byKey.get(key)?._id.toString() || null,
                 };
             });
+        report.recoveredAcknowledgements = 0;
+        for (const item of report.uncertainRequests.filter((item) => item.committed)) {
+            const owner = owners[item.request % owners.length];
+            const response = await fetch(base + '/api/v1/merchant/transfer', {
+                method: 'POST',
+                signal: AbortSignal.timeout(10000),
+                headers: {
+                    'x-api-key': owner.token,
+                    'Content-Type': 'application/json',
+                    'Idempotency-Key': runId + '-' + item.request,
+                },
+                body: JSON.stringify({
+                    target_number: String(1000000000 + item.request).padStart(11, '0'),
+                    amount,
+                    transfer_type: 'vodafone',
+                }),
+            });
+            const payload = await response.json();
+            if (
+                response.ok &&
+                response.headers.get('Idempotency-Replayed') === 'true' &&
+                String(payload.data?.transaction_id) === item.transactionId
+            ) {
+                report.recoveredAcknowledgements++;
+            } else {
+                report.invariants.mismatches.push({
+                    request: item.request,
+                    reason: 'Committed timeout did not replay its original response',
+                });
+            }
+        }
+        if (
+            (await Transaction.countDocuments({})) !== transactions.length ||
+            (await Ledger.countDocuments({})) !== ledgers.length
+        ) {
+            report.invariants.mismatches.push({
+                reason: 'Acknowledgement recovery changed financial record counts',
+            });
+        }
         const databaseStatus = await mongoose.connection.db.admin().serverStatus();
         report.mongoTransactionMetrics = databaseStatus.transactions;
         report.invariants.successfulTransferResponses = successfulTransfers.length;

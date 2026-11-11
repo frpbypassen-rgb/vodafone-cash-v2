@@ -1,6 +1,8 @@
 'use strict';
 
-const { spawnSync } = require('child_process');
+const { execFile } = require('node:child_process');
+const { promisify } = require('node:util');
+const runFile = promisify(execFile);
 const path = require('path');
 
 const FINANCIAL_CHECK_TIMEOUT_MS = 300000;
@@ -29,16 +31,15 @@ describe('executor financial mutations on a replica set', () => {
         if (replset) await replset.stop();
     });
 
-    financialMutationTest('funding, provider execution, amount edits, and refunds preserve balances', () => {
+    financialMutationTest('funding, provider execution, amount edits, and refunds preserve balances', async () => {
         const script = path.join(__dirname, '..', 'scripts', 'checkExecutorFinancialMongo.js');
-        const result = spawnSync(process.execPath, [script], {
+        // Keep the event loop available to drain the owned MongoDB process pipes.
+        const result = await runFile(process.execPath, [script], {
             env: { ...process.env, EXECUTOR_FINANCIAL_TEST_MONGO_URI: uri },
             encoding: 'utf8',
             timeout: FINANCIAL_CHECK_TIMEOUT_MS,
             windowsHide: true
         });
-        expect(result.error).toBeUndefined();
-        expect(result.status).toBe(0);
         expect(result.stdout).toContain('"result":"PASS"');
     });
 
@@ -81,15 +82,13 @@ describe('executor financial mutations on a replica set', () => {
 
             const probeUri = new URL(uri);
             probeUri.pathname = `/${connection.name}`;
-            const result = spawnSync(process.execPath, [
+            const result = await runFile(process.execPath, [
                 path.join(__dirname, '..', 'scripts', 'checkExecutorReadiness.js'),
                 path.join(__dirname, '..', 'test-artifacts', 'readiness-no-env')
             ], {
                 env: { ...process.env, MONGO_URI: probeUri.toString() },
                 encoding: 'utf8', timeout: 30000, windowsHide: true
             });
-            expect(result.error).toBeUndefined();
-            expect(result.status).toBe(0);
             expect(JSON.parse(result.stdout).ready).toBe(true);
             expect(await devices.indexes()).toEqual(validIndexes);
             expect(await transactions.findOne({})).toEqual(financialBefore);

@@ -43,7 +43,7 @@ const withOptionalMongoTransaction = async (work) => {
 const queryWithSession = (query, session) => (session ? query.session(session) : query);
 
 const loadAdminVisibleTransaction = async (transactionId, session) => {
-    const transaction = await queryWithSession(Transaction.findById(transactionId), session);
+    const transaction = await queryWithSession(Transaction.findById(transactionId).select('+clientActorId +clientActorModel'), session);
     if (!transaction || isAgencyClientScopedTx(transaction)) {
         throw new Error('TRANSACTION_NOT_FOUND');
     }
@@ -56,6 +56,19 @@ const incrementBalance = async ({ Model, filter, amount, session, modelName }) =
     const record = await Model.findOneAndUpdate(filter, { $inc: { balance: amount } }, options);
     if (!record) throw new Error('FINANCIAL_OWNER_NOT_FOUND');
     return { model: modelName, id: record._id };
+};
+
+const userBalanceFilter = (transaction) => {
+    if (transaction.balanceAdjustment?.entityModel === 'User' && transaction.balanceAdjustment.entityId) {
+        return { _id: transaction.balanceAdjustment.entityId };
+    }
+    if (transaction.depositRequest?.submittedByRole === 'client' && transaction.depositRequest.submittedById) {
+        return { _id: transaction.depositRequest.submittedById };
+    }
+    if (transaction.clientActorModel === 'User' && transaction.clientActorId) {
+        return { _id: transaction.clientActorId };
+    }
+    return { phone: transaction.userId };
 };
 
 const adjustOwnerBalance = async ({ transaction, deltaLYD, session }) => {
@@ -74,7 +87,7 @@ const adjustOwnerBalance = async ({ transaction, deltaLYD, session }) => {
     if (transaction.userId) {
         return incrementBalance({
             Model: User,
-            filter: { phone: transaction.userId },
+            filter: userBalanceFilter(transaction),
             amount: -deltaLYD,
             session,
             modelName: 'User'
@@ -184,7 +197,7 @@ const editTransactionAmount = async ({
         } else if (transaction.userId) {
             owner = await incrementBalance({
                 Model: User,
-                filter: { phone: transaction.userId },
+                filter: userBalanceFilter(transaction),
                 amount: balanceDifference,
                 session,
                 modelName: 'User'

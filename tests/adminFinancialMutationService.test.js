@@ -58,7 +58,7 @@ describe('adminFinancialMutationService', () => {
             adminNotes: '',
             createdAt: new Date('2026-01-01T00:00:00.000Z')
         };
-        const query = { session: jest.fn().mockResolvedValue(transaction) };
+        const query = { select: jest.fn().mockReturnThis(), session: jest.fn().mockResolvedValue(transaction) };
         Transaction.findById.mockReturnValue(query);
         ClientCompany.findOneAndUpdate.mockResolvedValue({ _id: 'company-1' });
         ExecutorGroup.findOneAndUpdate.mockResolvedValue({ _id: 'group' });
@@ -100,7 +100,7 @@ describe('adminFinancialMutationService', () => {
             companyId: 'company-2',
             adminNotes: ''
         };
-        Transaction.findById.mockReturnValue({ session: jest.fn().mockResolvedValue(transaction) });
+        Transaction.findById.mockReturnValue({ select: jest.fn().mockReturnThis(), session: jest.fn().mockResolvedValue(transaction) });
         ClientCompany.findOneAndUpdate.mockResolvedValue({ _id: 'company-2' });
         Transaction.findOneAndUpdate.mockResolvedValue({ ...transaction, amount: 125 });
 
@@ -132,7 +132,7 @@ describe('adminFinancialMutationService', () => {
             serviceKey: 'vodafone',
             parentGroupId: 'new-manager'
         };
-        Transaction.findById.mockReturnValue({ session: jest.fn().mockResolvedValue(transaction) });
+        Transaction.findById.mockReturnValue({ select: jest.fn().mockReturnThis(), session: jest.fn().mockResolvedValue(transaction) });
         ExecutorGroup.findById.mockReturnValue({ session: jest.fn().mockResolvedValue(newExecutor) });
         ExecutorGroup.findOneAndUpdate.mockResolvedValue({ _id: 'group' });
         Transaction.findOneAndUpdate.mockResolvedValue({ ...transaction, executorGroupId: 'new-executor', executorName: 'New executor' });
