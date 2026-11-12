@@ -114,7 +114,7 @@
     "mongodb-memory-server": "10.2.3",
     "prettier": "3.9.9",
     "supertest": "^7.2.2",
-    "ts-jest": "^29.4.12",
+    "ts-jest": "^29.4.15",
     "typescript-eslint": "^8.67.0"
   }
 }
