@@ -124,9 +124,9 @@ const checkPendingOperation = async (candidate, now = new Date()) => {
         };
         if (result) {
             metadata.providerLastCheckedAt = checkedAt;
-            metadata.providerStatusCheckSucceeded = Boolean(result.success);
-            // Keep the last successful receipt when the network fails.
-            if (result.success) Object.assign(metadata, {
+            metadata.providerStatusCheckSucceeded = Boolean(result.success && state !== 'mismatch');
+            // Keep verified evidence when a read fails or returns a different operation.
+            if (result.success && state !== 'mismatch') Object.assign(metadata, {
                 providerReportedStatus: result.providerStatus || '', providerReportedReference: result.referenceNumber || '',
                 providerReportedPhone: result.phone || '', providerReportedAmount: result.amount,
                 ...(result.isReturned ? { providerReturnDetectedAt: checkedAt } : {})

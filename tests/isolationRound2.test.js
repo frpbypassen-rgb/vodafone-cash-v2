@@ -627,9 +627,8 @@ describe('completion transaction boundary and immediate provider path', () => {
     });
 
     test('a hard crash after the provider accepts and before the immediate save is not re-sent', async () => {
-        // Combined #80+#83 tree. The immediate debit still commits before tx.save,
-        // but the dispatch claim is already stored. The save throw is caught and
-        // the row is held unresolved, so the next pass must not call Payment again.
+        // A failed completion save rolls the debit and ledger back together.
+        // The durable dispatch claim still blocks a second provider Payment.
         const customId = 'ATT-IMM-CRASH';
         const customerId = await insertCustomer(customId);
         const group = await ExecutorGroup.create({
@@ -666,7 +665,7 @@ describe('completion transaction boundary and immediate provider path', () => {
             transactionId: customId,
             entityModel: 'ExecutorGroup',
             type: 'TRANSFER'
-        })).toBe(1);
+        })).toBe(0);
         expect(paymentPosts()).toBe(1);
         const listed = await listProviderPaidAwaitingCompletion(Transaction);
         expect(listed.some((row) => row.customId === customId)).toBe(false);
@@ -689,14 +688,13 @@ describe('completion transaction boundary and immediate provider path', () => {
             entityModel: 'ExecutorGroup',
             type: 'TRANSFER'
         }).lean();
-        expect(debits).toHaveLength(1);
-        expect(debits[0].amount).toBe(-1600);
+        expect(debits).toHaveLength(0);
         const held = await Transaction.findById(tx._id).lean();
         expect(held.status).toBe('processing');
         expect(String(held.executorGroupId)).toBe(String(group._id));
         expect(held.apiResultData.providerResultUnresolved).toBe(true);
         expect(held.apiResultData.providerDispatchAttemptId).toBeTruthy();
-        expect((await ExecutorGroup.findById(group._id).lean()).balance).toBe(3400);
+        expect((await ExecutorGroup.findById(group._id).lean()).balance).toBe(5000);
         await expectNoCustomerMovement(customId, customerId);
         expect(originalSave).toBe(Transaction.prototype.save);
     });

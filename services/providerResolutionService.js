@@ -4,6 +4,7 @@ const Transaction = require('../models/Transaction');
 const ExecutorGroup = require('../models/ExecutorGroup');
 const Ledger = require('../models/Ledger');
 const { logAction } = require('./auditService');
+const { logExecutorFailure } = require('./executorTransactionError');
 const eventBus = require('./eventBus');
 const queueService = require('./queueService');
 const { completeApiTransactionWithReference } = require('./apiExecutionLifecycleService');
@@ -351,10 +352,11 @@ const resolveProviderResult = async (input = {}) => {
         };
         if (typeof current.markModified === 'function') current.markModified('apiResultData');
         await current.save();
-        eventBus.publish('transfer:completed', {
-            tx: current,
-            emp: { name: executorGroup.name || 'تنفيذ آلي (API)' }
-        });
+        try {
+            await eventBus.publish('transfer:completed', {
+                tx: current, emp: { name: executorGroup.name || 'تنفيذ آلي (API)' }
+            });
+        } catch (error) { logExecutorFailure('provider-resolution-notification', error); }
         statusAfter = current.status;
     } else {
         current.apiResultData = {

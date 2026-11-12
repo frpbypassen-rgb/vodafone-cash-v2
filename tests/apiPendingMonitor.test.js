@@ -198,3 +198,15 @@ test('limits a cycle to ten receipts and excludes fresh or completed operations'
     expect(await monitor.runPendingMonitorCycle()).toEqual({ checked: 10 });
     expect(getApiProviderTransaction).toHaveBeenCalledTimes(10);
 });
+
+test('a mismatched returned receipt cannot overwrite previously verified provider evidence', async () => {
+    const { tx } = await createPending({ providerReportedReference: 'previous-reference', providerReportedStatus: 'previous-status' });
+    getApiProviderTransaction.mockResolvedValue({ ...receipt(), phone: '01000000000', isReturned: true, providerStatus: 'Refunded' });
+    await monitor.runPendingMonitorCycle();
+    const stored = await Transaction.findById(tx._id);
+    expect(stored.apiResultData.providerMonitorState).toBe('mismatch');
+    expect(stored.apiResultData.providerStatusCheckSucceeded).toBe(false);
+    expect(stored.apiResultData.providerReportedReference).toBe('previous-reference');
+    expect(stored.apiResultData.providerReportedStatus).toBe('previous-status');
+    expect(stored.apiResultData.providerReturnDetectedAt).toBeUndefined();
+});

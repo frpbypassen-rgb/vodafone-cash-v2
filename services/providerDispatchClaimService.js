@@ -84,7 +84,8 @@ const providerMoneyHold = (tx) => {
         && /[*＊×•·]/u.test(String(data.referenceNumber || data.providerReportedReference || tx.executorSenderPhone || ''))
         && data.providerResolutionOutcome !== 'provider_not_paid';
     if (completedMaskedProviderSuccess) return false;
-    if (outcome === 'provider_not_paid' && tx.status === 'pending' && !isProviderResultUnresolved(tx)) return false;
+    if (outcome === 'provider_not_paid' && !isProviderResultUnresolved(tx) && !hasDispatchMarker(tx)
+        && data.providerDispatchResult === 'rejected') return false;
     if (outcome === 'provider_paid' && tx.status === 'completed') return false;
     if (isProviderResultUnresolved(tx) || needsUnresolvedHold(tx)) return true;
     if (String(dataOf(tx).providerDispatchResult || '') === 'pending_reference') return true;
@@ -97,7 +98,6 @@ const providerMoneyHold = (tx) => {
 const automaticPaymentBlocked = (tx) => {
     if (!tx) return false;
     if (providerMoneyHold(tx)) return true;
-    if (!hasDispatchMarker(tx)) return false;
     const result = String(dataOf(tx).providerDispatchResult || '');
     return result === 'accepted' || result === 'pending_reference';
 };
@@ -146,20 +146,28 @@ const clearClaimOnDoc = (tx) => {
     if (typeof tx.markModified === 'function') tx.markModified('apiResultData');
 };
 
-const claimProviderDispatch = async (tx) => {
-    if (!tx || !tx._id || !tx.executorGroupId) {
+const claimProviderDispatch = async (tx, { expectedStatus = 'processing' } = {}) => {
+    if (!tx || !tx._id || !tx.executorGroupId || (expectedStatus === 'accepted' && !tx.operatorId)) {
         return { claimed: false, reason: 'missing_transaction' };
     }
+    const priorResolution = Object.fromEntries(Object.entries(dataOf(tx)).filter(([key]) =>
+        key.startsWith('providerResolution') && key !== 'providerResolutionHistory' || key === 'providerResolvedAt'));
+    const resolutionUnset = Object.fromEntries(Object.keys(priorResolution).map(key => [`apiResultData.${key}`, '']));
     const attemptId = crypto.randomUUID();
     const claimedAt = new Date();
     try {
         const result = await Transaction.collection.findOneAndUpdate(
             {
                 _id: asObjectId(tx._id),
-                status: 'processing',
+                status: expectedStatus,
+                ...(expectedStatus === 'accepted' ? { operatorId: String(tx.operatorId) } : {}),
                 executorGroupId: asObjectId(tx.executorGroupId),
                 'apiResultData.providerResultUnresolved': { $ne: true },
+                'apiResultData.providerDispatchResult': { $nin: ['accepted', 'pending_reference'] },
+                'apiResultData.providerResolutionOutcome': { $ne: 'provider_paid' },
                 $and: [
+                    { 'apiResultData.providerResolutionOutcome': dataOf(tx).providerResolutionOutcome || { $in: [null, ''] } },
+                    ...Object.entries(priorResolution).map(([key, value]) => ({ [`apiResultData.${key}`]: value })),
                     {
                         $or: [
                             { 'apiResultData.providerDispatchStartedAt': { $exists: false } },
@@ -176,7 +184,12 @@ const claimProviderDispatch = async (tx) => {
                 ]
             },
             {
+                ...(Object.keys(priorResolution).length ? {
+                    $push: { 'apiResultData.providerResolutionHistory': priorResolution },
+                } : {}),
+                $unset: { ...resolutionUnset, 'apiResultData.providerDispatchResult': '' },
                 $set: {
+                    ...(expectedStatus === 'accepted' ? { status: 'processing' } : {}),
                     'apiResultData.providerDispatchStartedAt': claimedAt,
                     'apiResultData.providerDispatchAttemptId': attemptId,
                     'apiResultData.providerDispatchExecutorGroupId': asObjectId(tx.executorGroupId),
@@ -187,6 +200,12 @@ const claimProviderDispatch = async (tx) => {
         );
         const claimed = updatedDocument(result);
         if (!claimed) return { claimed: false, reason: 'claim_lost', attemptId };
+        if (expectedStatus === 'accepted') tx.status = 'processing';
+        if (Object.keys(priorResolution).length) {
+            tx.apiResultData = { ...dataOf(tx), providerResolutionHistory: [...(dataOf(tx).providerResolutionHistory || []), priorResolution] };
+            for (const key of Object.keys(priorResolution)) delete tx.apiResultData[key];
+        }
+        if (tx.apiResultData) delete tx.apiResultData.providerDispatchResult;
         applyClaimToDoc(tx, { attemptId, claimedAt });
         return { claimed: true, attemptId, claimedAt };
     } catch (error) {
@@ -199,9 +218,8 @@ const claimProviderDispatch = async (tx) => {
 };
 
 const releaseProviderDispatchClaim = async (tx, attemptId) => {
-    clearClaimOnDoc(tx);
     if (!tx || !tx._id || !attemptId || !Transaction.collection) return { released: false };
-    await Transaction.collection.updateOne(
+    const result = await Transaction.collection.updateOne(
         {
             _id: asObjectId(tx._id),
             status: 'processing',
@@ -217,6 +235,8 @@ const releaseProviderDispatchClaim = async (tx, attemptId) => {
             $set: { updatedAt: new Date() }
         }
     );
+    if (result.modifiedCount !== 1) throw new Error('PROVIDER_DISPATCH_RELEASE_CONFLICT');
+    clearClaimOnDoc(tx);
     return { released: true };
 };
 

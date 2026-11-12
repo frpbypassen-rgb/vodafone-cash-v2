@@ -3,12 +3,19 @@
 jest.mock('../models/Employee');
 jest.mock('../models/Transaction');
 jest.mock('../utils/logger', () => ({ error: jest.fn(), warn: jest.fn(), info: jest.fn() }));
-jest.mock('../models/ExecutorGroup', () => ({ findByIdAndUpdate: jest.fn() }));
+jest.mock('../models/ExecutorGroup', () => ({ findByIdAndUpdate: jest.fn(), findById: jest.fn(() => ({ then: resolve => resolve({ balance: 100000 }), session: async () => ({ balance: 100000 }) })) }));
 jest.mock('../services/adminFinancialMutationService', () => ({
     withOptionalMongoTransaction: jest.fn((work) => work(null))
 }));
 jest.mock('../services/zaynpayApi', () => ({ inquiry: jest.fn(), pay: jest.fn() }));
 jest.mock('../services/providerDispatchClaimService', () => ({
+    claimProviderDispatch: jest.fn(async (tx) => {
+        const row = await require('../models/Transaction').findOneAndUpdate({ _id: tx._id, status: 'accepted' }, {}, {});
+        if (!row) return { claimed: false };
+        tx.status = 'processing';
+        tx.apiResultData = { ...tx.apiResultData, providerDispatchAttemptId: 'test-attempt' };
+        return { claimed: true, attemptId: 'test-attempt' };
+    }),
     refundBlockedByUnresolvedProvider: jest.fn(() => null),
     markProviderResultUnresolved: jest.fn().mockResolvedValue({ marked: true })
 }));
@@ -631,7 +638,7 @@ describe('Executor web transaction completion', () => {
     test('does not call ZaynPay when another request wins the dispatch claim', async () => {
         Employee.findById.mockReturnValue({ populate: jest.fn().mockResolvedValue({
             _id: 'employee-1', webUsername: 'zaynapi@ahram.com',
-            groupId: { _id: 'group-1' }
+            groupId: { balance: 100000, _id: 'group-1' }
         }) });
         Transaction.findById.mockResolvedValue({ ...tx, operatorId: 'employee-1', executorGroupId: 'group-1' });
         zaynpay.inquiry.mockResolvedValue({ billId: 'bill-1' });
@@ -646,7 +653,7 @@ describe('Executor web transaction completion', () => {
     test('holds an uncertain ZaynPay result for manual review after claiming', async () => {
         Employee.findById.mockReturnValue({ populate: jest.fn().mockResolvedValue({
             _id: 'employee-1', webUsername: 'zaynapi@ahram.com',
-            groupId: { _id: 'group-1' }
+            groupId: { balance: 100000, _id: 'group-1' }
         }) });
         Transaction.findById.mockResolvedValue({ ...tx, operatorId: 'employee-1', executorGroupId: 'group-1' });
         zaynpay.inquiry.mockResolvedValue({ billId: 'bill-1' });
@@ -663,7 +670,7 @@ describe('Executor web transaction completion', () => {
 
     test('conceals provider inquiry details and never claims or pays on inquiry failure', async () => {
         Employee.findById.mockReturnValue({ populate: jest.fn().mockResolvedValue({
-            _id: 'employee-1', webUsername: 'zaynapi@ahram.com', groupId: { _id: 'group-1' }
+            _id: 'employee-1', webUsername: 'zaynapi@ahram.com', groupId: { balance: 100000, _id: 'group-1' }
         }) });
         Transaction.findById.mockResolvedValue({ ...tx, operatorId: 'employee-1', executorGroupId: 'group-1' });
         zaynpay.inquiry.mockRejectedValueOnce(new Error('https://provider/pay?apiKey=secret'));
@@ -678,7 +685,7 @@ describe('Executor web transaction completion', () => {
 
     test('holds a paid task when its receipt is invalid instead of applying a local settlement', async () => {
         Employee.findById.mockReturnValue({ populate: jest.fn().mockResolvedValue({
-            _id: 'employee-1', webUsername: 'zaynapi@ahram.com', groupId: { _id: 'group-1' }
+            _id: 'employee-1', webUsername: 'zaynapi@ahram.com', groupId: { balance: 100000, _id: 'group-1' }
         }) });
         Transaction.findById.mockResolvedValue({ ...tx, operatorId: 'employee-1', executorGroupId: 'group-1' });
         zaynpay.inquiry.mockResolvedValue({ billId: 'bill-1' });
@@ -698,7 +705,7 @@ describe('Executor web transaction completion', () => {
 
     test('does not expose or persist a provider secret even if marking the hold also fails', async () => {
         Employee.findById.mockReturnValue({ populate: jest.fn().mockResolvedValue({
-            _id: 'employee-1', webUsername: 'zaynapi@ahram.com', groupId: { _id: 'group-1' }
+            _id: 'employee-1', webUsername: 'zaynapi@ahram.com', groupId: { balance: 100000, _id: 'group-1' }
         }) });
         Transaction.findById.mockResolvedValue({ ...tx, operatorId: 'employee-1', executorGroupId: 'group-1' });
         zaynpay.inquiry.mockResolvedValue({ billId: 'bill-1' });
@@ -719,7 +726,7 @@ describe('Executor web transaction completion', () => {
     test('settles a successful ZaynPay payment once and blocks a repeat', async () => {
         Employee.findById.mockReturnValue({ populate: jest.fn().mockResolvedValue({
             _id: 'employee-1', webUsername: 'zaynapi@ahram.com',
-            groupId: { _id: 'group-1', parentGroupId: 'parent-1', token: 'bot-token' }
+            groupId: { balance: 100000, _id: 'group-1', parentGroupId: 'parent-1', token: 'bot-token' }
         }) });
         Transaction.findById.mockResolvedValue({ ...tx, operatorId: 'employee-1', executorGroupId: 'group-1' });
         zaynpay.inquiry.mockResolvedValue({ billId: 'bill-1' });

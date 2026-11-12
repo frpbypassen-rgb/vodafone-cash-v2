@@ -946,6 +946,8 @@ async function returnTask({ executorId, taskId, reason }) {
  * 👨‍💻 Executor ZaynPay Execute (With Idempotency)
  */
 async function executeZaynPayIdempotent({ executorId, taskId, req }) {
+    const { claimProviderDispatch, markProviderResultUnresolved, refundBlockedByUnresolvedProvider } = require('./providerDispatchClaimService');
+    const { logExecutorFailure } = require('./executorTransactionError');
     const idempotencyKey = req.headers['idempotency-key'];
     const fingerprint = buildIdempotencyFingerprint(req);
 
@@ -965,6 +967,7 @@ async function executeZaynPayIdempotent({ executorId, taskId, req }) {
         throw error;
     }
 
+    let dispatchedTx = null;
     const lockKey = `idemp:${idempotencyKey}`;
     let lock;
     try {
@@ -1000,6 +1003,7 @@ async function executeZaynPayIdempotent({ executorId, taskId, req }) {
         const tx = await Transaction.findById(taskId);
         if (!tx) throw new Error('TASK_NOT_FOUND');
         assertGroupOwnsTask(tx, emp.groupId._id);
+        if (refundBlockedByUnresolvedProvider(tx)) throw Object.assign(new Error('PROVIDER_RESULT_UNRESOLVED'), { code: 'PROVIDER_RESULT_UNRESOLVED' });
         if (tx.status !== 'accepted' || tx.operatorId !== emp._id.toString()) {
             throw new Error('INVALID_STATE');
         }
@@ -1026,10 +1030,14 @@ async function executeZaynPayIdempotent({ executorId, taskId, req }) {
         // 1. Inquiry
         const paymentBillInfo = await zaynpay.inquiry(walletNumber, tx.amount);
 
+        const claim = await claimProviderDispatch(tx, { expectedStatus: 'accepted' });
+        if (!claim.claimed) throw Object.assign(new Error('PROVIDER_RESULT_UNRESOLVED'), { code: 'PROVIDER_RESULT_UNRESOLVED' });
+        dispatchedTx = tx;
+
         // 2. Pay
         const paymentRes = await zaynpay.pay(paymentBillInfo, walletNumber, tx.amount);
-        if (!paymentRes.success) {
-            throw new Error(paymentRes.error || 'ZaynPay payment failed');
+        if (!paymentRes?.success || !(paymentRes.refNumber || paymentRes.transactionNumber)) {
+            throw new Error(paymentRes?.error || 'ZaynPay payment failed');
         }
 
         // Generate the standard Power Pay receipt for API executions as well.
@@ -1081,6 +1089,7 @@ async function executeZaynPayIdempotent({ executorId, taskId, req }) {
             if (!groupUpdated) throw new Error('INSUFFICIENT_EXECUTOR_BALANCE');
 
             tx.status = 'completed';
+            tx.apiResultData = { ...tx.apiResultData, providerDispatchResult: 'accepted', providerResultUnresolved: false, referenceNumber: apiReference };
             tx.proofImage = fileName;
             tx.proofImages = [fileName];
             appendCustomerReference(tx, 'الرقم المرجعي', paymentRes.refNumber);
@@ -1103,9 +1112,18 @@ async function executeZaynPayIdempotent({ executorId, taskId, req }) {
 
         // ZaynPay completes from the mobile executor flow, so publish the same event used
         // by web and API executors to send a single WhatsApp receipt.
-        eventBus.publish('transfer:completed', { tx, emp });
+        dispatchedTx = null;
+        try { await eventBus.publish('transfer:completed', { tx, emp }); }
+        catch (error) { logExecutorFailure('provider-completion-notification', error); }
 
         return { replayed: false, response: successResponse };
+    } catch (error) {
+        if (!dispatchedTx) throw error;
+        logExecutorFailure('mobile-provider-payment', error);
+        await markProviderResultUnresolved({ txId: dispatchedTx._id,
+            reason: 'تعذر تأكيد نتيجة الدفع أو حفظ التسوية محلياً.', source: 'mobile-zaynpay' })
+            .catch(holdError => logExecutorFailure('mobile-provider-hold', holdError));
+        throw Object.assign(new Error('PROVIDER_RESULT_UNRESOLVED'), { code: 'PROVIDER_RESULT_UNRESOLVED', statusCode: 409 });
     } finally {
         await releaseLock(lock);
     }

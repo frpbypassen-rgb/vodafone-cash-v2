@@ -1,7 +1,9 @@
 'use strict';
 
 jest.mock('../models/Transaction', () => ({
-    findById: jest.fn()
+    findById: jest.fn(),
+    findOneAndUpdate: jest.fn(),
+    updateOne: jest.fn().mockResolvedValue({ modifiedCount: 1 })
 }));
 
 jest.mock('../models/ExecutorGroup', () => ({
@@ -9,7 +11,7 @@ jest.mock('../models/ExecutorGroup', () => ({
 }));
 
 jest.mock('../models/Ledger', () => ({
-    findOne: jest.fn().mockReturnValue({ lean: () => Promise.resolve(null) })
+    findOne: jest.fn().mockReturnValue({ lean: () => Promise.resolve(null), session: () => ({ lean: async () => null }) })
 }));
 
 jest.mock('../services/externalApiService', () => ({
@@ -46,6 +48,7 @@ jest.mock('../utils/logger', () => ({
     error: jest.fn()
 }));
 
+const mongoose = require('mongoose');
 const Transaction = require('../models/Transaction');
 const ExecutorGroup = require('../models/ExecutorGroup');
 const { executeTransferViaApi, saveApiReceiptProof } = require('../services/externalApiService');
@@ -59,9 +62,15 @@ const eventBus = require('../services/eventBus');
 const queueService = require('../services/queueService');
 
 describe('queueService API execution', () => {
+    afterEach(() => jest.restoreAllMocks());
     beforeEach(() => {
         jest.useRealTimers();
         jest.clearAllMocks();
+        jest.spyOn(mongoose, 'startSession').mockResolvedValue({ withTransaction: async fn => fn(), endSession: async () => {} });
+        Transaction.findOneAndUpdate.mockImplementation(async () => {
+            const calls = Transaction.findById.mock.results;
+            return calls.length ? calls[calls.length - 1].value : null;
+        });
         startApiBalanceAudit.mockResolvedValue({
             _id: 'audit-1',
             beforeCheck: { availableBalance: 1000 },
@@ -141,7 +150,8 @@ describe('queueService API execution', () => {
             -100,
             'TRANSFER',
             'ATT-2608-0001',
-            'تنفيذ API آلي'
+            'تنفيذ API آلي',
+            expect.objectContaining({ session: expect.any(Object) })
         );
         expect(tx.save).toHaveBeenCalled();
         expect(eventBus.publish).toHaveBeenCalledWith('transfer:completed', {
@@ -251,5 +261,17 @@ describe('queueService API execution', () => {
                 status: 'processing'
             })
         );
+    });
+
+    test('notification failure after settlement cannot reopen a completed payment', async () => {
+        const tx = { _id: 'tx-event', customId: 'AUDIT-EVENT', status: 'processing', executorGroupId: 'group-api', amount: 100, save: jest.fn(), set: jest.fn() };
+        Transaction.findById.mockResolvedValue(tx);
+        ExecutorGroup.findById.mockResolvedValue({ _id: 'group-api' });
+        executeTransferViaApi.mockResolvedValue({ success: true, reference_number: '010****123' });
+        eventBus.publish.mockImplementationOnce(() => { throw new Error('notification unavailable'); });
+        await queueService.processSingleJob(tx._id, 'group-api');
+        expect(tx.status).toBe('completed');
+        expect(tx.executorGroupId).toBe('group-api');
+        expect(updateBalanceWithLedger).toHaveBeenCalledTimes(1);
     });
 });

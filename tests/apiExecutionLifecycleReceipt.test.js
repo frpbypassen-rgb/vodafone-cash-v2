@@ -6,6 +6,7 @@ jest.mock('../models/Transaction', () => ({
     findOneAndUpdate: jest.fn(),
     updateOne: jest.fn()
 }));
+jest.mock('../models/Ledger', () => ({ findOne: jest.fn(() => ({ session: () => ({ lean: async () => null }) })) }));
 jest.mock('axios', () => ({ post: jest.fn(), get: jest.fn() }));
 jest.mock('../models/ExecutorGroup', () => ({ findById: jest.fn() }));
 jest.mock('../services/walletService', () => ({ updateBalanceWithLedger: jest.fn() }));
@@ -34,6 +35,7 @@ const {
 
 const createTransaction = (overrides = {}) => ({
     _id: 'tx-1',
+    executorGroupId: 'group-1',
     customId: 'ATT-2608-0142',
     status: 'processing',
     amount: 1600,
@@ -60,10 +62,11 @@ describe('API executor receipt lifecycle', () => {
             withTransaction: async (work) => work(),
             endSession: jest.fn()
         });
-        Transaction.findOneAndUpdate.mockImplementation(async () => {
+        Transaction.findOneAndUpdate.mockImplementation(async (filter) => {
             const results = Transaction.findById.mock.results;
             if (!results.length) return null;
             const tx = await results[results.length - 1].value;
+            if (filter.status?.$in) return tx;
             if (!tx || tx.status !== 'processing' || tx.apiResultData?.waitingApiAutoCompletion !== true) {
                 return null;
             }
@@ -78,6 +81,8 @@ describe('API executor receipt lifecycle', () => {
 
     test('stores the system receipt first and preserves the provider receipt', async () => {
         const tx = createTransaction();
+        Transaction.findById.mockResolvedValue(tx);
+        Transaction.findOneAndUpdate.mockResolvedValueOnce(tx);
         await completeApiTransactionWithReference({
             tx,
             executorGroup,
@@ -187,6 +192,7 @@ describe('API executor receipt lifecycle', () => {
 
     test('uses the Sefa service and currency labels for an API Sefa receipt', async () => {
         const tx = createTransaction({ transferType: 'sefa_niger', amount: 5 });
+        Transaction.findOneAndUpdate.mockResolvedValueOnce(tx);
 
         await completeApiTransactionWithReference({
             tx,

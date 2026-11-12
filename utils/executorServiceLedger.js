@@ -60,7 +60,12 @@ const serviceLedgerInc = (group, serviceKey, delta) => {
     const primary = getExecutorPrimaryServiceKey(group);
     const key = normalizeExecutorServiceKey(serviceKey, primary);
     const update = {};
-    if (key) update[`serviceBalances.${key}`] = amount;
+    // Legacy groups store the primary balance only in balance. Creating a new
+    // service entry with $inc would start it at zero and hide the real balance.
+    const balances = readServiceBalanceMap(group);
+    if (key && (key !== primary || Object.prototype.hasOwnProperty.call(balances, key))) {
+        update[`serviceBalances.${key}`] = amount;
+    }
     if (!key || key === primary) update.balance = amount;
     return update;
 };

@@ -10,6 +10,7 @@ const {
     isProviderResultUnresolved,
     needsUnresolvedHold
 } = require('./providerDispatchClaimService');
+const { providerOperationMatches } = require('../utils/providerPendingOperation');
 const logger = require('../utils/logger');
 const { isFinancialSchedulersEnabled } = require('../utils/runtimeControls');
 
@@ -310,6 +311,7 @@ const syncProviderReturnedOperations = async (executorGroup, options = {}) => {
 
     const providerResult = await getApiProviderTransactions(executorGroup, providerIds);
     let checkedCount = 0;
+    let mismatchCount = 0;
     let returnedCount = 0;
     let newAlerts = 0;
     const now = new Date();
@@ -321,6 +323,14 @@ const syncProviderReturnedOperations = async (executorGroup, options = {}) => {
         if (!tx) continue;
 
         checkedCount += 1;
+        if (operation.success && !providerOperationMatches(tx, operation)) {
+            mismatchCount += 1;
+            await Transaction.updateOne({ _id: tx._id }, { $set: {
+                'apiResultData.providerLastCheckedAt': now,
+                'apiResultData.providerStatusCheckSucceeded': false
+            } });
+            continue;
+        }
         await Transaction.updateOne({ _id: tx._id }, {
             $set: {
                 'apiResultData.providerLastCheckedAt': now,
@@ -397,7 +407,7 @@ const syncProviderReturnedOperations = async (executorGroup, options = {}) => {
         }
     }
 
-    const syncSucceeded = Boolean(providerResult.success);
+    const syncSucceeded = Boolean(providerResult.success) && mismatchCount === 0;
     await ExecutorGroup.updateOne({ _id: executorGroup._id }, {
         $set: {
             lastApiReturnSyncAt: now,
@@ -413,7 +423,7 @@ const syncProviderReturnedOperations = async (executorGroup, options = {}) => {
         checkedCount,
         returnedCount,
         newAlerts,
-        failedCount: providerResult.failedCount || 0,
+        failedCount: (providerResult.failedCount || 0) + mismatchCount,
         message: providerResult.message || ''
     };
 };

@@ -120,12 +120,31 @@ describe('apiProviderReconciliationService', () => {
         });
     });
 
+    test.each([
+        { providerTransactionId: 'wrong', phone: '01000000001', amount: 150 },
+        { providerTransactionId: '9001', phone: '01000000002', amount: 150 },
+        { providerTransactionId: '9001', phone: '01000000001', amount: 151 }
+    ])('rejects a mismatched return receipt: %j', async operation => {
+        Transaction.find.mockReturnValue(queryResult([{
+            _id: 'tx-mismatch', customId: 'AUDIT-MISMATCH', status: 'completed', amount: 150,
+            vodafoneNumber: '01000000001', apiResultData: { providerTransactionId: '9001' }
+        }]));
+        getApiProviderTransactions.mockResolvedValue({ success: true, operations: [{
+            ...operation, requestedTransactionId: '9001', success: true, isReturned: true, providerStatus: 'Refunded'
+        }] });
+        const result = await syncProviderReturnedOperations({ _id: 'group-1' }, { force: true });
+        expect(result).toMatchObject({ success: false, returnedCount: 0, failedCount: 1 });
+        expect(ApiProviderReturn.updateOne).not.toHaveBeenCalled();
+        expect(Notification.create).not.toHaveBeenCalled();
+    });
+
     test('stores a returned provider operation and creates one actionable alert', async () => {
         const executorGroup = { _id: 'group-1', name: 'Zayn API' };
         const transaction = {
             _id: 'tx-2',
             customId: 'ATT-2608-0200',
             status: 'completed',
+            amount: 150,
             apiResultData: { providerTransactionId: '9001' },
             vodafoneNumber: '01000000001',
             createdAt: new Date()
@@ -178,6 +197,7 @@ describe('apiProviderReconciliationService', () => {
         Transaction.find.mockReturnValue(queryResult([{
             _id: 'tx-3',
             customId: 'ATT-2608-0300',
+            amount: 150, vodafoneNumber: '01000000001',
             apiResultData: { externalTransactionId: '9002' },
             createdAt: new Date()
         }]));
@@ -185,7 +205,7 @@ describe('apiProviderReconciliationService', () => {
             success: true,
             operations: [{
                 success: true,
-                requestedTransactionId: '9002',
+                requestedTransactionId: '9002', providerTransactionId: '9002', amount: 150, phone: '01000000001',
                 providerStatus: 'Refunded',
                 isReturned: true,
                 rawData: {}
@@ -209,6 +229,7 @@ describe('apiProviderReconciliationService', () => {
             cancellationNumber: 'CAN-2608-00001',
             cancelledBy: 'Admin',
             cancelledAt: new Date('2026-08-06T12:00:00Z'),
+            amount: 150, vodafoneNumber: '01000000001',
             apiResultData: { providerTransactionId: '9004' },
             createdAt: new Date()
         }]));
@@ -216,7 +237,7 @@ describe('apiProviderReconciliationService', () => {
             success: true,
             operations: [{
                 success: true,
-                requestedTransactionId: '9004',
+                requestedTransactionId: '9004', providerTransactionId: '9004', amount: 150, phone: '01000000001',
                 providerStatus: 'عملية مسترجعة',
                 isReturned: true,
                 rawData: {}

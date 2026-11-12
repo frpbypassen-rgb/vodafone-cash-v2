@@ -235,108 +235,74 @@ const prepareApiTransactionForDelayedCompletion = ({
     return { referenceNumber, autoCompleteAt, delayMs };
 };
 
-const completeApiTransactionWithReference = async ({
-    tx,
-    executorGroup,
-    apiResult,
-    receiptProof,
-    detailedLog
-}) => {
+const completeApiTransactionWithReference = async ({ tx, executorGroup, apiResult, receiptProof, detailedLog }) => {
     const referenceNumber = resolveApiReferenceNumber(apiResult);
     if (!referenceNumber) return null;
-
-    let ledgerResult = null;
-    let ledgerError = null;
-    const debitAmount = -Number(tx.amount || 0);
-
+    let completedTx;
+    let ledgerResult;
+    let idempotent;
+    const session = await mongoose.startSession();
     try {
-        const existingDebit = await Ledger.findOne({
-            entityModel: 'ExecutorGroup',
-            entityId: executorGroup._id,
-            transactionId: tx.customId,
-            type: 'TRANSFER',
-            amount: debitAmount,
-            description: 'تنفيذ API آلي'
-        }).lean();
-        if (existingDebit) {
-            ledgerResult = { success: true, idempotent: true };
-        } else {
-            ledgerResult = await walletService.updateBalanceWithLedger(
-                'ExecutorGroup',
-                executorGroup._id,
-                debitAmount,
-                'TRANSFER',
-                tx.customId,
-                'تنفيذ API آلي'
-            );
-        }
-    } catch (error) {
-        ledgerError = error;
-        appendAdminNote(tx, `[تنبيه مالي: تم استلام الرقم المرجعي واعتماد العملية، لكن تعذر تسجيل قيد رصيد المنفذ: ${error.message}]`);
-        logger.error('Immediate API completion balance update failed', {
-            txId: tx.customId,
-            executorGroupId: String(executorGroup._id),
-            error: error.message
+        await session.withTransaction(async () => {
+            completedTx = null;
+            ledgerResult = null;
+            idempotent = false;
+            const claimed = await Transaction.findOneAndUpdate({
+                _id: tx._id,
+                status: { $in: ['pending', 'accepted', 'processing'] },
+                executorGroupId: executorGroup._id,
+                ...(tx.apiResultData?.providerDispatchAttemptId
+                    ? { 'apiResultData.providerDispatchAttemptId': tx.apiResultData.providerDispatchAttemptId } : {})
+            }, { $set: { 'apiResultData.completionClaimedAt': new Date() } }, { session, returnDocument: 'after' });
+            if (!claimed) {
+                const current = await Transaction.findById(tx._id).session(session);
+                if (current?.status !== 'completed' || !sameId(current.executorGroupId, executorGroup._id)) {
+                    throw new Error('PROVIDER_COMPLETION_CONFLICT');
+                }
+                completedTx = current;
+                idempotent = true;
+                return;
+            }
+            const amount = Number(claimed.amount);
+            if (!Number.isFinite(amount) || amount <= 0) throw new Error('INVALID_PROVIDER_COMPLETION_AMOUNT');
+            const existingDebit = await Ledger.findOne({
+                entityModel: 'ExecutorGroup', entityId: executorGroup._id, transactionId: claimed.customId,
+                type: 'TRANSFER', amount: -amount, description: 'تنفيذ API آلي'
+            }).session(session).lean();
+            ledgerResult = existingDebit ? { success: true, idempotent: true }
+                : await walletService.updateBalanceWithLedger('ExecutorGroup', executorGroup._id,
+                    -amount, 'TRANSFER', claimed.customId, 'تنفيذ API آلي',
+                    { session, tenantId: claimed.tenantId || executorGroup.tenantId });
+            const completedAt = new Date();
+            claimed.status = 'completed';
+            claimed.managerGroupId = getParentGroupId(executorGroup);
+            claimed.executorName = 'تنفيذ آلي (API)';
+            claimed.executorSenderPhone = referenceNumber;
+            claimed.completedAt = completedAt;
+            appendCustomerReference(claimed, 'الرقم المرجعي', referenceNumber);
+            if (apiResult.external_transaction_id && apiResult.external_transaction_id !== referenceNumber) {
+                appendCustomerReference(claimed, 'رقم عملية المزود', apiResult.external_transaction_id);
+            }
+            appendAdminNote(claimed, '[تنفيذ API ناجح | الرقم المرجعي: ' + referenceNumber + ']');
+            if (detailedLog) appendAdminNote(claimed, detailedLog);
+            claimed.apiResultData = {
+                ...tx.apiResultData, ...claimed.apiResultData,
+                waitingApiAutoCompletion: false, autoCompleteAt: null, referenceNumber,
+                referenceMasked: apiResult.reference_masked === true,
+                externalTransactionId: apiResult.external_transaction_id || null,
+                providerTransactionId: apiResult.provider_transaction_id || null,
+                completedAt, completionMode: 'immediate_reference', ledgerPosted: true, ledgerError: null,
+                providerDispatchResult: 'accepted', providerResultUnresolved: false,
+                apiProviderReceiptProof: receiptProof || claimed.apiResultData?.apiProviderReceiptProof || null
+            };
+            await claimed.save({ session });
+            completedTx = claimed;
         });
-    }
-
-    const completedAt = new Date();
-    tx.status = 'completed';
-    tx.executorGroupId = executorGroup._id;
-    tx.managerGroupId = getParentGroupId(executorGroup);
-    tx.executorName = 'تنفيذ آلي (API)';
-    tx.executorSenderPhone = referenceNumber;
-    tx.completedAt = completedAt;
-
-    appendCustomerReference(tx, 'الرقم المرجعي', referenceNumber);
-    if (apiResult.external_transaction_id && apiResult.external_transaction_id !== referenceNumber) {
-        appendCustomerReference(tx, 'رقم عملية المزود', apiResult.external_transaction_id);
-    }
-
-    appendAdminNote(
-        tx,
-        `[تنفيذ API ناجح | تم اعتماد العملية فور استلام الرقم المرجعي: ${referenceNumber} | رقم عملية المزود: ${apiResult.external_transaction_id || '---'}]`
-    );
-    if (detailedLog) appendAdminNote(tx, detailedLog);
-
-    let systemReceiptProof = null;
-    try {
-        systemReceiptProof = createApiExecutorReceiptProof({ tx, apiResult, completedAt });
-        attachApiReceiptProofs({ tx, systemReceiptProof, providerReceiptProof: receiptProof });
-    } catch (receiptError) {
-        appendAdminNote(tx, `[تعذر توليد الإيصال النظامي لتنفيذ API: ${receiptError.message}]`);
-        logger.error('API executor receipt generation failed', {
-            txId: tx.customId,
-            executorGroupId: String(executorGroup._id),
-            error: receiptError.message
-        });
-        if (receiptProof) attachApiReceiptProofs({ tx, providerReceiptProof: receiptProof });
-    }
-
-    tx.apiResultData = {
-        ...(tx.apiResultData || {}),
-        waitingApiAutoCompletion: false,
-        autoCompleteAt: null,
-        referenceNumber,
-        referenceMasked: apiResult.reference_masked === true,
-        externalTransactionId: apiResult.external_transaction_id || null,
-        providerTransactionId: apiResult.provider_transaction_id || null,
-        completedAt,
-        completionMode: 'immediate_reference',
-        ledgerPosted: Boolean(ledgerResult),
-        ledgerError: ledgerError ? ledgerError.message : null,
-        providerDispatchResult: 'accepted',
-        providerResultUnresolved: false,
-        executorReceiptProof: systemReceiptProof || tx.apiResultData?.executorReceiptProof || null,
-        apiProviderReceiptProof: receiptProof || tx.apiResultData?.apiProviderReceiptProof || null
-    };
-
-    return {
-        completed: true,
-        referenceNumber,
-        ledgerResult,
-        ledgerError
-    };
+    } finally { await session.endSession(); }
+    await attachCompletionReceiptAfterCommit(completedTx);
+    if (typeof tx.init === 'function') tx.init(completedTx.toObject());
+    else Object.assign(tx, completedTx);
+    return { completed: true, referenceNumber, ledgerResult, ledgerError: null, idempotent };
 };
 
 const PROVIDER_PAID_AWAITING_COMPLETION_FILTER = Object.freeze({
@@ -476,10 +442,11 @@ const completeApiTransaction = async (txId, executorGroupId) => {
 
     await attachCompletionReceiptAfterCommit(completedTx);
 
-    eventBus.publish('transfer:completed', {
-        tx: completedTx,
-        emp: { name: executorGroup.name || 'تنفيذ آلي (API)' }
-    });
+    try {
+        await eventBus.publish('transfer:completed', {
+            tx: completedTx, emp: { name: executorGroup.name || 'تنفيذ آلي (API)' }
+        });
+    } catch (_) { logger.error('Delayed API notification failed after commit', { txId: completedTx.customId }); }
 
     logger.info('Delayed API completion succeeded', {
         txId: completedTx.customId,

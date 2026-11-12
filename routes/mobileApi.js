@@ -3701,6 +3701,9 @@ router.post('/executor/tasks/:id/zaynpay-execute', authenticateJWT, requireIdemp
         
         return res.json(result.response);
     } catch (e) {
+        if (e.code === 'PROVIDER_RESULT_UNRESOLVED') {
+            return sendMobileError(res, 409, e.code, 'نتيجة الدفع غير مؤكدة. يلزم مراجعتها قبل إعادة التنفيذ.', req.correlationId);
+        }
         if (e.message === 'FORBIDDEN') {
             return sendMobileError(res, 403, 'FORBIDDEN', 'غير مصرح لك بتشغيل نظام ZaynPay الآلي', req.correlationId);
         }

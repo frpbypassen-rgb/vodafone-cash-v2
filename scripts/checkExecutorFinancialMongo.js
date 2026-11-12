@@ -115,7 +115,7 @@ async function main() {
             const uncertainRequest = { ...request, params: { id: String(uncertainTx._id) } };
             const uncertainResponse = response();
             await controller.executeViaZaynPay(uncertainRequest, uncertainResponse);
-            assert.equal(uncertainResponse.body.code, 'PROVIDER_RESULT_UNRESOLVED');
+            assert.equal(uncertainResponse.body.code, 'PROVIDER_RESULT_UNRESOLVED', JSON.stringify(uncertainResponse.body));
             const held = await Transaction.findById(uncertainTx._id);
             assert.equal(held.status, 'processing');
             assert.equal(held.apiResultData.providerResultUnresolved, true);

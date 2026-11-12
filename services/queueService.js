@@ -18,6 +18,7 @@ const logger = require('../utils/logger');
 const { executorSupportsTransferType } = require('../utils/executorServiceCatalog');
 const {
     UNRESOLVED_CODE,
+    automaticPaymentBlocked,
     isProviderResultUnresolved,
     needsUnresolvedHold,
     markProviderResultUnresolved,
@@ -49,6 +50,7 @@ const holdProviderAcceptedWithoutReference = (tx, executorGroup, { note, detaile
 };
 
 const releaseFailedApiExecutionToPending = async (tx, { failureNote, detailedLog } = {}) => {
+    if (automaticPaymentBlocked(tx)) throw new Error(UNRESOLVED_CODE);
     tx.status = 'pending';
     if (failureNote) appendAdminNote(tx, failureNote);
     if (detailedLog) appendAdminNote(tx, detailedLog);
@@ -229,11 +231,15 @@ class ApiTransferQueue {
                         detailedLog
                     });
 
-                    await tx.save();
-                    eventBus.publish('transfer:completed', {
-                        tx,
-                        emp: { name: executorGroup.name || 'تنفيذ آلي (API)' }
-                    });
+                    if (!completion?.idempotent) {
+                        try {
+                            await eventBus.publish('transfer:completed', {
+                                tx, emp: { name: executorGroup.name || 'تنفيذ آلي (API)' }
+                            });
+                        } catch (_) {
+                            logger.error('API completion notification failed after commit', { txId: tx.customId });
+                        }
+                    }
 
                     logger.info('API Execution Reference Received - Completed Immediately', {
                         txId: tx.customId,
@@ -287,7 +293,7 @@ class ApiTransferQueue {
         } catch (error) {
             try {
                 const tx = await Transaction.findById(txId);
-                if (tx && (needsUnresolvedHold(tx) || isProviderResultUnresolved(tx))) {
+                if (tx && automaticPaymentBlocked(tx)) {
                     await markProviderResultUnresolved({
                         txId: tx._id,
                         reason: error.message,
@@ -300,7 +306,7 @@ class ApiTransferQueue {
                     });
                     return;
                 }
-                if (tx) {
+                if (tx && tx.status === 'processing' && String(tx.executorGroupId) === String(apiGroupId)) {
                     tx.status = 'pending';
                     tx.executorGroupId = undefined;
                     tx.executorName = undefined;

@@ -223,8 +223,10 @@ describe('admin-only per-executor policy and per-service balances', () => {
             'serviceBalances.bank_account': -300
         });
         expect(completedTransferLedgerInc(company, { transferType: 'vodafone' }, -800)).toEqual({
-            balance: -800,
-            'serviceBalances.vodafone': -800
+            balance: -800
+        });
+        expect(completedTransferLedgerInc({ ...company, serviceBalances: { vodafone: 1000 } }, { transferType: 'vodafone' }, -800)).toEqual({
+            balance: -800, 'serviceBalances.vodafone': -800
         });
     });
 
@@ -234,4 +236,9 @@ describe('admin-only per-executor policy and per-service balances', () => {
         expect(template).toContain('query.serviceUpdated');
         expect(() => ejs.compile(template, { filename: EXECUTORS_VIEW })).not.toThrow();
     });
+});
+
+test('a legacy primary balance must not become a service balance starting at zero on its first debit', () => {
+    const legacy = { serviceKey: 'vodafone', balance: 500 };
+    expect(completedTransferLedgerInc(legacy, { transferType: 'vodafone' }, -100)).toEqual({ balance: -100 });
 });
