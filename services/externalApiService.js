@@ -7,6 +7,7 @@ const { renderApiReceiptWithBrowser } = require('./apiReceiptBrowserService');
 const { SYSTEM_TIME_ZONE } = require('../config/systemTime');
 const { getApiProviderPreset } = require('../utils/apiProviderPresets');
 const logger = require('../utils/logger');
+const { getProviderAuthSession, invalidateProviderAuthSession } = require('./providerAuthSessionService');
 const { classifyProviderPaymentResponse, normalizeProviderStatus, isReturnedProviderStatus } = require('../utils/providerPaymentResponse');
 const {
     UNRESOLVED_CODE,
@@ -171,40 +172,45 @@ const authorizeApiProvider = async (config, addLog, onRejected) => {
         addLog(blocked.code, blocked.message);
         return { success: false, message: blocked.message, code: blocked.code };
     }
-    const authPayload = {
-        UserName: config.apiUsername,
-        Password: config.apiPassword,
-        AppType: config.preset.appType,
-        AppId: config.preset.appId,
-        VersionID: config.preset.versionId
-    };
-
     let freshToken = config.staticToken;
-    if (!freshToken && (!authPayload.UserName || !authPayload.Password)) {
-        addLog("AUTH_ERROR", "بيانات مزود الـ API مفقودة من بيانات المنفذ أو ملف .env");
+    if (!freshToken && (!config.apiUsername || !config.apiPassword)) {
+        addLog('AUTH_ERROR', 'بيانات مزود API غير مكتملة');
         return { success: false, message: 'خطأ إعدادات: بيانات الاتصال مفقودة' };
     }
-
     if (!freshToken) {
-        addLog("AUTH", "جاري إرسال طلب تسجيل الدخول...");
-        const authRes = await axios.post(`${config.baseUrl}/api/Account/GetToken`, authPayload, { headers: config.defaultHeaders, timeout: 15000, maxRedirects: 0 });
-
-        if (!hasSuccessCode(authRes.data) || !authRes.data.Data || typeof authRes.data.Data.Access_Token !== 'string' || !authRes.data.Data.Access_Token.trim()) {
-            onRejected?.(authRes);
-            addLog("AUTH_FAIL", authRes.data?.Message || "تم رفض تسجيل الدخول من الشركة");
-            return { success: false, message: 'فشل تسجيل الدخول لشركة زين' };
-        }
-
-        freshToken = authRes.data.Data.Access_Token.trim();
-        addLog("AUTH_SUCCESS", "تم استلام التوكن بنجاح");
-    } else {
-        addLog("AUTH_TOKEN", "تم استخدام Token محفوظ في بيانات المنفذ");
-    }
+        const session = await getProviderAuthSession(config, {
+            onLogin: () => addLog('AUTH', 'جاري إرسال طلب تسجيل الدخول...'), onRejected
+        });
+        freshToken = session.token;
+        addLog(session.cached ? 'AUTH_CACHE' : 'AUTH_SUCCESS', session.cached ? 'تم استخدام جلسة المزود الصالحة دون تسجيل دخول جديد' : 'تم استلام التوكن بنجاح');
+    } else addLog('AUTH_TOKEN', 'تم استخدام التوكن المحفوظ في إعدادات المنفذ');
 
     return {
         success: true,
         headers: { ...config.defaultHeaders, 'Authorization': `Bearer ${freshToken}`, 'Accept-Language': 'ar-EG' }
     };
+};
+
+// Retry reads only. The Payment POST deliberately never goes through this helper.
+const postProviderRead = async (config, headers, endpoint, payload, addLog) => {
+    for (let attempt = 0; attempt < 2; attempt++) {
+        const blocked = providerCallBlock() || refuseResolvedProvider(config);
+        if (blocked) throw Object.assign(new Error(blocked.message), { code: blocked.code });
+        let response;
+        try {
+            response = await axios.post(config.baseUrl + endpoint, payload, { headers, timeout: 20000, maxRedirects: 0 });
+            if (Number(response.data?.Code) !== 401) return response;
+        } catch (error) {
+            if (Number(error.response?.status) !== 401) throw error;
+            if (attempt || config.staticToken) { invalidateProviderAuthSession(config, headers.Authorization); throw error; }
+        }
+        invalidateProviderAuthSession(config, headers.Authorization);
+        if (attempt || config.staticToken) return response;
+        addLog('AUTH_REFRESH', 'انتهت جلسة المزود؛ تجديد واحد للاستعلام فقط');
+        const refreshed = await authorizeApiProvider(config, addLog);
+        if (!refreshed.success) throw Object.assign(new Error(refreshed.message), { code: refreshed.code });
+        Object.assign(headers, refreshed.headers);
+    }
 };
 
 // 🚀 دالة التخاطب مع شركة زين
@@ -222,6 +228,9 @@ const providerMessage = (data, fallback) => {
 };
 
 const errorMessage = (error, fallback) => providerMessage(error?.response?.data, error?.message || fallback);
+
+const authFailureDetails = error => String(error.code || '').startsWith('PROVIDER_AUTH_')
+    ? { code: error.code, retryAfterSeconds: error.retryAfterSeconds } : {};
 
 const hasSuccessCode = (data) => Number(data?.Code) === 200;
 
@@ -258,7 +267,7 @@ const getApiProviderBalanceWithAuth = async (config, headers, addLog) => {
     const blocked = providerCallBlock() || refuseResolvedProvider(config);
     if (blocked) return { success: false, message: blocked.message, code: blocked.code };
     addLog('BALANCE', 'Checking available provider balance');
-    const balanceRes = await axios.post(`${config.baseUrl}/api/Account/GetBalance`, {}, { headers, timeout: 20000, maxRedirects: 0 });
+    const balanceRes = await postProviderRead(config, headers, '/api/Account/GetBalance', {}, addLog);
     const responseData = balanceRes.data || {};
     const rawBalance = responseData.Data || {};
 
@@ -350,11 +359,7 @@ const runApiTransferPreflight = async (apiBot, input = {}) => {
 
         stage = 'inquiry';
         addLog('INQUIRY_TEST', `Safe test for [${targetNumber}] amount [${amount}] without payment.`);
-        const inquiryRes = await axios.post(
-            `${config.baseUrl}/api/V1/Transactions/Inquiry`,
-            buildInquiryPayload(config, targetNumber, amount),
-            { headers: auth.headers, timeout: 20000, maxRedirects: 0 }
-        );
+        const inquiryRes = await postProviderRead(config, auth.headers, '/api/V1/Transactions/Inquiry', buildInquiryPayload(config, targetNumber, amount), addLog);
         const inquiryData = inquiryRes.data || {};
         const paymentBillInfo = inquiryData.Data?.PaymentBillInfo;
         if (!hasSuccessCode(inquiryData) || !paymentBillInfo) {
@@ -424,7 +429,7 @@ const executeTransferViaApi = async (tx, apiBot) => {
         addLog("PROVIDER", `${preset.name} | serviceId=${serviceId} | currentServiceProviderId=${providerId} | fieldKey=${fieldKey}`);
         addLog("INQUIRY", `جاري الاستعلام وفحص الرقم [${targetNumber}]...`);
         const inquiryPayload = buildInquiryPayload(config, targetNumber, amount);
-        const inquiryRes = await axios.post(`${baseUrl}/api/V1/Transactions/Inquiry`, inquiryPayload, { headers, timeout: 20000, maxRedirects: 0 });
+        const inquiryRes = await postProviderRead(config, headers, '/api/V1/Transactions/Inquiry', inquiryPayload, addLog);
         const inquiryData = inquiryRes.data || {};
 
         if (!hasSuccessCode(inquiryData) || !inquiryData.Data || !inquiryData.Data.PaymentBillInfo) {
@@ -460,6 +465,7 @@ const executeTransferViaApi = async (tx, apiBot) => {
         try {
             paymentRes = await axios.post(`${baseUrl}/api/V1/Transactions/Payment`, paymentPayload, { headers, timeout: 180000, maxRedirects: 0 });
         } catch (paymentError) {
+            if (Number(paymentError.response?.status) === 401) invalidateProviderAuthSession(config, headers.Authorization);
             const message = errorMessage(paymentError, 'خطأ في الاتصال بسيرفر الشركة');
             addLog('SYSTEM_ERROR', message);
             const classification = classifyPaymentTransportError(paymentError);
@@ -488,6 +494,7 @@ const executeTransferViaApi = async (tx, apiBot) => {
         }
 
         const paymentData = paymentRes.data || {};
+        if (Number(paymentData.Code) === 401) invalidateProviderAuthSession(config, headers.Authorization);
         const pd = paymentData.Data || {};
         const print = pd.PrintBill || {};
         const extRef = firstNonEmpty(pd.TransactionNumber, pd.TransactionId, print.TransactionId);
@@ -600,7 +607,7 @@ const executeTransferViaApi = async (tx, apiBot) => {
                 processLog: processLog.join('\n')
             };
         }
-        return { success: false, message, processLog: processLog.join('\n') };
+        return { success: false, message, ...authFailureDetails(error), processLog: processLog.join('\n') };
     }
 };
 
@@ -627,7 +634,7 @@ const getApiProviderBalance = async (apiBot) => {
     } catch (error) {
         const message = errorMessage(error, 'خطأ في الاتصال بسيرفر مزود الخدمة');
         addLog("SYSTEM_ERROR", message);
-        return { success: false, message, processLog: processLog.join('\n') };
+        return { success: false, message, ...authFailureDetails(error), processLog: processLog.join('\n') };
     }
 };
 
@@ -661,11 +668,7 @@ const getApiProviderTransactions = async (apiBot, transactionNumbers = []) => {
         const operations = [];
         for (const transactionNumber of uniqueNumbers) {
             try {
-                const printRes = await axios.post(
-                    `${config.baseUrl}/api/V1/Transactions/Print`,
-                    { TransactionNumber: transactionNumber },
-                    { headers: auth.headers, timeout: 20000, maxRedirects: 0 }
-                );
+                const printRes = await postProviderRead(config, auth.headers, '/api/V1/Transactions/Print', { TransactionNumber: transactionNumber }, addLog);
                 const responseData = printRes.data || {};
                 if (!hasSuccessCode(responseData) || !responseData.Data) {
                     operations.push({

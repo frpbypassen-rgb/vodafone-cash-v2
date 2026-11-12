@@ -45,6 +45,7 @@ const {
 
 describe('externalApiService', () => {
     beforeEach(() => {
+        require('../services/providerAuthSessionService').clearProviderAuthSessions();
         jest.clearAllMocks();
         process.env.EXTERNAL_API_ENABLED = 'true';
         delete process.env.APP_ENV;

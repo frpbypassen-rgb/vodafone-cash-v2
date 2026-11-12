@@ -195,6 +195,7 @@ describe('runtime isolation kill switches', () => {
 
     beforeEach(() => {
         jest.clearAllMocks();
+        require('../services/providerAuthSessionService').clearProviderAuthSessions();
         savedNodeEnv = process.env.NODE_ENV;
         FLAG_KEYS.forEach((key) => {
             savedEnv[key] = process.env[key];

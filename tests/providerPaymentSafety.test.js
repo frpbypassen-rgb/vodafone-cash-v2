@@ -14,7 +14,12 @@ const axios = require('axios');
 const { executeTransferViaApi, getApiProviderBalance, getApiProviderTransactions } = require('../services/externalApiService');
 const { releaseProviderDispatchClaim } = require('../services/providerDispatchClaimService');
 const provider = { apiUrl: 'https://provider.test', apiToken: 'isolated-token' };
-beforeEach(() => { jest.clearAllMocks(); axios.post.mockReset(); process.env.EXTERNAL_API_ENABLED = 'true'; });
+beforeEach(() => {
+    require('../services/providerAuthSessionService').clearProviderAuthSessions();
+    jest.clearAllMocks();
+    axios.post.mockReset();
+    process.env.EXTERNAL_API_ENABLED = 'true';
+});
 
 test.each([
     ['empty success', { Code: 200, Data: {} }],

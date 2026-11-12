@@ -92,6 +92,7 @@ describe('concurrent provider-paid completion', () => {
     const saved = {};
 
     beforeEach(() => {
+        require('../services/providerAuthSessionService').clearProviderAuthSessions();
         saved.FINANCIAL_SCHEDULERS_ENABLED = process.env.FINANCIAL_SCHEDULERS_ENABLED;
         process.env.FINANCIAL_SCHEDULERS_ENABLED = 'true';
         axios.post.mockReset();
