@@ -11,6 +11,7 @@ The key is hashed with account model, account ID and tenant. The normalized reci
 - `400 IDEMPOTENCY_KEY_INVALID`: invalid key syntax.
 - `409 IDEMPOTENCY_CONFLICT`: same scoped key, different payload. Do not generate another key to work around an uncertain original transfer.
 - `409 IDEMPOTENCY_IN_PROGRESS`: concurrent/uncertain commit; retry the same key after `Retry-After` (2 seconds) or query status.
+- `503 TRANSFER_BUSY` means the 15-second retry budget expired before beginning another transaction body. Retry the same key and payload after `Retry-After` (2 seconds). Commit acknowledgement retries remain managed by the database driver.
 - Existing `429` cooldowns can still apply to new requests.
 - `503 FINANCIAL_TRANSACTIONS_UNAVAILABLE`: transactions unavailable. New keyed requests fail before financial writes.
 - `503 IDEMPOTENCY_INDEX_UNAVAILABLE`: a read-only index check could not confirm the existing single-field unique `Transaction.idempotencyKey` index. No index is built by the request.

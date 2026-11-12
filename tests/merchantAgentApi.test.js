@@ -78,6 +78,32 @@ describe('Merchant API agent authentication', () => {
         enqueueAutoRouteIfNeeded.mockResolvedValue(undefined);
     });
 
+    test('expires a delayed transaction callback before any financial write', async () => {
+        const clock = jest.spyOn(require('node:perf_hooks').performance, 'now').mockReturnValue(0);
+        try {
+            ClientBot.findOne.mockReturnValue(leanResult(null));
+            User.findOne.mockReturnValue(leanResult({
+                _id: '66a112233445566778899002', role: 'agent', status: 'active', balance: 1000
+            }));
+            const session = transactionSession();
+            session.withTransaction.mockImplementation(async callback => {
+                clock.mockReturnValue(16000);
+                return callback(session);
+            });
+            mongoose.startSession.mockResolvedValue(session);
+            const response = await request(app).post('/api/v1/merchant/transfer')
+                .set('x-api-key', 'agent-private-api-key')
+                .send({ target_number: '01012345678', amount: 1000, transfer_type: 'vodafone' });
+            expect(response.status).toBe(503);
+            expect(response.body.code).toBe('TRANSFER_BUSY');
+            expect(response.headers['retry-after']).toBe('2');
+            expect(Settings.findOne).not.toHaveBeenCalled();
+            expect(User.findOneAndUpdate).not.toHaveBeenCalled();
+            expect(Transaction.create).not.toHaveBeenCalled();
+            expect(session.endSession).toHaveBeenCalled();
+        } finally { clock.mockRestore(); }
+    });
+
     test('accepts an active agent API key for a balance request', async () => {
         ClientBot.findOne.mockReturnValue(leanResult(null));
         User.findOne.mockReturnValue(leanResult({

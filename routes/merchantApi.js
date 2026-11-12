@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const eventBus = require('../services/eventBus');
 const mongoose = require('mongoose');
+const { performance } = require('node:perf_hooks');
 const ClientBot = require('../models/ClientBot');
 const User = require('../models/User');
 const Transaction = require('../models/Transaction');
@@ -174,7 +175,15 @@ const withOptionalTransaction = async (work, required = false) => {
         // The driver retries transient transaction bodies after rollback, but
         // retries only commit when its acknowledgement is uncertain. No HTTP,
         // routing or event publishing is allowed inside this callback.
-        return await session.withTransaction(() => work(session), { timeoutMS: 15000 });
+        const retryDeadline = performance.now() + 15000;
+        return await session.withTransaction(() => {
+            // Enforce the retry budget even when the driver treats timeoutMS as a no-op.
+            // A repeated body follows a rollback. Commit retries remain owned by the driver.
+            if (performance.now() >= retryDeadline) {
+                throw merchantRequestError(503, 'النظام مزدحم. أعد المحاولة بعد قليل.', 'TRANSFER_BUSY');
+            }
+            return work(session);
+        });
     } catch (error) {
         if (session) {
             try { await session.abortTransaction(); } catch (_) {}
@@ -463,6 +472,7 @@ router.post('/transfer', merchantApiAuth, async (req, res) => {
         }
         void recordApiEvent(req,req.merchant,error.code,error.statusCode||500);
         logger.error('Merchant API transfer failed', { error: error.message, code: error.code });
+        if (error?.code === 'TRANSFER_BUSY') res.set('Retry-After', '2');
         if (error && error.statusCode) {
             return res.status(error.statusCode).json({
                 status: 'failed',
