@@ -522,7 +522,11 @@ body.executor-portal-v2 .task-card:hover {
 body.executor-portal-v2 .task-card.task-pending { animation: executorTaskArrive 520ms cubic-bezier(.2,.8,.2,1); }
 body.executor-portal-v2 .task-card.task-mine { border-color: color-mix(in srgb, var(--executor-green) 38%, var(--executor-line)); }
 body.executor-portal-v2 .task-card.task-mine::before { background: var(--executor-green); box-shadow: none; }
-body.executor-portal-v2 .task-card.task-locked { opacity: 0.68; filter: saturate(0.55); }
+body.executor-portal-v2 .task-card.task-locked {
+    opacity: 1;
+    filter: none;
+    border-style: dashed;
+}
 
 .executor-task-card-body { padding: 18px; }
 .executor-task-title { display: flex; align-items: center; gap: 10px; min-width: 0; }
