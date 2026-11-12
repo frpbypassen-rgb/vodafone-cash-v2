@@ -49,7 +49,15 @@ async function main() {
     if (!process.env.MONGO_URI) throw new Error('MONGO_URI_MISSING');
     await mongoose.connect(process.env.MONGO_URI, { serverSelectionTimeoutMS: 10000, connectTimeoutMS: 10000,
         autoIndex: false, autoCreate: false });
+    const redis = require('../config/redis');
+    const needsRedis = apply && require('../config/runtimeScale').distributedStateRequired();
     try {
+        // A maintenance process does not run app.js bootstrap. Production audit
+        // locks still require a real initialized Redis client before any writes.
+        if (needsRedis) {
+            await redis.initRedis();
+            if (!redis.isRedis()) throw new Error('RECOVERY_REDIS_NOT_READY');
+        }
         const tx = await Transaction.findOne({ customId: operation });
         if (!tx) throw new Error('OPERATION_NOT_FOUND');
         const data = tx.apiResultData || {};
@@ -73,12 +81,19 @@ async function main() {
             executorDebitCount: await Ledger.countDocuments({ transactionId: stored.customId,
                 entityModel: 'ExecutorGroup', type: 'TRANSFER', amount: { $lt: 0 } }),
             executorBalance: group?.balance ?? null, apiSettlementMode: group?.apiSettlementMode || 'prepaid',
-            systemReceiptPresent: Boolean(stored.apiResultData?.executorReceiptProof) };
+            systemReceiptPresent: Boolean(stored.apiResultData?.executorReceiptProof),
+            auditRedis: needsRedis ? 'connected' : 'not_requested' };
         result.diagnosticWrites = diagnosticWrites;
         writeResult(JSON.stringify(result, null, 2) + '\n');
         if (!result.success || (apply && (result.verification.status !== 'completed'
             || result.verification.providerResultUnresolved || result.verification.executorDebitCount !== 1))) process.exitCode = 1;
-    } finally { await mongoose.disconnect(); }
+    } finally {
+        if (needsRedis) {
+            const client = redis.getRedisClient();
+            if (typeof client.disconnect === 'function') client.disconnect();
+        }
+        await mongoose.disconnect();
+    }
 }
 
 if (require.main === module) main().catch(() => {

@@ -444,11 +444,19 @@ describe('manual provider resolution', () => {
         fs.writeFileSync(path.join(root, 'package.json'), '{}');
         fs.writeFileSync(path.join(root, '.env'), 'NODE_ENV=test\n');
         fs.symlinkSync(path.resolve(__dirname, '../node_modules'), path.join(root, 'node_modules'), process.platform === 'win32' ? 'junction' : 'dir');
+        const production = process.env.RECOVERY_TEST_PRODUCTION === 'true';
+        if (production && !/^redis:\/\/127\.0\.0\.1:\d+\/?$/.test(process.env.RECOVERY_TEST_REDIS_URL || '')) {
+            throw new Error('ISOLATED_RECOVERY_REDIS_URL_REQUIRED');
+        }
+        const cliEnv = { ...process.env, MONGO_URI: replSet.getUri(), ...(production ? {
+            NODE_ENV: 'production', REDIS_REQUIRED: 'true', REDIS_ENABLED: 'true',
+            REDIS_URL: process.env.RECOVERY_TEST_REDIS_URL
+        } : {}) };
         try {
-            const run = (extra = []) => new Promise((resolve, reject) => {
+            const run = (extra = [], envOverrides = {}) => new Promise((resolve, reject) => {
                 const child = spawn(process.execPath, [path.resolve(__dirname, '../scripts/resumeRecordedApiPayment.cjs'),
                     '--project', root, '--operation', tx.customId, '--enable-api-credit', ...extra],
-                { env: { ...process.env, MONGO_URI: replSet.getUri() }, windowsHide: true });
+                { env: { ...cliEnv, ...envOverrides }, windowsHide: true });
                 let stdout = '', stderr = '';
                 child.stdout.on('data', chunk => { stdout += chunk; });
                 child.stderr.on('data', chunk => { stderr += chunk; });
@@ -462,12 +470,22 @@ describe('manual provider resolution', () => {
             expect((await ExecutorGroup.findById(executor._id)).balance).toBe(-1000);
             expect((await Transaction.findById(tx._id)).status).toBe('processing');
             expect(await Ledger.countDocuments({ transactionId: tx.customId })).toBe(0);
+            if (production) {
+                const unavailable = await run(['--apply', '--expected-updated-at', parsed.expectedUpdatedAt], {
+                    REDIS_URL: 'redis://127.0.0.1:1'
+                });
+                expect(unavailable.code).toBe(1);
+                expect((await Transaction.findById(tx._id)).status).toBe('processing');
+                expect((await ExecutorGroup.findById(executor._id)).balance).toBe(-1000);
+                expect((await ExecutorGroup.findById(executor._id)).apiSettlementMode).toBe('prepaid');
+                expect(await Ledger.countDocuments({ transactionId: tx.customId })).toBe(0);
+            }
             if (process.platform === 'win32') {
                 const runPhase = (phase, expected = AMOUNT) => new Promise((resolve, reject) => {
                     const child = spawn('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File',
                         path.resolve(__dirname, '../scripts/finishRecordedApiPayment.ps1'),
                         '-ProjectPath', root, '-Operation', tx.customId, '-StatePath', statePath,
-                        '-EnableApiCredit', '-ExpectedAmount', String(expected), '-Phase', phase], { env: { ...process.env, MONGO_URI: replSet.getUri() }, windowsHide: true });
+                        '-EnableApiCredit', '-ExpectedAmount', String(expected), '-Phase', phase], { env: cliEnv, windowsHide: true });
                     let stdout = '', stderr = '';
                     child.stdout.on('data', chunk => { stdout += chunk; });
                     child.stderr.on('data', chunk => { stderr += chunk; });
@@ -489,7 +507,8 @@ describe('manual provider resolution', () => {
             const applied = await run(['--apply', '--expected-updated-at', parsed.expectedUpdatedAt]);
             expect(applied.code).toBe(0);
             expect(JSON.parse(applied.stdout)).toMatchObject({ success: true,
-                verification: { status: 'completed', providerResultUnresolved: false, executorDebitCount: 1, apiSettlementMode: 'credit' } });
+                verification: { status: 'completed', providerResultUnresolved: false, executorDebitCount: 1, apiSettlementMode: 'credit',
+                    auditRedis: production ? 'connected' : 'not_requested' } });
             const again = await run(['--apply', '--expected-updated-at', parsed.expectedUpdatedAt]);
             expect(again.code).toBe(0);
             expect(JSON.parse(again.stdout)).toMatchObject({ success: true, idempotent: true, applied: false });
