@@ -118,6 +118,10 @@
             </div>
         </div>
 
+        <% if (typeof profitReport !== 'undefined') { %>
+            <%- include('partials/api_profit_commission', { bot, profitReport, isMaster, query }) %>
+        <% } %>
+
         <div class="row g-4 mb-4">
             <div class="col-lg-6">
                 <div class="api-card h-100">

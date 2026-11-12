@@ -5,6 +5,7 @@ const executorGroupSchema = new mongoose.Schema({
     name: { type: String, required: true },
     status: { type: String, default: 'active' }, // active, inactive, paused, archived
     balance: { type: Number, default: 0 },
+    apiProfitCommissionPercent: { type: Number, default: 0, min: 0, max: 99.9999 },
     serviceKey: { type: String, enum: EXECUTOR_SERVICE_KEYS, default: 'vodafone' },
     serviceKeys: { type: [String], enum: EXECUTOR_SERVICE_KEYS, default: undefined },
     serviceBalances: { type: Map, of: Number, default: undefined },

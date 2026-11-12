@@ -23,6 +23,10 @@ const apiBalanceAuditSchema = new mongoose.Schema({
     previousPostAvailableBalance: { type: Number, default: null },
     continuityDifference: { type: Number, default: null },
     expectedDebit: { type: Number, default: null },
+    transactionAmount: { type: Number, default: null },
+    profitCommissionPercent: { type: Number, default: null },
+    expectedProfitCommission: { type: Number, default: null },
+    profitCommission: { type: Number, default: null },
     observedDebit: { type: Number, default: null },
     debitDifference: { type: Number, default: null },
     executionStatus: {

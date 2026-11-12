@@ -160,6 +160,12 @@ const getExecutorIdentity = async (executorId) => {
     return { employee, group };
 };
 
+const buildLinkedTransactionScope = employee => {
+    const company = { $or: [{ executorGroupId: employee.groupId }, { managerGroupId: employee.groupId }] };
+    if (employee.role === 'manager') return company;
+    return { $and: [company, { $or: [{ assignedExecutorId: toId(employee._id) }, { operatorId: toId(employee._id) }] }] };
+};
+
 const resolveLinkedTransaction = async ({ employee, transactionRef }) => {
     const reference = cleanText(transactionRef, 80);
     if (!reference) return null;
@@ -167,21 +173,7 @@ const resolveLinkedTransaction = async ({ employee, transactionRef }) => {
     const identityFilter = mongoose.isValidObjectId(reference)
         ? { $or: [{ _id: reference }, { customId: reference }] }
         : { customId: reference };
-    const accessFilter = employee.role === 'manager'
-        ? {
-            $or: [
-                { executorGroupId: employee.groupId },
-                { managerGroupId: employee.groupId },
-                { assignedExecutorId: toId(employee._id) },
-                { operatorId: toId(employee._id) }
-            ]
-        }
-        : {
-            $or: [
-                { assignedExecutorId: toId(employee._id) },
-                { operatorId: toId(employee._id) }
-            ]
-        };
+    const accessFilter = buildLinkedTransactionScope(employee);
     const transaction = await Transaction.findOne({ $and: [identityFilter, accessFilter] })
         .select('_id customId status transferType amount vodafoneNumber accountNumber accountName createdAt completedAt')
         .lean();
@@ -206,6 +198,7 @@ const serializeMessage = (message) => ({
     senderName: message.senderName || '',
     text: message.text || '',
     imageUrl: message.imageUrl || '',
+    linkedOperation: message.linkedOperation || null,
     messageType: message.messageType || (message.imageUrl ? 'image' : 'text'),
     createdAt: message.createdAt || null
 });
@@ -324,17 +317,35 @@ const getExecutorGroupChat = async ({ executorId }) => {
     return serializeExecutionGroupChat({ ticket, group });
 };
 
+// Resolve only an attachment belonging to the authenticated company's chat.
+const getExecutorGroupChatImage = async ({ executorId, messageId }) => {
+    const { group } = await getExecutorIdentity(executorId);
+    const ticket = await SupportTicket.findOne({
+        groupChatKey: `executor-group:${toId(group._id)}`,
+        entityType: 'executor_group', entityId: group._id
+    });
+    const message = ticket?.messages?.find((item) => toId(item._id) === String(messageId));
+    const relative = String(message?.imageUrl || '');
+    if (!message || (message.messageType !== 'image' && message.sender !== 'admin')
+        || !/^\/uploads\/support\/[a-zA-Z0-9_.-]+\.(?:jpg|jpeg|png|webp)$/i.test(relative)) {
+        throw supportError('NOT_FOUND', 'المرفق غير موجود.', 404);
+    }
+    return path.join(process.cwd(), 'uploads', 'support', path.basename(relative));
+};
+
 const replyToExecutorGroupChat = async ({ executorId, payload = {} }) => {
     const { employee, group } = await getExecutorIdentity(executorId);
     const ticket = await getOrCreateExecutionGroupChat({ employee, group });
     const text = cleanText(payload.message || payload.text, 2000);
+    const linked = payload.transactionRef ? await resolveLinkedTransaction({ employee, transactionRef: payload.transactionRef }) : null;
     const imageUrls = await saveSupportImages(payload.imagesBase64 || []);
-    if (!text && !imageUrls.length) throw supportError('VALIDATION_ERROR', 'اكتب رسالة أو أرفق صورة واحدة على الأقل.');
+    if (!text && !linked && !imageUrls.length) throw supportError('VALIDATION_ERROR', 'اكتب رسالة أو أرفق صورة واحدة على الأقل.');
 
     const createdAt = new Date();
-    if (text) {
+    if (text || linked) {
         ticket.messages.push({
-            sender: 'user', senderName: employee.name, text, channel: 'portal',
+            sender: 'user', senderName: employee.name, text: text || `عملية مرفقة: ${linked.customId}`,
+            linkedOperation: linked ? { ...linked, recipient: linked.recipient ? `••••${String(linked.recipient).slice(-4)}` : '' } : undefined, channel: 'portal',
             direction: 'inbound', messageType: 'text', createdAt
         });
     }
@@ -590,7 +601,12 @@ module.exports = {
     createExecutorTicket,
     getExecutorTicket,
     replyToExecutorTicket,
+    getExecutorIdentity,
+    resolveLinkedTransaction,
+    buildLinkedTransactionScope,
+    saveSupportImages,
     getExecutorGroupChat,
+    getExecutorGroupChatImage,
     replyToExecutorGroupChat,
     getExecutorDiagnostics
 };

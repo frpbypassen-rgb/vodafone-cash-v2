@@ -13,6 +13,7 @@ const {
 const { providerOperationMatches } = require('../utils/providerPendingOperation');
 const logger = require('../utils/logger');
 const { isFinancialSchedulersEnabled } = require('../utils/runtimeControls');
+const { apiProfitPricing, observedApiProfit, finiteNumber } = require('../utils/apiProfitCommission');
 
 const DEFAULT_BALANCE_TOLERANCE = 0.01;
 const DEFAULT_RETURN_MONITOR_INTERVAL_MS = 5 * 60 * 1000;
@@ -22,8 +23,7 @@ let returnMonitorTimer = null;
 let initialReturnMonitorTimer = null;
 
 const numericOrNull = (value) => {
-    const parsed = Number(value);
-    return Number.isFinite(parsed) ? parsed : null;
+    return finiteNumber(value);
 };
 
 const rounded = (value) => {
@@ -37,7 +37,7 @@ const getBalanceTolerance = () => {
 };
 
 const snapshotFromResult = (result) => ({
-    success: Boolean(result && result.success),
+    success: Boolean(result && result.success && numericOrNull(result.availableBalance ?? result.balance) !== null),
     serviceCredit: result && result.success ? numericOrNull(result.serviceCredit) : null,
     cashCredit: result && result.success ? numericOrNull(result.cashCredit) : null,
     availableBalance: result && result.success ? numericOrNull(result.availableBalance ?? result.balance) : null,
@@ -109,6 +109,7 @@ const appendAlert = (alerts, message) => {
 };
 
 const startApiBalanceAudit = async ({ tx, executorGroup }) => {
+    const pricing = apiProfitPricing(tx.amount, executorGroup.apiProfitCommissionPercent ?? 0);
     const beforeCheck = await checkProviderBalanceSafely(executorGroup);
     const previousAudit = await ApiBalanceAudit.findOne({
         executorGroupId: executorGroup._id,
@@ -138,6 +139,7 @@ const startApiBalanceAudit = async ({ tx, executorGroup }) => {
     }
 
     const audit = await ApiBalanceAudit.create({
+        ...pricing,
         executorGroupId: executorGroup._id,
         transactionId: tx._id,
         transactionCustomId: tx.customId,
@@ -177,7 +179,10 @@ const finishApiBalanceAudit = async ({ audit, tx, executorGroup, apiResult }) =>
     const existingAlerts = Array.isArray(audit.alerts) ? audit.alerts.map(String) : [];
     const alerts = [...existingAlerts];
     const newAlerts = [];
-    const expectedDebit = apiResult && apiResult.success === true ? rounded(tx.amount) : null;
+    // The rate is captured before the provider call; later account edits cannot
+    // change this operation's cost or historical profit.
+    const pricing = apiProfitPricing(audit.transactionAmount ?? tx.amount, audit.profitCommissionPercent ?? 0);
+    const expectedDebit = apiResult && apiResult.success === true ? pricing.expectedDebit : null;
     let observedDebit = null;
     let debitDifference = null;
 
@@ -195,7 +200,7 @@ const finishApiBalanceAudit = async ({ audit, tx, executorGroup, apiResult }) =>
             if (expectedDebit !== null) {
                 debitDifference = rounded(observedDebit - expectedDebit);
                 if (Math.abs(debitDifference) > getBalanceTolerance()) {
-                    const message = `خصم المزود الفعلي (${observedDebit}) لا يطابق قيمة العملية (${expectedDebit})؛ الفرق ${debitDifference}`;
+                    const message = `خصم المزود الفعلي (${observedDebit}) لا يطابق التكلفة المتوقعة بعد العمولة (${expectedDebit})؛ الفرق ${debitDifference}`;
                     appendAlert(alerts, message);
                     appendAlert(newAlerts, message);
                 }
@@ -215,6 +220,11 @@ const finishApiBalanceAudit = async ({ audit, tx, executorGroup, apiResult }) =>
     audit.providerTransactionId = String(apiResult && (apiResult.provider_transaction_id || apiResult.external_transaction_id) || '');
     audit.referenceNumber = String(apiResult && (apiResult.reference_number || apiResult.sender_number) || '');
     audit.expectedDebit = expectedDebit;
+    audit.transactionAmount = pricing.transactionAmount;
+    audit.profitCommissionPercent = pricing.profitCommissionPercent;
+    audit.expectedProfitCommission = pricing.expectedProfitCommission;
+    audit.profitCommission = apiResult?.success === true
+        ? observedApiProfit(pricing.transactionAmount, observedDebit) : null;
     audit.observedDebit = observedDebit;
     audit.debitDifference = debitDifference;
     audit.executionStatus = executionStatus;
@@ -227,6 +237,11 @@ const finishApiBalanceAudit = async ({ audit, tx, executorGroup, apiResult }) =>
     tx.apiResultData = {
         ...(tx.apiResultData || {}),
         balanceAuditId: audit._id,
+        providerTransactionAmount: pricing.transactionAmount,
+        providerProfitCommissionPercent: pricing.profitCommissionPercent,
+        providerExpectedExecutionCost: pricing.expectedDebit,
+        providerExecutionCost: observedDebit,
+        providerProfitCommission: audit.profitCommission,
         providerBalanceBefore: numericOrNull(audit.beforeCheck && audit.beforeCheck.availableBalance),
         providerBalanceAfter: numericOrNull(afterCheck.availableBalance),
         providerBalanceDifference: debitDifference,

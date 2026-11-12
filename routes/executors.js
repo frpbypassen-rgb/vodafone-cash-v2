@@ -17,6 +17,8 @@ const { DEFAULT_API_PROVIDER_KEY, getApiProviderPreset, getApiProviderPresets } 
 const { isStagingRuntime } = require('../utils/runtimeControls');
 const { getApiProviderBalance, runApiTransferPreflight } = require('../services/externalApiService');
 const { syncProviderReturnedOperations } = require('../services/apiProviderReconciliationService');
+const { getApiProfitCommissionReport } = require('../services/apiProfitCommissionService');
+const { parseProfitPercent } = require('../utils/apiProfitCommission');
 const { createExecutorAccount, ExecutorAccountError } = require('../services/executorAccountService');
 const {
     archiveExecutorAccount,
@@ -227,6 +229,31 @@ router.post('/executors/add', requireAuth, requireMaster, async (req, res) => {
             ? e.code
             : (e.code || 'CREATE_FAILED');
         return res.redirect(`/executors?createError=${encodeURIComponent(errorCode)}&openCreate=1`);
+    }
+});
+
+router.post('/executor/:id/profit-commission', requireAuth, requireMaster, async (req, res) => {
+    try {
+        const actor = requireAdminActor(req);
+        const percent = parseProfitPercent(req.body?.apiProfitCommissionPercent);
+        const bot = await ExecutorGroup.findById(req.params.id);
+        if (!bot || !bot.isApiBot || bot.status === 'archived') return res.sendStatus(404);
+        const previous = bot.apiProfitCommissionPercent ?? 0;
+        bot.apiProfitCommissionPercent = percent;
+        await bot.save();
+        await logAction({
+            action: 'API_PROFIT_COMMISSION_UPDATED', req,
+            performedById: actor.id, performedByModel: 'Admin', performedByName: actor.name,
+            targetId: bot._id, targetModel: 'ExecutorGroup',
+            oldData: { apiProfitCommissionPercent: previous },
+            newData: { apiProfitCommissionPercent: percent }
+        });
+        return res.redirect(`/executor/${bot._id}?profitUpdated=1#profit-commission`);
+    } catch (error) {
+        if (error.message === 'INVALID_API_PROFIT_PERCENT') return res.status(400).send('نسبة العمولة غير صالحة؛ أدخل نسبة من صفر إلى أقل من 100 بأربع منازل عشرية كحد أقصى.');
+        if (isAdminActorError(error)) return res.status(401).send(ACTOR_MESSAGE);
+        console.error('[executor/profit-commission] failed:', error.message);
+        return res.status(500).send('تعذر تأكيد حفظ نسبة العمولة؛ أعد فتح صفحة المزود للتحقق.');
     }
 });
 
@@ -446,9 +473,10 @@ router.get('/executor/:id', requireAuth, async (req, res) => {
         const managerBots = await ExecutorGroup.find({ isManagerBot: true, status: 'active', _id: { $ne: bot._id } });
 
         if (bot.isApiBot) {
-            const [balanceAudits, providerReturns] = await Promise.all([
+            const [balanceAudits, providerReturns, profitReport] = await Promise.all([
                 ApiBalanceAudit.find({ executorGroupId: bot._id }).sort({ createdAt: -1 }).limit(100).lean(),
-                ApiProviderReturn.find({ executorGroupId: bot._id }).sort({ firstDetectedAt: -1 }).limit(100).lean()
+                ApiProviderReturn.find({ executorGroupId: bot._id }).sort({ firstDetectedAt: -1 }).limit(100).lean(),
+                getApiProfitCommissionReport(bot)
             ]);
             const stats = {
                 successCount: transactions.filter(t => t.status === 'completed').length,
@@ -462,6 +490,7 @@ router.get('/executor/:id', requireAuth, async (req, res) => {
                 transactions,
                 balanceAudits,
                 providerReturns,
+                profitReport,
                 stats,
                 managerBots,
                 adminName: req.session.adminName,

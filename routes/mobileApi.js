@@ -1,3 +1,4 @@
+const executorTeamChatService = require('../services/executorTeamChatService');
 const express = require('express');
 const mongoose = require('mongoose');
 const rateLimit = require('../utils/requestRateLimit');
@@ -2721,7 +2722,12 @@ router.get('/transaction/image/:id', authenticateJWT, async (req, res) => {
         const { userId, accountType, executorGroupId } = req.user;
         let tx;
         if (req.tenant) {
-            tx = await Transaction.findOne({ _id: req.params.id, tenantId: req.tenant._id });
+            // Match executor reporting's explicit single-tenant legacy policy.
+            // Ownership below is still required; other tenants remain excluded.
+            tx = await Transaction.findOne({
+                _id: req.params.id,
+                tenantId: accountType === 'executor' ? executorTenantScope(req) : req.tenant._id
+            });
         } else {
             tx = await Transaction.findById(req.params.id);
         }
@@ -3752,6 +3758,28 @@ router.get('/executor/support/tickets', authenticateJWT, async (req, res) => {
 
 // One persistent internal group per executor company. Membership is derived
 // from active company employees, so removed employees immediately lose access.
+// Company-internal messages use a separate collection, not the support inbox.
+const executorChatRoute = (handler) => async (req, res) => {
+    try {
+        if (req.user.accountType !== 'executor') return sendMobileError(res, 403, 'FORBIDDEN', 'هذه الصفحة مخصصة لحسابات التنفيذ.', req.correlationId);
+        return res.json({ success: true, ...(await handler(req)), serverTime: new Date().toISOString() });
+    } catch (error) { return sendExecutorSupportError(res, req, error, 'تعذر تحميل محادثة الشركة.'); }
+};
+router.get('/executor/support/operations', authenticateJWT, executorChatRoute(req => executorTeamChatService.operations({executorId:req.user.userId,search:req.query.search,before:req.query.before})));
+router.get('/executor/team-chat/unread', authenticateJWT, executorChatRoute(req => executorTeamChatService.unread({executorId:req.user.userId})));
+router.get('/executor/team-chat', authenticateJWT, executorChatRoute(req => executorTeamChatService.conversation({executorId:req.user.userId,before:req.query.before})));
+router.post('/executor/team-chat/messages', authenticateJWT, executorChatRoute(req => executorTeamChatService.send({executorId:req.user.userId,payload:req.body})));
+router.get('/executor/team-chat/images/:messageId', authenticateJWT, async (req,res) => {
+    try {
+        if(req.user.accountType!=='executor') return sendMobileError(res,403,'FORBIDDEN','صلاحيات غير كافية',req.correlationId);
+        const filePath=await executorTeamChatService.image({executorId:req.user.userId,messageId:req.params.messageId});
+        res.setHeader('Cache-Control','private, no-store');res.setHeader('X-Content-Type-Options','nosniff');
+        return res.sendFile(filePath,error=>{
+            if(error && !res.headersSent) sendMobileError(res,error.statusCode===404?404:500,'ATTACHMENT_UNAVAILABLE','تعذر تحميل المرفق.',req.correlationId);
+        });
+    } catch(error){return sendExecutorSupportError(res,req,error,'تعذر تحميل مرفق الشركة.');}
+});
+
 router.get('/executor/support/group-chat', authenticateJWT, async (req, res) => {
     try {
         if (req.user.accountType !== 'executor') {
@@ -3761,6 +3789,25 @@ router.get('/executor/support/group-chat', authenticateJWT, async (req, res) => 
         return res.json({ success: true, ...workspace, serverTime: new Date().toISOString() });
     } catch (error) {
         return sendExecutorSupportError(res, req, error, 'تعذر فتح مجموعة شركة التنفيذ.');
+    }
+});
+
+router.get('/executor/support/group-chat/images/:messageId', authenticateJWT, async (req, res) => {
+    try {
+        if (req.user.accountType !== 'executor') {
+            return sendMobileError(res, 403, 'FORBIDDEN', 'هذه الصفحة مخصصة لحسابات التنفيذ.', req.correlationId);
+        }
+        const filePath = await executorSupportService.getExecutorGroupChatImage({
+            executorId: req.user.userId, messageId: req.params.messageId
+        });
+        res.setHeader('Cache-Control', 'private, no-store');
+        res.setHeader('X-Content-Type-Options', 'nosniff');
+        return res.sendFile(filePath, (error) => {
+            if (error && !res.headersSent) sendMobileError(res, error.statusCode === 404 ? 404 : 500,
+                'ATTACHMENT_UNAVAILABLE', 'تعذر تحميل المرفق.', req.correlationId);
+        });
+    } catch (error) {
+        return sendExecutorSupportError(res, req, error, 'تعذر تحميل مرفق الدعم.');
     }
 });
 

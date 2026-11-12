@@ -6,6 +6,7 @@ const supportMessageSchema = new mongoose.Schema({
     senderName: { type: String, default: 'الإدارة' },
     text: { type: String },
     imageUrl: { type: String },
+    linkedOperation: { type: Object },
     channel: { type: String, enum: ['portal', 'whatsapp'], default: 'portal' },
     direction: { type: String, enum: ['inbound', 'outbound'], default: 'inbound' },
     providerMessageId: { type: String, trim: true, index: true, sparse: true },

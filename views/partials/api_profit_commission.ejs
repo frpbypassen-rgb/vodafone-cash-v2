@@ -1,0 +1,47 @@
+<section class="api-card" id="profit-commission" aria-labelledby="profit-commission-title">
+    <div class="api-card-header text-emerald" id="profit-commission-title"><i class="fa-solid fa-coins me-2"></i> العمولة الربحية</div>
+    <div class="p-3">
+        <% if (query && query.profitUpdated === '1') { %><div class="alert alert-success">تم حفظ النسبة للعمليات الجديدة. تبقى العمليات السابقة بالنسب المسجلة وقت تنفيذها.</div><% } %>
+        <div class="row g-3 align-items-stretch">
+            <div class="col-12 col-lg-4">
+                <% if (isMaster && bot.status !== 'archived') { %>
+                <form method="POST" action="/executor/<%= bot._id %>/profit-commission">
+                    <input type="hidden" name="_csrf" value="<%= typeof csrfToken !== 'undefined' ? csrfToken : '' %>">
+                    <label for="apiProfitCommissionPercent" class="form-label">نسبة العمولة الربحية (%)</label>
+                    <div class="input-group">
+                        <input id="apiProfitCommissionPercent" name="apiProfitCommissionPercent" type="number" min="0" max="99.9999" step="0.0001" required class="form-control" dir="ltr" value="<%= bot.apiProfitCommissionPercent ?? 0 %>">
+                        <button class="btn btn-success" type="submit">حفظ النسبة</button>
+                    </div>
+                </form>
+                <% } else { %><p>نسبة العمولة الربحية: <strong dir="ltr"><%= bot.apiProfitCommissionPercent ?? 0 %>%</strong></p><% } %>
+                <p class="section-note mt-2 mb-0">مثال: نسبة 0.4% على 1000 جنيه تعني تكلفة متوقعة 996 جنيهًا وربحًا 4 جنيهات.</p>
+            </div>
+            <div class="col-6 col-lg-4"><div class="stat-box"><p class="text-muted mb-2">إجمالي العمولة الربحية المعتمدة</p><h2 class="<%= profitReport.summary.profit < 0 ? 'text-rose' : 'text-emerald' %> mb-0"><%= Number(profitReport.summary.profit).toFixed(2) %> <small class="fs-6">EGP</small></h2><small><%= profitReport.summary.confirmedCount %> عملية مطابقة أو مراجَعة</small></div></div>
+            <div class="col-6 col-lg-4"><div class="stat-box"><p class="text-muted mb-2">تكلفة التنفيذ الفعلية المعتمدة</p><h2 class="text-sky mb-0"><%= Number(profitReport.summary.cost).toFixed(2) %> <small class="fs-6">EGP</small></h2></div></div>
+        </div>
+        <p class="section-note mt-3 mb-0">الربح الفعلي = قيمة العملية − الخصم المرصود من رصيد المزوّد. الإجمالي يشمل جميع العمليات المكتملة المطابقة أو المراجَعة، ويستبعد الملغاة والمرتجعات. لا تُحتسب النسبة المتوقعة كربح محقق دون فحص الرصيد.</p>
+        <% if (profitReport.summary.reviewCount || profitReport.summary.unavailableCount) { %>
+        <div class="alert alert-warning mt-3 mb-0"><%= profitReport.summary.reviewCount %> عملية تحتاج مراجعة فرق التكلفة، و<%= profitReport.summary.unavailableCount %> عملية بيانات تكلفتها غير مكتملة؛ لم تُضَف إلى الإجمالي.</div>
+        <% } %>
+    </div>
+    <div class="api-card-header">سجل العمولة الربحية <small class="text-muted">— أحدث 100 عملية مكتملة</small></div>
+    <div class="table-responsive">
+        <table class="table table-dark-custom table-hover text-center mb-0">
+            <thead><tr><th>الوقت</th><th>العملية</th><th>القيمة (EGP)</th><th>النسبة المسجلة</th><th>التكلفة الفعلية (EGP)</th><th>العمولة الربحية (EGP)</th><th>الاعتماد</th></tr></thead>
+            <tbody>
+                <% if (!profitReport.entries.length) { %><tr><td colspan="7" class="py-4 text-muted">لا توجد عمليات مؤهلة مسجلة حتى الآن.</td></tr><% } %>
+                <% profitReport.entries.forEach(entry => { %>
+                <tr>
+                    <td class="small"><%= new Date(entry.createdAt).toLocaleString('en-GB', { timeZone: 'Africa/Tripoli' }) %></td>
+                    <td><a href="/transactions/operations?search=<%= encodeURIComponent(entry.transactionCustomId || String(entry.transactionId)) %>"><%= entry.transactionCustomId || String(entry.transactionId) %></a></td>
+                    <td dir="ltr"><%= entry.nominalAmount !== null && entry.nominalAmount !== undefined ? Number(entry.nominalAmount).toFixed(2) : '—' %></td>
+                    <td dir="ltr"><%= entry.profitCommissionPercent !== null && entry.profitCommissionPercent !== undefined ? Number(entry.profitCommissionPercent) + '%' : 'غير مسجلة' %></td>
+                    <td dir="ltr"><%= entry.hasCost ? Number(entry.observedDebit).toFixed(2) : 'غير متاحة' %></td>
+                    <td class="<%= entry.calculatedProfit < 0 ? 'text-rose' : 'text-emerald' %> fw-bold" dir="ltr"><%= entry.hasCost ? Number(entry.calculatedProfit).toFixed(2) : 'غير متاحة' %></td>
+                    <td><span class="badge <%= entry.profitConfirmed ? 'bg-success' : 'bg-warning text-dark' %>"><%= entry.profitConfirmed ? 'معتمدة' : (entry.hasCost ? 'تحتاج مراجعة' : 'بيانات غير مكتملة') %></span></td>
+                </tr>
+                <% }) %>
+            </tbody>
+        </table>
+    </div>
+</section>
