@@ -5,6 +5,8 @@ const executorGroupSchema = new mongoose.Schema({
     name: { type: String, required: true },
     status: { type: String, default: 'active' }, // active, inactive, paused, archived
     balance: { type: Number, default: 0 },
+    // Opt-in per provider account; ordinary executors remain prepaid.
+    apiSettlementMode: { type: String, enum: ['prepaid', 'credit'], default: 'prepaid' },
     apiProfitCommissionPercent: { type: Number, default: 0, min: 0, max: 99.9999 },
     serviceKey: { type: String, enum: EXECUTOR_SERVICE_KEYS, default: 'vodafone' },
     serviceKeys: { type: [String], enum: EXECUTOR_SERVICE_KEYS, default: undefined },

@@ -37,6 +37,31 @@ const completed = {
 };
 
 describe('admin comprehensive operation details', () => {
+    test('shows an interrupted paid resolution without offering another decision or payment', () => {
+        const tx = { ...inProgress, status: 'processing', apiResultData: {
+            providerResultUnresolved: true, providerResolutionOutcome: 'provider_paid',
+            providerResolutionEffectStartedAt: '2026-11-12T11:26:13.465Z'
+        } };
+        const html = details.renderSummaryPane(details.buildViewModel(tx, {}));
+        expect(html).toContain('data-provider-resolution-interrupted');
+        expect(html).toContain('قرار نجاح محفوظ');
+        expect(html).toContain('لم يكتمل');
+        expect(html).not.toContain('data-provider-action=');
+    });
+
+    test('a completed resolution has no interrupted resolution warning', () => {
+        const tx = { ...completed, apiResultData: { providerResolutionOutcome: 'provider_paid' } };
+        const html = details.renderSummaryPane(details.buildViewModel(tx, {}));
+        expect(html).not.toContain('data-provider-resolution-interrupted');
+    });
+
+    test('a resolved not-paid transfer returned to pending is not an interrupted success', () => {
+        const tx = { ...pendingCash, apiResultData: { providerResolutionOutcome: 'provider_not_paid',
+            providerDispatchResult: 'rejected', providerResultUnresolved: false } };
+        const html = details.renderSummaryPane(details.buildViewModel(tx, {}));
+        expect(html).not.toContain('data-provider-resolution-interrupted');
+        expect(html).not.toContain('data-provider-action=');
+    });
     test('replaces silent dashes with Arabic empty labels', () => {
         expect(details.displayValue('---')).toBe('لا يوجد');
         expect(details.displayValue('', 'unassigned')).toBe('لم يُعيَّن بعد');

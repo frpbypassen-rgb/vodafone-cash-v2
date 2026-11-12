@@ -50,6 +50,20 @@ const createTransaction = (overrides = {}) => ({
 const executorGroup = { _id: 'group-1', name: 'API Executor', parentGroupId: 'manager-1' };
 
 describe('API executor receipt lifecycle', () => {
+    test.each([
+        [{ isApiBot: true, apiSettlementMode: 'credit' }, true],
+        [{ isApiGroup: true, apiSettlementMode: 'credit' }, true],
+        [{ isApiBot: true, apiSettlementMode: 'prepaid' }, false],
+        [{ apiSettlementMode: 'credit' }, false]
+    ])('only an opted-in API account receives credit settlement (%j)', async (policy, allowed) => {
+        const tx = createTransaction();
+        Transaction.findById.mockResolvedValue(tx);
+        Transaction.findOneAndUpdate.mockResolvedValueOnce(tx);
+        await completeApiTransactionWithReference({ tx, executorGroup: { ...executorGroup, ...policy },
+            apiResult: { reference_number: 'REFERENCE' } });
+        expect(updateBalanceWithLedger).toHaveBeenCalledWith('ExecutorGroup', 'group-1', -1600,
+            'TRANSFER', 'ATT-2608-0142', 'تنفيذ API آلي', expect.objectContaining({ allowNegative: allowed }));
+    });
     afterEach(() => {
         jest.restoreAllMocks();
     });

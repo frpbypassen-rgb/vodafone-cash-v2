@@ -8,6 +8,7 @@ jest.mock('../services/adminAccountManagementService', () => ({
 }));
 
 const express = require('express');
+const http = require('node:http');
 const path = require('node:path');
 const request = require('supertest');
 const Employee = require('../models/Employee');
@@ -32,7 +33,8 @@ const deviceRequest = {
     displayName: '<Phone>', expiresAt: new Date(Date.now() + 60_000)
 };
 
-function appFor(permissions, adminRole = 'admin') {
+const servers = [];
+async function appFor(permissions, adminRole = 'admin') {
     const app = express();
     app.set('view engine', 'ejs');
     app.set('views', path.join(__dirname, '../views'));
@@ -46,7 +48,15 @@ function appFor(permissions, adminRole = 'admin') {
     app.use(employees);
     app.use(adminAccounts);
     app.use('/admin/security', securityAdmin);
-    return app;
+    // Own the IPv4 listener and await readiness instead of implicit, per-request
+    // wildcard listeners that intermittently reset connections on Windows.
+    const server = http.createServer(app);
+    servers.push(server);
+    await new Promise((resolve, reject) => {
+        server.once('error', reject);
+        server.listen(0, '127.0.0.1', resolve);
+    });
+    return server;
 }
 
 beforeEach(() => {
@@ -60,7 +70,13 @@ beforeEach(() => {
     });
 });
 
-afterEach(() => jest.restoreAllMocks());
+afterEach(async () => {
+    await Promise.all(servers.splice(0).map(server => new Promise(resolve => {
+        server.closeAllConnections();
+        server.close(resolve);
+    })));
+    jest.restoreAllMocks();
+});
 
 test.each([
     [[], false, false],
@@ -71,7 +87,7 @@ test.each([
         select: jest.fn().mockReturnThis(), sort: jest.fn().mockReturnThis(),
         lean: jest.fn().mockResolvedValue([deviceRequest])
     });
-    const { text } = await request(appFor(permissions)).get('/employees').expect(200);
+    const { text } = await request(await appFor(permissions)).get('/employees').expect(200);
     expect(text.includes('SEC-A1B2C3D4')).toBe(canRead);
     expect(text.includes(`${requestPath}/approve`)).toBe(canReview);
     expect(text.includes(`${requestPath}/reject`)).toBe(canReview);
@@ -91,9 +107,9 @@ test('approve requires CSRF and security management and scopes the request to th
         select: jest.fn().mockResolvedValue(deviceRequest)
     });
     const approve = jest.spyOn(securityControl, 'approveDeviceRequest').mockResolvedValue();
-    const app = appFor(['security.read', 'security.manage']);
+    const app = await appFor(['security.read', 'security.manage']);
     await request(app).post(`${requestPath}/approve`).expect(403);
-    await request(appFor(['security.read'])).post(`${requestPath}/approve`)
+    await request(await appFor(['security.read'])).post(`${requestPath}/approve`)
         .set('Accept', 'application/json').type('form').send({ _csrf: 'test-csrf' }).expect(403);
     expect(find).not.toHaveBeenCalled();
     await request(app).post(`${requestPath}/approve`).set('Accept', 'text/html').type('form')
@@ -114,7 +130,7 @@ test('employee profile renders only the selected employee requests with a profil
         select: jest.fn().mockReturnThis(), sort: jest.fn().mockReturnThis(),
         lean: jest.fn().mockResolvedValue([deviceRequest])
     });
-    const { text } = await request(appFor([], 'master'))
+    const { text } = await request(await appFor([], 'master'))
         .get(`/admin/accounts/executor-employee/${employeeId}/edit`).expect(200);
     expect(find).toHaveBeenCalledWith(expect.objectContaining({ principalId: { $in: [employeeId] } }));
     expect(text).toContain('SEC-A1B2C3D4');
@@ -125,7 +141,7 @@ test('employee profile renders only the selected employee requests with a profil
 test('a stale or mismatched request cannot be approved', async () => {
     jest.spyOn(SecurityAccessRequest, 'findOne').mockReturnValue({ select: jest.fn().mockResolvedValue(null) });
     const approve = jest.spyOn(securityControl, 'approveDeviceRequest').mockResolvedValue();
-    await request(appFor([], 'master')).post(`${requestPath}/approve`).type('form')
+    await request(await appFor([], 'master')).post(`${requestPath}/approve`).type('form')
         .send({ _csrf: 'test-csrf' }).expect(404);
     expect(approve).not.toHaveBeenCalled();
 });
@@ -133,7 +149,7 @@ test('a stale or mismatched request cannot be approved', async () => {
 test('reject records the decision and returns to the employee profile', async () => {
     jest.spyOn(SecurityAccessRequest, 'findOne').mockReturnValue({ select: jest.fn().mockResolvedValue(deviceRequest) });
     const update = jest.spyOn(SecurityAccessRequest, 'updateOne').mockResolvedValue({ modifiedCount: 1 });
-    await request(appFor([], 'master')).post(`${requestPath}/reject`).set('Accept', 'text/html').type('form')
+    await request(await appFor([], 'master')).post(`${requestPath}/reject`).set('Accept', 'text/html').type('form')
         .send({ _csrf: 'test-csrf', returnTo: 'profile' }).expect(303)
         .expect('Location', `/admin/accounts/executor-employee/${employeeId}/edit?deviceReview=reject#employee-device-requests`);
     expect(update).toHaveBeenCalledWith(

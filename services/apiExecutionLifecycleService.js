@@ -16,6 +16,8 @@ const {
 } = require('./providerDispatchClaimService');
 
 const DEFAULT_API_COMPLETION_DELAY_MS = 25000;
+const isApiAccount = group => group?.isApiBot === true || group?.isApiGroup === true;
+const usesApiCredit = group => isApiAccount(group) && group.apiSettlementMode === 'credit';
 const MONITOR_INTERVAL_MS = 5000;
 let monitorTimer = null;
 
@@ -235,7 +237,7 @@ const prepareApiTransactionForDelayedCompletion = ({
     return { referenceNumber, autoCompleteAt, delayMs };
 };
 
-const completeApiTransactionWithReference = async ({ tx, executorGroup, apiResult, receiptProof, detailedLog }) => {
+const completeApiTransactionWithReference = async ({ tx, executorGroup, apiResult, receiptProof, detailedLog, resolutionRecovery, beforeCommit }) => {
     const referenceNumber = resolveApiReferenceNumber(apiResult);
     if (!referenceNumber) return null;
     let completedTx;
@@ -251,12 +253,19 @@ const completeApiTransactionWithReference = async ({ tx, executorGroup, apiResul
                 _id: tx._id,
                 status: { $in: ['pending', 'accepted', 'processing'] },
                 executorGroupId: executorGroup._id,
+                ...(resolutionRecovery ? {
+                    updatedAt: resolutionRecovery.expectedUpdatedAt,
+                    'apiResultData.providerResolutionOutcome': 'provider_paid',
+                    'apiResultData.providerResolutionEvidence': resolutionRecovery.evidenceReference
+                } : {}),
                 ...(tx.apiResultData?.providerDispatchAttemptId
                     ? { 'apiResultData.providerDispatchAttemptId': tx.apiResultData.providerDispatchAttemptId } : {})
             }, { $set: { 'apiResultData.completionClaimedAt': new Date() } }, { session, returnDocument: 'after' });
             if (!claimed) {
                 const current = await Transaction.findById(tx._id).session(session);
-                if (current?.status !== 'completed' || !sameId(current.executorGroupId, executorGroup._id)) {
+                if (current?.status !== 'completed' || !sameId(current.executorGroupId, executorGroup._id)
+                    || (resolutionRecovery && (current.apiResultData?.providerResolutionOutcome !== 'provider_paid'
+                        || current.apiResultData?.providerResolutionEvidence !== resolutionRecovery.evidenceReference))) {
                     throw new Error('PROVIDER_COMPLETION_CONFLICT');
                 }
                 completedTx = current;
@@ -265,6 +274,13 @@ const completeApiTransactionWithReference = async ({ tx, executorGroup, apiResul
             }
             const amount = Number(claimed.amount);
             if (!Number.isFinite(amount) || amount <= 0) throw new Error('INVALID_PROVIDER_COMPLETION_AMOUNT');
+            if (resolutionRecovery?.enableApiCredit === true) {
+                if (!isApiAccount(executorGroup)) throw new Error('API_CREDIT_ACCOUNT_REQUIRED');
+                const policy = await ExecutorGroup.updateOne({ _id: executorGroup._id,
+                    $or: [{ isApiBot: true }, { isApiGroup: true }]
+                }, { $set: { apiSettlementMode: 'credit' } }, { session });
+                if (policy.matchedCount !== 1) throw new Error('API_CREDIT_ACCOUNT_REQUIRED');
+            }
             const existingDebit = await Ledger.findOne({
                 entityModel: 'ExecutorGroup', entityId: executorGroup._id, transactionId: claimed.customId,
                 type: 'TRANSFER', amount: -amount, description: 'تنفيذ API آلي'
@@ -272,7 +288,8 @@ const completeApiTransactionWithReference = async ({ tx, executorGroup, apiResul
             ledgerResult = existingDebit ? { success: true, idempotent: true }
                 : await walletService.updateBalanceWithLedger('ExecutorGroup', executorGroup._id,
                     -amount, 'TRANSFER', claimed.customId, 'تنفيذ API آلي',
-                    { session, tenantId: claimed.tenantId || executorGroup.tenantId });
+                    { session, tenantId: claimed.tenantId || executorGroup.tenantId,
+                        allowNegative: usesApiCredit(executorGroup) || resolutionRecovery?.enableApiCredit === true });
             const completedAt = new Date();
             claimed.status = 'completed';
             claimed.managerGroupId = getParentGroupId(executorGroup);
@@ -293,9 +310,11 @@ const completeApiTransactionWithReference = async ({ tx, executorGroup, apiResul
                 providerTransactionId: apiResult.provider_transaction_id || null,
                 completedAt, completionMode: 'immediate_reference', ledgerPosted: true, ledgerError: null,
                 providerDispatchResult: 'accepted', providerResultUnresolved: false,
+                ...(resolutionRecovery ? { providerResolvedAt: completedAt, providerResolutionResumedAt: completedAt } : {}),
                 apiProviderReceiptProof: receiptProof || claimed.apiResultData?.apiProviderReceiptProof || null
             };
             await claimed.save({ session });
+            if (beforeCommit) await beforeCommit(claimed, session);
             completedTx = claimed;
         });
     } finally { await session.endSession(); }
@@ -399,7 +418,7 @@ const completeApiTransaction = async (txId, executorGroupId) => {
                 'TRANSFER',
                 claimed.customId,
                 'تنفيذ API آلي',
-                { session }
+                { session, allowNegative: usesApiCredit(executorGroup) }
             );
 
             const completedAt = new Date();

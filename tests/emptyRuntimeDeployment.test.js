@@ -29,6 +29,16 @@ const fixture = () => ({
         ].map((key) => [key, { active: 0, wait: 0, delayed: 0, prioritized: 0, 'waiting-children': 0 }])
     ),
 });
+
+test('source-only deployment retains the guarded installer and rejects dependency or local source changes', () => {
+    expect(restartSource).toContain('[switch]$SourceOnly');
+    expect(restartSource).toContain('& git diff --quiet --ignore-submodules=all HEAD --');
+    expect(restartSource).toContain('SourceOnly refuses dependency changes. No runtime or source was changed.');
+    expect(restartSource).toContain('SourceOnly requires an explicit release and clean-source review manifest, without dependency updates.');
+    const install = restartSource.indexOf('$installOutput = & node $releaseHelper');
+    expect(install).toBeGreaterThan(restartSource.indexOf('& pm2 stop ahram-pay'));
+    expect(install).toBeLessThan(restartSource.indexOf('& pm2 restart ahram-pay --update-env'));
+});
 test('only complete empty observations permit restart', () => {
     expect(() => validate(fixture())).not.toThrow();
 });

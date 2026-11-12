@@ -5,6 +5,7 @@ const os = require('node:os');
 const crypto = require('node:crypto');
 const { execFileSync, spawnSync } = require('node:child_process');
 const { inspectRelease, installRelease } = require('../scripts/installReviewedServerRelease.cjs');
+const { prepareCleanRelease } = require('../scripts/prepareCleanServerRelease.cjs');
 let parent;
 let project;
 let backup;
@@ -14,6 +15,23 @@ const hash = bytes => crypto.createHash('sha256').update(bytes).digest('hex');
 const git = (...args) => execFileSync('git', ['-C', project, ...args], { encoding: 'utf8', windowsHide: true }).trim();
 const write = (file, content) => { fs.mkdirSync(path.dirname(path.join(project, file)), { recursive: true }); fs.writeFileSync(path.join(project, file), content); };
 const commit = message => { git('add', '.'); git('-c', 'user.name=ReleaseTest', '-c', 'user.email=release@local.invalid', 'commit', '-m', message); return git('rev-parse', 'HEAD'); };
+
+test('clean-source release refuses changed local source and changed dependencies', () => {
+    expect(() => prepareCleanRelease({ project, target })).toThrow();
+    const base = git('rev-parse', 'HEAD');
+    git('restore', '--source=HEAD', '--worktree', '--', 'models/ExecutorGroup.js', 'routes/mobileApi.js');
+    fs.unlinkSync(path.join(project, 'services/executorTeamChatService.js'));
+    expect(() => prepareCleanRelease({ project, target })).toThrow('SOURCE_ONLY_DEPENDENCIES_CHANGED');
+    git('switch', '--detach', target);
+    write('package.json', '{}');
+    const sourceOnly = commit('restore unchanged dependency manifests');
+    git('switch', '--detach', base);
+    const clean = prepareCleanRelease({ project, target: sourceOnly });
+    const result = installRelease({ project, target: sourceOnly, manifest: clean, backup });
+    expect(result.installed).toBe(true);
+    expect(git('rev-parse', 'HEAD')).toBe(sourceOnly);
+    expect(fs.existsSync(path.join(backup, 'before.bundle'))).toBe(true);
+});
 beforeEach(() => {
     parent = fs.mkdtempSync(path.join(os.tmpdir(), 'ahram-reviewed-release-test-'));
     project = path.join(parent, 'project'); backup = path.join(parent, 'backup');

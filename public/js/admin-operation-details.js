@@ -605,6 +605,15 @@
     function renderProviderResolution(model) {
         const tx = model && model.tx;
         const data = tx && tx.apiResultData ? tx.apiResultData : {};
+        const releasedNotPaid = tx?.status === 'pending' && data.providerResolutionOutcome === 'provider_not_paid'
+            && data.providerResultUnresolved !== true && data.providerDispatchResult === 'rejected';
+        if (tx && ['pending', 'processing', 'accepted'].includes(tx.status) && data.providerResolutionOutcome && !releasedNotPaid) {
+            const decision = data.providerResolutionOutcome === 'provider_paid' ? 'قرار نجاح محفوظ' : 'قرار حسم محفوظ';
+            return `<div class="od-alert od-alert-warning" data-provider-resolution-interrupted>
+                <div><strong>${decision} — لم يكتمل تطبيق الحسم محلياً</strong>
+                <div>يلزم مراجعة القيد المالي واستكمال القرار المحفوظ بأداة الاستعادة الإدارية. لا تُعد إرسال التحويل ولا تغيّر القرار أو ترد الرصيد.</div></div>
+            </div>`;
+        }
         const held = tx?.providerReviewAvailable === true || data.providerResultUnresolved === true
             || data.providerDispatchResult === 'pending_reference'
             || data.referenceMasked === false;

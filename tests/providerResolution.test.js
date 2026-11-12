@@ -322,6 +322,187 @@ describe('manual provider resolution', () => {
     const evidence = 'PROV-TX-1001';
     const note = 'كشف المزود يؤكد هذه المحاولة';
 
+    test('explicit API credit policy permits a paid settlement below zero, without another Payment', async () => {
+        const { tx, executor } = await createAmbiguousTransfer();
+        await ExecutorGroup.updateOne({ _id: executor._id }, { $set: { balance: -1000, apiSettlementMode: 'credit' } });
+        const admin = await resolver(['transactions.resolve_provider']);
+        const dry = await preview(tx, admin, 'provider_paid');
+        const result = await confirmResolution(tx, admin, 'provider_paid', dry.expectedUpdatedAt);
+        expect(result.success).toBe(true);
+        expect((await ExecutorGroup.findById(executor._id)).balance).toBe(-1100);
+        expect(await moneySnapshot(executor._id)).toEqual({ debits: 1, refunds: 0, paymentCalls: 0 });
+    });
+
+    test('resumes a stale recorded paid decision atomically with an explicit API credit policy and one debit', async () => {
+        const { tx, executor } = await createAmbiguousTransfer();
+        const admin = await resolver(['transactions.resolve_provider']);
+        await ExecutorGroup.updateOne({ _id: executor._id }, { $set: { balance: -1000 } });
+        tx.apiResultData = { ...tx.apiResultData,
+            providerResolutionOutcome: 'provider_paid', providerResolutionEvidence: evidence,
+            providerResolutionNote: note, providerResolutionActorId: String(admin._id),
+            providerResolutionEffectStartedAt: new Date(Date.now() - 600000)
+        };
+        tx.markModified('apiResultData'); await tx.save();
+        const input = { transactionId: String(tx._id), outcome: 'provider_paid', evidenceReference: evidence, note,
+            resumePaid: true, enableApiCredit: true,
+            actor: { id: admin._id, name: admin.name, role: admin.role, permissions: admin.permissions } };
+        const dry = await resolveProviderResult(input);
+        expect(dry).toMatchObject({ success: true, dryRun: true, applied: false });
+        expect((await ExecutorGroup.findById(executor._id)).apiSettlementMode).toBe('prepaid');
+        expect((await Transaction.findById(tx._id)).status).toBe('processing');
+        const applied = await resolveProviderResult({ ...input, confirm: true, expectedUpdatedAt: dry.expectedUpdatedAt });
+        expect(applied).toMatchObject({ success: true, applied: true, statusAfter: 'completed' });
+        const again = await resolveProviderResult({ ...input, confirm: true, expectedUpdatedAt: dry.expectedUpdatedAt });
+        expect(again).toMatchObject({ success: true, applied: false, idempotent: true });
+        const stored = await Transaction.findById(tx._id);
+        expect(stored.apiResultData.providerResultUnresolved).toBe(false);
+        expect(stored.apiResultData.providerResolvedAt).toBeTruthy();
+        expect((await ExecutorGroup.findById(executor._id)).balance).toBe(-1100);
+        expect((await ExecutorGroup.findById(executor._id)).apiSettlementMode).toBe('credit');
+        expect(await moneySnapshot(executor._id)).toEqual({ debits: 1, refunds: 0, paymentCalls: 0 });
+        expect(await AuditLog.countDocuments({ action: 'PROVIDER_PAID_RESOLUTION_RESUMED', targetId: tx._id })).toBe(1);
+    });
+
+    const interrupted = async () => {
+        const held = await createAmbiguousTransfer();
+        const admin = await resolver(['transactions.resolve_provider']);
+        await ExecutorGroup.updateOne({ _id: held.executor._id }, { $set: { balance: -1000 } });
+        held.tx.apiResultData = { ...held.tx.apiResultData, providerResolutionOutcome: 'provider_paid',
+            providerResolutionEvidence: evidence, providerResolutionNote: note,
+            providerResolutionActorId: String(admin._id), providerResolutionEffectStartedAt: new Date(Date.now() - 600000) };
+        held.tx.markModified('apiResultData'); await held.tx.save();
+        return { ...held, admin, input: { transactionId: String(held.tx._id), outcome: 'provider_paid',
+            evidenceReference: evidence, note, resumePaid: true, enableApiCredit: true,
+            actor: { id: admin._id, name: admin.name, role: admin.role, permissions: admin.permissions } } };
+    };
+
+    test.each(['evidence', 'outcome', 'recent', 'actor', 'manual', 'changed', 'prepaid', 'debit'])('rejects unsafe recovery: %s', async kind => {
+        const { tx, executor, input } = await interrupted();
+        const attempt = { ...input, confirm: true, expectedUpdatedAt: tx.updatedAt };
+        let code;
+        if (kind === 'evidence') { attempt.evidenceReference = 'different'; code = 'RECORDED_DECISION_MISMATCH'; }
+        if (kind === 'outcome') { attempt.outcome = 'provider_not_paid'; code = 'RECORDED_DECISION_MISMATCH'; }
+        if (kind === 'actor') { attempt.actor = { role: 'operator', permissions: [] }; code = 'PROVIDER_RESOLUTION_FORBIDDEN'; }
+        if (kind === 'recent') {
+            await Transaction.updateOne({ _id: tx._id }, { $set: { 'apiResultData.providerResolutionEffectStartedAt': new Date() } });
+            code = 'RESOLUTION_NOT_STALE';
+        }
+        if (kind === 'manual') {
+            await ExecutorGroup.updateOne({ _id: executor._id }, { $set: { isApiBot: false, isApiGroup: false } });
+            code = 'API_CREDIT_ACCOUNT_REQUIRED';
+        }
+        if (kind === 'changed') { attempt.expectedUpdatedAt = new Date(0); code = 'ROW_CHANGED'; }
+        if (kind === 'prepaid') { attempt.enableApiCredit = false; code = 'INSUFFICIENT_BALANCE'; }
+        if (kind === 'debit') {
+            await Ledger.create({ entityModel: 'ExecutorGroup', entityId: executor._id, type: 'TRANSFER',
+                transactionId: tx.customId, amount: -1, balanceBefore: -999, balanceAfter: -1000, description: 'other debit' });
+            code = 'EXECUTOR_DEBIT_CONFLICT';
+        }
+        const result = await resolveProviderResult(attempt);
+        expect(result.code).toBe(code);
+        expect((await Transaction.findById(tx._id)).status).toBe('processing');
+        expect((await ExecutorGroup.findById(executor._id)).balance).toBe(-1000);
+        expect((await ExecutorGroup.findById(executor._id)).apiSettlementMode).toBe('prepaid');
+        expect(paymentCalls).toBe(0);
+    });
+
+    test('concurrent recovery does not repeat an existing executor debit', async () => {
+        const { tx, executor, input } = await interrupted();
+        await updateBalanceWithLedger('ExecutorGroup', executor._id, -AMOUNT, 'TRANSFER', tx.customId,
+            'تنفيذ API آلي', { allowNegative: true });
+        const dry = await resolveProviderResult(input);
+        expect(dry.preview.moneyMovements[0].apply).toBe(false);
+        const outcomes = await Promise.all([1, 2].map(() => resolveProviderResult({ ...input,
+            confirm: true, expectedUpdatedAt: dry.expectedUpdatedAt })));
+        expect(outcomes.every(result => result.success)).toBe(true);
+        expect(outcomes.filter(result => result.applied)).toHaveLength(1);
+        expect((await ExecutorGroup.findById(executor._id)).balance).toBe(-1100);
+        expect(await moneySnapshot(executor._id)).toEqual({ debits: 1, refunds: 0, paymentCalls: 0 });
+    });
+
+    test('audit failure rolls back credit policy, executor debit and completion together', async () => {
+        const { tx, executor, input } = await interrupted();
+        const failingAudit = jest.spyOn(AuditLog.prototype, 'save').mockRejectedValueOnce(new Error('isolated audit failure'));
+        try {
+            await expect(resolveProviderResult({ ...input, confirm: true, expectedUpdatedAt: tx.updatedAt })).rejects.toThrow();
+        } finally { failingAudit.mockRestore(); }
+        expect((await Transaction.findById(tx._id)).status).toBe('processing');
+        const account = await ExecutorGroup.findById(executor._id);
+        expect(account.balance).toBe(-1000);
+        expect(account.apiSettlementMode).toBe('prepaid');
+        expect(await Ledger.countDocuments({ transactionId: tx.customId })).toBe(0);
+        const retried = await resolveProviderResult({ ...input, confirm: true, expectedUpdatedAt: tx.updatedAt });
+        expect(retried.success).toBe(true);
+        expect(await moneySnapshot(executor._id)).toEqual({ debits: 1, refunds: 0, paymentCalls: 0 });
+    });
+
+    test('CLI preview is read-only; apply and repeated apply complete the recorded payment with one debit', async () => {
+        const { tx, executor } = await interrupted();
+        const os = require('node:os');
+        const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ahram-resume-cli-'));
+        const statePath = root + '-preview.json';
+        fs.writeFileSync(path.join(root, 'package.json'), '{}');
+        fs.writeFileSync(path.join(root, '.env'), 'NODE_ENV=test\n');
+        fs.symlinkSync(path.resolve(__dirname, '../node_modules'), path.join(root, 'node_modules'), process.platform === 'win32' ? 'junction' : 'dir');
+        try {
+            const run = (extra = []) => new Promise((resolve, reject) => {
+                const child = spawn(process.execPath, [path.resolve(__dirname, '../scripts/resumeRecordedApiPayment.cjs'),
+                    '--project', root, '--operation', tx.customId, '--enable-api-credit', ...extra],
+                { env: { ...process.env, MONGO_URI: replSet.getUri() }, windowsHide: true });
+                let stdout = '', stderr = '';
+                child.stdout.on('data', chunk => { stdout += chunk; });
+                child.stderr.on('data', chunk => { stderr += chunk; });
+                child.on('error', reject); child.on('close', code => resolve({ code, stdout, stderr }));
+            });
+            const result = await run();
+            expect(result.code).toBe(0);
+            const parsed = JSON.parse(result.stdout);
+            expect(parsed).toMatchObject({ success: true, dryRun: true,
+                preview: { executorBalanceAfter: -1100, apiSettlementModeAfter: 'credit', providerPaymentCalls: 0 } });
+            expect((await ExecutorGroup.findById(executor._id)).balance).toBe(-1000);
+            expect((await Transaction.findById(tx._id)).status).toBe('processing');
+            expect(await Ledger.countDocuments({ transactionId: tx.customId })).toBe(0);
+            if (process.platform === 'win32') {
+                const runPhase = (phase, expected = AMOUNT) => new Promise((resolve, reject) => {
+                    const child = spawn('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File',
+                        path.resolve(__dirname, '../scripts/finishRecordedApiPayment.ps1'),
+                        '-ProjectPath', root, '-Operation', tx.customId, '-StatePath', statePath,
+                        '-EnableApiCredit', '-ExpectedAmount', String(expected), '-Phase', phase], { env: { ...process.env, MONGO_URI: replSet.getUri() }, windowsHide: true });
+                    let stdout = '', stderr = '';
+                    child.stdout.on('data', chunk => { stdout += chunk; });
+                    child.stderr.on('data', chunk => { stderr += chunk; });
+                    child.on('error', reject); child.on('close', code => resolve({ code, stdout, stderr }));
+                });
+                expect(await runPhase('Preview', 1)).toMatchObject({ code: 1 });
+                expect(await Ledger.countDocuments({ transactionId: tx.customId })).toBe(0);
+                const psPreview = await runPhase('Preview');
+                expect(psPreview).toMatchObject({ code: 0 });
+                expect(psPreview.stdout).toContain('PREVIEW_ONLY');
+                expect(JSON.parse(fs.readFileSync(statePath, 'utf8'))).toMatchObject({ operation: tx.customId, apiCredit: true });
+                expect((await Transaction.findById(tx._id)).status).toBe('processing');
+                const psApply = await runPhase('Apply');
+                expect(psApply).toMatchObject({ code: 0 });
+                expect(psApply.stdout).toContain('RECORDED_PAYMENT_COMPLETED');
+                expect(await runPhase('Preview')).toMatchObject({ code: 0 });
+                expect(await runPhase('Apply')).toMatchObject({ code: 0 });
+            }
+            const applied = await run(['--apply', '--expected-updated-at', parsed.expectedUpdatedAt]);
+            expect(applied.code).toBe(0);
+            expect(JSON.parse(applied.stdout)).toMatchObject({ success: true,
+                verification: { status: 'completed', providerResultUnresolved: false, executorDebitCount: 1, apiSettlementMode: 'credit' } });
+            const again = await run(['--apply', '--expected-updated-at', parsed.expectedUpdatedAt]);
+            expect(again.code).toBe(0);
+            expect(JSON.parse(again.stdout)).toMatchObject({ success: true, idempotent: true, applied: false });
+            expect((await ExecutorGroup.findById(executor._id)).balance).toBe(-1100);
+            expect(await moneySnapshot(executor._id)).toEqual({ debits: 1, refunds: 0, paymentCalls: 0 });
+        } finally {
+            if (fs.existsSync(statePath)) fs.unlinkSync(statePath);
+            fs.unlinkSync(path.join(root, 'node_modules'));
+            if (path.dirname(root) !== os.tmpdir() || !path.basename(root).startsWith('ahram-resume-cli-')) throw new Error('UNSAFE_TEST_CLEANUP');
+            fs.rmSync(root, { recursive: true, force: true });
+        }
+    });
+
     const resolver = async (permissions, role = 'admin') => {
         sequence += 1;
         return Admin.create({

@@ -168,6 +168,72 @@ const validateRequest = (input) => {
     return { outcome, evidenceReference, note };
 };
 
+// Resume only the SAME recorded paid decision; never repeat a provider payment.
+const resumeRecordedPaidDecision = async (tx, input, evidenceReference, note) => {
+    const data = tx.apiResultData || {};
+    const rejected = (code, message) => ({ success: false, statusCode: 409, code, message });
+    if (input.outcome !== 'provider_paid' || resolutionOutcomeOf(tx) !== 'provider_paid'
+        || clean(data.providerResolutionEvidence) !== evidenceReference
+        || clean(data.providerResolutionNote) !== note || !clean(data.providerResolutionActorId)) {
+        return rejected('RECORDED_DECISION_MISMATCH', 'الاستكمال يتطلب قرار نجاح محفوظاً بنفس الإثبات والملاحظة؛ لا ينشئ قراراً جديداً.');
+    }
+    const started = new Date(data.providerResolutionEffectStartedAt).getTime();
+    if (!['pending', 'processing', 'accepted'].includes(tx.status) || !Number.isFinite(started)
+        || Date.now() - started < 5 * 60 * 1000) {
+        return rejected('RESOLUTION_NOT_STALE', 'الحسم غير متوقف منذ خمس دقائق أو العملية ليست قابلة للاستكمال.');
+    }
+    const group = await ExecutorGroup.findById(tx.executorGroupId);
+    if (!group || !(group.isApiBot === true || group.isApiGroup === true)) {
+        return rejected('API_CREDIT_ACCOUNT_REQUIRED', 'الاستعادة مخصصة لحساب منفذ API موثق فقط.');
+    }
+    const debits = await Ledger.find({ transactionId: tx.customId, entityModel: 'ExecutorGroup',
+        type: 'TRANSFER', amount: { $lt: 0 } }).select('entityId amount description').lean();
+    if (debits.length > 1 || debits.some(row => String(row.entityId) !== String(group._id)
+        || Number(row.amount) !== -Number(tx.amount) || row.description !== EXECUTOR_DEBIT_DESCRIPTION)) {
+        return rejected('EXECUTOR_DEBIT_CONFLICT', 'يوجد قيد مالي غير مطابق؛ يلزم تدقيقه قبل الاستكمال.');
+    }
+    const preview = { ...await moneyPreview(tx, 'provider_paid'),
+        executorBalanceBefore: group.balance,
+        executorBalanceAfter: Number(group.balance) - (debits.length ? 0 : Number(tx.amount)),
+        apiSettlementModeBefore: group.apiSettlementMode || 'prepaid',
+        apiSettlementModeAfter: input.enableApiCredit === true ? 'credit' : group.apiSettlementMode || 'prepaid'
+    };
+    const base = { success: true, transactionId: String(tx._id), customId: tx.customId,
+        expectedUpdatedAt: tx.updatedAt, outcome: 'provider_paid', preview };
+    if (input.confirm !== true) return { ...base, dryRun: true, applied: false, statusCode: 200 };
+    if (!input.expectedUpdatedAt || !sameInstant(input.expectedUpdatedAt, tx.updatedAt)) {
+        return rejected('ROW_CHANGED', 'تغيّرت العملية. أعد الفحص قبل الاستكمال.');
+    }
+    if (!debits.length && preview.apiSettlementModeAfter !== 'credit' && Number(group.balance) < Number(tx.amount)) {
+        return rejected('INSUFFICIENT_BALANCE', 'الحساب مسبق الدفع ورصيده لا يكفي. لم يتغير شيء.');
+    }
+    const before = snapshot(tx);
+    const completion = await completeApiTransactionWithReference({
+        tx, executorGroup: group,
+        apiResult: { reference_number: evidenceReference,
+            external_transaction_id: providerTransactionIdOf(tx) || evidenceReference,
+            provider_transaction_id: providerTransactionIdOf(tx) || evidenceReference,
+            reference_masked: /[*＊×•·]/u.test(evidenceReference) },
+        resolutionRecovery: { evidenceReference, expectedUpdatedAt: tx.updatedAt,
+            enableApiCredit: input.enableApiCredit === true },
+        beforeCommit: async (completed, session) => {
+            applyResolutionNote(completed, note);
+            await completed.save({ session });
+            await logAction({ action: 'PROVIDER_PAID_RESOLUTION_RESUMED', req: input.req,
+                performedById: input.actor.id, performedByModel: 'Admin', performedByName: input.actor.name || 'Admin',
+                targetId: tx._id, targetModel: 'Transaction', oldData: before, newData: snapshot(completed),
+                metadata: { providerPaymentCalls: 0, evidenceReference,
+                    originalDecisionActorId: data.providerResolutionActorId,
+                    apiSettlementModeBefore: preview.apiSettlementModeBefore,
+                    apiSettlementModeAfter: preview.apiSettlementModeAfter },
+                severity: 'critical', required: true, success: true, session });
+        }
+    });
+    if (!completion) return rejected('COMPLETION_REJECTED', 'لم يكتمل القرار؛ لا تُعد إرسال التحويل.');
+    return { ...base, dryRun: false, applied: !completion.idempotent, idempotent: Boolean(completion.idempotent),
+        statusCode: 200, statusAfter: tx.status, code: 'PROVIDER_PAID_RESOLUTION_RESUMED' };
+};
+
 const resolveProviderResult = async (input = {}) => {
     if (!actorCanResolve(input.actor)) {
         return {
@@ -201,6 +267,8 @@ const resolveProviderResult = async (input = {}) => {
             preview
         };
     }
+
+    if (input.resumePaid === true) return resumeRecordedPaidDecision(tx, input, evidenceReference, note);
 
     if (outcome === 'provider_not_paid') {
         const conflict = await notPaidEvidenceConflict(tx);

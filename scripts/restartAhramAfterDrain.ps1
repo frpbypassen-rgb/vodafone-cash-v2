@@ -4,10 +4,15 @@ param(
     [ValidateRange(60,900)][int]$ReadyTimeoutSeconds = 360,
     [switch]$Apply,
     [switch]$UpdateDependencies,
-    [string]$ReleaseCommit = ''
+    [string]$ReleaseCommit = '',
+    [string]$ReviewManifestPath = '',
+    [switch]$SourceOnly
 )
 $ErrorActionPreference = 'Stop'
-if ($Apply -and $ReleaseCommit -and !$UpdateDependencies) {
+if ($SourceOnly -and (!$ReleaseCommit -or !$ReviewManifestPath -or $UpdateDependencies)) {
+    throw 'SourceOnly requires an explicit release and clean-source review manifest, without dependency updates.'
+}
+if ($Apply -and $ReleaseCommit -and !$UpdateDependencies -and !$SourceOnly) {
     throw 'Reviewed release installation requires -UpdateDependencies. No runtime or source was changed.'
 }
 Set-Location -LiteralPath $ProjectPath
@@ -36,10 +41,20 @@ Check-Empty
 $releaseInfo = $null
 $releaseHelper = Join-Path $PSScriptRoot 'installReviewedServerRelease.cjs'
 $reviewManifest = Join-Path $PSScriptRoot 'releases\server-local-20261112.json'
+if ($ReviewManifestPath) { $reviewManifest = (Resolve-Path -LiteralPath $ReviewManifestPath).Path }
+if ($SourceOnly) {
+    & git diff --quiet --ignore-submodules=all HEAD --
+    if ($LASTEXITCODE -ne 0) { throw 'SourceOnly requires unchanged tracked source. Local changes were preserved.' }
+}
 if ($ReleaseCommit) {
     $releaseOutput = & node $releaseHelper --project $projectRoot --commit $ReleaseCommit --manifest $reviewManifest
     if ($LASTEXITCODE -ne 0) { throw 'Reviewed source snapshot does not match. No live source was changed.' }
     $releaseInfo = (($releaseOutput -join "`n") | ConvertFrom-Json)
+    if ($SourceOnly -and (
+        (Get-FileHash -LiteralPath 'package.json' -Algorithm SHA256).Hash -ne $releaseInfo.packageJsonSha256 -or
+        (Get-FileHash -LiteralPath 'package-lock.json' -Algorithm SHA256).Hash -ne $releaseInfo.packageLockSha256)) {
+        throw 'SourceOnly refuses dependency changes. No runtime or source was changed.'
+    }
 }
 if (!$Apply) {
     Write-Output 'PRECHECK_PASS. Read-only inspection; no restart, IIS, firewall or financial changes.'
