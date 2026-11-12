@@ -7,6 +7,7 @@ const { renderApiReceiptWithBrowser } = require('./apiReceiptBrowserService');
 const { SYSTEM_TIME_ZONE } = require('../config/systemTime');
 const { getApiProviderPreset } = require('../utils/apiProviderPresets');
 const logger = require('../utils/logger');
+const { classifyProviderPaymentResponse, normalizeProviderStatus, isReturnedProviderStatus } = require('../utils/providerPaymentResponse');
 const {
     UNRESOLVED_CODE,
     claimProviderDispatch,
@@ -38,38 +39,10 @@ const numberOrZero = (value) => {
     return Number.isFinite(parsed) ? parsed : 0;
 };
 
-const normalizeProviderStatus = (value) => String(value || '')
-    .normalize('NFKC')
-    .toLowerCase()
-    .replace(/[أإآ]/g, 'ا')
-    .replace(/ة/g, 'ه')
-    .replace(/\s+/g, ' ')
-    .trim();
-
 // The provider masks the beneficiary/reference phone when the payment is
 // settled. A full number is an accepted-looking response that still needs a
 // provider follow-up and an operator decision.
 const isMaskedProviderReference = (value) => /[*＊×•·]/u.test(String(value || ''));
-
-const isReturnedProviderStatus = (value) => {
-    const status = normalizeProviderStatus(value);
-    if (!status) return false;
-    return [
-        'مسترجع',
-        'مسترد',
-        'مرتجع',
-        'مرتد',
-        'مردود',
-        'معكوس',
-        'تم رد',
-        'ملغ',
-        'الغاء',
-        'refund',
-        'revers',
-        'return',
-        'cancel'
-    ].some((marker) => status.includes(marker));
-};
 
 const extractProviderPhone = (data = {}) => {
     if (data.PhoneNumber) return String(data.PhoneNumber).trim();
@@ -214,15 +187,15 @@ const authorizeApiProvider = async (config, addLog, onRejected) => {
 
     if (!freshToken) {
         addLog("AUTH", "جاري إرسال طلب تسجيل الدخول...");
-        const authRes = await axios.post(`${config.baseUrl}/api/Account/GetToken`, authPayload, { headers: config.defaultHeaders, timeout: 15000 });
+        const authRes = await axios.post(`${config.baseUrl}/api/Account/GetToken`, authPayload, { headers: config.defaultHeaders, timeout: 15000, maxRedirects: 0 });
 
-        if (authRes.data.Code !== 200 || !authRes.data.Data || !authRes.data.Data.Access_Token) {
+        if (!hasSuccessCode(authRes.data) || !authRes.data.Data || typeof authRes.data.Data.Access_Token !== 'string' || !authRes.data.Data.Access_Token.trim()) {
             onRejected?.(authRes);
-            addLog("AUTH_FAIL", authRes.data.Message || "تم رفض تسجيل الدخول من الشركة");
+            addLog("AUTH_FAIL", authRes.data?.Message || "تم رفض تسجيل الدخول من الشركة");
             return { success: false, message: 'فشل تسجيل الدخول لشركة زين' };
         }
 
-        freshToken = authRes.data.Data.Access_Token;
+        freshToken = authRes.data.Data.Access_Token.trim();
         addLog("AUTH_SUCCESS", "تم استلام التوكن بنجاح");
     } else {
         addLog("AUTH_TOKEN", "تم استخدام Token محفوظ في بيانات المنفذ");
@@ -285,7 +258,7 @@ const getApiProviderBalanceWithAuth = async (config, headers, addLog) => {
     const blocked = providerCallBlock() || refuseResolvedProvider(config);
     if (blocked) return { success: false, message: blocked.message, code: blocked.code };
     addLog('BALANCE', 'Checking available provider balance');
-    const balanceRes = await axios.post(`${config.baseUrl}/api/Account/GetBalance`, {}, { headers, timeout: 20000 });
+    const balanceRes = await axios.post(`${config.baseUrl}/api/Account/GetBalance`, {}, { headers, timeout: 20000, maxRedirects: 0 });
     const responseData = balanceRes.data || {};
     const rawBalance = responseData.Data || {};
 
@@ -295,6 +268,12 @@ const getApiProviderBalanceWithAuth = async (config, headers, addLog) => {
         return { success: false, message };
     }
 
+    const numericBalance = value => value !== null && value !== undefined && value !== ''
+        && ['number', 'string'].includes(typeof value) && Number.isFinite(Number(value));
+    const fields = ['ServiceCredit', 'CashCredit', 'AvailableBalance', 'Balance'];
+    if (!fields.some(key => numericBalance(rawBalance[key])) || fields.some(key => rawBalance[key] != null && !numericBalance(rawBalance[key]))) {
+        return { success: false, message: 'رد رصيد المزود ناقص أو غير صالح.' };
+    }
     const serviceCredit = numberOrZero(rawBalance.ServiceCredit);
     const cashCredit = numberOrZero(rawBalance.CashCredit);
     const availableBalance = numberOrZero(rawBalance.AvailableBalance ?? rawBalance.Balance ?? (serviceCredit + cashCredit));
@@ -374,7 +353,7 @@ const runApiTransferPreflight = async (apiBot, input = {}) => {
         const inquiryRes = await axios.post(
             `${config.baseUrl}/api/V1/Transactions/Inquiry`,
             buildInquiryPayload(config, targetNumber, amount),
-            { headers: auth.headers, timeout: 20000 }
+            { headers: auth.headers, timeout: 20000, maxRedirects: 0 }
         );
         const inquiryData = inquiryRes.data || {};
         const paymentBillInfo = inquiryData.Data?.PaymentBillInfo;
@@ -445,7 +424,7 @@ const executeTransferViaApi = async (tx, apiBot) => {
         addLog("PROVIDER", `${preset.name} | serviceId=${serviceId} | currentServiceProviderId=${providerId} | fieldKey=${fieldKey}`);
         addLog("INQUIRY", `جاري الاستعلام وفحص الرقم [${targetNumber}]...`);
         const inquiryPayload = buildInquiryPayload(config, targetNumber, amount);
-        const inquiryRes = await axios.post(`${baseUrl}/api/V1/Transactions/Inquiry`, inquiryPayload, { headers, timeout: 20000 });
+        const inquiryRes = await axios.post(`${baseUrl}/api/V1/Transactions/Inquiry`, inquiryPayload, { headers, timeout: 20000, maxRedirects: 0 });
         const inquiryData = inquiryRes.data || {};
 
         if (!hasSuccessCode(inquiryData) || !inquiryData.Data || !inquiryData.Data.PaymentBillInfo) {
@@ -479,7 +458,7 @@ const executeTransferViaApi = async (tx, apiBot) => {
         };
         let paymentRes;
         try {
-            paymentRes = await axios.post(`${baseUrl}/api/V1/Transactions/Payment`, paymentPayload, { headers, timeout: 180000 });
+            paymentRes = await axios.post(`${baseUrl}/api/V1/Transactions/Payment`, paymentPayload, { headers, timeout: 180000, maxRedirects: 0 });
         } catch (paymentError) {
             const message = errorMessage(paymentError, 'خطأ في الاتصال بسيرفر الشركة');
             addLog('SYSTEM_ERROR', message);
@@ -534,10 +513,10 @@ const executeTransferViaApi = async (tx, apiBot) => {
 =========================================
 [ الاستجابة البرمجية الخام - Raw JSON ]\n${JSON.stringify(paymentRes.data, null, 2)}`;
 
-        const paymentAccepted = hasSuccessCode(paymentData)
-            && paymentData.Data
-            && Number(pd.IsFailure || 0) !== 1
-            && (Boolean(pd.IsPaid) || Boolean(extRef) || Boolean(refTxNum));
+        const paymentOutcome = classifyProviderPaymentResponse(paymentData, {
+            returned: isReturnedProviderStatus(pd.Status || paymentData.Message)
+        });
+        const paymentAccepted = paymentOutcome === 'accepted';
 
         if (paymentAccepted) {
             if (!refTxNum || refTxNum.trim() === '') {
@@ -584,6 +563,12 @@ const executeTransferViaApi = async (tx, apiBot) => {
                 processLog: processLog.join('\n')
             };
         } else {
+            if (paymentOutcome !== 'rejected') {
+                addLog('PAYMENT_UNRESOLVED', 'Provider reply does not establish a final payment outcome');
+                return { success: 'unresolved', code: UNRESOLVED_CODE,
+                    message: 'نتيجة المزود غير محسومة. يلزم التحقق قبل إعادة الدفع.',
+                    dispatchAttemptId: claim.attemptId, processLog: processLog.join('\n') };
+            }
             const message = providerMessage(paymentData, 'تم رفض تنفيذ الدفعة من المزود');
             addLog("PAYMENT_FAIL", message);
             addLog("API_FULL_RESPONSE", prettyLog);
@@ -679,10 +664,10 @@ const getApiProviderTransactions = async (apiBot, transactionNumbers = []) => {
                 const printRes = await axios.post(
                     `${config.baseUrl}/api/V1/Transactions/Print`,
                     { TransactionNumber: transactionNumber },
-                    { headers: auth.headers, timeout: 20000 }
+                    { headers: auth.headers, timeout: 20000, maxRedirects: 0 }
                 );
                 const responseData = printRes.data || {};
-                if (responseData.Code !== 200 || !responseData.Data) {
+                if (!hasSuccessCode(responseData) || !responseData.Data) {
                     operations.push({
                         success: false,
                         providerTransactionId: transactionNumber,
@@ -814,7 +799,7 @@ const generateCustomReceipt = async (tx, apiResult) => {
             <div class="footer">Power Pay AL-Ahram</div>
         </div></body></html>`;
         
-        await page.setContent(htmlContent, { waitUntil: 'domcontentloaded', timeout: 15000 });
+        await page.setContent(htmlContent, { waitUntil: 'domcontentloaded', timeout: 15000, maxRedirects: 0 });
         await new Promise(resolve => setTimeout(resolve, 500)); 
         const element = await page.$('#receipt-container');
         return await element.screenshot({ type: 'jpeg', quality: 100 });
