@@ -1,6 +1,17 @@
 'use strict';
 
 const API_PROVIDER_PRESETS = {
+    kenan: {
+        key: 'kenan',
+        name: 'Kenan',
+        nameAr: 'كنان لخدمات الدفع الإلكتروني',
+        apiUrl: '',
+        serviceId: 0,
+        providerId: 0,
+        fieldId: 0,
+        machineSerial: '',
+        protocol: 'kenan'
+    },
     zayn_external_aggregator: {
         key: 'zayn_external_aggregator',
         name: 'Zayn External Aggregator',

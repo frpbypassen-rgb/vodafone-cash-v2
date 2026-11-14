@@ -190,6 +190,10 @@ class ApiTransferQueue {
                 });
             }
 
+            if (apiResult?.providerPending === true && apiResult.success === 'pending') {
+                logger.info('API order accepted for status polling', { txId: tx.customId, providerReference: apiResult.provider_transaction_id });
+                return;
+            }
             if (apiResult && (apiResult.success === 'unresolved' || apiResult.code === UNRESOLVED_CODE)) {
                 await markProviderResultUnresolved({
                     txId: tx._id,

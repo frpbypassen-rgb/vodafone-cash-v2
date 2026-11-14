@@ -366,6 +366,9 @@ const completeApiTransaction = async (txId, executorGroupId) => {
     if (tx.status !== 'processing') {
         return { completed: false, reason: `invalid_status:${tx.status}` };
     }
+    if (tx.apiResultData?.kenanReference && tx.apiResultData.kenanProviderStatus !== 'success') {
+        return { completed: false, reason: 'provider_status_pending' };
+    }
 
     if (isProviderResultUnresolved(tx) || needsUnresolvedHold(tx)) {
         return { completed: false, reason: 'provider_result_unresolved' };
@@ -431,7 +434,10 @@ const completeApiTransaction = async (txId, executorGroupId) => {
                 completedAt,
                 executorReceiptProof: claimed.apiResultData?.executorReceiptProof || null
             };
-            appendAdminNote(claimed, `[تم اعتماد نجاح API بعد انتظار ${Math.round(getApiCompletionDelayMs() / 1000)} ثانية]`);
+            if (claimed.apiResultData.kenanReference) {
+                appendCustomerReference(claimed, 'الرقم المرجعي', claimed.apiResultData.kenanReference);
+                appendAdminNote(claimed, '[تم اعتماد نجاح API بعد تأكيد كنان النهائي]');
+            } else appendAdminNote(claimed, `[تم اعتماد نجاح API بعد انتظار ${Math.round(getApiCompletionDelayMs() / 1000)} ثانية]`);
             await claimed.save({ session });
             completedTx = claimed;
             outcome = 'completed';
@@ -511,12 +517,17 @@ const startApiCompletionMonitor = () => {
     if (!isFinancialSchedulersEnabled()) return null;
     if (monitorTimer) return monitorTimer;
 
-    completeDueApiTransactions().catch((error) => {
+    const scan = async () => {
+        try { await require('./kenanProviderService').pollPendingOrders(); }
+        catch (error) { logger.error('Kenan status scan failed', { message: 'Provider status polling is unavailable' }); }
+        await completeDueApiTransactions();
+    };
+    scan().catch((error) => {
         logger.error('Initial API completion monitor scan failed', { error: error.message });
     });
 
     monitorTimer = setInterval(() => {
-        completeDueApiTransactions().catch((error) => {
+        scan().catch((error) => {
             logger.error('API completion monitor scan failed', { error: error.message });
         });
     }, MONITOR_INTERVAL_MS);

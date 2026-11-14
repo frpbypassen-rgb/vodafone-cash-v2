@@ -171,6 +171,10 @@ router.post('/executors/add', requireAuth, requireMaster, async (req, res) => {
         const parentId = normalizeText(body.parentGroupId);
         const apiProviderKey = isApiBot ? (normalizeText(body.apiProviderKey) || DEFAULT_API_PROVIDER_KEY) : '';
         const apiPreset = getApiProviderPreset(apiProviderKey);
+        if (isApiBot && apiPreset.key === 'kenan') {
+            if (normalizeExecutorServiceKey(body.serviceKey || 'vodafone') !== 'vodafone') return res.redirect('/executors?createError=KENAN_CASH_ONLY&openCreate=1');
+            if (!normalizeText(body.apiUrl) || !normalizeText(body.apiToken)) return res.redirect('/executors?createError=KENAN_CREDENTIALS_REQUIRED&openCreate=1');
+        }
 
         const { group, employee } = await createExecutorAccount({
             groupData: {
@@ -264,6 +268,7 @@ router.post('/executor/:id/service', requireAuth, requireMaster, async (req, res
 
         const group = await ExecutorGroup.findById(req.params.id);
         if (!group || group.status === 'archived') return res.redirect('/executors?serviceError=NOT_FOUND');
+        if (group.apiProviderKey === 'kenan' && serviceKey !== 'vodafone') return res.redirect('/executors?serviceError=KENAN_CASH_ONLY');
 
         const previousServiceKey = normalizeExecutorServiceKey(group.serviceKey);
         if (previousServiceKey === serviceKey) return res.redirect('/executors?serviceUpdated=1');

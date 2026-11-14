@@ -75,6 +75,7 @@ const resolutionOutcome = (tx) => String(dataOf(tx).providerResolutionOutcome ||
 const providerMoneyHold = (tx) => {
     if (!tx) return false;
     const data = dataOf(tx);
+    if (data.kenanReference && tx.status === 'processing' && data.providerDispatchResult !== 'rejected') return true;
     const outcome = resolutionOutcome(tx);
     // A completed API transfer with a masked provider reference is already
     // settled. Older rows may retain an unresolved marker from before the

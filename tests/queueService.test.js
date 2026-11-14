@@ -88,6 +88,19 @@ describe('queueService API execution', () => {
         });
     });
 
+    test('Kenan acceptance waits for polling without completing, saving stale data or posting a debit', async () => {
+        const tx = { _id: 'tx-kenan', executorGroupId: 'group-api', customId: 'ATT-KENAN', status: 'processing',
+            transferType: 'vodafone', amount: 50, save: jest.fn() };
+        Transaction.findById.mockResolvedValue(tx);
+        ExecutorGroup.findById.mockResolvedValue({ _id: 'group-api', apiProviderKey: 'kenan', name: 'Kenan' });
+        executeTransferViaApi.mockResolvedValue({ success: 'pending', providerPending: true, provider_transaction_id: '0000001' });
+        await queueService.processSingleJob('tx-kenan', 'group-api');
+        expect(updateBalanceWithLedger).not.toHaveBeenCalled();
+        expect(eventBus.publish).not.toHaveBeenCalled();
+        expect(tx.save).not.toHaveBeenCalled();
+        expect(tx.status).toBe('processing');
+    });
+
     test('completes API transaction immediately when provider reference is received', async () => {
         const tx = {
             _id: 'tx-1',

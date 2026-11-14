@@ -135,13 +135,13 @@
                         </div>
                         <div class="mb-3">
                             <label class="form-label text-muted small">رابط الطلب (POST URL)</label>
-                            <input type="text" class="form-control text-emerald" value="<%= bot.apiUrl || ((typeof apiProviderPreset !== 'undefined' && apiProviderPreset.apiUrl) ? apiProviderPreset.apiUrl : 'https://zaynpay.com') %>" readonly>
+                            <input type="text" class="form-control text-emerald" value="<%= bot.apiUrl || (bot.apiProviderKey === 'kenan' ? '' : ((typeof apiProviderPreset !== 'undefined' && apiProviderPreset.apiUrl) ? apiProviderPreset.apiUrl : 'https://zaynpay.com')) %>" readonly>
                         </div>
                         <div class="mb-4">
                             <label class="form-label text-muted small">مفتاح المصادقة (Secret Token)</label>
                             <input type="text" class="form-control text-rose" value="<%= bot.apiToken ? 'Bearer ********' : 'AutoLogin' %>" readonly>
                         </div>
-                        <div class="row g-3 mb-4">
+                        <% if (bot.apiProviderKey !== 'kenan') { %><div class="row g-3 mb-4">
                             <div class="col-md-6">
                                 <label class="form-label text-muted small">API Username</label>
                                 <input type="text" class="form-control text-sky" value="<%= bot.apiUsername || 'ENV fallback' %>" readonly>
@@ -168,6 +168,10 @@
                             </div>
                         </div>
 
+                        <% } else { %>
+                        <p class="text-muted small">كنان يقبل محافظ مصرية من 50 إلى 60000 جنيه صحيح. تتابع المنصة المرجع حتى النتيجة النهائية. فحص التحويل يتحقق من البيانات محلياً ومن الرصيد لدى المزود.</p>
+
+                        <% } %>
                         <div class="p-3 rounded-3 mb-3" style="background:#0f172a; border:1px solid #334155;">
                             <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
                                 <div>

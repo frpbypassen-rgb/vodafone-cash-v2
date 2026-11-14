@@ -301,6 +301,7 @@ const getApiProviderBalanceWithAuth = async (config, headers, addLog) => {
 
 // Validates the exact inquiry request used for a real transfer without calling Payment.
 const runApiTransferPreflight = async (apiBot, input = {}) => {
+    if (apiBot?.apiProviderKey === 'kenan') return require('./kenanProviderService').preflight(apiBot, input);
     const blocked = providerCallBlock();
     if (blocked) return blocked;
     const processLog = [];
@@ -395,6 +396,7 @@ const runApiTransferPreflight = async (apiBot, input = {}) => {
 const executeTransferViaApi = async (tx, apiBot) => {
     const blocked = providerCallBlock();
     if (blocked) return blocked;
+    if (apiBot?.apiProviderKey === 'kenan') return require('./kenanProviderService').executeTransfer(tx, apiBot);
     let processLog = [];
     const addLog = (step, detail) => {
         const timeStr = new Date().toLocaleTimeString('en-GB', { timeZone: SYSTEM_TIME_ZONE, hour12: false });
@@ -614,6 +616,7 @@ const executeTransferViaApi = async (tx, apiBot) => {
 const getApiProviderBalance = async (apiBot) => {
     const blocked = providerCallBlock();
     if (blocked) return blocked;
+    if (apiBot?.apiProviderKey === 'kenan') return require('./kenanProviderService').getBalance(apiBot);
     const processLog = [];
     const addLog = (step, detail) => {
         const timeStr = new Date().toLocaleTimeString('en-GB', { timeZone: SYSTEM_TIME_ZONE, hour12: false });
@@ -641,6 +644,7 @@ const getApiProviderBalance = async (apiBot) => {
 const getApiProviderTransactions = async (apiBot, transactionNumbers = []) => {
     const blocked = providerCallBlock();
     if (blocked) return blocked;
+    if (apiBot?.apiProviderKey === 'kenan') return require('./kenanProviderService').getTransactions(apiBot, Array.isArray(transactionNumbers) ? transactionNumbers : [transactionNumbers]);
     const processLog = [];
     const addLog = (step, detail) => {
         const timeStr = new Date().toLocaleTimeString('en-GB', { timeZone: SYSTEM_TIME_ZONE, hour12: false });

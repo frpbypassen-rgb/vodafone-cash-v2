@@ -133,6 +133,8 @@
             </div>
         <% } else if (typeof query !== 'undefined' && query.createError) {
             const createErrors = {
+                KENAN_CASH_ONLY: 'كنان يدعم خدمة محافظ كاش المصرية فقط.',
+                KENAN_CREDENTIALS_REQUIRED: 'أدخل رابط كنان الحالي ومفتاح API الخاص بحسابك.',
                 MISSING_NAME: 'اسم المنفذ مطلوب.',
                 MISSING_LOGIN: 'بيانات دخول مسؤول المنفذ مطلوبة.',
                 INVALID_MANAGER_NAME: 'يرجى إدخال اسم مسؤول المنفذ كاملاً.',
@@ -287,6 +289,7 @@
                                         <select name="apiProviderKey" id="apiProviderKey" class="form-select fw-bold">
                                             <% (typeof apiProviderPresets !== 'undefined' ? apiProviderPresets : []).forEach(provider => { %>
                                                 <option value="<%= provider.key %>"
+                                                        <%= provider.key === 'zayn_external_aggregator' ? 'selected' : '' %>
                                                         data-api-url="<%= provider.apiUrl %>"
                                                         data-service-id="<%= provider.serviceId %>"
                                                         data-provider-id="<%= provider.providerId %>"
@@ -311,7 +314,7 @@
                                     </div>
                                     <div class="col-md-6">
                                         <label class="form-label fw-bold small text-muted">API Token / Secret</label>
-                                        <input type="text" name="apiToken" class="form-control" dir="ltr">
+                                        <input type="password" name="apiToken" class="form-control" autocomplete="new-password" dir="ltr">
                                     </div>
                                     <div class="col-md-2">
                                         <label class="form-label fw-bold small text-muted">Service ID</label>
@@ -391,15 +394,32 @@
         if (!providerField) return;
         const selected = providerField.options[providerField.selectedIndex];
         if (!selected) return;
+        if (providerField.dataset.previousProvider && providerField.dataset.previousProvider !== selected.value) {
+            ['apiToken', 'apiUsername', 'apiPassword'].forEach(name => {
+                const input = document.querySelector(`[name="${name}"]`);
+                if (input) input.value = '';
+            });
+        }
+        providerField.dataset.previousProvider = selected.value;
         const setValue = (name, value) => {
             const input = document.querySelector(`[name="${name}"]`);
-            if (input && value) input.value = value;
+            if (input && value !== undefined) input.value = value;
         };
         setValue('apiUrl', selected.dataset.apiUrl);
         setValue('apiServiceId', selected.dataset.serviceId);
         setValue('apiProviderId', selected.dataset.providerId);
         setValue('apiFieldId', selected.dataset.fieldId);
         setValue('apiMachineSerial', selected.dataset.machineSerial);
+        const isKenan = selected.value === 'kenan';
+        ['apiUsername', 'apiPassword', 'apiServiceId', 'apiProviderId', 'apiFieldId', 'apiMachineSerial'].forEach(name => {
+            const input = document.querySelector(`[name="${name}"]`);
+            if (input) { input.closest('[class*="col-md-"]').hidden = isKenan; input.disabled = isKenan; }
+        });
+        const url = document.querySelector('[name="apiUrl"]');
+        const token = document.querySelector('[name="apiToken"]');
+        if (url) { url.required = isKenan; url.placeholder = isKenan ? 'رابط كنان الحالي من المزود' : 'https://zaynpay.com'; }
+        if (token) token.required = isKenan;
+        if (isKenan) document.querySelector('[name="serviceKey"]').value = 'vodafone';
     }
 
     function escapeHtml(value) {

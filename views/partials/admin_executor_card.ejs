@@ -23,7 +23,7 @@ const providerBalance = bot.liveApiServiceCredit !== null && bot.liveApiServiceC
     <dl class="am-card-info">
         <div><dt>العمليات المنجزة</dt><dd><bdi><%= bot.txCount || 0 %></bdi> عملية</dd></div>
         <% if(kind === 'api' && !archived) { %>
-        <div><dt>المزود</dt><dd><%= bot.apiProviderKey === 'zayn_external_aggregator' ? 'Zayn External Aggregator' : bot.apiProviderKey || '—' %></dd></div>
+        <div><dt>المزود</dt><dd><%= bot.apiProviderKey === 'kenan' ? 'كنان' : (bot.apiProviderKey === 'zayn_external_aggregator' ? 'Zayn External Aggregator' : bot.apiProviderKey || '—') %></dd></div>
         <div><dt>آخر فحص</dt><dd><%= bot.liveApiBalanceCheckedAt ? new Date(bot.liveApiBalanceCheckedAt).toLocaleString('ar-LY', {timeZone:'Africa/Tripoli'}) : 'لم يُفحص بعد' %></dd></div>
         <% } %>
         <% if(archived) { %><div><dt>الحسابات المحفوظة</dt><dd><%= bot.archiveEmployeeCount || 0 %></dd></div><div><dt>تاريخ الأرشفة</dt><dd><%= bot.archivedAt ? new Date(bot.archivedAt).toLocaleDateString('ar-LY', {timeZone:'Africa/Tripoli'}) : '—' %></dd></div><% } %>
