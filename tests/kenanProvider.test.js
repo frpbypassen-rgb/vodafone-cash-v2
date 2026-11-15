@@ -17,7 +17,7 @@ const bot = { _id: 'executor-1', apiProviderKey: 'kenan', apiUrl: 'https://kenan
 const tx = () => ({ _id: 'tx-1', customId: 'ATT-TEST', executorGroupId: 'executor-1', status: 'processing', transferType: 'vodafone', vodafoneNumber: '01000000000', amount: 50 });
 const order = (status = 'queued', extra = {}) => ({ reference: '0000001', phone: '01000000000', amount_minor: 5000, fee_minor: null, status, created_at: '2026-11-14T12:00:00.000Z', reason: '', ...extra });
 beforeEach(() => {
-    jest.clearAllMocks(); process.env.EXTERNAL_API_ENABLED = 'true';
+    jest.clearAllMocks(); process.env.EXTERNAL_API_ENABLED = 'true'; process.env.KENAN_AUTO_FOLLOWUP_ENABLED = 'true';
     delete process.env.APP_ENV; delete process.env.ENVIRONMENT;
     Transaction.updateOne.mockResolvedValue({ matchedCount: 1, modifiedCount: 1 });
 });
@@ -99,10 +99,17 @@ describe('durable Kenan status polling', () => {
         await service.pollPendingOrders();
         expect(axios.get).not.toHaveBeenCalled();
     });
-    test('disabled financial schedulers perform no polling', async () => {
-        process.env.FINANCIAL_SCHEDULERS_ENABLED = 'false';
+    test('independent Kenan switch disables polling even when global financial scheduling is on', async () => {
+        process.env.KENAN_AUTO_FOLLOWUP_ENABLED = 'false';
         await service.pollPendingOrders();
         expect(Transaction.find).not.toHaveBeenCalled();
+    });
+    test('Kenan polling continues while unrelated financial schedulers are off', async () => {
+        process.env.FINANCIAL_SCHEDULERS_ENABLED = 'false';
+        axios.get.mockResolvedValue({ data: order('assigned') });
+        await service.pollPendingOrders();
+        expect(axios.get).toHaveBeenCalledTimes(1);
+        expect(process.env.FINANCIAL_SCHEDULERS_ENABLED).toBe('false');
     });
 });
 

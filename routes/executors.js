@@ -14,7 +14,7 @@ const { requireAuth, requireMaster } = require('../middlewares/auth');
 const { systemDateRange } = require('../config/systemTime');
 const { syncBotBalance, escapeRegex } = require('../utils/helpers');
 const { DEFAULT_API_PROVIDER_KEY, getApiProviderPreset, getApiProviderPresets } = require('../utils/apiProviderPresets');
-const { isStagingRuntime, isFinancialSchedulersEnabled } = require('../utils/runtimeControls');
+const { isStagingRuntime, isKenanFollowupEnabled } = require('../utils/runtimeControls');
 const { getApiProviderBalance, runApiTransferPreflight } = require('../services/externalApiService');
 const { syncProviderReturnedOperations } = require('../services/apiProviderReconciliationService');
 const { getApiProfitCommissionReport } = require('../services/apiProfitCommissionService');
@@ -492,7 +492,7 @@ router.get('/executor/:id', requireAuth, async (req, res) => {
             return res.render('api_room', {
                 bot,
                 apiProviderPreset: getApiProviderPreset(bot.apiProviderKey),
-                kenanAutoFollowupEnabled: isFinancialSchedulersEnabled(),
+                kenanAutoFollowupEnabled: isKenanFollowupEnabled(),
                 transactions,
                 balanceAudits,
                 providerReturns,

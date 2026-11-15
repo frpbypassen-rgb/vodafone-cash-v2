@@ -221,3 +221,18 @@ describe('API executor receipt lifecycle', () => {
         }));
     });
 });
+
+test('Kenan receipt uses provider executor phone, reference, customer, amount and success time', () => {
+    const { createApiExecutorReceiptProof } = require('../services/apiExecutionLifecycleService');
+    generateExecutorReceiptBase64.mockClear();
+    createApiExecutorReceiptProof({ tx: createTransaction({ amount: 100, apiResultData: {
+        kenanReference: '0000014', referenceNumber: '0000014', kenanOrder: {
+            reference: '0000014', executor_phone: '01100000000', completed_at: '2026-11-15T00:00:00Z', fee_minor: 100
+        }
+    } }) });
+    expect(generateExecutorReceiptBase64).toHaveBeenCalledWith(expect.objectContaining({
+        executionNumber: '01100000000', executionNumberLabel: 'رقم المنفذ',
+        executorReference: '0000014', executionReferenceLabel: 'رقم عملية كنان',
+        customerPhone: '01108172258', amount: 100, customId: 'ATT-2608-0142', completedAt: '2026-11-15T00:00:00Z'
+    }));
+});

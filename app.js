@@ -547,6 +547,7 @@ Promise.all([connectDB(), initRedis()]).then(() => startBoundHttpServer({
             merchantWebhookService.ensureMerchantWebhookIndexes(),
             require('./services/merchantIntegrationEventService').ensureMerchantIntegrationEventIndexes()
         ]);
+        require('./services/kenanFollowupService').startKenanFollowupMonitor();
         if (isFinancialSchedulersEnabled()) {
             await restorePendingRateActivation({ app });
             startRateChangeActivationMonitor({ app });

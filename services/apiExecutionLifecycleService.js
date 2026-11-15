@@ -95,9 +95,12 @@ const createApiExecutorReceiptProof = ({ tx, apiResult = {}, completedAt = new D
     const receiptBase64 = generateExecutorReceiptBase64({
         amount: tx.amount,
         customerPhone: tx.vodafoneNumber || tx.accountNumber || tx.serviceDetails?.clientPhone || '---',
-        executionNumber: tx.apiResultData?.kenanOrder?.executor_phone || referenceNumber || providerTransactionId,
+        executionNumber: tx.apiResultData?.kenanReference
+            ? tx.apiResultData?.kenanOrder?.executor_phone || 'غير متاح'
+            : referenceNumber || providerTransactionId,
+        ...(tx.apiResultData?.kenanReference ? { executionNumberLabel: 'رقم المنفذ' } : {}),
         executorReference: providerTransactionId || referenceNumber,
-        executionReferenceLabel: 'مرجع تنفيذ API',
+        executionReferenceLabel: tx.apiResultData?.kenanReference ? 'رقم عملية كنان' : 'مرجع تنفيذ API',
         customId: tx.customId || tx._id?.toString?.() || '---',
         serviceName: tx.transferType === 'sefa_niger' ? 'سيفا النيجر' : 'محافظ كاش',
         amountCurrencyLabel: tx.transferType === 'sefa_niger' ? 'سيفا' : 'ج.م',
@@ -302,7 +305,7 @@ const completeApiTransactionWithReference = async ({ tx, executorGroup, apiResul
             claimed.status = 'completed';
             claimed.managerGroupId = getParentGroupId(executorGroup);
             claimed.executorName = 'تنفيذ آلي (API)';
-            claimed.executorSenderPhone = verifiedKenan?.order.executor_phone || referenceNumber;
+            claimed.executorSenderPhone = verifiedKenan ? verifiedKenan.order.executor_phone || '' : referenceNumber;
             claimed.completedAt = completedAt;
             appendCustomerReference(claimed, 'الرقم المرجعي', referenceNumber);
             if (apiResult.external_transaction_id && apiResult.external_transaction_id !== referenceNumber) {
@@ -532,8 +535,6 @@ const startApiCompletionMonitor = () => {
     if (monitorTimer) return monitorTimer;
 
     const scan = async () => {
-        try { await require('./kenanProviderService').pollPendingOrders(); }
-        catch (error) { logger.error('Kenan status scan failed', { message: 'Provider status polling is unavailable' }); }
         await completeDueApiTransactions();
     };
     scan().catch((error) => {
@@ -555,6 +556,7 @@ module.exports = {
     getApiCompletionDelayMs,
     resolveApiReferenceNumber,
     createApiExecutorReceiptProof,
+    attachCompletionReceiptAfterCommit,
     attachApiReceiptProofs,
     completeApiTransactionWithReference,
     prepareApiTransactionForDelayedCompletion,

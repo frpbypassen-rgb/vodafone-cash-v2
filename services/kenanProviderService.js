@@ -3,7 +3,7 @@
 const axios = require('axios');
 const Transaction = require('../models/Transaction');
 const ExecutorGroup = require('../models/ExecutorGroup');
-const { isExternalApiEnabled, isFinancialSchedulersEnabled, resolveProviderBaseUrl, isStagingRuntime } = require('../utils/runtimeControls');
+const { isExternalApiEnabled, isKenanFollowupEnabled, resolveProviderBaseUrl, isStagingRuntime } = require('../utils/runtimeControls');
 const { UNRESOLVED_CODE, claimProviderDispatch, releaseProviderDispatchClaim, classifyPaymentTransportError } = require('./providerDispatchClaimService');
 
 const ORDER_STATUSES = new Set(['queued', 'assigned', 'executing', 'verifying', 'review', 'success', 'failed', 'cancelled']);
@@ -166,7 +166,7 @@ const getDeposits = async bot => {
 };
 
 const pollPendingOrders = async () => {
-    if (!isExternalApiEnabled() || !isFinancialSchedulersEnabled()) return;
+    if (!isKenanFollowupEnabled()) return;
     const now = new Date();
     const due = { status: 'processing', 'apiResultData.kenanAwaitingStatus': true,
         'apiResultData.providerResultUnresolved': true, 'apiResultData.providerResolutionOutcome': { $exists: false },

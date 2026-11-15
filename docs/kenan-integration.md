@@ -27,10 +27,16 @@ are not defaults in source. API tokens are never displayed in history or logs.
 1. Configure the current HTTPS URL and API token on the API executor account.
 2. Keep the local accounting policy explicit. A prepaid executor needs local
    funding; provider credit is not silently imported as local ledger funding.
-3. Automatic polling/completion respects `FINANCIAL_SCHEDULERS_ENABLED` and
-   `EXTERNAL_API_ENABLED`. The executor page warns if financial scheduling is
-   disabled. Manual, individually confirmed reconciliation can still use the
-   existing immediate completion path without enabling other schedulers.
+3. Saved-reference polling and verified completion use the independent
+   `KENAN_AUTO_FOLLOWUP_ENABLED` switch (on by default in production, explicit
+   opt-in in staging), plus `EXTERNAL_API_ENABLED` and the full runtime role.
+   They run every five seconds without enabling unrelated financial schedulers.
+   Pending statuses continue GET polling; transport failures retain a durable
+   sixty-second retry lease. Success is freshly verified before the existing
+   atomic prepaid/credit ledger completion. Insufficient local prepaid funding
+   leaves success awaiting settlement and retries without another POST.
+   Set `KENAN_AUTO_FOLLOWUP_ENABLED=false` to pause Kenan follow-up independently.
+   The executor page displays the effective follow-up state.
 4. For webhooks, agree a signing key with Kenan, save it through the master-only
    form, and provide the displayed HTTPS callback URL to Kenan. The shared key
    is UTF-8 text, not hex-decoded. Callback registration is performed by Kenan;
@@ -42,6 +48,14 @@ are not defaults in source. API tokens are never displayed in history or logs.
 Missing historical receipt values remain `null` and display as unavailable,
 never as zero. Provider-company balances stay in the protected administrator
 history rather than the customer-facing image.
+
+Receipts show the actual `executor_phone` as the executor number, the string
+Kenan reference (including leading zeros), local order number, customer phone,
+amount, provider completion time, fee and provider support phone when present.
+An unavailable executor phone is never replaced with the order reference.
+Completed Kenan orders missing a receipt are checked against a fresh matching
+provider success and receive their receipt without balance or ledger changes.
+This does not repair historical manual-completion accounting discrepancies.
 
 ## Validation
 

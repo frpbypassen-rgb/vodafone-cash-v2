@@ -38,6 +38,12 @@ const isFinancialSchedulersEnabled = (env = process.env) => (
     allowsBackgroundWork(env) && isSwitchEnabled(env.FINANCIAL_SCHEDULERS_ENABLED, env)
 );
 
+// Kenan's saved-reference follow-up is independently controlled. It never
+// starts another provider's scheduler or submits a new payment.
+const isKenanFollowupEnabled = (env = process.env) => (
+    allowsBackgroundWork(env) && isExternalApiEnabled(env) && isSwitchEnabled(env.KENAN_AUTO_FOLLOWUP_ENABLED, env)
+);
+
 const disabledSubsystemFlags = (env = process.env) => {
     const disabled = [];
     if (!isMerchantWebhookWorkerEnabled(env)) disabled.push('MERCHANT_WEBHOOK_WORKER_ENABLED');
@@ -220,6 +226,7 @@ module.exports = {
     isSwitchEnabled,
     isExternalApiEnabled,
     isFinancialSchedulersEnabled,
+    isKenanFollowupEnabled,
     isLoopbackHost,
     isMerchantWebhookWorkerEnabled,
     isSandboxProviderUrl,

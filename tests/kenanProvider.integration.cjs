@@ -23,6 +23,7 @@ before(async () => {
     process.env.APP_ENV = 'staging';
     process.env.EXTERNAL_API_ENABLED = 'true';
     process.env.FINANCIAL_SCHEDULERS_ENABLED = 'true';
+    process.env.KENAN_AUTO_FOLLOWUP_ENABLED = 'true';
     replSet = await MongoMemoryReplSet.create({ replSet: { count: 1, storageEngine: 'wiredTiger' } });
     // The shared Transaction schema declares duplicate named report indexes.
     // This isolated financial test needs only the transaction identity index.
@@ -40,7 +41,8 @@ before(async () => {
                 res.end(JSON.stringify({ reference: '0000001', ...JSON.parse(body), status: 'queued' }));
             });
         } else if (req.url === '/api/company/orders/0000001') {
-            res.end(JSON.stringify({ reference: '0000001', phone: '01000000000', amount_minor: 5000, fee_minor: 0, status: providerStatus }));
+            res.end(JSON.stringify({ reference: '0000001', phone: '01000000000', amount_minor: 5000, fee_minor: 0, status: providerStatus,
+                executor_phone: providerStatus === 'success' ? '01100000000' : null, completed_at: providerStatus === 'success' ? '2026-11-15T00:00:00Z' : null }));
         } else res.writeHead(404).end('{}');
     });
     await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
@@ -78,7 +80,7 @@ test('acceptance stays held until verified success and concurrent finalizers pos
     await Promise.all([completeDueApiTransactions(), completeDueApiTransactions()]);
     fresh = await Transaction.findById(tx._id);
     assert.equal(fresh.status, 'completed');
-    assert.equal(fresh.executorSenderPhone, '0000001');
+    assert.equal(fresh.executorSenderPhone, '01100000000');
     assert.equal((await ExecutorGroup.findById(bot._id)).balance, 950);
     assert.equal(await Ledger.countDocuments({ transactionId: tx.customId, type: 'TRANSFER', amount: -50 }), 1);
     assert.equal(published.mock.callCount(), 1);
@@ -137,4 +139,68 @@ test('explicit verified reconciliation while schedulers are paused commits once 
     assert.equal(postCount, 1);
     assert.equal(process.env.FINANCIAL_SCHEDULERS_ENABLED, 'false');
     process.env.FINANCIAL_SCHEDULERS_ENABLED = 'true';
+});
+
+test('independent Kenan monitor polls until final success with global financial scheduling off', async () => {
+    const { runKenanFollowupCycle } = require('../services/kenanFollowupService');
+    process.env.FINANCIAL_SCHEDULERS_ENABLED = 'false';
+    try {
+        const { bot, tx } = await createOrder('AUTOMATIC');
+        for (const status of ['queued', 'assigned', 'executing', 'verifying', 'review']) {
+            providerStatus = status;
+            await makeDue(tx); await runKenanFollowupCycle();
+            assert.equal((await Transaction.findById(tx._id)).status, 'processing');
+        }
+        providerStatus = 'success'; await makeDue(tx);
+        await Promise.all([runKenanFollowupCycle(), runKenanFollowupCycle()]);
+        await runKenanFollowupCycle();
+        const fresh = await Transaction.findById(tx._id);
+        assert.equal(fresh.status, 'completed');
+        assert.equal(fresh.executorSenderPhone, '01100000000');
+        assert.equal(fresh.apiResultData.kenanOrder.reference, '0000001');
+        assert.equal(fresh.apiResultData.kenanOrder.executor_phone, '01100000000');
+        assert.equal((await ExecutorGroup.findById(bot._id)).balance, 950);
+        assert.equal(await Ledger.countDocuments({ transactionId: tx.customId, type: 'TRANSFER' }), 1);
+        assert.equal(postCount, 1);
+        assert.equal(process.env.FINANCIAL_SCHEDULERS_ENABLED, 'false');
+    } finally { process.env.FINANCIAL_SCHEDULERS_ENABLED = 'true'; }
+});
+
+test('a manually completed Kenan order gets its verified receipt without another financial debit', async () => {
+    const { runKenanFollowupCycle } = require('../services/kenanFollowupService');
+    const { bot, tx } = await createOrder('MANUAL-RECEIPT');
+    await Transaction.updateOne({ _id: tx._id }, { $set: { status: 'completed' } });
+    await ExecutorGroup.updateOne({ _id: bot._id }, { $set: { balance: -50 } });
+    await runKenanFollowupCycle();
+    assert.equal((await Transaction.findById(tx._id)).apiResultData.executorReceiptProof, undefined);
+    providerStatus = 'success';
+    await Transaction.updateOne({ _id: tx._id }, { $unset: { 'apiResultData.kenanNextReceiptAt': '' } });
+    await runKenanFollowupCycle();
+    const fresh = await Transaction.findById(tx._id);
+    assert.equal(fresh.apiResultData.executorReceiptProof, 'proofs/kenan-fixture.jpg');
+    assert.equal(fresh.executorSenderPhone, '01100000000');
+    assert.equal(fresh.apiResultData.kenanOrder.status, 'success');
+    assert.equal((await ExecutorGroup.findById(bot._id)).balance, -50);
+    assert.equal(await Ledger.countDocuments({ transactionId: tx.customId }), 0);
+    assert.equal(postCount, 1);
+});
+
+test('automatic Kenan follow-up holds provider success until prepaid funding is available', async () => {
+    const { runKenanFollowupCycle } = require('../services/kenanFollowupService');
+    const { bot, tx } = await createOrder('PREPAID-WAIT');
+    await ExecutorGroup.updateOne({ _id: bot._id }, { $set: { balance: 0, apiSettlementMode: 'prepaid' } });
+    providerStatus = 'success'; await makeDue(tx); await runKenanFollowupCycle();
+    let fresh = await Transaction.findById(tx._id);
+    assert.equal(fresh.status, 'processing');
+    assert.equal(fresh.apiResultData.kenanProviderStatus, 'success');
+    assert.equal(await Ledger.countDocuments({ transactionId: tx.customId }), 0);
+    assert.equal((await ExecutorGroup.findById(bot._id)).balance, 0);
+    await ExecutorGroup.updateOne({ _id: bot._id }, { $set: { balance: 100 } });
+    await Transaction.updateOne({ _id: tx._id }, { $unset: { 'apiResultData.kenanNextCompletionAt': '' } });
+    await runKenanFollowupCycle();
+    fresh = await Transaction.findById(tx._id);
+    assert.equal(fresh.status, 'completed');
+    assert.equal((await ExecutorGroup.findById(bot._id)).balance, 50);
+    assert.equal(await Ledger.countDocuments({ transactionId: tx.customId, type: 'TRANSFER' }), 1);
+    assert.equal(postCount, 1);
 });

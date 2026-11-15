@@ -95,7 +95,9 @@
             <section class="api-card mb-4 p-3">
                 <h2 class="h5">متابعة كنان</h2>
                 <% if (typeof kenanAutoFollowupEnabled !== 'undefined' && !kenanAutoFollowupEnabled) { %>
-                    <p role="alert" class="alert alert-warning">المتابعة المالية التلقائية متوقفة بإعداد السيرفر. يمكن للمدير الأساسي مراجعة العملية واعتماد النجاح المؤكد بصورة منفردة.</p>
+                    <p role="alert" class="alert alert-warning">استعلام كنان التلقائي متوقف بإعداد السيرفر. يمكن للمدير الأساسي مراجعة العملية واعتماد النجاح المؤكد بصورة منفردة.</p>
+                <% } else { %>
+                    <p class="alert alert-success" role="status">متابعة كنان التلقائية مفعلة: نستعلم بالمرجع حتى وصول النتيجة النهائية. تُعتمد العملية الناجحة عند كفاية العهدة ويُنشأ إيصال ببيانات المزود.</p>
                 <% } %>
                 <% if (isMaster) { transactions.filter(t => t.status === 'processing' && t.apiResultData?.kenanReference).forEach(t => { %>
                     <p><a class="btn btn-outline-warning" href="/executor/<%= bot._id %>/kenan-reconcile/<%= t._id %>">مراجعة نتيجة كنان للعملية <%= t.customId %></a></p>
