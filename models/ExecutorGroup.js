@@ -41,6 +41,7 @@ const executorGroupSchema = new mongoose.Schema({
     apiProviderKey: { type: String, default: 'zayn_external_aggregator' },
     apiUrl: { type: String, default: '' },
     apiToken: { type: String, default: '' },
+    kenanWebhookSecret: { type: String, default: '', select: false },
     apiUsername: { type: String, default: '' },
     apiPassword: { type: String, default: '' },
     apiServiceId: { type: Number, default: 307 },

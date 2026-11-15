@@ -271,6 +271,8 @@ app.use(requireIp);
 // إيصالات إيداع شركة التنفيذ تُرسل كصور Base64. خمس صور بحجم 5MB
 // تحتاج مساحة أكبر من حجم الملفات الأصلي بسبب ترميز Base64 (نحو 33%).
 // يبقى التحقق الصارم من عدد الصور وحجم كل صورة داخل خدمة الإيداعات.
+// Kenan signs the original UTF-8 bytes, before JSON parsing and session/CSRF.
+app.use('/webhooks/kenan', require('./routes/kenanWebhook'));
 app.use(express.json({ limit: '40mb' }));
 app.use(express.urlencoded({ extended: true, limit: '40mb' }));
 

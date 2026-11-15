@@ -85,6 +85,28 @@
             <div class="alert alert-success fw-bold"><i class="fa-solid fa-circle-check me-2"></i> تم تحديث بيانات المنفذ بنجاح.</div>
         <% } %>
 
+        <% if (bot.apiProviderKey === 'kenan') { %>
+            <section class="api-card mb-4 p-3">
+                <h2 class="h5">متابعة كنان</h2>
+                <% if (typeof kenanAutoFollowupEnabled !== 'undefined' && !kenanAutoFollowupEnabled) { %>
+                    <p role="alert" class="alert alert-warning">المتابعة المالية التلقائية متوقفة بإعداد السيرفر. يمكن للمدير الأساسي مراجعة العملية واعتماد النجاح المؤكد بصورة منفردة.</p>
+                <% } %>
+                <% if (isMaster) { transactions.filter(t => t.status === 'processing' && t.apiResultData?.kenanReference).forEach(t => { %>
+                    <p><a class="btn btn-outline-warning" href="/executor/<%= bot._id %>/kenan-reconcile/<%= t._id %>">مراجعة نتيجة كنان للعملية <%= t.customId %></a></p>
+                <% }); } %>
+                <a href="/executor/<%= bot._id %>/kenan-history" class="btn btn-outline-info mb-3">آخر 100 عملية وسجل الدفعات والإيصالات</a>
+                <p>رابط إشعارات كنان: <code dir="ltr">https://ahrampay.com/webhooks/kenan/<%= bot._id %></code></p>
+                <p class="text-muted">سلّم الرابط لإدارة كنان وأدخل مفتاح التوقيع المتفق عليه. تستمر متابعة العمليات بالاستعلام حتى عند عدم تفعيل الإشعارات.</p>
+                <% if (isMaster) { %>
+                    <form method="post" action="/executor/<%= bot._id %>/kenan-webhook-config" class="d-flex gap-2 flex-wrap">
+                        <input type="hidden" name="_csrf" value="<%= typeof csrfToken !== 'undefined' ? csrfToken : '' %>">
+                        <label for="kenan-signing-key">مفتاح توقيع إشعارات كنان</label>
+                        <input id="kenan-signing-key" name="signingKey" type="password" minlength="16" maxlength="256" autocomplete="new-password" required class="form-control" dir="ltr">
+                        <button type="submit" class="btn btn-primary">حفظ مفتاح التوقيع</button>
+                    </form>
+                <% } %>
+            </section>
+        <% } %>
         <div class="row g-3 mb-4">
             <div class="col-6 col-xl">
                 <div class="stat-box">

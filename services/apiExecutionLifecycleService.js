@@ -95,14 +95,15 @@ const createApiExecutorReceiptProof = ({ tx, apiResult = {}, completedAt = new D
     const receiptBase64 = generateExecutorReceiptBase64({
         amount: tx.amount,
         customerPhone: tx.vodafoneNumber || tx.accountNumber || tx.serviceDetails?.clientPhone || '---',
-        executionNumber: referenceNumber || providerTransactionId,
+        executionNumber: tx.apiResultData?.kenanOrder?.executor_phone || referenceNumber || providerTransactionId,
         executorReference: providerTransactionId || referenceNumber,
         executionReferenceLabel: 'مرجع تنفيذ API',
         customId: tx.customId || tx._id?.toString?.() || '---',
         serviceName: tx.transferType === 'sefa_niger' ? 'سيفا النيجر' : 'محافظ كاش',
         amountCurrencyLabel: tx.transferType === 'sefa_niger' ? 'سيفا' : 'ج.م',
         transferType: tx.transferType,
-        completedAt
+        completedAt: tx.apiResultData?.kenanOrder?.completed_at || completedAt,
+        providerReceipt: tx.apiResultData?.kenanOrder || null
     });
     return saveProofImage(receiptBase64, `${tx.customId || tx._id || 'api'}_api_execution`);
 };
@@ -237,7 +238,7 @@ const prepareApiTransactionForDelayedCompletion = ({
     return { referenceNumber, autoCompleteAt, delayMs };
 };
 
-const completeApiTransactionWithReference = async ({ tx, executorGroup, apiResult, receiptProof, detailedLog, resolutionRecovery, beforeCommit }) => {
+const completeApiTransactionWithReference = async ({ tx, executorGroup, apiResult, receiptProof, detailedLog, resolutionRecovery, verifiedKenan, beforeCommit }) => {
     const referenceNumber = resolveApiReferenceNumber(apiResult);
     if (!referenceNumber) return null;
     let completedTx;
@@ -253,6 +254,12 @@ const completeApiTransactionWithReference = async ({ tx, executorGroup, apiResul
                 _id: tx._id,
                 status: { $in: ['pending', 'accepted', 'processing'] },
                 executorGroupId: executorGroup._id,
+                ...(verifiedKenan ? {
+                    status: 'processing', updatedAt: verifiedKenan.expectedUpdatedAt,
+                    amount: tx.amount, vodafoneNumber: tx.vodafoneNumber,
+                    'apiResultData.kenanReference': verifiedKenan.order.reference,
+                    'apiResultData.providerResolutionOutcome': { $exists: false }
+                } : {}),
                 ...(resolutionRecovery ? {
                     updatedAt: resolutionRecovery.expectedUpdatedAt,
                     'apiResultData.providerResolutionOutcome': 'provider_paid',
@@ -264,6 +271,7 @@ const completeApiTransactionWithReference = async ({ tx, executorGroup, apiResul
             if (!claimed) {
                 const current = await Transaction.findById(tx._id).session(session);
                 if (current?.status !== 'completed' || !sameId(current.executorGroupId, executorGroup._id)
+                    || (verifiedKenan && current.apiResultData?.kenanReference !== verifiedKenan.order.reference)
                     || (resolutionRecovery && (current.apiResultData?.providerResolutionOutcome !== 'provider_paid'
                         || current.apiResultData?.providerResolutionEvidence !== resolutionRecovery.evidenceReference))) {
                     throw new Error('PROVIDER_COMPLETION_CONFLICT');
@@ -294,7 +302,7 @@ const completeApiTransactionWithReference = async ({ tx, executorGroup, apiResul
             claimed.status = 'completed';
             claimed.managerGroupId = getParentGroupId(executorGroup);
             claimed.executorName = 'تنفيذ آلي (API)';
-            claimed.executorSenderPhone = referenceNumber;
+            claimed.executorSenderPhone = verifiedKenan?.order.executor_phone || referenceNumber;
             claimed.completedAt = completedAt;
             appendCustomerReference(claimed, 'الرقم المرجعي', referenceNumber);
             if (apiResult.external_transaction_id && apiResult.external_transaction_id !== referenceNumber) {
@@ -313,6 +321,12 @@ const completeApiTransactionWithReference = async ({ tx, executorGroup, apiResul
                 ...(resolutionRecovery ? { providerResolvedAt: completedAt, providerResolutionResumedAt: completedAt } : {}),
                 apiProviderReceiptProof: receiptProof || claimed.apiResultData?.apiProviderReceiptProof || null
             };
+            if (verifiedKenan) {
+                claimed.apiResultData.kenanOrder = verifiedKenan.order;
+                claimed.apiResultData.kenanProviderStatus = 'success';
+                claimed.apiResultData.kenanAwaitingStatus = false;
+                claimed.apiResultData.kenanLastCheckedAt = completedAt;
+            }
             await claimed.save({ session });
             if (beforeCommit) await beforeCommit(claimed, session);
             completedTx = claimed;

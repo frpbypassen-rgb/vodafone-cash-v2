@@ -349,7 +349,14 @@ const isCancelledStatus = (value) => ['cancelled', 'cancelled_by_admin', 'reject
 
 function generateExecutorReceiptBase64(data = {}) {
     const width = 720;
-    const height = 1340;
+    const extraRows = [];
+    if (!isCancelledStatus(data.status) && data.providerReceipt) {
+        if (Number.isSafeInteger(data.providerReceipt.fee_minor) && data.providerReceipt.fee_minor >= 0) {
+            extraRows.push({ icon: 'wallet', label: 'رسوم المشغل', value: `${(data.providerReceipt.fee_minor / 100).toFixed(2)} ج.م` });
+        }
+        if (data.providerReceipt.customer_service_phone) extraRows.push({ icon: 'user', label: 'خدمة عملاء كنان', value: data.providerReceipt.customer_service_phone, direction: 'ltr' });
+    }
+    const height = 1340 + extraRows.length * 56;
     const canvas = createCanvas(width, height);
     const ctx = canvas.getContext('2d');
     const cancelled = isCancelledStatus(data.status);
@@ -437,6 +444,7 @@ function generateExecutorReceiptBase64(data = {}) {
             { icon: 'clock', label: 'الوقت', value: dateTime.time, direction: 'ltr' }
         ];
 
+    rows.push(...extraRows);
     const detailsY = 700;
     const detailsHeight = 88 + (rows.length * 56);
     fillRoundedRect(ctx, 56, detailsY, width - 112, detailsHeight, 25, colors.paper, colors.cardBorder, true);

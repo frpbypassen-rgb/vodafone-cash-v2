@@ -34,9 +34,22 @@ const parseOrder = (data, expected = {}) => {
         || (expected.reference && data.reference !== expected.reference)
         || (expected.phone && data.phone !== expected.phone)
         || (expected.amount_minor && data.amount_minor !== expected.amount_minor)) throw new Error('رد كنان لا يطابق بيانات العملية.');
-    return { reference: data.reference, phone: data.phone, amount_minor: data.amount_minor, status: data.status,
-        fee_minor: Number.isSafeInteger(data.fee_minor) && data.fee_minor >= 0 ? data.fee_minor : null,
-        created_at: typeof data.created_at === 'string' ? data.created_at.slice(0, 64) : null };
+    const optional = (key, valid) => {
+        if (data[key] === undefined || data[key] === null) return null;
+        if (!valid(data[key])) throw new Error('INVALID_KENAN_RECEIPT');
+        return data[key];
+    };
+    const minor = value => Number.isSafeInteger(value) && value >= 0;
+    const date = value => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T/.test(value) && value.length <= 64 && Number.isFinite(Date.parse(value));
+    const result = { reference: data.reference, phone: data.phone, amount_minor: data.amount_minor, status: data.status,
+        fee_minor: optional('fee_minor', minor), created_at: optional('created_at', date), completed_at: optional('completed_at', date),
+        executor_phone: optional('executor_phone', value => typeof value === 'string' && /^01[0125]\d{8}$/.test(value)),
+        customer_service_phone: optional('customer_service_phone', value => typeof value === 'string' && /^\+?\d{8,15}$/.test(value)),
+        balance_before_minor: optional('balance_before_minor', minor), deducted_minor: optional('deducted_minor', minor),
+        balance_after_minor: optional('balance_after_minor', minor), reason: optional('reason', value => typeof value === 'string' && value.length <= 1000) };
+    if ([result.balance_before_minor, result.deducted_minor, result.balance_after_minor].every(value => value !== null)
+        && result.balance_before_minor - result.deducted_minor !== result.balance_after_minor) throw new Error('INVALID_KENAN_BALANCE_RECEIPT');
+    return result;
 };
 const safeFailure = error => {
     const status = Number(error.response?.status);
@@ -126,6 +139,32 @@ const getTransactions = async (bot, references = []) => {
     } catch (error) { return { ...safeFailure(error), operations: [], checkedCount: 0, failedCount: 0 }; }
 };
 
+const getLatestOrders = async bot => {
+    try {
+        const config = configuration(bot);
+        const { data } = await axios.get(`${config.baseUrl}/api/company/orders`, config.options);
+        const rows = Array.isArray(data) ? data : data?.orders;
+        if (!Array.isArray(rows) || rows.length > 100) throw new Error('INVALID_KENAN_ORDERS');
+        return { success: true, orders: rows.map(row => parseOrder(row)) };
+    } catch (error) { return { ...safeFailure(error), orders: [] }; }
+};
+const getDeposits = async bot => {
+    try {
+        const config = configuration(bot);
+        const { data } = await axios.get(`${config.baseUrl}/api/company/deposits`, config.options);
+        const rows = Array.isArray(data) ? data : data?.deposits;
+        if (!Array.isArray(rows) || rows.length > 1000) throw new Error('INVALID_KENAN_DEPOSITS');
+        const deposits = rows.map(row => {
+            if (!Number.isSafeInteger(row.amount_minor) || row.amount_minor < 0
+                || typeof row.reference !== 'string' || row.reference.length > 128) throw new Error('INVALID_KENAN_DEPOSIT');
+            return { reference: row.reference, amount_minor: row.amount_minor,
+                created_at: typeof row.created_at === 'string' ? row.created_at.slice(0, 64) : null,
+                responsible: typeof row.responsible === 'string' ? row.responsible.slice(0, 160) : null };
+        });
+        return { success: true, deposits };
+    } catch (error) { return { ...safeFailure(error), deposits: [] }; }
+};
+
 const pollPendingOrders = async () => {
     if (!isExternalApiEnabled() || !isFinancialSchedulersEnabled()) return;
     const now = new Date();
@@ -148,6 +187,7 @@ const pollPendingOrders = async () => {
         if (!operation?.success || operation.phone !== claimed.vodafoneNumber
             || operation.amount !== Number(claimed.amount)) continue;
         const set = { 'apiResultData.kenanProviderStatus': operation.providerStatus,
+            'apiResultData.kenanOrder': operation.rawData,
             'apiResultData.kenanFeeMinor': operation.rawData.fee_minor,
             'apiResultData.kenanLastCheckedAt': new Date() };
         const stateFilter = { _id: claimed._id, status: 'processing', executorGroupId: claimed.executorGroupId,
@@ -160,7 +200,7 @@ const pollPendingOrders = async () => {
                 'apiResultData.providerResultUnresolved': false, 'apiResultData.providerDispatchResult': 'accepted',
                 'apiResultData.referenceNumber': operation.referenceNumber,
                 'apiResultData.waitingApiAutoCompletion': true, 'apiResultData.autoCompleteAt': new Date(),
-                executorSenderPhone: operation.referenceNumber });
+                executorSenderPhone: operation.rawData.executor_phone || operation.referenceNumber });
             // The common completion monitor atomically posts the ledger and saves
             // completion. A crash here leaves a durable, recoverable waiting row.
             await Transaction.updateOne(stateFilter, { $set: set }, { writeConcern: { w: 'majority' } });
@@ -179,4 +219,4 @@ const pollPendingOrders = async () => {
     }
 };
 
-module.exports = { getBalance, preflight, executeTransfer, getTransactions, parseOrder, pollPendingOrders };
+module.exports = { getBalance, preflight, executeTransfer, getTransactions, getLatestOrders, getDeposits, parseOrder, pollPendingOrders };

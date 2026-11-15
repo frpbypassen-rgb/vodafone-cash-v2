@@ -14,7 +14,7 @@ const { requireAuth, requireMaster } = require('../middlewares/auth');
 const { systemDateRange } = require('../config/systemTime');
 const { syncBotBalance, escapeRegex } = require('../utils/helpers');
 const { DEFAULT_API_PROVIDER_KEY, getApiProviderPreset, getApiProviderPresets } = require('../utils/apiProviderPresets');
-const { isStagingRuntime } = require('../utils/runtimeControls');
+const { isStagingRuntime, isFinancialSchedulersEnabled } = require('../utils/runtimeControls');
 const { getApiProviderBalance, runApiTransferPreflight } = require('../services/externalApiService');
 const { syncProviderReturnedOperations } = require('../services/apiProviderReconciliationService');
 const { getApiProfitCommissionReport } = require('../services/apiProfitCommissionService');
@@ -492,6 +492,7 @@ router.get('/executor/:id', requireAuth, async (req, res) => {
             return res.render('api_room', {
                 bot,
                 apiProviderPreset: getApiProviderPreset(bot.apiProviderKey),
+                kenanAutoFollowupEnabled: isFinancialSchedulersEnabled(),
                 transactions,
                 balanceAudits,
                 providerReturns,
@@ -554,6 +555,47 @@ router.get('/executor/:id', requireAuth, async (req, res) => {
     } catch {
         res.redirect('/executors');
     }
+});
+
+router.get('/executor/:id/kenan-reconcile/:transactionId', requireAuth, requireMaster, async (req, res) => {
+    try {
+        const preview = await require('../services/kenanReconciliationService').reconcileKenanOrder({
+            transactionId: req.params.transactionId, executorGroupId: req.params.id,
+            actor: { id: req.session.adminId, role: req.session.adminRole, name: req.session.adminName } });
+        return res.render('kenan_reconcile', { preview, executorId: req.params.id, transactionId: req.params.transactionId });
+    } catch (_) { return res.status(409).send('تعذر الحصول على نجاح مؤكد ومطابق من كنان. لم تتغير العملية؛ راجع اتصال المزود ثم أعد المراجعة.'); }
+});
+router.post('/executor/:id/kenan-reconcile/:transactionId', requireAuth, requireMaster, async (req, res) => {
+    try {
+        await require('../services/kenanReconciliationService').reconcileKenanOrder({
+            transactionId: req.params.transactionId, executorGroupId: req.params.id, req,
+            actor: { id: req.session.adminId, role: req.session.adminRole, name: req.session.adminName },
+            confirm: true, expectedUpdatedAt: req.body.expectedUpdatedAt });
+        return res.redirect(`/executor/${req.params.id}`);
+    } catch (_) { return res.status(409).send('لم يُعتمد تغيير جديد. تحقق من حالة العملية ونتيجة كنان والرصيد، ثم أعد فتح المعاينة. لا تُعد إرسال التحويل.'); }
+});
+
+router.get('/executor/:id/kenan-history', requireAuth, async (req, res) => {
+    try {
+        const bot = await ExecutorGroup.findById(req.params.id);
+        if (!bot?.isApiBot || bot.apiProviderKey !== 'kenan') return res.sendStatus(404);
+        const provider = require('../services/kenanProviderService');
+        const [orders, deposits] = await Promise.all([provider.getLatestOrders(bot), provider.getDeposits(bot)]);
+        return res.render('kenan_history', { bot, orders, deposits });
+    } catch (_) { return res.sendStatus(503); }
+});
+
+router.post('/executor/:id/kenan-webhook-config', requireAuth, requireMaster, async (req, res) => {
+    try {
+        const secret = String(req.body.signingKey || '');
+        if (secret.length < 16 || secret.length > 256 || /[\r\n]/.test(secret)) return res.status(400).send('مفتاح التوقيع يجب أن يتكون من 16 إلى 256 حرفاً.');
+        const result = await ExecutorGroup.updateOne({ _id: req.params.id, isApiBot: true, apiProviderKey: 'kenan' }, { $set: { kenanWebhookSecret: secret } });
+        if (result.matchedCount !== 1) return res.sendStatus(404);
+        await logAction({ req, action: 'UPDATE_EXECUTOR', targetModel: 'ExecutorGroup', targetId: req.params.id,
+            performedById: req.session.adminId, performedByModel: 'Admin', performedByName: req.session.adminName,
+            metadata: { reason: 'KENAN_WEBHOOK_CONFIG_UPDATED', secretChanged: true } });
+        return res.redirect(`/executor/${req.params.id}`);
+    } catch (_) { return res.sendStatus(503); }
 });
 
 router.post('/executor/:id/sync-provider-returns', requireAuth, async (req, res) => {

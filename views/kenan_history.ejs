@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>سجل كنان</title>
+<style>body{font:16px Tahoma,sans-serif;background:#f4f7fb;color:#152238;margin:0}main{max-width:1200px;margin:auto;padding:24px}a{color:#075ea8}section{background:white;border-radius:16px;padding:20px;margin:20px 0;overflow:auto}table{width:100%;border-collapse:collapse;white-space:nowrap}td,th{padding:12px;border-bottom:1px solid #e1e7ef;text-align:right}summary{cursor:pointer}dl{display:grid;grid-template-columns:1fr 1fr;gap:10px;min-width:320px}dd{margin:0}small{color:#526478}</style></head>
+<body><main><a href="/executor/<%= bot._id %>">العودة إلى منفذ كنان</a><h1>سجل كنان — <%= bot.name %></h1>
+<% const money = v => v === null || v === undefined ? 'غير متاح' : (v / 100).toFixed(2) + ' ج.م'; const labels={queued:'انتظار',assigned:'إسناد',executing:'تحويل',verifying:'تحقق',review:'مراجعة',success:'نجاح',cancelled:'إلغاء',failed:'فشل'}; %>
+<section><h2>آخر 100 عملية لدى كنان</h2><% if (!orders.success) { %><p role="alert"><%= orders.message %></p><% } %>
+<table><thead><tr><th>المرجع</th><th>المستفيد</th><th>القيمة</th><th>الحالة</th><th>الإيصال</th></tr></thead><tbody>
+<% orders.orders.forEach(o => { %><tr><td dir="ltr"><%= o.reference %></td><td dir="ltr"><%= o.phone %></td><td><%= money(o.amount_minor) %></td><td><%= labels[o.status] || o.status %></td><td>
+<details><summary><%= o.status === 'success' ? 'إيصال النجاح' : 'تفاصيل العملية' %></summary><dl>
+<dt>رقم الشريحة المنفذة</dt><dd dir="ltr"><%= o.executor_phone || 'غير متاح' %></dd>
+<dt>الرسوم</dt><dd><%= money(o.fee_minor) %></dd><dt>وقت الإنشاء (UTC)</dt><dd dir="ltr"><%= o.created_at || 'غير متاح' %></dd>
+<dt>وقت النجاح (UTC)</dt><dd dir="ltr"><%= o.completed_at || 'غير متاح' %></dd><dt>الرصيد قبل الخصم</dt><dd><%= money(o.balance_before_minor) %></dd>
+<dt>المبلغ المخصوم</dt><dd><%= money(o.deducted_minor) %></dd><dt>الرصيد بعد الخصم</dt><dd><%= money(o.balance_after_minor) %></dd>
+<dt>السبب</dt><dd><%= o.reason || '—' %></dd><dt>خدمة عملاء كنان</dt><dd dir="ltr"><%= o.customer_service_phone || 'غير متاح' %></dd></dl></details></td></tr><% }) %>
+</tbody></table><% if (orders.success && !orders.orders.length) { %><p>لا توجد عمليات.</p><% } %></section>
+<section><h2>دفعات حساب كنان</h2><small>سجل للمراجعة؛ لا يضيف أرصدة إلى النظام تلقائيًا.</small><% if (!deposits.success) { %><p role="alert"><%= deposits.message %></p><% } %>
+<table><thead><tr><th>المرجع</th><th>القيمة</th><th>التاريخ (UTC)</th><th>المسؤول</th></tr></thead><tbody>
+<% deposits.deposits.forEach(d => { %><tr><td dir="ltr"><%= d.reference %></td><td><%= money(d.amount_minor) %></td><td dir="ltr"><%= d.created_at || 'غير متاح' %></td><td><%= d.responsible || 'غير متاح' %></td></tr><% }) %></tbody></table></section>
+</main></body></html>

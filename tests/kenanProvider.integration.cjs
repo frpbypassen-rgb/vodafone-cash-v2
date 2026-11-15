@@ -10,6 +10,7 @@ const eventBus = require('../services/eventBus');
 const published = mock.method(eventBus, 'publish', () => {});
 mock.method(require('../utils/manualExecutorReceipt'), 'generateExecutorReceiptBase64', () => 'data:image/jpeg;base64,YQ==');
 mock.method(require('../services/proofStorageService'), 'saveProofImage', () => 'proofs/kenan-fixture.jpg');
+mock.method(require('../services/auditService'), 'logAction', async () => {});
 const Transaction = require('../models/Transaction');
 const ExecutorGroup = require('../models/ExecutorGroup');
 const Ledger = require('../models/Ledger');
@@ -117,4 +118,23 @@ test('polling cannot race an administrative resolution already claimed on the or
     assert.equal(fresh.apiResultData.kenanProviderStatus, 'queued');
     assert.equal(fresh.status, 'processing');
     assert.equal(await Ledger.countDocuments({ transactionId: tx.customId }), 0);
+});
+
+test('explicit verified reconciliation while schedulers are paused commits once without another POST', async () => {
+    const { bot, tx } = await createOrder('RECONCILE');
+    providerStatus = 'success';
+    process.env.FINANCIAL_SCHEDULERS_ENABLED = 'false';
+    const { reconcileKenanOrder } = require('../services/kenanReconciliationService');
+    const input = { transactionId: String(tx._id), executorGroupId: String(bot._id), actor: { id: 'admin-fixture', role: 'master' } };
+    const preview = await reconcileKenanOrder(input);
+    assert.equal(preview.eligible, true);
+    assert.equal((await Transaction.findById(tx._id)).status, 'processing');
+    const results = await Promise.allSettled([reconcileKenanOrder({ ...input, confirm: true, expectedUpdatedAt: preview.expectedUpdatedAt }), reconcileKenanOrder({ ...input, confirm: true, expectedUpdatedAt: preview.expectedUpdatedAt })]);
+    assert.ok(results.some(result => result.status === 'fulfilled' && result.value.applied));
+    assert.equal((await Transaction.findById(tx._id)).status, 'completed');
+    assert.equal(await Ledger.countDocuments({ transactionId: tx.customId, type: 'TRANSFER', amount: -50 }), 1);
+    assert.equal((await ExecutorGroup.findById(bot._id)).balance, 950);
+    assert.equal(postCount, 1);
+    assert.equal(process.env.FINANCIAL_SCHEDULERS_ENABLED, 'false');
+    process.env.FINANCIAL_SCHEDULERS_ENABLED = 'true';
 });
