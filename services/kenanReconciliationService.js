@@ -15,7 +15,15 @@ async function reconcileKenanOrder({ transactionId, executorGroupId, actor, req,
     if (!tx || String(tx.executorGroupId) !== String(executorGroupId)) throw new Error('KENAN_TRANSACTION_NOT_FOUND');
     const bot = await ExecutorGroup.findById(executorGroupId);
     if (!bot?.isApiBot || bot.apiProviderKey !== 'kenan') throw new Error('KENAN_ACCOUNT_REQUIRED');
-    if (tx.status === 'completed') return { success: true, applied: false, idempotent: true, customId: tx.customId };
+    if (tx.status === 'completed') {
+        const query = { entityModel: 'ExecutorGroup', entityId: bot._id, transactionId: tx.customId, type: 'TRANSFER' };
+        const [matching, total] = await Promise.all([
+            Ledger.countDocuments({ ...query, amount: -Number(tx.amount) }),
+            Ledger.countDocuments(query)
+        ]);
+        if (matching !== 1 || total !== 1) throw new Error('KENAN_LEDGER_CONFLICT');
+        return { success: true, applied: false, idempotent: true, customId: tx.customId };
+    }
     const reference = tx.apiResultData?.kenanReference;
     if (tx.status !== 'processing' || !reference || tx.apiResultData?.providerResolutionOutcome) throw new Error('KENAN_STATE_CONFLICT');
     const response = await provider.getTransactions(bot, [reference]);

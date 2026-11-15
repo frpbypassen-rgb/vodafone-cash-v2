@@ -45,3 +45,20 @@ test('prepaid account cannot be silently converted to credit', async () => {
     expect(await reconcileKenanOrder(input)).toMatchObject({ eligible: false });
     expect(lifecycle.completeApiTransactionWithReference).not.toHaveBeenCalled();
 });
+
+test.each([0, 2])('completed status with %i debits requires accounting review', async count => {
+    const tx = await Transaction.findById();
+    Transaction.findById.mockResolvedValue({ ...tx, status: 'completed' });
+    Ledger.countDocuments.mockResolvedValue(count);
+    await expect(reconcileKenanOrder(input)).rejects.toThrow('KENAN_LEDGER_CONFLICT');
+    expect(lifecycle.completeApiTransactionWithReference).not.toHaveBeenCalled();
+    expect(provider.getTransactions).not.toHaveBeenCalled();
+});
+
+test('completed status with exactly one matching debit is idempotent', async () => {
+    const tx = await Transaction.findById();
+    Transaction.findById.mockResolvedValue({ ...tx, status: 'completed' });
+    Ledger.countDocuments.mockResolvedValue(1);
+    expect(await reconcileKenanOrder(input)).toMatchObject({ idempotent: true, applied: false });
+    expect(lifecycle.completeApiTransactionWithReference).not.toHaveBeenCalled();
+});

@@ -67,6 +67,12 @@
 
 <div class="main-content">
     <div class="container-fluid py-2" dir="rtl">
+        <% if (typeof query !== 'undefined' && query.settlementError) { %>
+            <div class="alert alert-danger" role="alert"><%= query.settlementError === 'RECEIPT_REQUIRED' ? 'لم يُسجّل الإيداع: أرفق صورة إيصال الدفع ثم أرسل الطلب للمراجعة.' : 'تعذر تسجيل التسوية؛ تحقق من الجلسة وأعد المحاولة.' %></div>
+        <% } %>
+        <% if (typeof query !== 'undefined' && query.depositRequest) { %>
+            <div class="alert alert-info" role="status">أُرسل طلب الإيداع <%= query.depositRequest %> للدعم. تُزاد العهدة بعد اعتماده.</div>
+        <% } %>
         
         <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">
             <div>
@@ -269,18 +275,24 @@
                         <span><i class="fa-solid fa-coins me-2"></i> إدارة العهدة الرقمية</span>
                     </div>
                     <div class="card-body p-4">
-                        <form action="/executor/<%= bot._id %>/settle" method="POST">
+                        <form action="/executor/<%= bot._id %>/settle" method="POST" enctype="multipart/form-data">
+                            <input type="hidden" name="_csrf" value="<%= typeof csrfToken !== 'undefined' ? csrfToken : '' %>">
                             <div class="mb-3">
                                 <label class="form-label text-muted small">إيداع / خصم المبلغ (EGP)</label>
                                 <input type="number" step="0.01" name="amount" class="form-control form-control-lg text-center fw-bold fs-3" placeholder="0.00" required>
-                                <div class="form-text text-info mt-2"><i class="fa-solid fa-circle-info"></i> اكتب الرقم بالموجب لزيادة العهدة، وبالسالب (-) للخصم.</div>
+                                <div class="form-text text-info mt-2"><i class="fa-solid fa-circle-info"></i> المبلغ الموجب ينشئ طلب إيداع يحتاج إيصالًا واعتماد الدعم قبل زيادة العهدة. المبلغ السالب يخصم من الرصيد.</div>
+                            </div>
+                            <div class="mb-3">
+                                <label for="apiFundingReceipts" class="form-label">إيصالات الإيداع (مطلوبة للمبلغ الموجب)</label>
+                                <input id="apiFundingReceipts" type="file" name="receipts" accept="image/jpeg,image/png,image/webp" multiple class="form-control">
+                                <div class="form-text">حتى 5 صور، بحد أقصى 5 ميجابايت للصورة.</div>
                             </div>
                             <div class="mb-4">
                                 <label class="form-label text-muted small">المرجع (ملاحظة)</label>
                                 <input type="text" name="notes" class="form-control" placeholder="مثال: تم إيداع عهدة جديدة لشركة كذا...">
                             </div>
                             <button type="submit" class="btn btn-warning w-100 fw-bold text-dark py-2 fs-5">
-                                <i class="fa-solid fa-bolt me-2"></i> تنفيذ تسوية الرصيد
+                                <i class="fa-solid fa-bolt me-2"></i> إرسال طلب الإيداع / تنفيذ الخصم
                             </button>
                         </form>
                     </div>
