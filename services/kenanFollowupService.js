@@ -60,10 +60,15 @@ async function runKenanFollowupCycle() {
                 await reconcileKenanOrder({ transactionId: String(claimed._id), executorGroupId: String(claimed.executorGroupId),
                     actor: { role: 'master', model: 'System', name: 'Kenan automatic verified follow-up' },
                     confirm: true, expectedUpdatedAt: claimed.updatedAt });
-            } catch (_) {
+            } catch (error) {
                 // Keep the paid order for retry, including insufficient local
                 // prepaid funding. Never resend, refund, or change credit policy.
-                logger.warn('Kenan verified completion deferred', { transactionId: claimed.customId });
+                const code = /^KENAN_[A-Z_]+$/.test(error.message || '') ? error.message : 'KENAN_COMPLETION_RETRY_REQUIRED';
+                await Transaction.updateOne({ _id: claimed._id, status: 'processing', updatedAt: claimed.updatedAt }, { $set: {
+                    'apiResultData.kenanCompletionState': code === 'KENAN_PREPAID_FUNDING_REQUIRED' ? 'awaiting_funding' : 'retrying_confirmation',
+                    'apiResultData.kenanCompletionError': code
+                } });
+                logger.warn('Kenan verified completion deferred', { transactionId: claimed.customId, code });
             }
         }
         await refreshMissingReceipts();

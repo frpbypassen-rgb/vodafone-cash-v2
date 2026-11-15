@@ -996,10 +996,12 @@
             if (action === 'check') {
                 const result = await post('/transaction/' + encodeURIComponent(transactionId) + '/provider-status-check');
                 const isStillPending = result.code === 'PROVIDER_STILL_PENDING';
+                const needsKenanFunding = result.code === 'KENAN_AWAITING_FUNDING';
+                const kenanSuccess = needsKenanFunding || result.code === 'KENAN_SUCCESS_AWAITING_SETTLEMENT';
                 await Swal.fire({
-                    icon: isStillPending ? 'info' : (result.success ? 'success' : 'warning'),
-                    title: isStillPending ? 'العملية ما زالت معلقة' : (result.message || 'تم تحديث نتيجة المزود.'),
-                    text: isStillPending ? 'لم يرسل المزود نتيجة نهائية بعد.' : undefined,
+                    icon: needsKenanFunding ? 'warning' : isStillPending ? 'info' : (result.success ? 'success' : 'warning'),
+                    title: kenanSuccess ? 'كنان أكد نجاح التحويل' : isStillPending ? 'العملية ما زالت معلقة' : (result.message || 'تم تحديث نتيجة المزود.'),
+                    text: kenanSuccess ? result.message : isStillPending ? 'لم يرسل المزود نتيجة نهائية بعد.' : undefined,
                     confirmButtonText: 'حسناً'
                 });
                 await refreshTransactionsList();

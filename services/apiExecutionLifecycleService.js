@@ -329,6 +329,8 @@ const completeApiTransactionWithReference = async ({ tx, executorGroup, apiResul
                 claimed.apiResultData.kenanProviderStatus = 'success';
                 claimed.apiResultData.kenanAwaitingStatus = false;
                 claimed.apiResultData.kenanLastCheckedAt = completedAt;
+                claimed.apiResultData.kenanCompletionState = 'completed';
+                claimed.apiResultData.kenanCompletionError = null;
             }
             await claimed.save({ session });
             if (beforeCommit) await beforeCommit(claimed, session);

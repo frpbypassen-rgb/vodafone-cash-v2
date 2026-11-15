@@ -42,7 +42,7 @@ async function reconcileKenanOrder({ transactionId, executorGroupId, actor, req,
         expectedUpdatedAt: tx.updatedAt, executorDebit: existing ? 0 : Number(tx.amount), existingDebitCount: existing,
         executorBalance: Number(bot.balance), order };
     if (!confirm) return preview;
-    if (!eligible) throw new Error('KENAN_SUCCESS_OR_BALANCE_REQUIRED');
+    if (!eligible) throw new Error(order.status === 'success' ? 'KENAN_PREPAID_FUNDING_REQUIRED' : 'KENAN_SUCCESS_OR_BALANCE_REQUIRED');
     if (!expectedUpdatedAt || new Date(expectedUpdatedAt).getTime() !== new Date(tx.updatedAt).getTime()) throw new Error('KENAN_ROW_CHANGED');
     const result = await completeApiTransactionWithReference({ tx, executorGroup: bot,
         apiResult: { reference_number: reference, provider_transaction_id: reference, external_transaction_id: reference },

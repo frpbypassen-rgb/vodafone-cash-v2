@@ -195,6 +195,7 @@ test('automatic Kenan follow-up holds provider success until prepaid funding is 
     let fresh = await Transaction.findById(tx._id);
     assert.equal(fresh.status, 'processing');
     assert.equal(fresh.apiResultData.kenanProviderStatus, 'success');
+    assert.equal(fresh.apiResultData.kenanCompletionState, 'awaiting_funding');
     assert.equal(await Ledger.countDocuments({ transactionId: tx.customId }), 0);
     assert.equal((await ExecutorGroup.findById(bot._id)).balance, 0);
     await ExecutorGroup.updateOne({ _id: bot._id }, { $set: { balance: 100 } });

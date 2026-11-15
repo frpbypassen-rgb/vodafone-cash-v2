@@ -57,6 +57,14 @@ Completed Kenan orders missing a receipt are checked against a fresh matching
 provider success and receive their receipt without balance or ledger changes.
 This does not repair historical manual-completion accounting discrepancies.
 
+The administrator's provider-status check interprets Kenan's `status`, not
+masked-reference conventions used by other providers. A numeric success
+reference schedules the independent verified settlement path and reports
+prepaid funding waits distinctly from provider waits. A failed fresh inquiry
+does not erase previously saved success evidence. Conflicting later statuses
+cannot downgrade that evidence or reopen a non-processing administrative row.
+Deferred automatic completion records its safe error code and retry state.
+
 ## Validation
 
 Focused Jest suites cover the contract, receipt fields, signed raw-body

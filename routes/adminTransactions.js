@@ -1073,6 +1073,18 @@ router.post('/transaction/:id/provider-status-check', requirePermission(PROVIDER
 
         const operation = await getApiProviderTransaction(executorGroup, providerTransactionId);
         const checkedAt = new Date();
+        const isKenan = executorGroup.apiProviderKey === 'kenan';
+        if (isKenan && operation.success && data.kenanProviderStatus === 'success' && operation.providerStatus !== 'success') {
+            return respondTransactionAction(req, res, 409, { success: false, code: 'KENAN_PROVIDER_STATE_CONFLICT',
+                message: 'يوجد نجاح مؤكد سابق من كنان، لكن الرد الحالي مختلف. احتُفظ بالنجاح السابق ويلزم التحقق من المزود.',
+                providerOperation: providerOperationView(operation) });
+        }
+        if (isKenan && operation.success && (!providerOperationMatches(transaction, operation)
+            || operation.rawData?.reference !== (data.kenanReference || providerTransactionId))) {
+            return respondTransactionAction(req, res, 409, { success: false, code: 'PROVIDER_DETAILS_MISMATCH',
+                message: 'وصل رد كنان لكن المرجع أو رقم العميل أو القيمة غير مطابق. لم تتغير الحالة أو الأرصدة.',
+                providerOperation: providerOperationView(operation) });
+        }
         const checkData = {
             providerLastCheckedAt: checkedAt,
             providerStatusCheckSucceeded: Boolean(operation.success),
@@ -1083,6 +1095,16 @@ router.post('/transaction/:id/provider-status-check', requirePermission(PROVIDER
             providerReturnDetectedAt: operation.isReturned ? checkedAt : data.providerReturnDetectedAt || null
         };
         if (operation.rawData) checkData.providerLastCheckedRaw = operation.rawData;
+        if (isKenan && operation.success) {
+            Object.assign(checkData, { kenanReference: operation.rawData.reference,
+                kenanProviderStatus: operation.providerStatus, kenanOrder: operation.rawData,
+                kenanLastCheckedAt: checkedAt, kenanNextPollAt: new Date(0) });
+            if (operation.providerStatus === 'success' && transaction.status === 'processing') Object.assign(checkData, {
+                kenanAwaitingStatus: false, providerResultUnresolved: false, providerDispatchResult: 'accepted',
+                waitingApiAutoCompletion: true, autoCompleteAt: checkedAt, kenanNextCompletionAt: new Date(0),
+                referenceNumber: operation.rawData.reference
+            });
+        }
         const checkUpdate = Object.fromEntries(Object.entries(checkData).map(([key, value]) => [`apiResultData.${key}`, value]));
         const latest = await Transaction.findOneAndUpdate({
             _id: transaction._id, updatedAt: transaction.updatedAt,
@@ -1091,6 +1113,26 @@ router.post('/transaction/:id/provider-status-check', requirePermission(PROVIDER
         if (!latest) return respondTransactionAction(req, res, 409, {
             success: false, code: 'ROW_CHANGED', message: 'تغيّرت العملية أثناء الاستعلام. حدّث الصفحة قبل اتخاذ قرار.'
         });
+
+        if (isKenan && !operation.success && data.kenanProviderStatus === 'success') {
+            return respondTransactionAction(req, res, 200, { success: false, code: 'KENAN_RECHECK_UNAVAILABLE',
+                message: 'آخر رد محفوظ من كنان يؤكد النجاح، لكن تعذر الاتصال بالمزود لإعادة التحقق الآن. ستستمر المحاولة تلقائيًا؛ راجع رابط كنان والتمويل المحاسبي.',
+                providerOperation: providerOperationView(operation) });
+        }
+        if (isKenan && operation.success && operation.providerStatus === 'success') {
+            if (latest.status !== 'processing') return respondTransactionAction(req, res, 200, { success: true,
+                code: 'KENAN_SUCCESS_REVIEW_REQUIRED',
+                message: 'أكد كنان نجاح التحويل. حالة العملية في الموقع تحتاج مراجعة إدارية قبل التسوية؛ لم تُعَد إلى التنفيذ تلقائيًا.',
+                providerOperation: providerOperationView(operation) });
+            const needsFunding = executorGroup.apiSettlementMode !== 'credit'
+                && Number(executorGroup.balance) < Number(latest.amount);
+            return respondTransactionAction(req, res, 200, { success: true,
+                code: needsFunding ? 'KENAN_AWAITING_FUNDING' : 'KENAN_SUCCESS_AWAITING_SETTLEMENT',
+                message: needsFunding
+                    ? `أكد كنان نجاح التحويل. وصلت النتيجة؛ الاعتماد المحاسبي ينتظر تمويل حساب كنان مسبق الدفع (العهدة الحالية ${Number(executorGroup.balance).toFixed(2)} جنيه).`
+                    : 'أكد كنان نجاح التحويل. وصلت النتيجة؛ جارٍ استكمال الاعتماد المحاسبي والإيصال تلقائيًا دون إعادة إرسال الدفع.',
+                providerOperation: providerOperationView(operation) });
+        }
 
         if (operation.success && !operation.isReturned && operation.referenceNumber && isMaskedProviderReference(operation.referenceNumber)) {
             if (!providerOperationMatches(latest, operation)) return respondTransactionAction(req, res, 409, {

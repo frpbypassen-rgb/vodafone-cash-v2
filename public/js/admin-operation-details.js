@@ -957,7 +957,7 @@
             if (action === 'check') {
                 const result = await post(`/transaction/${encodeURIComponent(transactionId)}/provider-status-check`);
                 await window.Swal?.fire({
-                    icon: result.code === 'PROVIDER_STILL_PENDING' || result.code === 'PROVIDER_RETURNED' ? 'info' : 'success',
+                    icon: result.code === 'KENAN_AWAITING_FUNDING' ? 'warning' : result.code === 'PROVIDER_STILL_PENDING' || result.code === 'PROVIDER_RETURNED' ? 'info' : 'success',
                     title: 'نتيجة فحص المزود', text: result.message || 'تم تحديث نتيجة المزود.', confirmButtonText: 'حسناً'
                 });
             } else {

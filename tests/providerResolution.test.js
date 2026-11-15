@@ -602,6 +602,59 @@ describe('manual provider resolution', () => {
         }
     });
 
+    test.each(['funded', 'unfunded', 'mismatch', 'assigned', 'unavailable', 'known-success-unavailable', 'stale', 'held-pending'])('Kenan numeric success reference is reported accurately (%s)', async scenario => {
+        const { tx, executor } = await createHeldTransfer({ status: scenario === 'held-pending' ? 'pending' : 'processing' });
+        await ExecutorGroup.updateOne({ _id: executor._id }, { $set: { apiProviderKey: 'kenan',
+            apiSettlementMode: 'prepaid', balance: scenario === 'unfunded' ? 0 : 1000 } });
+        tx.apiResultData = { ...tx.apiResultData, kenanReference: '0000016', providerTransactionId: '0000016',
+            providerDispatchResult: 'kenan_pending', kenanAwaitingStatus: true, waitingApiAutoCompletion: false };
+        if (['known-success-unavailable', 'stale'].includes(scenario)) Object.assign(tx.apiResultData, {
+            kenanProviderStatus: 'success', kenanOrder: { status: 'success' }
+        });
+        tx.markModified('apiResultData'); await tx.save();
+        const admin = await resolver(['transactions.resolve_provider']);
+        const previousGet = axios.get;
+        axios.get = jest.fn(async () => {
+            if (scenario.includes('unavailable')) throw Object.assign(new Error('fixture transport failure'), { response: { status: 502 } });
+            return { data: { reference: '0000016', phone: scenario === 'mismatch' ? '01111111111' : tx.vodafoneNumber,
+                amount_minor: AMOUNT * 100, status: ['assigned', 'stale'].includes(scenario) ? 'assigned' : 'success', executor_phone: '01100000000' } };
+        });
+        try {
+            const response = await request(adminApp(admin)).post(`/transaction/${tx._id}/provider-status-check`).set('Accept', 'application/json');
+            const stored = await Transaction.findById(tx._id);
+            expect(response.body.code).toBe(scenario === 'mismatch' ? 'PROVIDER_DETAILS_MISMATCH'
+                : scenario === 'assigned' ? 'PROVIDER_STILL_PENDING' : scenario === 'unavailable' ? 'PROVIDER_CHECK_FAILED'
+                : scenario === 'known-success-unavailable' ? 'KENAN_RECHECK_UNAVAILABLE' : scenario === 'stale' ? 'KENAN_PROVIDER_STATE_CONFLICT'
+                : scenario === 'held-pending' ? 'KENAN_SUCCESS_REVIEW_REQUIRED'
+                : scenario === 'unfunded' ? 'KENAN_AWAITING_FUNDING' : 'KENAN_SUCCESS_AWAITING_SETTLEMENT');
+            if (['funded', 'unfunded'].includes(scenario)) {
+                expect(stored.apiResultData.kenanOrder.status).toBe('success');
+                expect(stored.apiResultData.waitingApiAutoCompletion).toBe(true);
+                expect(stored.apiResultData.providerResultUnresolved).toBe(false);
+            }
+            if (scenario === 'assigned') expect(stored.apiResultData.kenanOrder.status).toBe('assigned');
+            if (['known-success-unavailable', 'stale'].includes(scenario)) expect(stored.apiResultData.kenanOrder.status).toBe('success');
+            expect(stored.status).toBe(scenario === 'held-pending' ? 'pending' : 'processing');
+            expect(await moneySnapshot(executor._id)).toEqual({ debits: 0, refunds: 0, paymentCalls: 0 });
+            if (scenario === 'funded') {
+                const keys = ['KENAN_AUTO_FOLLOWUP_ENABLED', 'EXTERNAL_API_ENABLED', 'FINANCIAL_SCHEDULERS_ENABLED'];
+                const saved = Object.fromEntries(keys.map(key => [key, process.env[key]]));
+                process.env.KENAN_AUTO_FOLLOWUP_ENABLED = 'true'; process.env.EXTERNAL_API_ENABLED = 'true';
+                process.env.FINANCIAL_SCHEDULERS_ENABLED = 'false';
+                try {
+                    const { runKenanFollowupCycle } = require('../services/kenanFollowupService');
+                    await runKenanFollowupCycle(); await runKenanFollowupCycle();
+                    const completed = await Transaction.findById(tx._id);
+                    expect(completed.status).toBe('completed');
+                    expect(completed.executorSenderPhone).toBe('01100000000');
+                    expect(completed.apiResultData.executorReceiptProof).toBeTruthy();
+                    expect(await moneySnapshot(executor._id)).toEqual({ debits: 1, refunds: 0, paymentCalls: 0 });
+                    expect(await AuditLog.countDocuments({ action: 'KENAN_VERIFIED_SUCCESS_RECONCILED', targetId: tx._id })).toBe(1);
+                } finally { for (const key of keys) if (saved[key] === undefined) delete process.env[key]; else process.env[key] = saved[key]; }
+            }
+        } finally { axios.get = previousGet; }
+    });
+
     test('refuses missing evidence and missing permission without writing', async () => {
         const { tx } = await createHeldTransfer();
         const admin = await resolver(['transactions.manage']);
