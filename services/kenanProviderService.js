@@ -169,7 +169,8 @@ const getDeposits = async bot => {
 const pollPendingOrders = async () => {
     if (!isKenanFollowupEnabled()) return;
     const now = new Date();
-    const due = { status: 'processing', 'apiResultData.kenanAwaitingStatus': true,
+    const due = { status: 'processing',
+        'apiResultData.kenanReference': { $exists: true, $nin: [null, ''] },
         'apiResultData.providerResultUnresolved': true, 'apiResultData.providerResolutionOutcome': { $exists: false },
         'apiResultData.kenanNextPollAt': { $lte: now } };
     const transactions = await Transaction.find(due).sort({ 'apiResultData.kenanNextPollAt': 1 }).limit(20);
@@ -193,9 +194,8 @@ const pollPendingOrders = async () => {
             'apiResultData.kenanLastCheckedAt': new Date() };
         const stateFilter = { _id: claimed._id, status: 'processing', executorGroupId: claimed.executorGroupId,
             'apiResultData.kenanReference': operation.providerTransactionId,
-            'apiResultData.kenanAwaitingStatus': true, 'apiResultData.providerResultUnresolved': true,
-            'apiResultData.providerResolutionOutcome': { $exists: false },
-            'apiResultData.providerDispatchResult': 'kenan_pending' };
+            updatedAt: claimed.updatedAt, 'apiResultData.providerResultUnresolved': true,
+            'apiResultData.providerResolutionOutcome': { $exists: false } };
         if (operation.providerStatus === 'success') {
             Object.assign(set, { 'apiResultData.kenanAwaitingStatus': false,
                 'apiResultData.providerResultUnresolved': false, 'apiResultData.providerDispatchResult': 'accepted',
@@ -214,6 +214,8 @@ const pollPendingOrders = async () => {
                 'apiResultData.providerDispatchStartedAt': '', 'apiResultData.providerDispatchAttemptId': '',
                 'apiResultData.providerDispatchExecutorGroupId': '' } }, { writeConcern: { w: 'majority' } });
         } else {
+            set['apiResultData.kenanAwaitingStatus'] = true;
+            set['apiResultData.providerDispatchResult'] = 'kenan_pending';
             set['apiResultData.kenanNextPollAt'] = new Date(Date.now() + 5000);
             await Transaction.updateOne(stateFilter, { $set: set });
         }

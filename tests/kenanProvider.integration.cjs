@@ -110,6 +110,22 @@ test('a new claim clears the previous rejection before any retry can be transmit
     assert.equal(providerMoneyHold(fresh), true);
     assert.equal(postCount, 1);
 });
+test('a saved Kenan reference recovers interrupted awaiting flags and processes a verified failure', async () => {
+    const { tx, bot } = await createOrder('INTERRUPTED-FLAGS');
+    await makeDue(tx);
+    await Transaction.updateOne({ _id: tx._id }, { $set: { 'apiResultData.kenanAwaitingStatus': false },
+        $unset: { 'apiResultData.providerDispatchResult': '' } });
+    providerStatus = 'failed';
+    await pollPendingOrders();
+    const fresh = await Transaction.findById(tx._id);
+    assert.equal(fresh.status, 'pending');
+    assert.equal(fresh.apiResultData.kenanProviderStatus, 'failed');
+    assert.equal(fresh.apiResultData.providerResultUnresolved, false);
+    assert.equal(await Ledger.countDocuments({ transactionId: tx.customId }), 0);
+    assert.equal((await ExecutorGroup.findById(bot._id)).balance, 1000);
+    assert.equal(postCount, 1);
+});
+
 test('polling cannot race an administrative resolution already claimed on the order', async () => {
     const { tx } = await createOrder('MANUAL');
     await makeDue(tx);
