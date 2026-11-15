@@ -19,7 +19,7 @@
     ].filter(Boolean).join('\n');
 %>
     <div class="d-flex flex-column gap-1 align-items-center" data-kenan-response>
-        <button type="button" class="btn btn-sm btn-success fw-bold rounded-3" data-kenan-response-text="<%= response %>" onclick="showKenanResponse(this)"><i class="fa-solid fa-comment-dots me-1"></i> رد كنان</button>
+        <button type="button" class="btn btn-sm btn-success rounded-3 d-inline-flex align-items-center justify-content-center p-0" style="width:32px;height:32px;flex-shrink:0" title="رد كنان" aria-label="عرض رد كنان" data-kenan-response-text="<%= response %>" onclick="showKenanResponse(this)"><i class="fa-solid fa-comment-dots" aria-hidden="true"></i></button>
         <% if (waiting) { %><span class="small text-info" role="status"><i class="fa-solid fa-spinner fa-spin me-1" aria-hidden="true"></i><%= status === 'success' ? 'بانتظار إتمام التسوية' : 'بانتظار رد كنان' %></span><% } %>
     </div>
 <% } %>
