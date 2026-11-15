@@ -46,6 +46,22 @@ const renderTransactions = (overrides = {}) => ejs.render(
 );
 
 describe('central ledger page layout', () => {
+    test.each(['queued', 'assigned', 'executing', 'verifying', 'review', 'success'])('Kenan %s shows its response on desktop/mobile and waits without manual review actions', (status) => {
+        const tx = { _id: '507f1f77bcf86cd799439011', customId: 'ATT-KENAN', status: 'processing', amount: 100,
+            vodafoneNumber: '01099887766', transferType: 'vodafone', createdAt: new Date(), updatedAt: new Date(),
+            providerReviewAvailable: true, apiResultData: { kenanReference: '0000020', kenanProviderStatus: status,
+                kenanAwaitingStatus: status !== 'success', waitingApiAutoCompletion: status === 'success',
+                kenanOrder: { executor_phone: '01012345678', reason: '<script>unsafe</script>' } } };
+        const html = renderTransactions({ transactions: [tx], operationWorkspace: true });
+        expect(html.match(/data-kenan-response-text=/g)).toHaveLength(2);
+        expect(html).toContain('0000020');
+        expect(html).toContain('01012345678');
+        expect(html).toContain('&lt;script&gt;unsafe&lt;/script&gt;');
+        expect(html).not.toContain('data-provider-row-action=');
+        expect(html).not.toContain(`/transaction/${tx._id}/pull-task`);
+        expect(html).not.toContain(`/transaction/${tx._id}/global-cancel`);
+        expect(html).toContain(status === 'success' ? 'بانتظار إتمام التسوية' : 'بانتظار رد كنان');
+    });
     test('monitor page shows last receipt, capped attempts and preserves review filters across pages', () => {
         const tx = {
             _id: '507f1f77bcf86cd799439011', customId: 'ATT-REVIEW', status: 'processing',

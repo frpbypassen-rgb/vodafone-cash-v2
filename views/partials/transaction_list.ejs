@@ -117,7 +117,8 @@
                             const executorDisplay = (executorDisplayByTransaction || {})[String(tx._id)] || {};
                             const directClientName = tx.employeeName || tx.accountName || 'غير معروف';
                             const operationAge = operationAgeFor(tx);
-                            const providerResolutionPending = tx.providerReviewAvailable === true;
+                            const kenanAutoWaiting = tx.status === 'processing' && tx.apiResultData?.kenanReference && !tx.apiResultData.providerResolutionOutcome && (tx.apiResultData.kenanAwaitingStatus === true || tx.apiResultData.waitingApiAutoCompletion === true);
+                            const providerResolutionPending = tx.providerReviewAvailable === true && !kenanAutoWaiting;
                         %>
                             <tr style="<%= tx.status === 'deposit_pending' ? 'background: rgba(245, 158, 11, 0.05);' : (tx.status === 'deposit' ? 'background: rgba(16, 185, 129, 0.05);' : (tx.status === 'deduction' ? 'background: rgba(239, 68, 68, 0.05);' : '')) %>">
 
@@ -218,6 +219,7 @@
                                         </form>
                                     <% } else { %>
 
+                                        <%- include('kenan_response', { tx }) %>
                                         <% if (providerResolutionPending) { %>
                                             <div class="provider-row-actions" data-provider-row-actions>
                                                 <button type="button" class="btn provider-check" data-provider-row-action="check" data-transaction-id="<%= tx._id %>" data-provider-updated-at="<%= tx.updatedAt ? new Date(tx.updatedAt).toISOString() : '' %>" onclick="runProviderRowAction(this)" title="استعلام عن رد جديد من المزود"><i class="fa-solid fa-rotate"></i> استعلام عن رد جديد</button>
@@ -245,7 +247,7 @@
                                                     <% } %>
                                                 </ul>
                                             </div>
-                                        <% } else if(tx.status === 'processing' || tx.status === 'accepted') { %>
+                                        <% } else if((tx.status === 'processing' || tx.status === 'accepted') && !kenanAutoWaiting) { %>
                                             <form action="/transaction/<%= tx._id %>/pull-task" method="POST" class="mb-0 js-transaction-action" data-confirm="تأكيد سحب المهمة؟">
                                                 <button class="btn btn-sm btn-warning fw-bold rounded-3 text-dark px-3" title="سحب للإدارة">سحب</button>
                                             </form>
@@ -278,7 +280,7 @@
                                             <% } %>
                                         <% } %>
 
-                                        <% if(['pending', 'processing', 'accepted', 'completed'].includes(tx.status) && tx.transferType !== 'balance_transfer' && !providerResolutionPending) { %>
+                                        <% if(['pending', 'processing', 'accepted', 'completed'].includes(tx.status) && tx.transferType !== 'balance_transfer' && !providerResolutionPending && !kenanAutoWaiting) { %>
                                             <form action="/transaction/<%= tx._id %>/global-cancel" method="POST" class="m-0 js-transaction-action">
                                                 <input type="hidden" name="reason" class="cancel-reason-input">
                                                 <button class="btn-action-sm undo" title="تراجع"><i class="fa-solid fa-rotate-left"></i></button>
@@ -321,7 +323,8 @@
                     const mobileEligibleExecutorBots = (executorBots || []).filter((bot) => (bot.supportedTransferTypes || ['vodafone']).includes(tx.transferType || 'vodafone'));
                     const mobileExecutorDisplay = (executorDisplayByTransaction || {})[String(tx._id)] || {};
                     const mobileDirectClientName = tx.employeeName || tx.accountName || 'غير معروف';
-                    const mobileProviderResolutionPending = tx.providerReviewAvailable === true;
+                    const mobileKenanAutoWaiting = tx.status === 'processing' && tx.apiResultData?.kenanReference && !tx.apiResultData.providerResolutionOutcome && (tx.apiResultData.kenanAwaitingStatus === true || tx.apiResultData.waitingApiAutoCompletion === true);
+                    const mobileProviderResolutionPending = tx.providerReviewAvailable === true && !mobileKenanAutoWaiting;
                 %>
                     <div class="data-card mb-3 p-3 mobile-tx-card <%= displayClass %>"
                           data-status="<%= tx.status %>"
@@ -418,7 +421,7 @@
                                             <% } %>
                                         </ul>
                                     </div>
-                                <% } else if(tx.status === 'processing' || tx.status === 'accepted') { %>
+                                <% } else if((tx.status === 'processing' || tx.status === 'accepted') && !mobileKenanAutoWaiting) { %>
                                     <form action="/transaction/<%= tx._id %>/pull-task" method="POST" class="m-0 flex-fill js-transaction-action" data-confirm="تأكيد سحب المهمة؟">
                                         <button class="btn btn-sm btn-warning fw-bold rounded-3 text-dark w-100"><i class="fa-solid fa-hand me-1"></i> سحب</button>
                                     </form>
@@ -428,6 +431,7 @@
                                     </form>
                                 <% } %>
 
+                                <%- include('kenan_response', { tx }) %>
                                 <% if (mobileProviderResolutionPending) { %>
                                     <div class="provider-row-actions" data-provider-row-actions>
                                         <button type="button" class="btn provider-check" data-provider-row-action="check" data-transaction-id="<%= tx._id %>" data-provider-updated-at="<%= tx.updatedAt ? new Date(tx.updatedAt).toISOString() : '' %>" onclick="runProviderRowAction(this)" title="استعلام عن رد جديد من المزود"><i class="fa-solid fa-rotate"></i> استعلام عن رد جديد</button>
@@ -436,7 +440,7 @@
                                     </div>
                                 <% } %>
 
-                                <% if(canGlobalCancel) { %>
+                                <% if(canGlobalCancel && !mobileKenanAutoWaiting) { %>
                                     <form action="/transaction/<%= tx._id %>/global-cancel" method="POST" class="m-0 js-transaction-action">
                                         <input type="hidden" name="reason" class="cancel-reason-input">
                                         <button type="submit" class="btn btn-sm fw-bold rounded-3 px-3" style="background: rgba(239, 68, 68, 0.1); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.2);" title="إلغاء العملية"><i class="fa-solid fa-ban"></i></button>

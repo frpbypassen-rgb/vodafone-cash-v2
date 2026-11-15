@@ -50,6 +50,10 @@ const pendingProviderQuery = (now = new Date(), minimumAgeMs = 300000) => ({
     createdAt: { $lte: new Date(now.getTime() - minimumAgeMs) },
     'apiResultData.providerResolutionOutcome': { $in: [null, ''] },
     'apiResultData.providerDispatchResult': { $ne: 'rejected' },
+    // Kenan has its own durable, unlimited follow-up. Do not put these rows
+    // into the generic monitor's finite manual-review workflow.
+    $nor: [{ status: 'processing', 'apiResultData.kenanReference': { $exists: true, $nin: [null, ''] },
+        $or: [{ 'apiResultData.kenanAwaitingStatus': true }, { 'apiResultData.waitingApiAutoCompletion': true }] }],
     $or: [
         { 'apiResultData.providerResultUnresolved': true },
         { 'apiResultData.providerDispatchResult': 'pending_reference' },

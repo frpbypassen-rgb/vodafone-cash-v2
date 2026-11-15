@@ -52,6 +52,18 @@ afterAll(async () => {
     await database.stop();
 });
 
+test.each([
+    { kenanAwaitingStatus: true, kenanProviderStatus: 'queued' },
+    { waitingApiAutoCompletion: true, kenanProviderStatus: 'success' }
+])('Kenan automatic waiting never enters the finite manual-review monitor: %j', async (state) => {
+    const { tx } = await createPending({ kenanReference: '0000020', ...state });
+    expect(await Transaction.countDocuments(pendingProviderQuery())).toBe(0);
+    expect(await monitor.runPendingMonitorCycle()).toEqual({ checked: 0 });
+    expect(getApiProviderTransaction).not.toHaveBeenCalled();
+    expect(await Notification.countDocuments()).toBe(0);
+    expect((await Transaction.findById(tx._id)).status).toBe('processing');
+});
+
 test('matched success records a review alert, never completes or changes money', async () => {
     const { tx, group } = await createPending();
     expect(await monitor.runPendingMonitorCycle()).toEqual({ checked: 1 });

@@ -964,6 +964,12 @@
         return true;
     }
 
+    function showKenanResponse(button) {
+        Swal.fire({ title: 'رد شركة كنان', text: button.dataset.kenanResponseText,
+            confirmButtonText: 'حسناً', customClass: { htmlContainer: 'text-pre-line' },
+            didOpen: () => { const container = Swal.getHtmlContainer(); if (container) container.style.whiteSpace = 'pre-line'; } });
+    }
+
     async function runProviderRowAction(button) {
         if (!button || button.disabled) return;
         const action = button.dataset.providerRowAction;

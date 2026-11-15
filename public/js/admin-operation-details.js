@@ -605,6 +605,27 @@
     function renderProviderResolution(model) {
         const tx = model && model.tx;
         const data = tx && tx.apiResultData ? tx.apiResultData : {};
+        if (data.kenanReference && !data.providerResolutionOutcome) {
+            const order = data.kenanOrder || {};
+            const labels = { queued: 'في انتظار التنفيذ', assigned: 'تم إسنادها للمنفذ', executing: 'جارٍ التنفيذ', verifying: 'كنان يتحقق من النتيجة', review: 'قيد المراجعة لدى كنان', success: 'نجحت لدى كنان', failed: 'فشلت لدى كنان', cancelled: 'أُلغيت لدى كنان' };
+            const status = data.kenanProviderStatus || order.status;
+            const waiting = tx.status === 'processing' && (data.kenanAwaitingStatus === true || data.waitingApiAutoCompletion === true);
+            const message = status === 'success'
+                ? (data.kenanCompletionState === 'awaiting_funding' ? 'كنان أكد النجاح؛ بانتظار تمويل حساب المنفذ لإتمام التسوية تلقائيًا.' : 'كنان أكد النجاح؛ جارٍ إتمام التسوية تلقائيًا.')
+                : 'تستمر المتابعة تلقائيًا حتى يصل رد كنان النهائي.';
+            return `<details class="od-alert d-block border border-success rounded-3" data-kenan-response>
+                <summary class="btn btn-success fw-bold">رد كنان: ${escapeHtml(labels[status] || 'بانتظار رد كنان')}</summary>
+                ${kvRow('رقم العملية', escapeHtml(tx.customId || tx._id))}
+                ${kvRow('رقم عملية كنان', escapeHtml(data.kenanReference))}
+                ${kvRow('رقم العميل', escapeHtml(order.phone || tx.vodafoneNumber || EMPTY_NONE))}
+                ${kvRow('القيمة', escapeHtml(formatMoney(tx.amount, 'EGP')))}
+                ${kvRow('رقم المنفذ', escapeHtml(order.executor_phone || 'لم يصل بعد'))}
+                ${order.reason ? kvRow('سبب الرد', escapeHtml(order.reason)) : ''}
+                ${order.completed_at ? kvRow('وقت رد كنان النهائي', escapeHtml(model.formatDate(order.completed_at))) : ''}
+                ${data.kenanLastCheckedAt ? kvRow('آخر استعلام', escapeHtml(model.formatDate(data.kenanLastCheckedAt))) : ''}
+                ${waiting ? `<div class="small mt-2" role="status">${message}</div>` : ''}
+            </details>`;
+        }
         const releasedNotPaid = tx?.status === 'pending' && data.providerResolutionOutcome === 'provider_not_paid'
             && data.providerResultUnresolved !== true && data.providerDispatchResult === 'rejected';
         if (tx && ['pending', 'processing', 'accepted'].includes(tx.status) && data.providerResolutionOutcome && !releasedNotPaid) {

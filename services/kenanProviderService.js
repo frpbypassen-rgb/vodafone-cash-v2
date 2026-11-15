@@ -101,7 +101,8 @@ const executeTransfer = async (tx, bot) => {
         }
         const order = parseOrder(response.data, payload);
         const data = {
-            kenanReference: order.reference, kenanProviderStatus: order.status, kenanAwaitingStatus: true,
+            kenanReference: order.reference, kenanProviderStatus: order.status, kenanOrder: order,
+            kenanLastCheckedAt: new Date(), kenanAwaitingStatus: true,
             kenanNextPollAt: new Date(Date.now() + 5000), referenceNumber: order.reference,
             providerTransactionId: order.reference, externalTransactionId: order.reference,
             providerResultUnresolved: true, providerDispatchResult: 'kenan_pending', waitingApiAutoCompletion: false

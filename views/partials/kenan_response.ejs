@@ -1,0 +1,25 @@
+<% if (tx.apiResultData && tx.apiResultData.kenanReference) {
+    const data = tx.apiResultData;
+    const order = data.kenanOrder || {};
+    const waiting = tx.status === 'processing' && !data.providerResolutionOutcome
+        && (data.kenanAwaitingStatus === true || data.waitingApiAutoCompletion === true);
+    const labels = { queued: 'في انتظار التنفيذ', assigned: 'تم إسنادها للمنفذ', executing: 'جارٍ التنفيذ', verifying: 'كنان يتحقق من النتيجة', review: 'قيد المراجعة لدى كنان', success: 'نجحت لدى كنان', failed: 'فشلت لدى كنان', cancelled: 'أُلغيت لدى كنان' };
+    const status = data.kenanProviderStatus || order.status;
+    const response = [
+        `رد كنان: ${labels[status] || 'بانتظار رد كنان'}`,
+        `رقم العملية: ${tx.customId || tx._id}`,
+        `رقم عملية كنان: ${data.kenanReference}`,
+        `رقم العميل: ${order.phone || tx.vodafoneNumber || 'غير متاح'}`,
+        `القيمة: ${Number(tx.amount).toFixed(2)} جنيه`,
+        `رقم المنفذ: ${order.executor_phone || 'لم يصل بعد'}`,
+        order.reason ? `سبب الرد: ${order.reason}` : '',
+        order.completed_at ? `وقت رد كنان النهائي: ${new Date(order.completed_at).toLocaleString('ar-EG', { timeZone: 'Africa/Tripoli' })}` : '',
+        data.kenanLastCheckedAt ? `آخر استعلام: ${new Date(data.kenanLastCheckedAt).toLocaleString('ar-EG', { timeZone: 'Africa/Tripoli' })}` : '',
+        waiting ? (status === 'success' ? (data.kenanCompletionState === 'awaiting_funding' ? 'كنان أكد النجاح؛ بانتظار تمويل حساب المنفذ لإتمام التسوية تلقائيًا.' : 'كنان أكد النجاح؛ جارٍ إتمام التسوية تلقائيًا.') : 'تستمر المتابعة تلقائيًا حتى يصل رد كنان النهائي.') : ''
+    ].filter(Boolean).join('\n');
+%>
+    <div class="d-flex flex-column gap-1 align-items-center" data-kenan-response>
+        <button type="button" class="btn btn-sm btn-success fw-bold rounded-3" data-kenan-response-text="<%= response %>" onclick="showKenanResponse(this)"><i class="fa-solid fa-comment-dots me-1"></i> رد كنان</button>
+        <% if (waiting) { %><span class="small text-info" role="status"><i class="fa-solid fa-spinner fa-spin me-1" aria-hidden="true"></i><%= status === 'success' ? 'بانتظار إتمام التسوية' : 'بانتظار رد كنان' %></span><% } %>
+    </div>
+<% } %>

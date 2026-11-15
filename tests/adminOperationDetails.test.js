@@ -37,6 +37,19 @@ const completed = {
 };
 
 describe('admin comprehensive operation details', () => {
+    test('Kenan response discloses safe actual receipt fields and automatic waiting instead of manual resolution', () => {
+        const tx = { ...inProgress, status: 'processing', apiResultData: { kenanReference: '0000020',
+            kenanAwaitingStatus: true, kenanProviderStatus: 'queued', providerResultUnresolved: true,
+            kenanOrder: { executor_phone: '01012345678', reason: '<img src=x onerror=alert(1)>', balance_after_minor: 987654321 } } };
+        const html = details.renderSummaryPane(details.buildViewModel(tx, {}));
+        expect(html).toContain('data-kenan-response');
+        expect(html).toContain('في انتظار التنفيذ');
+        expect(html).toContain('01012345678');
+        expect(html).toContain('تستمر المتابعة تلقائيًا');
+        expect(html).not.toContain('data-provider-action=');
+        expect(html).not.toContain('<img src=x');
+        expect(html).not.toContain('987654321');
+    });
     test('shows an interrupted paid resolution without offering another decision or payment', () => {
         const tx = { ...inProgress, status: 'processing', apiResultData: {
             providerResultUnresolved: true, providerResolutionOutcome: 'provider_paid',
