@@ -29,6 +29,8 @@ async function refreshMissingReceipts() {
             executorGroupId: claimed.executorGroupId, 'apiResultData.executorReceiptProof': null }, { $set: {
             'apiResultData.kenanOrder': op.rawData, 'apiResultData.kenanProviderStatus': 'success',
             'apiResultData.kenanLastCheckedAt': new Date(), 'apiResultData.referenceNumber': op.referenceNumber,
+            'apiResultData.kenanAwaitingStatus': false, 'apiResultData.providerResultUnresolved': false,
+            'apiResultData.providerDispatchResult': 'accepted', 'apiResultData.waitingApiAutoCompletion': false,
             executorSenderPhone: op.rawData.executor_phone || ''
         } }, { returnDocument: 'after' });
         // Receipt repair never posts a ledger, changes a balance, or reopens

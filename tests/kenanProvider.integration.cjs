@@ -180,6 +180,8 @@ test('a manually completed Kenan order gets its verified receipt without another
     assert.equal(fresh.apiResultData.executorReceiptProof, 'proofs/kenan-fixture.jpg');
     assert.equal(fresh.executorSenderPhone, '01100000000');
     assert.equal(fresh.apiResultData.kenanOrder.status, 'success');
+    assert.equal(fresh.apiResultData.kenanAwaitingStatus, false);
+    assert.equal(fresh.apiResultData.providerResultUnresolved, false);
     assert.equal((await ExecutorGroup.findById(bot._id)).balance, -50);
     assert.equal(await Ledger.countDocuments({ transactionId: tx.customId }), 0);
     assert.equal(postCount, 1);
