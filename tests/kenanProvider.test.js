@@ -61,7 +61,7 @@ describe('durable Kenan status polling', () => {
     let row;
     beforeEach(() => {
         process.env.FINANCIAL_SCHEDULERS_ENABLED = 'true';
-        row = { ...tx(), apiResultData: { kenanReference: '0000001', kenanAwaitingStatus: true, providerResultUnresolved: true,
+        row = { ...tx(), updatedAt: new Date(), apiResultData: { kenanReference: '0000001', kenanAwaitingStatus: true, providerResultUnresolved: true,
             providerDispatchAttemptId: 'claim-1', providerDispatchResult: 'kenan_pending' } };
         Transaction.find.mockReturnValue({ sort: () => ({ limit: async () => [row] }) });
         Transaction.findOneAndUpdate.mockResolvedValue(row);
@@ -79,7 +79,8 @@ describe('durable Kenan status polling', () => {
     test('only an authoritative matching success schedules common atomic completion', async () => {
         axios.get.mockResolvedValue({ data: order('success') });
         await service.pollPendingOrders();
-        expect(Transaction.updateOne).toHaveBeenCalledWith(expect.objectContaining({ status: 'processing', 'apiResultData.kenanReference': '0000001', 'apiResultData.providerDispatchResult': 'kenan_pending' }),
+        expect(Transaction.updateOne).toHaveBeenCalledWith(expect.objectContaining({ status: 'processing', 'apiResultData.kenanReference': '0000001', updatedAt: row.updatedAt,
+            'apiResultData.providerResultUnresolved': true, 'apiResultData.providerResolutionOutcome': { $exists: false } }),
             { $set: expect.objectContaining({ 'apiResultData.kenanProviderStatus': 'success', 'apiResultData.waitingApiAutoCompletion': true,
                 'apiResultData.providerResultUnresolved': false, 'apiResultData.providerDispatchResult': 'accepted' }) }, expect.anything());
     });
