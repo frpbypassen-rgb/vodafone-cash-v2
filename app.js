@@ -59,7 +59,8 @@ const upload = multer({
 
 const { mongoSessionStoreOptions } = require('./config/sessionStore');
 const connectDB = require('./config/database');
-const { initRedis, isRedis } = require('./config/redis');
+const { initRedis, checkRedisReadiness } = require('./config/redis');
+const { distributedStateRequired } = require('./config/runtimeScale');
 const { requireAuth } = require('./middlewares/auth');
 const createRawUploadsRouter = require('./routes/rawUploads');
 const { errorHandler, notFoundHandler } = require('./middlewares/errorHandler');
@@ -307,19 +308,21 @@ app.get('/health/ready', async (req, res) => {
     try {
         const dbState = require('mongoose').connection.readyState;
         const dbStatus = dbState === 1 ? 'connected' : dbState === 2 ? 'connecting' : 'disconnected';
-        const redisRequired = ['1', 'true', 'yes', 'on'].includes(String(process.env.REDIS_REQUIRED || '').trim().toLowerCase());
-        const redisReady = !redisRequired || isRedis();
+        const redisRequired = distributedStateRequired();
+        const redisConnected = await checkRedisReadiness();
+        const redisReady = !redisRequired || redisConnected;
         const ready = app.locals.startupReady === true && dbState === 1 && app.locals.sessionStoreHealthy && redisReady && !app.locals.isShuttingDown;
         const flagOn = (name) => ['1', 'true', 'yes', 'on'].includes(String(process.env[name] || '').trim().toLowerCase());
+        res.set('Cache-Control', 'no-store');
         res.status(ready ? 200 : 503).json({
             status: ready ? 'ok' : 'degraded',
             pid: process.pid,
             runtimeRole,
-            acceptingMutations: runtimeRole === 'full',
+            acceptingMutations: ready && runtimeRole === 'full',
             startupReady: app.locals.startupReady === true,
             db: dbStatus,
             sessionStore: app.locals.sessionStoreHealthy ? 'connected' : 'degraded',
-            redis: redisReady ? 'connected' : 'degraded',
+            redis: redisConnected ? 'connected' : redisRequired ? 'degraded' : 'not_required',
             shuttingDown: Boolean(app.locals.isShuttingDown),
             uptime: process.uptime(),
             financialTenantGuard: flagOn('FINANCIAL_TENANT_GUARD'),

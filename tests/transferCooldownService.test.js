@@ -119,8 +119,21 @@ describe('transferCooldownService', () => {
     });
 
     test('uses a typed error when the lock cannot be acquired', async () => {
-        acquireLock.mockRejectedValueOnce(new Error('LOCK_ACQUISITION_TIMEOUT'));
+        acquireLock.mockRejectedValueOnce(Object.assign(new Error('busy'), { code: 'LOCK_BUSY', retryAfterSeconds: 37 }));
 
-        await expect(acquireTransferCooldown({ ...baseInput, now })).rejects.toBeInstanceOf(TransferCooldownError);
+        await expect(acquireTransferCooldown({ ...baseInput, now })).rejects.toMatchObject({
+            code: 'TRANSFER_COOLDOWN_LOCK_TIMEOUT', statusCode: 429, retryAfterSeconds: 37,
+            message: expect.stringContaining('37')
+        });
+        expect(Transaction.findOne).not.toHaveBeenCalled();
+    });
+
+    test.each(['REDIS_LOCK_FAILED', 'READONLY', 'ECONNRESET'])('a lock infrastructure failure (%s) never claims a duplicate transfer exists', async (reason) => {
+        acquireLock.mockRejectedValueOnce(new Error(reason));
+        await expect(acquireTransferCooldown({ ...baseInput, now })).rejects.toMatchObject({
+            name: 'TransferCooldownError', code: 'TRANSFER_GUARD_UNAVAILABLE', statusCode: 503,
+            cooldownType: 'unavailable'
+        });
+        expect(Transaction.findOne).not.toHaveBeenCalled();
     });
 });

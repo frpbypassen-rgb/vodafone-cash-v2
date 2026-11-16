@@ -112,20 +112,24 @@ const initRedis = async () => {
     try {
         // Dynamic import لتجنب crash إذا لم يكن ioredis مثبتاً
         const Redis = require('ioredis');
+        let connectedOnce = false;
         redisClient = new Redis(REDIS_URL, {
             maxRetriesPerRequest: 3,
             retryStrategy: (times) => {
-                if (times > 3) {
+                if (!connectedOnce && times > 3) {
                     logger.warn('Redis connection retry limit reached');
                     return null;
                 }
-                return Math.min(times * 200, 2000);
+                return Math.min(times * 200, 5000);
             },
             lazyConnect: true
         });
         redisClient.on('error', (error) => {
             logger.warn('Redis connection error', { error: error.message });
         });
+        redisClient.on('ready', () => { connectedOnce = true; isRedisAvailable = true; });
+        redisClient.on('close', () => { isRedisAvailable = false; });
+        redisClient.on('end', () => { isRedisAvailable = false; });
 
         await redisClient.connect();
         isRedisAvailable = true;
@@ -145,7 +149,19 @@ const getRedisClient = () => {
     return redisClient;
 };
 
-const isRedis = () => isRedisAvailable;
+const isRedis = () => isRedisAvailable && redisClient?.status === 'ready';
+
+const checkRedisReadiness = async () => {
+    if (!isRedis()) return false;
+    let timeout;
+    try {
+        return await Promise.race([
+            redisClient.ping().then(reply => reply === 'PONG'),
+            new Promise(resolve => { timeout = setTimeout(() => resolve(false), 1000); })
+        ]);
+    } catch (_) { return false; }
+    finally { clearTimeout(timeout); }
+};
 
 /**
  * Dedicated ioredis client for BullMQ. Queue/Worker must not share the
@@ -153,7 +169,7 @@ const isRedis = () => isRedisAvailable;
  * blocking commands that would stall other Redis traffic.
  */
 const createBullMQConnection = () => {
-    if (!isRedisAvailable) return null;
+    if (!isRedis()) return null;
     const REDIS_URL = process.env.REDIS_URL || process.env.REDIS_URI;
     if (!REDIS_URL) return null;
 
@@ -164,4 +180,4 @@ const createBullMQConnection = () => {
     });
 };
 
-module.exports = { initRedis, getRedisClient, isRedis, createBullMQConnection };
+module.exports = { initRedis, getRedisClient, isRedis, checkRedisReadiness, createBullMQConnection };

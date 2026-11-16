@@ -63,6 +63,22 @@ describe('Lock Service Tests (In-Memory Fallback)', () => {
         await expect(releaseLock(badLock)).resolves.not.toThrow();
     });
 
+    test('an expired memory owner cannot release a newer owner of the same key', async () => {
+        jest.useFakeTimers();
+        try {
+            const { acquireLock, releaseLock } = require('../services/lockService');
+            const first = await acquireLock('expired-owner', 100);
+            jest.advanceTimersByTime(101);
+            const second = await acquireLock('expired-owner', 1000);
+            await releaseLock(first);
+            const attempt = acquireLock('expired-owner', 1000, { retryCount: 1, retryDelay: 1 });
+            const assertion = expect(attempt).rejects.toThrow('LOCK_ACQUISITION_TIMEOUT');
+            await jest.advanceTimersByTimeAsync(2);
+            await assertion;
+            await releaseLock(second);
+        } finally { jest.useRealTimers(); }
+    });
+
     test('fails closed in production even when Redis is marked optional', async () => {
         const originalNodeEnv = process.env.NODE_ENV;
         const originalRedisRequired = process.env.REDIS_REQUIRED;
@@ -127,22 +143,46 @@ describe('Lock Service Tests (Redis Redlock)', () => {
         const lock = await acquireLock('redis-key', 5000);
 
         expect(lock).toBeDefined();
-        expect(mockAcquire).toHaveBeenCalledWith(['locks:redis-key'], 5000);
+        expect(mockAcquire).toHaveBeenCalledWith(['locks:redis-key'], 5000, expect.objectContaining({ retryCount: 15, retryDelay: 150 }));
 
         await releaseLock(lock);
         expect(mockRelease).toHaveBeenCalled();
     });
 
-    test('يجب تسجيل خطأ عميل Redlock عند حدوث clientError', async () => {
+    test('handles the Redlock v5 error event instead of an unused clientError event', async () => {
         const { acquireLock } = require('../services/lockService');
         await acquireLock('any-key', 5000);
         
         // التحقق من تسجيل مستمع الأحداث لـ clientError
-        expect(mockOn).toHaveBeenCalledWith('clientError', expect.any(Function));
+        expect(mockOn).toHaveBeenCalledWith('error', expect.any(Function));
         
         // تشغيل الحدث يدوياً للتأكد من استدعاء اللوجر بدون انهيار
-        const errorHandler = mockOn.mock.calls.find(call => call[0] === 'clientError')[1];
+        const errorHandler = mockOn.mock.calls.find(call => call[0] === 'error')[1];
         expect(() => errorHandler(new Error('Redis connection drop'))).not.toThrow();
+    });
+
+    test('forwards per-request retry settings to Redlock', async () => {
+        mockAcquire.mockResolvedValue({ release: mockRelease });
+        await require('../services/lockService').acquireLock('fast-lock', 45000, { retryCount: 2, retryDelay: 100 });
+        expect(mockAcquire).toHaveBeenCalledWith(['locks:fast-lock'], 45000, expect.objectContaining({ retryCount: 2, retryDelay: 100 }));
+    });
+
+    test('a genuine Redis contention never falls back to a second independent memory lock', async () => {
+        const busy = Object.assign(new Error('held'), { name: 'ResourceLockedError' });
+        mockAcquire.mockRejectedValue(Object.assign(new Error('quorum'), { name: 'ExecutionError',
+            attempts: [Promise.resolve({ votesAgainst: new Map([[{}, busy]]) })] }));
+        await expect(require('../services/lockService').acquireLock('held-resource', 5000))
+            .rejects.toMatchObject({ code: 'LOCK_BUSY' });
+    });
+
+    test('initialization failure cannot silently use a memory lock in production', async () => {
+        const original = process.env.NODE_ENV;
+        process.env.NODE_ENV = 'production';
+        jest.doMock('redlock', () => { throw new Error('module unavailable'); });
+        try {
+            await expect(require('../services/lockService').acquireLock('production-init', 5000))
+                .rejects.toMatchObject({ code: 'LOCK_UNAVAILABLE' });
+        } finally { process.env.NODE_ENV = original; }
     });
 
     test('يجب التراجع للقفل المحلي في حال فشل Redlock', async () => {

@@ -10,11 +10,11 @@ const LOCK_TTL_MS = 45 * 1000;
 const BLOCKING_STATUSES = Object.freeze(['pending', 'processing', 'accepted', 'completed']);
 
 class TransferCooldownError extends Error {
-    constructor({ code, cooldownType, retryAfterSeconds, retryAt, message }) {
+    constructor({ code, cooldownType, retryAfterSeconds, retryAt, message, statusCode = 429 }) {
         super(message);
         this.name = 'TransferCooldownError';
         this.code = code;
-        this.statusCode = 429;
+        this.statusCode = statusCode;
         this.cooldownType = cooldownType;
         this.retryAfterSeconds = retryAfterSeconds;
         this.retryAt = retryAt;
@@ -122,13 +122,20 @@ const acquireTransferCooldown = async ({ ownerKey, ownerModel, ownerId, serviceK
             LOCK_TTL_MS,
             { retryCount: 2, retryDelay: 100 }
         );
-    } catch (_error) {
+    } catch (error) {
+        if (error.code !== 'LOCK_BUSY') {
+            throw new TransferCooldownError({ code: 'TRANSFER_GUARD_UNAVAILABLE', statusCode: 503,
+                cooldownType: 'unavailable',
+                message: 'خدمة حماية التحويل غير متاحة مؤقتًا. لم يُرسل هذا الطلب؛ تحقق من سجل العمليات قبل إعادة المحاولة.' });
+        }
+        const retryAfterSeconds = Number.isFinite(error.retryAfterSeconds) && error.retryAfterSeconds > 0
+            ? Math.ceil(error.retryAfterSeconds) : 2;
         throw new TransferCooldownError({
             code: 'TRANSFER_COOLDOWN_LOCK_TIMEOUT',
             cooldownType: 'in_progress',
-            retryAfterSeconds: 2,
-            retryAt: new Date(now + 2000).toISOString(),
-            message: 'هناك طلب تحويل مماثل قيد المعالجة. يرجى المحاولة بعد ثانيتين.'
+            retryAfterSeconds,
+            retryAt: new Date(Date.now() + retryAfterSeconds * 1000).toISOString(),
+            message: `يوجد طلب آخر إلى الرقم نفسه قيد التسجيل. تحقق من سجل العمليات، ويمكنك المحاولة بعد ${retryAfterSeconds} ثانية.`
         });
     }
 
