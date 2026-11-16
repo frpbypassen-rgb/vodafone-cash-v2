@@ -7,7 +7,7 @@ const { renderApiReceiptWithBrowser } = require('./apiReceiptBrowserService');
 const { SYSTEM_TIME_ZONE } = require('../config/systemTime');
 const { getApiProviderPreset } = require('../utils/apiProviderPresets');
 const logger = require('../utils/logger');
-const { getProviderAuthSession, invalidateProviderAuthSession } = require('./providerAuthSessionService');
+const { getProviderAuthSession, invalidateProviderAuthSession, DEFAULT_PROVIDER_HEADERS } = require('./providerAuthSessionService');
 const { classifyProviderPaymentResponse, normalizeProviderStatus, isReturnedProviderStatus } = require('../utils/providerPaymentResponse');
 const {
     UNRESOLVED_CODE,
@@ -128,12 +128,7 @@ const resolveApiProviderConfig = (apiBot = {}, env = process.env) => {
         machineSerial: usesExactInquiryContract
             ? preset.machineSerial
             : (apiBot.apiMachineSerial || process.env.ZAYN_AGGREGATOR_MACHINE_SERIAL || process.env.ZAYNPAY_MACHINE_SERIAL || preset.machineSerial),
-        defaultHeaders: {
-            'Content-Type': 'application/json',
-            'User-Agent': 'Mozilla/5.0 Ahram-Server/1.0',
-            'Accept': 'application/json',
-            'app-version': 'xyz67'
-        }
+        defaultHeaders: { ...DEFAULT_PROVIDER_HEADERS }
     };
 };
 
@@ -178,9 +173,15 @@ const authorizeApiProvider = async (config, addLog, onRejected) => {
         return { success: false, message: 'خطأ إعدادات: بيانات الاتصال مفقودة' };
     }
     if (!freshToken) {
-        const session = await getProviderAuthSession(config, {
-            onLogin: () => addLog('AUTH', 'جاري إرسال طلب تسجيل الدخول...'), onRejected
-        });
+        let session;
+        try {
+            session = await getProviderAuthSession(config, {
+                onLogin: () => addLog('AUTH', 'جاري إرسال طلب تسجيل الدخول...'), onRejected
+            });
+        } catch (error) {
+            addLog('AUTH_FAILURE', `HTTP=${error.providerHttpStatus ?? 'unknown'} | providerCode=${error.providerCode ?? 'unknown'} | cooldown=${error.retryAfterSource || 'unknown'}`);
+            throw error;
+        }
         freshToken = session.token;
         addLog(session.cached ? 'AUTH_CACHE' : 'AUTH_SUCCESS', session.cached ? 'تم استخدام جلسة المزود الصالحة دون تسجيل دخول جديد' : 'تم استلام التوكن بنجاح');
     } else addLog('AUTH_TOKEN', 'تم استخدام التوكن المحفوظ في إعدادات المنفذ');
@@ -230,7 +231,8 @@ const providerMessage = (data, fallback) => {
 const errorMessage = (error, fallback) => providerMessage(error?.response?.data, error?.message || fallback);
 
 const authFailureDetails = error => String(error.code || '').startsWith('PROVIDER_AUTH_')
-    ? { code: error.code, retryAfterSeconds: error.retryAfterSeconds } : {};
+    ? { code: error.code, retryAfterSeconds: error.retryAfterSeconds, retryAfterSource: error.retryAfterSource,
+        providerHttpStatus: error.providerHttpStatus, providerCode: error.providerCode } : {};
 
 const hasSuccessCode = (data) => Number(data?.Code) === 200;
 

@@ -42,3 +42,23 @@ test('real HTTP 429 prevents repeated login requests and sends no payment', asyn
     await api.getApiProviderBalance(config);
     expect({ logins, payments, reads }).toEqual({ logins: 1, payments: 0, reads: 0 });
 });
+
+test.each(['success', 'throttled'])('direct and queued clients share one real HTTP login under %s', async scenario => {
+    const keys = ['ZAYN_AGGREGATOR_URL', 'ZAYN_USERNAME', 'ZAYN_PASSWORD'];
+    const previous = keys.map(key => process.env[key]);
+    process.env.ZAYN_AGGREGATOR_URL = config.apiUrl;
+    process.env.ZAYN_USERNAME = config.apiUsername;
+    process.env.ZAYN_PASSWORD = config.apiPassword;
+    mode = scenario;
+    try {
+        const direct = require('../services/zaynpayApi');
+        const results = await Promise.allSettled(Array.from({ length: 50 }, (_, i) => i % 2
+            ? direct.inquiry('01012345678', 100) : api.getApiProviderBalance(config)));
+        if (scenario === 'success') expect(results.every(result => result.status === 'fulfilled')).toBe(true);
+        else expect(results.filter(result => result.status === 'rejected')).toHaveLength(25);
+        expect(logins).toBe(1);
+        expect(payments).toBe(0);
+    } finally {
+        keys.forEach((key, i) => { if (previous[i] === undefined) delete process.env[key]; else process.env[key] = previous[i]; });
+    }
+});

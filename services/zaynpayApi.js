@@ -6,6 +6,7 @@ const { getApiProviderPreset } = require('../utils/apiProviderPresets');
 const { classifyProviderPaymentResponse } = require('../utils/providerPaymentResponse');
 const { logExecutorFailure } = require('./executorTransactionError');
 const { EXTERNAL_API_DISABLED_MESSAGE, isExternalApiEnabled, resolveProviderBaseUrl } = require('../utils/runtimeControls');
+const { getProviderAuthSession, invalidateProviderAuthSession, DEFAULT_PROVIDER_HEADERS } = require('./providerAuthSessionService');
 
 class ZaynPayAPI {
     constructor() {
@@ -47,23 +48,22 @@ class ZaynPayAPI {
     async authenticate(config) {
         try {
             if (!config.username || !config.password) throw new Error('PROVIDER_CREDENTIALS_MISSING');
-            const response = await axios.post(config.baseURL + '/api/Account/GetToken', {
-                UserName: config.username, Password: config.password,
-                AppType: config.preset.appType, AppId: config.preset.appId, VersionID: config.preset.versionId
-            }, { headers: { 'app-version': 'xyz67', 'Content-Type': 'application/json' }, timeout: 15000, maxRedirects: 0 });
-            const token = response.data?.Data?.Access_Token;
-            if (Number(response.data?.Code) !== 200 || typeof token !== 'string' || !token.trim()) throw new Error('PROVIDER_AUTH_REJECTED');
-            if (this.contextKey === config.contextKey) this.token = token.trim();
-            return token.trim();
+            const { token } = await getProviderAuthSession(this.authConfiguration(config));
+            if (this.contextKey === config.contextKey) this.token = token;
+            return token;
         } catch (error) {
             logExecutorFailure('provider-login', error);
             throw new Error('فشل تسجيل الدخول في بوابة ZaynPay');
         }
     }
 
-    async getHeaders(config = this.configuration(), refresh = false) {
-        const token = !refresh && this.contextKey === config.contextKey && this.token
-            ? this.token : await this.login(config);
+    authConfiguration(config) {
+        return { baseUrl: config.baseURL, apiUsername: config.username, apiPassword: config.password,
+            preset: config.preset, defaultHeaders: { ...DEFAULT_PROVIDER_HEADERS } };
+    }
+
+    async getHeaders(config = this.configuration()) {
+        const token = await this.login(config);
         return { Authorization: 'Bearer ' + token, 'app-version': 'xyz67', 'Content-Type': 'application/json', 'Accept-Language': 'ar-EG' };
     }
 
@@ -80,14 +80,20 @@ class ZaynPayAPI {
             payload.inqueryAmount = amount;
             let response;
             for (let attempt = 0; attempt < 2; attempt++) {
-                const headers = await this.getHeaders(config, attempt > 0);
+                const headers = await this.getHeaders(config);
                 try {
                     response = await axios.post(config.baseURL + '/api/V1/Transactions/Inquiry', payload,
                         { headers, timeout: 20000, maxRedirects: 0 });
-                    if (Number(response.data?.Code) === 401 && attempt === 0) continue;
+                    if (Number(response.data?.Code) === 401) {
+                        invalidateProviderAuthSession(this.authConfiguration(config), headers.Authorization);
+                        if (attempt === 0) continue;
+                    }
                     break;
                 } catch (error) {
-                    if (error.response?.status === 401 && attempt === 0) continue;
+                    if (error.response?.status === 401) {
+                        invalidateProviderAuthSession(this.authConfiguration(config), headers.Authorization);
+                        if (attempt === 0) continue;
+                    }
                     throw error;
                 }
             }

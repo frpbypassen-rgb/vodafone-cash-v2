@@ -3,6 +3,7 @@
 // Real HTTP/Axios against loopback only: no provider credentials or payments.
 jest.mock('../utils/logger', () => ({ error: jest.fn(), warn: jest.fn(), info: jest.fn() }));
 const http = require('node:http');
+const { clearProviderAuthSessions } = require('../services/providerAuthSessionService');
 let server;
 let client;
 let mode;
@@ -51,6 +52,7 @@ beforeAll(async () => {
     client = require('../services/zaynpayApi');
 });
 afterAll(async () => {
+    clearProviderAuthSessions();
     await new Promise(resolve => server.close(resolve));
     for (const key of ['EXTERNAL_API_ENABLED', 'ZAYN_AGGREGATOR_URL', 'ZAYN_USERNAME', 'ZAYN_PASSWORD']) {
         if (previousEnv[key] === undefined) delete process.env[key];
@@ -58,6 +60,7 @@ afterAll(async () => {
     }
 });
 beforeEach(() => {
+    clearProviderAuthSessions();
     mode = 'success';
     authCount = paymentCount = redirectedCount = inquiryCount = 0;
     client.token = null;

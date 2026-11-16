@@ -15,6 +15,34 @@ beforeEach(() => {
 afterEach(() => jest.restoreAllMocks());
 const token = value => ({ data: { Code: 200, Data: { Access_Token: value } } });
 
+test('direct inquiry calls share the provider throttle instead of sending a login for every attempt', async () => {
+    axios.post.mockRejectedValue({ response: { status: 429, headers: { 'retry-after': '120' } } });
+    for (let i = 0; i < 5; i++) await expect(client.inquiry('01012345678', 100)).rejects.toThrow();
+    expect(axios.post).toHaveBeenCalledTimes(1);
+});
+
+test('the direct client and aggregator share one login for identical account settings', async () => {
+    axios.post.mockImplementation(async url => url.endsWith('/GetToken') ? token('shared')
+        : url.endsWith('/GetBalance') ? { data: { Code: 200, Data: { AvailableBalance: 1000 } } }
+            : { data: { Code: 200, Data: { PaymentBillInfo: 'bill' } } });
+    const api = require('../services/externalApiService');
+    await api.getApiProviderBalance({ apiProviderKey: 'zayn_external_aggregator', apiUrl: process.env.ZAYN_AGGREGATOR_URL,
+        apiUsername: process.env.ZAYN_USERNAME, apiPassword: process.env.ZAYN_PASSWORD });
+    await client.inquiry('01012345678', 100);
+    expect(axios.post.mock.calls.filter(([url]) => url.endsWith('/GetToken'))).toHaveLength(1);
+});
+
+test('the direct client observes the shared token expiry instead of caching its own token indefinitely', async () => {
+    let now = Date.now(), logins = 0;
+    jest.spyOn(Date, 'now').mockImplementation(() => now);
+    axios.post.mockImplementation(async url => url.endsWith('/GetToken') ? token('token-' + (++logins))
+        : { data: { Code: 200, Data: { PaymentBillInfo: 'bill' } } });
+    await client.inquiry('01012345678', 100);
+    now += 5 * 60 * 1000 + 1;
+    await client.inquiry('01012345678', 100);
+    expect(logins).toBe(2);
+});
+
 test('refreshes a rejected HTTP 401 inquiry once and uses bounded requests', async () => {
     axios.post.mockResolvedValueOnce(token('old')).mockRejectedValueOnce({ response: { status: 401 } })
         .mockResolvedValueOnce(token('new')).mockResolvedValueOnce({ data: { Code: 200, Data: { PaymentBillInfo: 'bill' } } });

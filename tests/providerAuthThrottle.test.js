@@ -131,3 +131,21 @@ test('authentication throttling before Inquiry never acquires a payment claim or
     expect(axios.post).toHaveBeenCalledTimes(1);
     expect(require('../services/providerDispatchClaimService').claimProviderDispatch).not.toHaveBeenCalled();
 });
+
+test('an absent provider Retry-After is explicitly a local cooldown, not a promised unblock time', async () => {
+    axios.post.mockRejectedValue({ response: { status: 429, data: { Code: 429 } } });
+    const result = await api.getApiProviderBalance(config);
+    expect(result).toMatchObject({ code: 'PROVIDER_AUTH_RATE_LIMITED', retryAfterSeconds: 60,
+        retryAfterSource: 'local_fallback', providerHttpStatus: 429, providerCode: 429 });
+    expect(result.message).toContain('لم يحدد المزود موعد رفع القيد');
+    expect(result.processLog).toContain('HTTP=429 | providerCode=429 | cooldown=local_fallback');
+});
+
+test('a provider Retry-After is identified separately and diagnostics survive the cached cooldown', async () => {
+    axios.post.mockRejectedValue({ response: { status: 429, headers: { 'retry-after': '120' }, data: { Code: 429 } } });
+    const first = await api.getApiProviderBalance(config);
+    const cached = await api.getApiProviderBalance(config);
+    for (const result of [first, cached]) expect(result).toMatchObject({ retryAfterSource: 'provider_header', providerHttpStatus: 429, providerCode: 429 });
+    expect(cached.message).not.toContain('لم يحدد المزود');
+    expect(axios.post).toHaveBeenCalledTimes(1);
+});

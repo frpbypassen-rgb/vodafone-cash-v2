@@ -7,6 +7,10 @@ const sessions = new Map();
 const TOKEN_TTL_MS = 5 * 60 * 1000;
 const MAX_SESSIONS = 256;
 const RATE_LIMIT_CODE = 'PROVIDER_AUTH_RATE_LIMITED';
+const DEFAULT_PROVIDER_HEADERS = Object.freeze({
+    'Content-Type': 'application/json', 'User-Agent': 'Mozilla/5.0 Ahram-Server/1.0',
+    Accept: 'application/json', 'app-version': 'xyz67'
+});
 const keyOf = config => crypto.createHash('sha256').update(JSON.stringify([
     config.baseUrl, config.apiUsername, config.apiPassword,
     config.preset.appType, config.preset.appId, config.preset.versionId,
@@ -15,18 +19,22 @@ const keyOf = config => crypto.createHash('sha256').update(JSON.stringify([
 
 const retryDelay = (response, now) => {
     const header = String(response?.headers?.['retry-after'] ?? '').trim();
-    if (/^\d{1,8}$/.test(header)) return Math.max(1, Number(header));
+    if (/^\d{1,8}$/.test(header)) return { seconds: Math.max(1, Number(header)), source: 'provider_header' };
     const date = /GMT$/i.test(header) ? Date.parse(header) : NaN;
-    return Number.isFinite(date) ? Math.max(1, Math.ceil((date - now) / 1000)) : 60;
+    return Number.isFinite(date) ? { seconds: Math.max(1, Math.ceil((date - now) / 1000)), source: 'provider_header' }
+        : { seconds: 60, source: 'local_fallback' };
 };
 const throttled = response => Number(response?.status) === 429 || Number(response?.data?.Code) === 429
     || /too many (?:attempts|requests)|rate limit/i.test(String(typeof response?.data === 'string' ? response.data : response?.data?.Message || response?.data?.message || response?.data?.error || ''));
 const failure = entry => {
     const retryAfterSeconds = Math.max(1, Math.ceil((entry.blockedUntil - Date.now()) / 1000));
     return Object.assign(new Error(entry.code === RATE_LIMIT_CODE
-        ? `المزود يقيّد تسجيل الدخول مؤقتاً. انتظر ${retryAfterSeconds} ثانية قبل المحاولة التالية.`
+        ? (entry.retryAfterSource === 'local_fallback'
+            ? `رفضت بوابة المزود تسجيل الدخول بسبب تقييد المحاولات. تهدئة محلية ${retryAfterSeconds} ثانية؛ لم يحدد المزود موعد رفع القيد.`
+            : `المزود يقيّد تسجيل الدخول مؤقتاً. انتظر ${retryAfterSeconds} ثانية حسب مهلة المزود قبل المحاولة التالية.`)
         : 'تعذر تسجيل الدخول لدى المزود. تحقق من بيانات الاتصال قبل إعادة المحاولة.'), {
-        code: entry.code, retryAfterSeconds
+        code: entry.code, retryAfterSeconds, retryAfterSource: entry.retryAfterSource,
+        providerHttpStatus: entry.providerHttpStatus, providerCode: entry.providerCode
     });
 };
 const tokenDeadline = (token, now) => {
@@ -85,10 +93,16 @@ async function getProviderAuthSession(config, { onLogin, onRejected } = {}) {
             entry.token = null;
             entry.validUntil = 0;
             entry.code = throttled(response) ? RATE_LIMIT_CODE : 'PROVIDER_AUTH_REJECTED';
-            entry.blockedUntil = Date.now() + (entry.code === RATE_LIMIT_CODE ? retryDelay(response, Date.now()) : 5) * 1000;
+            const delay = entry.code === RATE_LIMIT_CODE ? retryDelay(response, Date.now()) : { seconds: 5, source: 'local_fallback' };
+            entry.retryAfterSource = delay.source;
+            const status = Number(response?.status), providerCode = Number(response?.data?.Code);
+            entry.providerHttpStatus = Number.isInteger(status) && status >= 100 && status <= 599 ? status : null;
+            entry.providerCode = Number.isSafeInteger(providerCode) && providerCode > 0 ? providerCode : null;
+            entry.blockedUntil = Date.now() + delay.seconds * 1000;
             if (entry.code === RATE_LIMIT_CODE) logger.warn('PROVIDER_AUTH_THROTTLED', {
-                providerHttpStatus: Number(response?.status) || null,
-                providerCode: Number(response?.data?.Code) || null,
+                providerHttpStatus: entry.providerHttpStatus,
+                providerCode: entry.providerCode,
+                retryAfterSource: entry.retryAfterSource,
                 retryAfterSeconds: Math.ceil((entry.blockedUntil - Date.now()) / 1000)
             });
             // Cache only safe state: never retain an Axios error/request with credentials.
@@ -106,4 +120,4 @@ function invalidateProviderAuthSession(config, authorization) {
 }
 function clearProviderAuthSessions() { sessions.clear(); }
 
-module.exports = { getProviderAuthSession, invalidateProviderAuthSession, clearProviderAuthSessions, RATE_LIMIT_CODE };
+module.exports = { getProviderAuthSession, invalidateProviderAuthSession, clearProviderAuthSessions, RATE_LIMIT_CODE, DEFAULT_PROVIDER_HEADERS };
