@@ -1,14 +1,18 @@
 # Kenan company API integration
 
-Implemented against the two-page Kenan company guide supplied on 2026-11-15.
-The service URL is an administrator setting: temporary tunnel URLs in the guide
-are not defaults in source. API tokens are never displayed in history or logs.
+Updated against Kenan-Integration.pdf contract v7 supplied on 2026-11-16.
+The documented stable URL is https://api.kenanapp.com.ly; the service URL remains
+an administrator setting. API tokens are never displayed in history or logs.
+Create and eligibility requests send integer EGP as `amount` (50–60000), never
+`amount_minor`. Responses still use integer piastres. There is no fallback to
+the legacy payment payload and no retry of an ambiguously accepted payment.
 
 ## Capability map
 
 | Guide capability | Implementation |
 | --- | --- |
-| Bearer authentication, JSON, integer piastres | `services/kenanProviderService.js` |
+| Bearer authentication, JSON, integer EGP requests / piastre responses | `services/kenanProviderService.js` |
+| POST order eligibility check | Preflight validates eligible, phone, amount and available balance without creating an order or dispatch claim |
 | Egyptian wallet phone; 50–60000 whole EGP | Validation before dispatch |
 | POST create and preserve zero-prefixed reference | Durable dispatch claim and majority reference write before queue continuation |
 | GET order by reference | Reference, phone and amount must match before success |
@@ -23,6 +27,13 @@ are not defaults in source. API tokens are never displayed in history or logs.
 | Existing paid order reconciliation | Master-only preview, fresh matching GET, row-version guard, atomic existing ledger completion, audit and idempotency |
 
 ## Operations
+
+The new communications endpoint is a provider-side diagnostic feed with no
+record schema specified in v7. It is not rendered as arbitrary raw payloads in
+the administrator UI, because communication records can contain credentials.
+During rollout, verify authenticated balance and eligibility responses against
+the stable domain before routing new payments there. HTTP 401 is an upstream
+authentication rejection, not an order status or a reason to resend payments.
 
 1. Configure the current HTTPS URL and API token on the API executor account.
 2. Keep the local accounting policy explicit. A prepaid executor needs local

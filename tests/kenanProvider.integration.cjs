@@ -38,8 +38,12 @@ before(async () => {
             let body = '';
             req.on('data', chunk => { body += chunk; });
             req.on('end', () => {
+                const payload = JSON.parse(body);
+                if ('amount_minor' in payload || !Number.isSafeInteger(payload.amount)) {
+                    res.writeHead(400).end(JSON.stringify({ error: 'INTEGER_AMOUNT_IN_POUNDS_REQUIRED' })); return;
+                }
                 postCount += 1;
-                res.end(JSON.stringify({ reference: '0000001', ...JSON.parse(body), status: 'queued' }));
+                res.end(JSON.stringify({ reference: '0000001', phone: payload.phone, amount_minor: payload.amount * 100, status: 'queued' }));
             });
         } else if (req.url === '/api/company/orders/0000001') {
             res.end(JSON.stringify({ reference: '0000001', phone: '01000000000', amount_minor: 5000, fee_minor: 0, status: providerStatus,

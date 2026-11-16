@@ -15,7 +15,7 @@ const configuration = (bot = {}) => {
     let url;
     try { url = new URL(decision.baseUrl); } catch (_) { throw new Error('رابط كنان غير صالح.'); }
     if ((url.protocol !== 'https:' && !(isStagingRuntime() && url.protocol === 'http:')) || url.username || url.password || url.search || url.hash) throw new Error('رابط كنان يجب أن يكون HTTPS صالحاً.');
-    const token = String(bot.apiToken || process.env.KENAN_API_KEY || '').replace(/^Bearer\s+/i, '').trim();
+    const token = String(bot.apiToken || process.env.KENAN_API_KEY || '').trim().replace(/^Bearer\s+/i, '').trim();
     if (!token || /[\r\n]/.test(token)) throw new Error('مفتاح كنان مطلوب.');
     return { baseUrl: url.toString().replace(/\/+$/, ''), options: {
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', Accept: 'application/json' },
@@ -25,7 +25,8 @@ const configuration = (bot = {}) => {
 const validateTransfer = (phone, amount, transferType = 'vodafone') => {
     if (transferType !== 'vodafone' || !/^01[0125]\d{8}$/.test(String(phone || ''))) throw new Error('كنان يدعم أرقام المحافظ المصرية المكوّنة من 11 رقماً.');
     if (!Number.isSafeInteger(amount) || amount < 50 || amount > 60000) throw new Error('مبلغ كنان يجب أن يكون جنيهاً صحيحاً من 50 إلى 60000.');
-    return { phone: String(phone), amount_minor: amount * 100 };
+    // Contract v7 accepts integer pounds only. Minor units belong to responses.
+    return { phone: String(phone), amount };
 };
 const parseOrder = (data, expected = {}) => {
     if (!data || typeof data.reference !== 'string' || !/^\d{1,64}$/.test(data.reference)
@@ -73,13 +74,22 @@ const getBalance = async bot => {
     } catch (error) { return safeFailure(error); }
 };
 const preflight = async (bot, input = {}) => {
-    try { configuration(bot); validateTransfer(input.phone || input.targetNumber, Number(input.amount)); }
+    let config, payload;
+    try { config = configuration(bot); payload = validateTransfer(input.phone || input.targetNumber, Number(input.amount)); }
     catch (_) { return errorResult('KENAN_INVALID_CONFIGURATION', 'راجع رابط كنان ومفتاحه ورقم المحفظة ومبلغاً صحيحاً من 50 إلى 60000 جنيه.'); }
     const balance = await getBalance(bot);
     if (!balance.success) return balance;
-    return { ...balance, success: balance.availableBalance >= Number(input.amount), stage: 'completed',
-        checks: [{ key: 'balance', label: 'اتصال كنان والرصيد', status: balance.availableBalance >= Number(input.amount) ? 'success' : 'failed', message: 'التحقق من الرقم والمبلغ محلي. كنان لا يوفر استعلام تحويل منفصلاً.' }],
-        message: balance.availableBalance >= Number(input.amount) ? 'نجح الاتصال وفحص الرصيد والبيانات محلياً.' : 'رصيد كنان المتاح لا يغطي المبلغ.' };
+    try {
+        const { data } = await axios.post(`${config.baseUrl}/api/company/orders/check`, payload, config.options);
+        if (!data || data.eligible !== true || data.phone !== payload.phone || data.amount_minor !== payload.amount * 100
+            || !Number.isSafeInteger(data.available_minor) || data.available_minor < data.amount_minor) {
+            return errorResult('KENAN_ELIGIBILITY_UNCONFIRMED', 'لم يؤكد كنان أهلية الرقم والمبلغ والرصيد. لم يُنشأ تحويل أو يُحجز رصيد.');
+        }
+        return { ...balance, success: true, stage: 'completed', availableBalance: data.available_minor / 100,
+            checks: [{ key: 'balance', label: 'اتصال كنان والرصيد', status: 'success', message: 'تمت قراءة الرصيد من كنان.' },
+                { key: 'inquiry', label: 'فحص أهلية التحويل لدى كنان', status: 'success', message: 'أكد كنان أهلية الرقم والمبلغ دون إنشاء تحويل أو حجز رصيد.' }],
+            message: 'أكد كنان أهلية التحويل. لم يُرسل تحويل مالي ولم يُحجز رصيد.' };
+    } catch (error) { return safeFailure(error); }
 };
 
 const executeTransfer = async (tx, bot) => {
@@ -99,7 +109,7 @@ const executeTransfer = async (tx, bot) => {
             }
             throw error;
         }
-        const order = parseOrder(response.data, payload);
+        const order = parseOrder(response.data, { phone: payload.phone, amount_minor: payload.amount * 100 });
         const data = {
             kenanReference: order.reference, kenanProviderStatus: order.status, kenanOrder: order,
             kenanLastCheckedAt: new Date(), kenanAwaitingStatus: true,

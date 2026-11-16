@@ -18,6 +18,7 @@ const tx = () => ({ _id: 'tx-1', customId: 'ATT-TEST', executorGroupId: 'executo
 const order = (status = 'queued', extra = {}) => ({ reference: '0000001', phone: '01000000000', amount_minor: 5000, fee_minor: null, status, created_at: '2026-11-14T12:00:00.000Z', reason: '', ...extra });
 beforeEach(() => {
     jest.clearAllMocks(); process.env.EXTERNAL_API_ENABLED = 'true'; process.env.KENAN_AUTO_FOLLOWUP_ENABLED = 'true';
+    axios.get.mockReset().mockResolvedValue({ data: { credit: 10000, reserved: 0, available: 10000 } });
     delete process.env.APP_ENV; delete process.env.ENVIRONMENT;
     Transaction.updateOne.mockResolvedValue({ matchedCount: 1, modifiedCount: 1 });
 });
@@ -25,22 +26,52 @@ test('Kenan acceptance preserves its zero-prefixed reference and stays pending',
     axios.post.mockResolvedValue({ data: order() });
     const result = await api.executeTransferViaApi(tx(), bot);
     expect(result).toMatchObject({ success: 'pending', providerPending: true, provider_transaction_id: '0000001' });
-    expect(axios.post).toHaveBeenCalledWith('https://kenan.example/api/company/orders', { phone: '01000000000', amount_minor: 5000 }, expect.objectContaining({ headers: expect.objectContaining({ Authorization: 'Bearer fixture-secret' }), maxRedirects: 0 }));
+    expect(axios.post).toHaveBeenCalledWith('https://kenan.example/api/company/orders', { phone: '01000000000', amount: 50 }, expect.objectContaining({ headers: expect.objectContaining({ Authorization: 'Bearer fixture-secret' }), maxRedirects: 0 }));
     expect(Transaction.updateOne).toHaveBeenCalledWith(expect.objectContaining({ 'apiResultData.providerDispatchAttemptId': 'claim-1' }), expect.objectContaining({ $set: expect.objectContaining({ 'apiResultData.kenanReference': '0000001', 'apiResultData.kenanAwaitingStatus': true }) }), expect.anything());
 });
 test.each([49, 60001, 50.5, Infinity])('Kenan rejects invalid EGP amount %s before dispatch', async amount => {
     await expect(api.executeTransferViaApi({ ...tx(), amount }, bot)).resolves.toMatchObject({ success: false });
     expect(dispatch.claimProviderDispatch).not.toHaveBeenCalled(); expect(axios.post).not.toHaveBeenCalled();
 });
+test.each([50, 100, 60000])('v7 sends exactly integer pounds without a second conversion: %s EGP', async (amount) => {
+    axios.post.mockResolvedValue({ data: order('queued', { amount_minor: amount * 100 }) });
+    expect(await api.executeTransferViaApi({ ...tx(), amount }, bot)).toMatchObject({ success: 'pending' });
+    expect(axios.post.mock.calls[0][1]).toEqual({ phone: '01000000000', amount });
+});
+test('a mismatching acceptance amount remains unresolved and cannot authorize settlement', async () => {
+    axios.post.mockResolvedValue({ data: order('success', { amount_minor: 10000 }) });
+    expect(await api.executeTransferViaApi(tx(), bot)).toMatchObject({ success: 'unresolved' });
+    expect(dispatch.releaseProviderDispatchClaim).not.toHaveBeenCalled();
+    expect(Transaction.updateOne).not.toHaveBeenCalled();
+});
 test('Kenan balance is converted from piastres to EGP', async () => {
     axios.get.mockResolvedValue({ data: { credit: 10000, reserved: 1000, available: 9000 } });
     await expect(api.getApiProviderBalance(bot)).resolves.toMatchObject({ success: true, serviceCredit: 100, reservedBalance: 10, availableBalance: 90 });
     expect(axios.post).not.toHaveBeenCalled();
 });
-test('preflight validates locally and checks balance without creating an order', async () => {
-    axios.get.mockResolvedValue({ data: { credit: 10000, reserved: 0, available: 10000 } });
+test('surrounding whitespace and an existing Bearer prefix do not duplicate authorization', async () => {
+    await expect(api.getApiProviderBalance({ ...bot, apiToken: '  Bearer fixture-secret  ' })).resolves.toMatchObject({ success: true });
+    expect(axios.get).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({ headers: expect.objectContaining({ Authorization: 'Bearer fixture-secret' }) }));
+});
+test('preflight calls the provider eligibility endpoint with integer pounds without creating an order', async () => {
+    axios.post.mockResolvedValue({ data: { eligible: true, phone: '01000000000', amount_minor: 5000, available_minor: 10000 } });
     await expect(api.runApiTransferPreflight(bot, { phone: '01000000000', amount: 50 })).resolves.toMatchObject({ success: true, stage: 'completed' });
-    expect(axios.post).not.toHaveBeenCalled();
+    expect(axios.post).toHaveBeenCalledTimes(1);
+    expect(axios.post).toHaveBeenCalledWith('https://kenan.example/api/company/orders/check', { phone: '01000000000', amount: 50 }, expect.anything());
+    expect(dispatch.claimProviderDispatch).not.toHaveBeenCalled();
+    expect(Transaction.updateOne).not.toHaveBeenCalled();
+});
+
+test.each([{ phone: '01111111111' }, { amount_minor: 5100 }, { eligible: 'true' }, { available_minor: 4999 }])('invalid or mismatching eligibility response fails closed: %j', async (extra) => {
+    axios.post.mockResolvedValue({ data: { eligible: true, phone: '01000000000', amount_minor: 5000, available_minor: 10000, ...extra } });
+    await expect(api.runApiTransferPreflight(bot, { phone: '01000000000', amount: 50 })).resolves.toMatchObject({ success: false });
+    expect(dispatch.claimProviderDispatch).not.toHaveBeenCalled();
+});
+
+test('provider eligibility cooldown preserves Retry-After and never sends a payment', async () => {
+    axios.post.mockRejectedValue({ response: { status: 429, data: { retry_after_seconds: 120 } } });
+    await expect(api.runApiTransferPreflight(bot, { phone: '01000000000', amount: 50 })).resolves.toMatchObject({ success: false, retryAfterSeconds: 120 });
+    expect(dispatch.claimProviderDispatch).not.toHaveBeenCalled();
 });
 test('an ambiguous POST timeout holds the dispatch and never repeats it', async () => {
     axios.post.mockRejectedValue({ code: 'ETIMEDOUT', message: 'contains fixture-secret' });
