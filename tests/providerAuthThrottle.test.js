@@ -100,7 +100,7 @@ test('opaque tokens have a bounded cache lifetime', async () => {
     await api.getApiProviderBalance(config); expect(logins).toBe(2);
 });
 
-test('JWT expiry limits the cache lifetime before the five-minute ceiling', async () => {
+test('JWT expiry is respected with a fifteen-second refresh margin', async () => {
     let now = 1800000000000; jest.spyOn(Date, 'now').mockImplementation(() => now);
     let logins = 0;
     axios.post.mockImplementation(async url => {
@@ -111,6 +111,78 @@ test('JWT expiry limits the cache lifetime before the five-minute ceiling', asyn
     await api.getApiProviderBalance(config); now += 44000;
     await api.getApiProviderBalance(config); expect(logins).toBe(1);
     now += 2000; await api.getApiProviderBalance(config); expect(logins).toBe(2);
+});
+
+test('a provider JWT that is still valid is reused after five minutes instead of logging in again', async () => {
+    let now = 1800000000000, logins = 0;
+    jest.spyOn(Date, 'now').mockImplementation(() => now);
+    const expires = now / 1000 + 3600;
+    axios.post.mockImplementation(async url => url.endsWith('/GetToken')
+        ? (logins++, token('header.' + Buffer.from(JSON.stringify({ exp: expires })).toString('base64url') + '.signature')) : balance);
+    await api.getApiProviderBalance(config);
+    now += 6 * 60 * 1000;
+    await api.getApiProviderBalance(config);
+    expect(logins).toBe(1);
+    now = expires * 1000 - 14000;
+    await api.getApiProviderBalance(config);
+    expect(logins).toBe(2);
+});
+
+test('very long-lived JWTs retain a bounded maximum cache lifetime of one day', async () => {
+    let now = 1800000000000, logins = 0;
+    jest.spyOn(Date, 'now').mockImplementation(() => now);
+    axios.post.mockImplementation(async url => url.endsWith('/GetToken')
+        ? (logins++, token('header.' + Buffer.from(JSON.stringify({ exp: now / 1000 + 7 * 86400 })).toString('base64url') + '.signature')) : balance);
+    await api.getApiProviderBalance(config); now += 23 * 3600000;
+    await api.getApiProviderBalance(config); expect(logins).toBe(1);
+    now += 3600001; await api.getApiProviderBalance(config); expect(logins).toBe(2);
+});
+
+test('repeated 429 without Retry-After increases the local cooldown without background logins', async () => {
+    let now = 1800000000000;
+    jest.spyOn(Date, 'now').mockImplementation(() => now);
+    axios.post.mockRejectedValue({ response: { status: 429, data: { Code: 429 } } });
+    expect(await api.getApiProviderBalance(config)).toMatchObject({ retryAfterSeconds: 60 });
+    now += 60001;
+    expect(await api.getApiProviderBalance(config)).toMatchObject({ retryAfterSeconds: 120 });
+    now += 60000;
+    await api.getApiProviderBalance(config); expect(axios.post).toHaveBeenCalledTimes(2);
+    now += 60001;
+    expect(await api.getApiProviderBalance(config)).toMatchObject({ retryAfterSeconds: 240 });
+});
+
+test('fallback cooldown is capped at fifteen minutes and a successful login resets the sequence', async () => {
+    let now = 1800000000000;
+    jest.spyOn(Date, 'now').mockImplementation(() => now);
+    axios.post.mockRejectedValue({ response: { status: 429 } });
+    for (const seconds of [60, 120, 240, 480, 900, 900]) {
+        expect(await api.getApiProviderBalance(config)).toMatchObject({ retryAfterSeconds: seconds });
+        now += seconds * 1000 + 1;
+    }
+    expect(axios.post).toHaveBeenCalledTimes(6);
+    axios.post.mockImplementation(async url => url.endsWith('/GetToken') ? token('recovered') : balance);
+    expect(await api.getApiProviderBalance(config)).toMatchObject({ success: true });
+    now += 300001;
+    axios.post.mockRejectedValue({ response: { status: 429 } });
+    expect(await api.getApiProviderBalance(config)).toMatchObject({ retryAfterSeconds: 60 });
+});
+
+test('provider Retry-After remains authoritative on repeated rejections', async () => {
+    let now = 1800000000000;
+    jest.spyOn(Date, 'now').mockImplementation(() => now);
+    axios.post.mockRejectedValue({ response: { status: 429, headers: { 'retry-after': '120' } } });
+    for (let i = 0; i < 3; i++) {
+        expect(await api.getApiProviderBalance(config)).toMatchObject({ retryAfterSeconds: 120, retryAfterSource: 'provider_header' });
+        now += 120001;
+    }
+});
+
+test('a diagnostic logger failure cannot discard a successfully issued provider token', async () => {
+    require('../utils/logger').info.mockImplementationOnce(() => { throw new Error('LOG_SINK_UNAVAILABLE'); });
+    axios.post.mockImplementation(async url => url.endsWith('/GetToken') ? token('still-valid') : balance);
+    expect(await api.getApiProviderBalance(config)).toMatchObject({ success: true });
+    expect(await api.getApiProviderBalance(config)).toMatchObject({ success: true });
+    expect(axios.post.mock.calls.filter(([url]) => url.endsWith('/GetToken'))).toHaveLength(1);
 });
 
 test('an HTTP-date Retry-After prevents login for the entire provider interval', async () => {

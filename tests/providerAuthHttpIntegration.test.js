@@ -16,7 +16,10 @@ beforeAll(async () => {
             if (req.url.endsWith('/GetToken')) {
                 logins++;
                 if (mode === 'throttled') { res.statusCode = 429; res.setHeader('Retry-After', '120'); return res.end(JSON.stringify({ message: 'Too many attempts' })); }
-                return res.end(JSON.stringify({ Code: 200, Data: { Access_Token: 'isolated-token' } }));
+                const accessToken = mode === 'long-jwt'
+                    ? 'header.' + Buffer.from(JSON.stringify({ exp: Date.now() / 1000 + 3600 })).toString('base64url') + '.signature'
+                    : 'isolated-token';
+                return res.end(JSON.stringify({ Code: 200, Data: { Access_Token: accessToken } }));
             }
             if (req.url.endsWith('/GetBalance')) { reads++; return res.end(JSON.stringify({ Code: 200, Data: { AvailableBalance: 1000 } })); }
             if (req.url.endsWith('/Inquiry')) return res.end(JSON.stringify({ Code: 200, Data: { PaymentBillInfo: 'isolated-bill' } }));
@@ -41,6 +44,18 @@ test('real HTTP 429 prevents repeated login requests and sends no payment', asyn
     expect(results.every(result => result.code === 'PROVIDER_AUTH_RATE_LIMITED')).toBe(true);
     await api.getApiProviderBalance(config);
     expect({ logins, payments, reads }).toEqual({ logins: 1, payments: 0, reads: 0 });
+});
+
+test('real HTTP reads after six minutes retain the still-valid provider JWT', async () => {
+    let now = Date.now();
+    const clock = jest.spyOn(Date, 'now').mockImplementation(() => now);
+    mode = 'long-jwt';
+    try {
+        expect(await api.getApiProviderBalance(config)).toMatchObject({ success: true });
+        now += 6 * 60 * 1000;
+        expect(await api.getApiProviderBalance(config)).toMatchObject({ success: true });
+        expect({ logins, payments, reads }).toEqual({ logins: 1, payments: 0, reads: 2 });
+    } finally { clock.mockRestore(); }
 });
 
 test.each(['success', 'throttled'])('direct and queued clients share one real HTTP login under %s', async scenario => {

@@ -5,6 +5,7 @@ const crypto = require('node:crypto');
 const logger = require('../utils/logger');
 const sessions = new Map();
 const TOKEN_TTL_MS = 5 * 60 * 1000;
+const MAX_JWT_CACHE_MS = 24 * 60 * 60 * 1000;
 const MAX_SESSIONS = 256;
 const RATE_LIMIT_CODE = 'PROVIDER_AUTH_RATE_LIMITED';
 const DEFAULT_PROVIDER_HEADERS = Object.freeze({
@@ -17,12 +18,12 @@ const keyOf = config => crypto.createHash('sha256').update(JSON.stringify([
     config.defaultHeaders
 ])).digest('hex');
 
-const retryDelay = (response, now) => {
+const retryDelay = (response, now, consecutiveRateLimits) => {
     const header = String(response?.headers?.['retry-after'] ?? '').trim();
     if (/^\d{1,8}$/.test(header)) return { seconds: Math.max(1, Number(header)), source: 'provider_header' };
     const date = /GMT$/i.test(header) ? Date.parse(header) : NaN;
     return Number.isFinite(date) ? { seconds: Math.max(1, Math.ceil((date - now) / 1000)), source: 'provider_header' }
-        : { seconds: 60, source: 'local_fallback' };
+        : { seconds: Math.min(900, 60 * (2 ** (consecutiveRateLimits - 1))), source: 'local_fallback' };
 };
 const throttled = response => Number(response?.status) === 429 || Number(response?.data?.Code) === 429
     || /too many (?:attempts|requests)|rate limit/i.test(String(typeof response?.data === 'string' ? response.data : response?.data?.Message || response?.data?.message || response?.data?.error || ''));
@@ -43,7 +44,10 @@ const tokenDeadline = (token, now) => {
         const parts = token.split('.');
         if (parts.length === 3) {
             const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8'));
-            if (Number.isFinite(payload.exp)) deadline = Math.min(deadline, payload.exp * 1000 - 15000);
+            // Reusing a provider-issued JWT does not require another login every
+            // five minutes. Expiry is a cache hint; every API read still checks
+            // the upstream response and invalidates a rejected token on 401.
+            if (Number.isFinite(payload.exp)) deadline = Math.min(now + MAX_JWT_CACHE_MS, payload.exp * 1000 - 15000);
         }
     } catch (_) { /* An opaque vendor token is valid without JWT claims. */ }
     return deadline;
@@ -86,6 +90,12 @@ async function getProviderAuthSession(config, { onLogin, onRejected } = {}) {
             entry.token = token.trim();
             entry.validUntil = validUntil;
             entry.blockedUntil = 0;
+            entry.consecutiveRateLimits = 0;
+            try {
+                logger.info?.('PROVIDER_AUTH_SESSION_ESTABLISHED', {
+                    cacheTtlSeconds: Math.floor((validUntil - Date.now()) / 1000)
+                });
+            } catch (_) { /* Diagnostic failures cannot invalidate a successful login. */ }
             return { token: entry.token, cached: false };
         } catch (error) {
             response = error.response || response;
@@ -93,7 +103,8 @@ async function getProviderAuthSession(config, { onLogin, onRejected } = {}) {
             entry.token = null;
             entry.validUntil = 0;
             entry.code = throttled(response) ? RATE_LIMIT_CODE : 'PROVIDER_AUTH_REJECTED';
-            const delay = entry.code === RATE_LIMIT_CODE ? retryDelay(response, Date.now()) : { seconds: 5, source: 'local_fallback' };
+            entry.consecutiveRateLimits = entry.code === RATE_LIMIT_CODE ? Math.min(5, (entry.consecutiveRateLimits || 0) + 1) : 0;
+            const delay = entry.code === RATE_LIMIT_CODE ? retryDelay(response, Date.now(), entry.consecutiveRateLimits) : { seconds: 5, source: 'local_fallback' };
             entry.retryAfterSource = delay.source;
             const status = Number(response?.status), providerCode = Number(response?.data?.Code);
             entry.providerHttpStatus = Number.isInteger(status) && status >= 100 && status <= 599 ? status : null;
@@ -103,6 +114,7 @@ async function getProviderAuthSession(config, { onLogin, onRejected } = {}) {
                 providerHttpStatus: entry.providerHttpStatus,
                 providerCode: entry.providerCode,
                 retryAfterSource: entry.retryAfterSource,
+                consecutiveRateLimits: entry.consecutiveRateLimits,
                 retryAfterSeconds: Math.ceil((entry.blockedUntil - Date.now()) / 1000)
             });
             // Cache only safe state: never retain an Axios error/request with credentials.
