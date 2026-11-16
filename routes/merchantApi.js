@@ -342,6 +342,11 @@ router.post('/transfer', merchantApiAuth, async (req, res) => {
         const result = await withOptionalTransaction(async (session) => {
             const settingsQuery = Settings.findOne({});
             const settings = session ? await settingsQuery.session(session).lean() : await settingsQuery.lean();
+            // Intake closure applies only to creation. Existing jobs, provider
+            // callbacks, status reads and settlement keep their normal lifecycle.
+            if (settings?.isManualClosed) {
+                throw merchantRequestError(403, 'استقبال عمليات جديدة متوقف مؤقتًا. تستمر العمليات المسجلة حتى اكتمالها.', 'SYSTEM_CLOSED');
+            }
             const autoRouteExecutor = await resolveAutoRouteExecutor(
                 settings,
                 serviceKey,

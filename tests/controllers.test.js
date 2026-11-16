@@ -424,6 +424,20 @@ describe('Client Transaction Controller Tests', () => {
         expect(Ledger.prototype.save).not.toHaveBeenCalled();
     });
 
+    test.each([true, false])('closed intake rejects new web transfers without debit (AJAX=%s)', async (ajax) => {
+        req.xhr = ajax;
+        req.headers.accept = ajax ? 'application/json' : 'text/html';
+        req.body = { amount: '100', phone: '01012345678', type: 'كاش', name: 'Recipient', number: '01012345678' };
+        User.findById = jest.fn().mockResolvedValue({ _id: 'client123', name: 'Client', tier: 1, balance: 1000, creditLimit: 0 });
+        Settings.findOne = jest.fn().mockResolvedValue({ isManualClosed: true, rateLevel1: 6.4 });
+        await clientTransactionController.postTransfer(req, res);
+        expect(res.status).toHaveBeenCalledWith(403);
+        expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ success: false, code: 'SYSTEM_CLOSED' }));
+        expect(User.findOneAndUpdate).not.toHaveBeenCalled();
+        expect(Transaction.prototype.save).not.toHaveBeenCalled();
+        expect(Ledger.prototype.save).not.toHaveBeenCalled();
+    });
+
     test('postTransfer - يرجع مهلة التكرار قبل خصم الرصيد', async () => {
         req.body = {
             amount: '100',

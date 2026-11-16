@@ -257,8 +257,8 @@
                         <div class="form-check form-switch p-4 rounded-4 d-flex align-items-center gap-3 border shadow-sm" style="background: <%= settings.isManualClosed ? 'rgba(239, 68, 68, 0.05)' : 'rgba(16, 185, 129, 0.05)' %>;">
                             <input class="form-check-input ms-0" type="checkbox" name="isManualClosed" value="true" id="manualClose" style="width: 3.5rem; height: 1.8rem; cursor: pointer;" <%= settings.isManualClosed ? 'checked' : '' %>>
                             <div class="ms-3">
-                                <label class="form-check-label fw-bold fs-5 <%= settings.isManualClosed ? 'text-danger' : 'text-success' %>" for="manualClose" style="cursor: pointer;">تعليق وإغلاق النظام يدوياً للعملاء (صيانة/توقف)</label>
-                                <div class="text-muted small mt-1">عند تفعيل هذا الخيار، لن يتمكن العملاء من تقديم طلبات تحويل جديدة حتى تقوم بإلغائه.</div>
+                                <label class="form-check-label fw-bold fs-5 <%= settings.isManualClosed ? 'text-danger' : 'text-success' %>" for="manualClose" style="cursor: pointer;">إيقاف استقبال عمليات جديدة</label>
+                                <div class="text-muted small mt-1">يمنع الطلبات الجديدة فقط. تستمر العمليات المسجلة والطوابير والاستعلامات التلقائية حتى اكتمالها. عند إلغاء التفعيل يُستأنف استقبال الطلبات الجديدة.</div>
                             </div>
                         </div>
                     </div>

@@ -337,11 +337,11 @@ export class TransferService {
             }
 
             const settings = await Settings.findOne({}).session(session);
-            const autoRouteExecutor = await resolveAutoRouteExecutor(settings, transferType, session, amount);
             if (settings && settings.isManualClosed) {
                 await abortSession(session);
-                return { success: false, statusCode: 403, code: 'SYSTEM_CLOSED', message: 'المنظومة مغلقة حالياً' };
+                return { success: false, statusCode: 403, code: 'SYSTEM_CLOSED', message: 'استقبال عمليات جديدة متوقف مؤقتًا. تستمر العمليات المسجلة حتى اكتمالها.' };
             }
+            const autoRouteExecutor = await resolveAutoRouteExecutor(settings, transferType, session, amount);
 
             // 2. فحص الهوية والعميل
             const clientInfo = await this.resolveClient(userId, accountType, settings, session, req);

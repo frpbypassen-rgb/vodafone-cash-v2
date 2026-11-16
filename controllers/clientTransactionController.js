@@ -665,7 +665,7 @@ exports.postTransfer = async (req, res) => {
                 retryAt: error.retryAt
             });
         }
-        if (error.message === 'SYSTEM_CLOSED') return isAjax ? res.status(403).json({ error: '⛔ النظام مغلق.' }) : null;
+        if (error.message === 'SYSTEM_CLOSED') return res.status(403).json({ success: false, code: 'SYSTEM_CLOSED', error: 'استقبال عمليات جديدة متوقف مؤقتًا. تستمر العمليات المسجلة حتى اكتمالها.' });
         if (error.message === 'SESSION_EXPIRED') return isAjax ? res.status(401).json({ error: 'انتهت الجلسة. يرجى تسجيل الدخول مرة أخرى.' }) : res.redirect('/client/logout');
         if (error.message === 'AGENT_NOT_FOUND') return isAjax ? res.status(404).json({ error: 'حساب الوكيل غير موجود أو غير نشط.' }) : null;
         if (error.message === 'INVALID_DATA') return isAjax ? res.status(400).json({ error: '❌ بيانات التحويل غير صحيحة.' }) : null;

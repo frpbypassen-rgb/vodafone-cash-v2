@@ -146,6 +146,25 @@ describe('Merchant API agent authentication', () => {
         expect(User.findOne).not.toHaveBeenCalled();
     });
 
+    test('manual intake closure rejects a new API transfer before any financial write or routing', async () => {
+        const session = transactionSession();
+        mongoose.startSession.mockResolvedValue(session);
+        ClientBot.findOne.mockReturnValue(leanResult(null));
+        User.findOne.mockReturnValue(leanResult({ _id: '66a112233445566778899002', role: 'agent', status: 'active', balance: 850 }));
+        Settings.findOne.mockReturnValue(sessionLeanResult({ isManualClosed: true, rateLevel3: 5.95 }));
+        const response = await request(app).post('/api/v1/merchant/transfer')
+            .set('x-api-key', 'agent-private-api-key')
+            .send({ target_number: '01012345678', amount: 1000, transfer_type: 'vodafone' });
+        expect(response.status).toBe(403);
+        expect(response.body.code).toBe('SYSTEM_CLOSED');
+        expect(User.findOneAndUpdate).not.toHaveBeenCalled();
+        expect(ClientBot.findOneAndUpdate).not.toHaveBeenCalled();
+        expect(Transaction.create).not.toHaveBeenCalled();
+        expect(Ledger).not.toHaveBeenCalled();
+        expect(resolveAutoRouteExecutor).not.toHaveBeenCalled();
+        expect(enqueueAutoRouteIfNeeded).not.toHaveBeenCalled();
+    });
+
     test('records an agent API transfer against the agent wallet and ledger', async () => {
         const session = transactionSession();
         const agent = {

@@ -239,6 +239,16 @@ describe('💸 Contract Tests: Transfer (Mobile API)', () => {
         releaseTransferCooldown.mockResolvedValue(undefined);
     });
 
+    test('manual intake closure rejects a new mobile transfer before any debit or transaction creation', async () => {
+        Settings.findOne.mockReturnValue(chainResolve({ isManualClosed: true, rateLevel1: 6.4 }));
+        const res = await request(app).post('/client/new-transfer').set('Idempotency-Key', uuid).send(validPayload);
+        expect(res.status).toBe(403);
+        expect(res.body.code).toBe('SYSTEM_CLOSED');
+        expect(User.findOneAndUpdate).not.toHaveBeenCalled();
+        expect(Transaction).not.toHaveBeenCalled();
+        expect(Ledger).not.toHaveBeenCalled();
+    });
+
     test('T022: rejects POST /client/new-transfer without Idempotency-Key', async () => {
         const res = await request(app)
             .post('/client/new-transfer')

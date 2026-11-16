@@ -14,6 +14,7 @@ mock.method(require('../services/auditService'), 'logAction', async () => {});
 const Transaction = require('../models/Transaction');
 const ExecutorGroup = require('../models/ExecutorGroup');
 const Ledger = require('../models/Ledger');
+const Settings = require('../models/Settings');
 const api = require('../services/externalApiService');
 const { pollPendingOrders } = require('../services/kenanProviderService');
 const { completeDueApiTransactions } = require('../services/apiExecutionLifecycleService');
@@ -157,11 +158,12 @@ test('explicit verified reconciliation while schedulers are paused commits once 
     process.env.FINANCIAL_SCHEDULERS_ENABLED = 'true';
 });
 
-test('independent Kenan monitor polls until final success with global financial scheduling off', async () => {
+test('existing Kenan operations keep polling and complete while intake is manually closed', async () => {
     const { runKenanFollowupCycle } = require('../services/kenanFollowupService');
     process.env.FINANCIAL_SCHEDULERS_ENABLED = 'false';
     try {
         const { bot, tx } = await createOrder('AUTOMATIC');
+        await Settings.create({ isManualClosed: true });
         for (const status of ['queued', 'assigned', 'executing', 'verifying', 'review']) {
             providerStatus = status;
             await makeDue(tx); await runKenanFollowupCycle();
@@ -179,7 +181,10 @@ test('independent Kenan monitor polls until final success with global financial 
         assert.equal(await Ledger.countDocuments({ transactionId: tx.customId, type: 'TRANSFER' }), 1);
         assert.equal(postCount, 1);
         assert.equal(process.env.FINANCIAL_SCHEDULERS_ENABLED, 'false');
-    } finally { process.env.FINANCIAL_SCHEDULERS_ENABLED = 'true'; }
+    } finally {
+        await Settings.deleteMany({});
+        process.env.FINANCIAL_SCHEDULERS_ENABLED = 'true';
+    }
 });
 
 test('a manually completed Kenan order gets its verified receipt without another financial debit', async () => {
