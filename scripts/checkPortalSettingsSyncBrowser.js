@@ -56,10 +56,13 @@ async function main() {
       await page.goto(base + "/login", { waitUntil: "domcontentloaded" });
       await page.type("#usernameInput", username);
       await page.type("#passwordInput", password);
+      assert.equal(await page.$eval('#usernameInput', el => el.value), username, 'Login username must be entered before submission');
+      assert.equal(await page.$eval('#passwordInput', el => el.value), password, 'Login password must be entered before submission');
       await Promise.all([
         page.waitForNavigation({ waitUntil: "domcontentloaded" }),
         page.$eval("#loginForm", (form) => form.requestSubmit()),
       ]);
+      assert.notEqual(new URL(page.url()).pathname, '/login', 'Login must leave the credential form');
     };
     const click = async (page, selector) => {
       await page.$eval(selector, (el) =>
@@ -151,8 +154,9 @@ async function main() {
       await portalPage.waitForFunction(() =>
         document
           .querySelector("[data-mi-api-state]")
-          ?.textContent.includes("غير مفعل"),
+          ?.textContent.includes("موقوف من الإدارة"),
       );
+      assert.equal(await portalPage.$eval('[data-mi-api-link]', link => link.getAttribute('aria-disabled')), 'true');
       await click(adminPage, "[data-aps-integrations] input[name=apiEnabled]");
       await click(adminPage, "[data-aps-integrations] button[type=submit]");
       await adminPage.waitForFunction(() =>
@@ -160,10 +164,22 @@ async function main() {
           .querySelector("[data-aps-result]")
           ?.textContent.includes("تم الحفظ"),
       );
-      await click(portalPage, "[data-mi-refresh]");
+      // The overview now refreshes automatically and has no manual refresh
+      // control. A normal page refresh re-reads the gate in the same session.
+      await portalPage.reload({ waitUntil: 'domcontentloaded' });
+      await portalPage.waitForFunction(() => document.body.dataset.workspaceReady === 'true');
       await portalPage.waitForFunction(
-        () => document.querySelector("[data-mi-key-form]")?.hidden === false,
+        () => document.querySelector('[data-mi-api-link]')?.getAttribute('aria-disabled') === 'false',
       );
+      await Promise.all([
+        portalPage.waitForNavigation({ waitUntil: 'domcontentloaded' }),
+        click(portalPage, '[data-mi-api-link]'),
+      ]);
+      assert.equal(new URL(portalPage.url()).pathname, portalBase + '/integrations/api');
+      await portalPage.waitForFunction(() => document.querySelector('[data-api-rotate]')?.disabled === false);
+      await portalPage.goto(base + portalBase + '/settings#integrations', { waitUntil: 'domcontentloaded' });
+      await portalPage.waitForFunction(() => document.body.dataset.workspaceReady === 'true');
+      await portalPage.waitForFunction(() => document.querySelector('[data-mi-api-link]')?.getAttribute('aria-disabled') === 'false');
       // An administrative email edit must arrive through normal focus refresh, without re-login.
       await click(adminPage, '[data-aps-toggle="email"]');
       await adminPage.waitForFunction(
@@ -277,5 +293,6 @@ async function main() {
 }
 main().catch((error) => {
   console.error(error.message);
+  console.error(error.stack?.split('\n').filter(line => line.trim().startsWith('at ')).join('\n'));
   process.exitCode = 1;
 });

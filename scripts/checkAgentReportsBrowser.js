@@ -24,16 +24,22 @@ async function main() {
     let server, browser;
     try {
         await mongoose.connect(mongo.getUri());
+        await Staff.init();
         const tenantId = new mongoose.Types.ObjectId();
         const owner = {_id:new mongoose.Types.ObjectId(),tenantId,role:'agent',status:'active',name:'وكالة فحص التقارير',phone:'0911111111',sessionVersion:0,balance:1250};
-        const staff = {_id:new mongoose.Types.ObjectId(),agentId:owner._id,tenantId,role:'employee',status:'active',name:'موظف 00',sessionVersion:0};
-        await User.collection.insertOne(owner); await Staff.collection.insertOne(staff);
+        const staff = {_id:new mongoose.Types.ObjectId(),agentId:owner._id,tenantId,role:'employee',status:'active',name:'موظف 00',webUsername:'report_staff_00@ahram.com',sessionVersion:0};
+        // Seed distinct accounts and unique logins so schema indexes remain
+        // valid while transaction actor IDs and staff display names are realistic.
+        const staffMembers = [staff, ...Array.from({length:24},(_,i)=>({
+            ...staff,_id:new mongoose.Types.ObjectId(),name:`موظف ${String(i+1).padStart(2,'0')}`,webUsername:`report_staff_${String(i+1).padStart(2,'0')}@ahram.com`
+        }))];
+        await User.collection.insertOne(owner); await Staff.collection.insertMany(staffMembers);
         const today = new Date(); today.setHours(12,0,0,0);
         const yesterday = new Date(today); yesterday.setDate(yesterday.getDate()-1);
         const dateKey = date => `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
         const customers = Array.from({length:25},(_,i)=>({_id:new mongoose.Types.ObjectId(),masterId:owner._id,masterType:'user',tenantId,status:'active',name:`عميل ${String(i).padStart(2,'0')}`,webUsername:`test_customer_${i}@ahram.com`,phone:`092${String(i).padStart(7,'0')}`}));
         await SubAccount.collection.insertMany(customers);
-        const txs = customers.map((customer,i)=>({_id:new mongoose.Types.ObjectId(),tenantId,customId:`TEST-RPT-${i}`,userId:owner.phone,subAccountId:customer._id,subAccountName:customer.name,isSubAccountTx:true,companyId:null,clientActorId:i===0?String(staff._id):String(owner._id),employeeName:`موظف ${String(i).padStart(2,'0')}`,status:'completed',transferType:'vodafone',amount:100,costLYD:20,subAccountCostLYD:22,createdAt:today}));
+        const txs = customers.map((customer,i)=>({_id:new mongoose.Types.ObjectId(),tenantId,customId:`TEST-RPT-${i}`,userId:owner.phone,subAccountId:customer._id,subAccountName:customer.name,isSubAccountTx:true,companyId:null,clientActorId:String(staffMembers[i]._id),employeeName:`موظف ${String(i).padStart(2,'0')}`,status:'completed',transferType:'vodafone',amount:100,costLYD:20,subAccountCostLYD:22,createdAt:today}));
         txs.push({...txs[0],_id:new mongoose.Types.ObjectId(),customId:'TEST-RPT-OLD',employeeName:'موظف أمس',createdAt:yesterday});
         txs.push({...txs[0],_id:new mongoose.Types.ObjectId(),customId:'TEST-RPT-PENDING',status:'pending'});
         txs.push({...txs[0],_id:new mongoose.Types.ObjectId(),customId:'TEST-RPT-CANCELLED',status:'cancelled_by_admin'});
@@ -57,6 +63,14 @@ async function main() {
         const go=async suffix=>{const response=await page.goto(origin+'/agent-portal/reports'+suffix,{waitUntil:'networkidle2'});assert.equal(response.status(),200);await page.waitForSelector('body[data-workspace-ready="true"]');};
         for(const width of [320,390,430,1440]){
             await page.setViewport({width,height:844});await go('?scope=staff&period=today');
+            const initialState=await page.evaluate(()=>({width:innerWidth,total:document.querySelectorAll('[data-report-row]').length,visible:document.querySelectorAll('[data-report-row]:not([hidden])').length,search:document.querySelector('[data-report-search]').value}));
+            assert.equal(initialState.total,25,JSON.stringify(initialState));
+            if(width!==320){
+                // Returning to the same report restores the previous search.
+                // Verify that feature, then clear the UI control for this layout's pagination check.
+                assert.equal(initialState.search,'موظف 24');assert.equal(initialState.visible,1);
+            }
+            await page.$eval('[data-report-search]',input=>{input.value='';input.dispatchEvent(new Event('input',{bubbles:true}));});
             assert.equal(await page.$$eval('[data-report-row]:not([hidden])',rows=>rows.length),20);
             assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
             await page.$eval('[data-report-more]',button=>button.click());assert.equal(await page.$$eval('[data-report-row]:not([hidden])',rows=>rows.length),25);
@@ -90,7 +104,7 @@ async function main() {
         assert.equal(await page.$('.agent-report-official-download'),null);assert.equal((await fetch(origin+'/agent-portal/reports/central.pdf?period=today')).status,403);
         const ownCsv=await (await fetch(origin+'/agent-portal/reports/export.csv?scope=staff&period=today')).text();assert.ok(!ownCsv.includes('موظف 24'));assert.ok(!ownCsv.includes('إجمالي LYD'));assert.ok(!ownCsv.includes('ربح الوكالة المحقق'));
         assert.deepEqual(errors,[]);
-        console.log(JSON.stringify({result:'PASS',checks:['4 screen sizes','real report source','scope navigation','custom date submit','search/details/pagination','chart','complete print and restoration','official admin PDF day/month/range','PDF ownership/permission enforcement','CSV headers/period','cross-agency exclusion','employee privacy','empty period','no JS errors']}));
+        console.log(JSON.stringify({result:'PASS',checks:['4 screen sizes','real report source','scope navigation','custom date submit','search/details/pagination','saved search restoration','chart','complete print and restoration','official admin PDF day/month/range','PDF ownership/permission enforcement','CSV headers/period','cross-agency exclusion','employee privacy','empty period','no JS errors']}));
     } finally {if(browser)await browser.close();await closeReportPdfBrowser();if(server)await new Promise(resolve=>server.close(resolve));await mongoose.disconnect();await mongo.stop();}
 }
 main().catch(error=>{console.error(error);process.exitCode=1;});

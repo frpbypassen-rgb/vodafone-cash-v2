@@ -69,10 +69,13 @@ async function main() {
     await page.goto(base + "/login", { waitUntil: "domcontentloaded" });
     await page.type("#usernameInput", prefix);
     await page.type("#passwordInput", password);
+    assert.equal(await page.$eval('#usernameInput', el => el.value), prefix, 'Login username must be entered before submission');
+    assert.equal(await page.$eval('#passwordInput', el => el.value), password, 'Login password must be entered before submission');
     await Promise.all([
       page.waitForNavigation({ waitUntil: "domcontentloaded" }),
       page.$eval("#loginForm", (form) => form.requestSubmit()),
     ]);
+    assert.notEqual(new URL(page.url()).pathname, '/login', 'Login must leave the credential form');
     await page.goto(base + "/clients?section=companies", {
       waitUntil: "domcontentloaded",
     });
@@ -164,7 +167,7 @@ async function main() {
       await navigate("/clients?section=" + section + "&search=" + prefix);
       assert.equal(
         await page.$$eval(
-          "[data-merchant-list] tbody tr",
+          '[data-merchant-list] > [role="listitem"]',
           (rows) => rows.length,
         ),
         24,
@@ -177,7 +180,7 @@ async function main() {
       );
       assert.equal(
         await page.$$eval(
-          "[data-merchant-list] tbody tr",
+          '[data-merchant-list] > [role="listitem"]',
           (rows) => rows.length,
         ),
         3,
@@ -205,7 +208,7 @@ async function main() {
       await click("[data-directory-search] button[type=submit]");
       await page.waitForFunction(
         () =>
-          document.querySelectorAll("[data-merchant-list] tbody tr").length ===
+          document.querySelectorAll('[data-merchant-list] > [role="listitem"]').length ===
             1 && !document.querySelector(".directory-is-loading"),
       );
       await click(".am-actions summary");
@@ -263,7 +266,7 @@ async function main() {
         () =>
           !document.getElementById("sidebarMenu")?.classList.contains("active"),
       );
-      await click(".am-cell-name a");
+      await click('.am-account-card .am-card-open');
       await page.waitForSelector("[data-merchant-detail]");
       assert.equal(
         await page.$$eval(".am-table-ledger tbody tr", (rows) => rows.length),

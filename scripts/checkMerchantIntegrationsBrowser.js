@@ -55,46 +55,70 @@ async function main() {
             await page.goto(base + '/login?portal=client', { waitUntil: 'domcontentloaded' });
             await page.type('#usernameInput', username);
             await page.type('#passwordInput', password);
+            assert.equal(await page.$eval('#usernameInput', input => input.value), username, 'Login username must be entered before submission');
+            assert.equal(await page.$eval('#passwordInput', input => input.value), password, 'Login password must be entered before submission');
             await Promise.all([
                 page.waitForNavigation({ waitUntil: 'domcontentloaded' }),
                 page.$eval('#loginForm', (form) => form.requestSubmit()),
             ]);
+            assert.notEqual(new URL(page.url()).pathname, '/login', 'Login must leave the credential form');
             await page.goto(base + portal + '/settings#integrations', { waitUntil: 'domcontentloaded' });
             await page.waitForFunction(() => document.body.dataset.workspaceReady === 'true');
             if (await page.$eval('#companyWelcomeDialog', (dialog) => dialog.open).catch(() => false))
                 await page.locator('#companyWelcomeDialog [data-dialog-close]').click();
             await page.waitForFunction(() =>
-                document.querySelector('[data-mi-api-state]')?.textContent.includes('غير مفعل')
+                document.querySelector('[data-mi-api-state]')?.textContent.includes('موقوف من الإدارة')
             );
-            assert(await page.$eval('[data-mi-key-form]', (form) => form.hidden));
+            assert.equal(await page.$eval('[data-mi-api-link]', link => link.getAttribute('aria-disabled')), 'true');
             await service.setAdminAccess(Model, { _id: id }, { apiEnabled: true, webhooksEnabled: true });
-            await page.locator('[data-mi-refresh]').click();
-            await page.waitForFunction(() => !document.querySelector('[data-mi-key-form]').hidden);
-            const passwordInput = '[data-mi-key-form] [name="currentPassword"]';
+            await page.reload({ waitUntil: 'domcontentloaded' });
+            await page.waitForFunction(() => document.body.dataset.workspaceReady === 'true');
+            await page.waitForFunction(() => document.querySelector('[data-mi-api-link]')?.getAttribute('aria-disabled') === 'false');
+            await Promise.all([
+                page.waitForNavigation({ waitUntil: 'domcontentloaded' }),
+                page.locator('[data-mi-api-link]').click(),
+            ]);
+            assert.equal(new URL(page.url()).pathname, portal + '/integrations/api');
+            await page.waitForFunction(() => document.querySelector('[data-api-rotate]')?.disabled === false);
+            const passwordInput = '[data-api-dialog] [name="currentPassword"]';
             const rotate = async () => {
+                await page.locator('[data-api-rotate]').click();
+                await page.waitForSelector(passwordInput, { visible: true });
                 await page.type(passwordInput, password);
-                await page.locator('[data-mi-rotate]').click();
+                await page.locator('[data-api-dialog] button[form="api-confirm-form"]').click();
                 await page.waitForFunction(
                     () =>
-                        !document.querySelector('[data-mi-secret-box]').hidden &&
-                        document.querySelector('[data-mi-secret]').value.startsWith('ahr_')
+                        document.querySelector('[data-api-dialog]')?.open &&
+                        document.querySelector('[data-api-dialog] textarea.api-secret')?.value.startsWith('ahr_')
                 );
-                return page.$eval('[data-mi-secret]', (input) => input.value);
+                return page.$eval('[data-api-dialog] textarea.api-secret', input => input.value);
+            };
+            const closeIssuedKey = async () => {
+                await page.waitForFunction(() => !document.querySelector('[data-api-rotate]').disabled);
+                await page.$eval('[data-api-dialog] [data-close]', button => button.click());
+                await page.waitForFunction(() => {
+                    const dialog = document.querySelector('[data-api-dialog]');
+                    return !dialog.open && !dialog.querySelector('textarea.api-secret');
+                });
+                assert.equal(await page.$('[data-api-dialog] textarea.api-secret'), null, 'Closing the one-time key dialog must remove its secret');
             };
             const key1 = await rotate();
             const check = async (key) =>
                 (await fetch(base + '/api/v1/merchant/balance', { headers: { 'x-api-key': key } })).status;
             assert.equal(await check(key1), 200);
-            await page.waitForFunction(() => !document.querySelector('[data-mi-rotate]').disabled);
+            await closeIssuedKey();
             const key2 = await rotate();
             assert.notEqual(key1, key2);
             assert.equal(await check(key1), 401);
             assert.equal(await check(key2), 200);
-            await page.waitForFunction(() => !document.querySelector('[data-mi-revoke]').disabled);
+            await closeIssuedKey();
+            await page.waitForFunction(() => !document.querySelector('[data-api-revoke]').disabled);
+            await page.locator('[data-api-revoke]').click();
+            await page.waitForSelector(passwordInput, { visible: true });
             await page.type(passwordInput, password);
-            await page.locator('[data-mi-revoke]').click();
+            await page.locator('[data-api-dialog] button[form="api-confirm-form"]').click();
             await page.waitForFunction(() =>
-                document.querySelector('[data-mi-result]').textContent.includes('تم إيقاف')
+                document.querySelector('[data-api-notice]').textContent.includes('تم إيقاف')
             );
             assert.equal(await check(key2), 401);
             assert.equal(
@@ -104,10 +128,16 @@ async function main() {
             await page.screenshot({ path: path.join(output, kind + '-integrations.png'), fullPage: true });
             await Promise.all([
                 page.waitForNavigation({ waitUntil: 'domcontentloaded' }),
-                page.locator('[data-mi-webhook-link]').click(),
+                page.locator('[data-api-webhooks]').click(),
             ]);
             assert(page.url().endsWith(portal + '/integrations/webhooks'));
-            await page.waitForSelector('[data-create]');
+            await page.waitForFunction(() => document.querySelector('[data-wh-create]')?.disabled === false);
+            await page.locator('[data-wh-create]').click();
+            await page.waitForSelector('merchant-webhooks dialog[open] [data-editor]');
+            assert.ok(await page.$('merchant-webhooks dialog[open] input[name="url"][required]'));
+            assert.ok(await page.$('merchant-webhooks dialog[open] input[name="name"][required]'));
+            await page.locator('merchant-webhooks dialog[open] [data-action="close"]').click();
+            await page.waitForFunction(() => !document.querySelector('merchant-webhooks dialog').open);
             for (const width of [320, 390, 430]) {
                 await page.setViewport({ width, height: 844, isMobile: true });
                 assert.equal(
@@ -145,5 +175,6 @@ async function main() {
 }
 main().catch((error) => {
     console.error(error.message);
+    console.error(error.stack?.split('\n').filter(line => line.trim().startsWith('at ')).join('\n'));
     process.exitCode = 1;
 });
