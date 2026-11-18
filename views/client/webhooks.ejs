@@ -8,9 +8,9 @@
     <title>Webhooks | الأهرام</title>
     <script>
         (() => {
-            const server = <%- JSON.stringify(savedTheme) %>;
+            const server = <%- JSON.stringify(savedTheme).replace(/</g, '\\u003c') %>;
             let stored;
-            try { stored = localStorage.getItem(<%- JSON.stringify(portalBase === '/agent-portal' ? 'ahram_client_theme' : 'ahram_company_theme') %>); } catch (_) {}
+            try { stored = localStorage.getItem(<%- JSON.stringify(portalBase === '/agent-portal' ? 'ahram_client_theme' : 'ahram_company_theme').replace(/</g, '\\u003c') %>); } catch (_) {}
             const valid = ['day','night','pharaonic'];
             const theme = valid.includes(server) ? server : valid.includes(stored) ? stored : window.matchMedia('(prefers-color-scheme: dark)').matches ? 'night' : 'day';
             document.documentElement.dataset.theme = theme;

@@ -2,7 +2,7 @@
     (() => {
         const valid = ['day', 'night', 'pharaonic'];
         const stored = localStorage.getItem('ahram_client_theme');
-        const server = <%- JSON.stringify(typeof clientTheme !== 'undefined' ? clientTheme : '') %>;
+        const server = <%- JSON.stringify(typeof clientTheme !== 'undefined' ? clientTheme : '').replace(/</g, '\\u003c') %>;
         const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
         // After login the server preference wins. localStorage is only a
         // fallback for first paint when the account has no saved theme.

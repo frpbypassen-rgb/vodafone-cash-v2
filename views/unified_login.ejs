@@ -685,7 +685,7 @@
                 const credential = await navigator.credentials.get({ publicKey: options });
                 const verifyResponse = await fetch('/security/passkey-login/verify', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': <%- JSON.stringify(csrfToken || '') %> },
+                    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': <%- JSON.stringify(csrfToken || '').replace(/</g, '\\u003c') %> },
                     body: JSON.stringify({
                         response: authenticationPayload(credential),
                         latitude: document.getElementById('latitudeInput').value,

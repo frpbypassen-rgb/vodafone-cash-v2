@@ -134,7 +134,7 @@
     <script>
         window.supportWorkspaceConfig = {
             admin: <%- JSON.stringify(supportAdmin || {}).replace(/</g, '\\u003c') %>,
-            csrfToken: <%- JSON.stringify(typeof csrfToken !== 'undefined' ? csrfToken : '') %>
+            csrfToken: <%- JSON.stringify(typeof csrfToken !== 'undefined' ? csrfToken : '').replace(/</g, '\\u003c') %>
         };
         function toggleSidebar() {
             document.querySelector('.sidebar')?.classList.toggle('active');

@@ -7,7 +7,7 @@
     <script>
         (() => {
             const valid = ['day', 'night', 'pharaonic'];
-            const server = <%- JSON.stringify(typeof clientTheme !== 'undefined' ? clientTheme : 'day') %>;
+            const server = <%- JSON.stringify(typeof clientTheme !== 'undefined' ? clientTheme : 'day').replace(/</g, '\\u003c') %>;
             let stored = '';
             try { stored = localStorage.getItem('ahram_agent_theme') || ''; } catch (_) {}
             const theme = valid.includes(server) ? server : valid.includes(stored) ? stored : 'day';

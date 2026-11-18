@@ -317,9 +317,9 @@
 <script id="movementsData" type="application/json"><%- JSON.stringify(movements).replace(/</g, '\\u003c') %></script>
 <script>
     const movements = JSON.parse(document.getElementById('movementsData').textContent || '[]');
-    const typeLabels = <%- JSON.stringify(typeLabels) %>;
-    const statusLabels = <%- JSON.stringify(statusLabels) %>;
-    const entityLabels = <%- JSON.stringify(entityLabels) %>;
+    const typeLabels = <%- JSON.stringify(typeLabels).replace(/</g, '\\u003c') %>;
+    const statusLabels = <%- JSON.stringify(statusLabels).replace(/</g, '\\u003c') %>;
+    const entityLabels = <%- JSON.stringify(entityLabels).replace(/</g, '\\u003c') %>;
     const formatDate = (value) => value ? new Date(value).toLocaleString('en-GB', { timeZone: 'Africa/Tripoli', hour12: true }) : '-';
     const formatMoney = (value) => Number(value || 0).toLocaleString('en-US', { maximumFractionDigits: 3 });
     const esc = (value) => String(value ?? '-').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));

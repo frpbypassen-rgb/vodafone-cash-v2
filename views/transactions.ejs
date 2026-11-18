@@ -402,10 +402,10 @@
 </div>
 
 <script id="botsMapData" type="application/json">
-    <%- JSON.stringify(typeof allBotsMap !== 'undefined' ? allBotsMap : {}) %>
+    <%- JSON.stringify(typeof allBotsMap !== 'undefined' ? allBotsMap : {}).replace(/</g, '\\u003c') %>
 </script>
 <script id="executorBotsData" type="application/json">
-    <%- JSON.stringify(typeof executorBots !== 'undefined' ? executorBots : []) %>
+    <%- JSON.stringify(typeof executorBots !== 'undefined' ? executorBots : []).replace(/</g, '\\u003c') %>
 </script>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>

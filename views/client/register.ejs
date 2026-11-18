@@ -725,7 +725,7 @@
         let selectedType = '';
         let verifiedAgentCode = '';
         const restoredFormData = <%- JSON.stringify(typeof formData !== 'undefined' ? formData : {}).replace(/</g, '\\u003c') %>;
-        const restoreNewAgentVerified = <%- JSON.stringify(typeof restoreNewAgentVerified !== 'undefined' ? restoreNewAgentVerified : false) %>;
+        const restoreNewAgentVerified = <%- JSON.stringify(typeof restoreNewAgentVerified !== 'undefined' ? restoreNewAgentVerified : false).replace(/</g, '\\u003c') %>;
         const restoredAgentName = <%- JSON.stringify(typeof restoredAgentName !== 'undefined' ? restoredAgentName : '').replace(/</g, '\\u003c') %>;
 
         function showRegisterError(message, focusId) {

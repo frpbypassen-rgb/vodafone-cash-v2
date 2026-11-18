@@ -8,21 +8,21 @@
             const readPreference = (key) => {
                 try { return localStorage.getItem(key); } catch (_) { return null; }
             };
-            const isCompany = <%- JSON.stringify(typeof workspace !== 'undefined' && Boolean((workspace.isCompany || workspace.isAgent))) %>;
+            const isCompany = <%- JSON.stringify(typeof workspace !== 'undefined' && Boolean((workspace.isCompany || workspace.isAgent))).replace(/</g, '\\u003c') %>;
             const density = readPreference('powerpay-business-density') || 'comfortable';
             document.documentElement.dataset.density = density;
             if (isCompany) {
                 const valid = ['day', 'night', 'pharaonic'];
-                const stored = readPreference(<%- JSON.stringify(workspace.isAgent ? 'ahram_client_theme' : 'ahram_company_theme') %>);
-                const server = <%- JSON.stringify(workspace.isAgent && typeof clientTheme !== 'undefined' && clientTheme ? clientTheme : (typeof companyTheme !== 'undefined' ? companyTheme : '')) %>;
+                const stored = readPreference(<%- JSON.stringify(workspace.isAgent ? 'ahram_client_theme' : 'ahram_company_theme').replace(/</g, '\\u003c') %>);
+                const server = <%- JSON.stringify(workspace.isAgent && typeof clientTheme !== 'undefined' && clientTheme ? clientTheme : (typeof companyTheme !== 'undefined' ? companyTheme : '')).replace(/</g, '\\u003c') %>;
                 const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
                 // After login the server preference wins. localStorage is only a
                 // fallback for first paint when the account has no saved theme.
                 const theme = valid.includes(server) ? server : (valid.includes(stored) ? stored : (prefersDark ? 'night' : 'day'));
                 document.documentElement.setAttribute('data-theme', theme);
-                document.documentElement.setAttribute('data-portal', <%- JSON.stringify(workspace.isAgent ? 'agent' : 'company') %>);
+                document.documentElement.setAttribute('data-portal', <%- JSON.stringify(workspace.isAgent ? 'agent' : 'company').replace(/</g, '\\u003c') %>);
                 if (valid.includes(server)) {
-                    try { localStorage.setItem(<%- JSON.stringify(workspace.isAgent ? 'ahram_client_theme' : 'ahram_company_theme') %>, server); } catch (_error) { /* private mode */ }
+                    try { localStorage.setItem(<%- JSON.stringify(workspace.isAgent ? 'ahram_client_theme' : 'ahram_company_theme').replace(/</g, '\\u003c') %>, server); } catch (_error) { /* private mode */ }
                 }
                 const colors = { day: '#E7F1F6', night: '#0B1426', pharaonic: '#1A1510' };
                 const meta = document.querySelector('meta[name="theme-color"]');
@@ -31,7 +31,7 @@
             }
             const valid = ['day', 'night', 'pharaonic'];
             const stored = readPreference('ahram_client_theme');
-            const server = <%- JSON.stringify(typeof clientTheme !== 'undefined' ? clientTheme : '') %>;
+            const server = <%- JSON.stringify(typeof clientTheme !== 'undefined' ? clientTheme : '').replace(/</g, '\\u003c') %>;
             const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
             const theme = valid.includes(server) ? server : (valid.includes(stored) ? stored : (prefersDark ? 'night' : 'day'));
             document.documentElement.setAttribute('data-theme', theme);

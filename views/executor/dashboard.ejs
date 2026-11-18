@@ -17,7 +17,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-    <script>window.executorCsrfToken = <%- JSON.stringify(typeof csrfToken !== 'undefined' ? csrfToken : '') %>;</script>
+    <script>window.executorCsrfToken = <%- JSON.stringify(typeof csrfToken !== 'undefined' ? csrfToken : '').replace(/</g, '\\u003c') %>;</script>
     <script src="/js/executor-api.js"></script>
     
     <link rel="stylesheet" href="/css/executor/pages/dashboard.css">
@@ -45,9 +45,9 @@
 
 <script>
     const myExecutorId = '<%= emp._id %>';
-    const activeTaskId = <%- JSON.stringify(activeTaskId || null) %>;
+    const activeTaskId = <%- JSON.stringify(activeTaskId || null).replace(/</g, '\\u003c') %>;
     const isExecutorManager = <%= emp.role === 'manager' ? 'true' : 'false' %>;
-    const executorServicesFromServer = <%- JSON.stringify(typeof executorServices !== 'undefined' ? executorServices : []) %>;
+    const executorServicesFromServer = <%- JSON.stringify(typeof executorServices !== 'undefined' ? executorServices : []).replace(/</g, '\\u003c') %>;
     const executorTaskTypeMeta = {
         vodafone: { name: 'تحويل محفظة كاش', short: 'كاش', icon: 'fa-mobile-screen-button' },
         post_account: { name: 'تحويل بريد حساب', short: 'بريد', icon: 'fa-envelope' },

@@ -4,7 +4,7 @@
 <head>
     <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
     <title>مفتاح API | الأهرام</title>
-    <script>(()=>{let stored;try{stored=localStorage.getItem(<%- JSON.stringify(portalBase === '/client' ? 'ahram_company_theme' : 'ahram_client_theme') %>);}catch(_){}const server=<%- JSON.stringify(savedTheme) %>;document.documentElement.dataset.theme=server||(['day','night','pharaonic'].includes(stored)?stored:matchMedia('(prefers-color-scheme: dark)').matches?'night':'day');})();</script>
+    <script>(()=>{let stored;try{stored=localStorage.getItem(<%- JSON.stringify(portalBase === '/client' ? 'ahram_company_theme' : 'ahram_client_theme').replace(/</g, '\\u003c') %>);}catch(_){}const server=<%- JSON.stringify(savedTheme).replace(/</g, '\\u003c') %>;document.documentElement.dataset.theme=server||(['day','night','pharaonic'].includes(stored)?stored:matchMedia('(prefers-color-scheme: dark)').matches?'night':'day');})();</script>
     <link rel="stylesheet" href="/css/merchant-webhooks.css?v=20261028-1">
     <link rel="stylesheet" href="/css/merchant-api-page.css?v=20261028-3">
     <script src="/js/merchant-api-page.js?v=20261028-3" defer></script>

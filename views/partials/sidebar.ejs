@@ -952,7 +952,7 @@
 </div>
 
 <script>
-    window.__csrfToken = <%- JSON.stringify(csrfToken || '') %>;
+    window.__csrfToken = <%- JSON.stringify(csrfToken || '').replace(/</g, '\\u003c') %>;
     (() => {
         const nativeFetch = window.fetch.bind(window);
         const safeMethods = new Set(['GET', 'HEAD', 'OPTIONS']);

@@ -20,6 +20,6 @@
         <a href="<%= returnUrl %>">متابعة إلى الحساب</a>
     </section>
 </main>
-<script>window.location.replace(<%- JSON.stringify(returnUrl) %>);</script>
+<script>window.location.replace(<%- JSON.stringify(returnUrl).replace(/</g, '\\u003c') %>);</script>
 </body>
 </html>

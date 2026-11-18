@@ -143,7 +143,7 @@ const detailView = {detailLabels,detailUrl,detailMoney,detailColor,detailStatuse
         // الاعتماد أولاً على الحقل الذي يضيفه وسيط CSRF للخادم يضمن تطابق
         // الرمز مع جلسة الصفحة حتى لو تغيّرت متغيرات القالب أو أعيد تحميلها.
         const adminCsrfToken = settlementForm.querySelector('input[name="_csrf"]')?.value
-            || <%- JSON.stringify(typeof csrfToken !== 'undefined' ? csrfToken : '') %>;
+            || <%- JSON.stringify(typeof csrfToken !== 'undefined' ? csrfToken : '').replace(/</g, '\\u003c') %>;
         const amountInput = settlementForm.querySelector('[name="amount"]');
         const receiptInput = document.getElementById('settlementReceipts');
         const receiptLabel = document.getElementById('receiptLabel');

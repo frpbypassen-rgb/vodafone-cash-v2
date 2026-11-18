@@ -1591,13 +1591,13 @@
     </script>
 
     <script id="transactionsData" type="application/json">
-        <%- JSON.stringify(typeof transactions !== 'undefined' ? transactions : []) %>
+        <%- JSON.stringify(typeof transactions !== 'undefined' ? transactions : []).replace(/</g, '\\u003c') %>
     </script>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         // 📡 Geolocation & Fetch Override for Security Audit
-        const csrfToken = <%- JSON.stringify(typeof csrfToken !== 'undefined' ? csrfToken : '') %>;
+        const csrfToken = <%- JSON.stringify(typeof csrfToken !== 'undefined' ? csrfToken : '').replace(/</g, '\\u003c') %>;
 
         function cleanTxNotes(tx = {}) {
             const explicitCustomerNotes = String(tx.customerNotes || '').trim();
@@ -1687,7 +1687,7 @@
         }
 
         let currentRate = parseFloat("<%= currentRate %>") || 1;
-        let serviceRates = <%- JSON.stringify(typeof serviceRates !== 'undefined' ? serviceRates : {}) %>;
+        let serviceRates = <%- JSON.stringify(typeof serviceRates !== 'undefined' ? serviceRates : {}).replace(/</g, '\\u003c') %>;
         let currentTransferType = '';
         const isSubAccount = <%= typeof isSubAccount !== 'undefined' ? isSubAccount : false %>;
         const isMaster = <%= typeof isMaster !== 'undefined' ? isMaster : false %>;
