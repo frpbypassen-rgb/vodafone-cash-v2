@@ -5,6 +5,16 @@ const { loadWalletHubAccount } = require('../services/clientHubContextService');
 const clientDepositRequestService = require('../services/clientDepositRequestService');
 const { emitSupportTicketUpdate } = require('../services/supportRealtimeService');
 
+const sendDepositError = (res, error, fallback) => {
+    const status = Number.isInteger(error?.status) && error.status >= 400 && error.status <= 599
+        ? error.status
+        : 500;
+    const message = status < 500 && typeof error?.message === 'string' && error.message
+        ? error.message
+        : fallback;
+    return res.status(status).json({ success: false, error: message });
+};
+
 async function loadDirectClient(req) {
     if (req.session.accountType !== 'user') return null;
     const user = await User.findById(req.session.clientId);
@@ -39,7 +49,7 @@ exports.getDepositRequests = async (req, res) => {
         const requests = await clientDepositRequestService.listClientDepositRequests({ client: user });
         return res.json({ success: true, requests, balance: Number(user.balance || 0) });
     } catch (error) {
-        return res.status(error.status || 500).json({ success: false, error: error.message || 'تعذر تحميل طلبات الإيداع.' });
+        return sendDepositError(res, error, 'تعذر تحميل طلبات الإيداع.');
     }
 };
 
@@ -61,6 +71,6 @@ exports.postDepositRequest = async (req, res) => {
             message: 'تم إرسال طلب الإيداع للإدارة للمراجعة.'
         });
     } catch (error) {
-        return res.status(error.status || 500).json({ success: false, error: error.message || 'تعذر إرسال طلب الإيداع.' });
+        return sendDepositError(res, error, 'تعذر إرسال طلب الإيداع.');
     }
 };
