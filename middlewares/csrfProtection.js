@@ -121,6 +121,16 @@ const csrfProtection = (req, res, next) => {
         return originalSend(body);
     };
 
+    // First-login requests retain the existing proxy/session compatibility path,
+    // but a browser must not create a victim session from an attacker origin.
+    // Missing metadata remains supported for existing non-browser clients.
+    if (isAuthLoginPost(req) && (
+        req.get('sec-fetch-site') === 'cross-site'
+        || ((req.get('origin') || req.get('referer')) && !hasSameOrigin(req))
+    )) {
+        return res.status(403).json({ success: false, error: 'Invalid CSRF origin' });
+    }
+
     if (SAFE_METHODS.has(req.method) || shouldSkip(req)) {
         return next();
     }
