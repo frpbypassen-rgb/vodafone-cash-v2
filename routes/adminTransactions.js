@@ -447,8 +447,11 @@ const renderTransactions = async (req, res, operationsWorkspace = false) => {
             activeClientCompanies = ledgerOverview.activeClientCompanies;
             fundedExecutorCompanies = ledgerOverview.fundedExecutorCompanies;
         }
+        // Only selection/display data may cross into the page's executor JSON.
+        // Executor documents also contain provider credentials and future secrets.
         const executorGroupsForView = executorGroups.map((group) => ({
-            ...(typeof group.toObject === 'function' ? group.toObject() : group),
+            _id: group._id,
+            name: group.name,
             serviceKey: normalizeExecutorServiceKey(group.serviceKey),
             serviceLabel: getExecutorServiceLabel(group),
             supportedTransferTypes: getExecutorSupportedTransferTypes(group)
