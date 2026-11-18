@@ -274,14 +274,24 @@ router.post('/update', requireMaster, async (req, res) => {
 // إدارة حسابات العملاء على الويب
 // =========================================================
 router.get('/clients-web', async (req, res) => {
-    const users = await User.find({ status: 'active' });
-    const companies = await ClientBot.find({ status: 'active' });
-    const allClientEmployees = await ClientEmployee.find({ status: 'active' });
-    const webUsers = await User.find({ webUsername: { $exists: true, $nin: [null, ""] } });
-    const webEmployeesRaw = await ClientEmployee.find({ webUsername: { $exists: true, $nin: [null, ""] } }).populate('companyId');
+    const usersRaw = await User.find({ status: 'active' }).select('_id name phone');
+    const companiesRaw = await ClientBot.find({ status: 'active' }).select('_id name');
+    const employeesRaw = await ClientEmployee.find({ status: 'active' }).select('_id name role companyId clientBotId');
+    const webUsersRaw = await User.find({ webUsername: { $exists: true, $nin: [null, ""] } }).select('_id name webUsername status');
+    const webEmployeesRaw = await ClientEmployee.find({ webUsername: { $exists: true, $nin: [null, ""] } })
+        .select('_id name role webUsername status companyId').populate('companyId', 'name');
+    // These objects cross into HTML/JSON. Keep the view contract explicit even
+    // when a legacy query or test adapter returns more fields than projected.
+    const referenceId = value => value ? String(value._id || value) : undefined;
+    const users = usersRaw.map(u => ({ _id: u._id, name: u.name, phone: u.phone }));
+    const companies = companiesRaw.map(c => ({ _id: c._id, name: c.name }));
+    const allClientEmployees = employeesRaw.map(e => ({
+        _id: e._id, name: e.name, role: e.role,
+        companyId: referenceId(e.companyId), clientBotId: referenceId(e.clientBotId)
+    }));
+    const webUsers = webUsersRaw.map(u => ({ _id: u._id, name: u.name, webUsername: u.webUsername, status: u.status }));
     const webEmployees = webEmployeesRaw.map(e => ({
         _id: e._id, name: e.name, role: e.role, webUsername: e.webUsername,
-        webPassword: '••••••', // لا نعرض كلمة المرور في الواجهة
         companyName: e.companyId ? e.companyId.name : 'شركة محذوفة', status: e.status
     }));
     res.render('settings_clients_web', { users, companies, allClientEmployees, webUsers, webEmployees, query: req.query });

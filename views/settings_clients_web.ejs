@@ -92,7 +92,7 @@
 
                         <div class="mb-4">
                             <label class="form-label fw-bold small text-muted">كلمة المرور السريـة</label>
-                            <input type="text" name="webPassword" class="form-control mono-num text-danger" placeholder="أدخل كلمة مرور قوية" dir="ltr" required>
+                            <input type="password" name="webPassword" autocomplete="new-password" class="form-control mono-num text-danger" placeholder="أدخل كلمة مرور قوية" dir="ltr" required>
                         </div>
 
                         <button type="submit" class="btn btn-primary w-100 fw-bold shadow-sm rounded-pill py-3 fs-5">
@@ -124,11 +124,11 @@
                                         <td><span class="badge bg-secondary px-3 py-1 rounded-pill">عميل (فردي)</span></td>
                                         <td dir="ltr" style="font-size: 0.85rem;" class="mono-num text-start ps-4">
                                             <span class="text-muted small">U:</span> <b class="text-dark"><%= u.webUsername %></b><br>
-                                            <span class="text-muted small">P:</span> <code class="text-danger"><%= u.webPassword %></code>
+                                            <span class="text-muted small">P:</span> <span class="text-muted">غير معروضة</span>
                                         </td>
                                         <td>
                                             <div class="d-flex justify-content-center gap-2">
-                                                <button class="btn btn-sm btn-warning shadow-sm btn-action-sm text-dark fw-bold" onclick="openEditModal('user', '<%= u._id %>', '<%= u.webUsername %>', '<%= u.webPassword %>')" title="تعديل"><i class="fa-solid fa-pen"></i></button>
+                                                <button class="btn btn-sm btn-warning shadow-sm btn-action-sm text-dark fw-bold" data-edit-web-account data-account-type="user" data-account-id="<%= u._id %>" data-web-username="<%= u.webUsername %>" title="تعديل"><i class="fa-solid fa-pen"></i></button>
                                                 
                                                 <form action="/settings/clients-web/toggle" method="POST" class="m-0">
                                                     <input type="hidden" name="accountType" value="user">
@@ -159,11 +159,11 @@
                                         </td>
                                         <td dir="ltr" style="font-size: 0.85rem;" class="mono-num text-start ps-4">
                                             <span class="text-muted small">U:</span> <b class="text-dark"><%= e.webUsername %></b><br>
-                                            <span class="text-muted small">P:</span> <code class="text-danger"><%= e.webPassword %></code>
+                                            <span class="text-muted small">P:</span> <span class="text-muted">غير معروضة</span>
                                         </td>
                                         <td>
                                             <div class="d-flex justify-content-center gap-2">
-                                                <button class="btn btn-sm btn-warning shadow-sm btn-action-sm text-dark fw-bold" onclick="openEditModal('employee', '<%= e._id %>', '<%= e.webUsername %>', '<%= e.webPassword %>')" title="تعديل"><i class="fa-solid fa-pen"></i></button>
+                                                <button class="btn btn-sm btn-warning shadow-sm btn-action-sm text-dark fw-bold" data-edit-web-account data-account-type="employee" data-account-id="<%= e._id %>" data-web-username="<%= e.webUsername %>" title="تعديل"><i class="fa-solid fa-pen"></i></button>
                                                 
                                                 <form action="/settings/clients-web/toggle" method="POST" class="m-0">
                                                     <input type="hidden" name="accountType" value="employee">
@@ -208,8 +208,8 @@
                         <input type="text" name="webUsername" id="editWebUsername" class="form-control text-start fw-bold mono-num text-primary" dir="ltr" required>
                     </div>
                     <div class="mb-4">
-                        <label class="form-label fw-bold text-muted small">كلمة المرور السريـة</label>
-                        <input type="text" name="webPassword" id="editWebPassword" class="form-control text-start fw-bold mono-num text-danger" dir="ltr" required>
+                        <label class="form-label fw-bold text-muted small">كلمة مرور جديدة (اختياري)</label>
+                        <input type="password" name="webPassword" id="editWebPassword" autocomplete="new-password" class="form-control text-start fw-bold mono-num text-danger" placeholder="اتركها فارغة للإبقاء على كلمة المرور الحالية" dir="ltr">
                     </div>
                 </div>
                 <div class="modal-footer border-0 p-4 pt-0">
@@ -221,7 +221,7 @@
 </div>
 
 <script id="employeesData" type="application/json">
-    <%- JSON.stringify(typeof allClientEmployees !== 'undefined' ? allClientEmployees : []) %>
+    <%- JSON.stringify(typeof allClientEmployees !== 'undefined' ? allClientEmployees : []).replace(/</g, '\\u003c') %>
 </script>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
@@ -237,20 +237,27 @@
     function updateEmployeeDropdown() {
         const companyId = document.getElementById('companySelect').value;
         const empSelect = document.getElementById('employeeSelect');
-        empSelect.innerHTML = '<option value="" disabled selected>اختر الموظف...</option>';
+        empSelect.replaceChildren();
+        const placeholder = new Option('اختر الموظف...', '');
+        placeholder.disabled = true;
+        placeholder.selected = true;
+        empSelect.add(placeholder);
 
         if (!companyId) return;
         
-        const filteredEmps = allEmployees.filter(emp => emp.clientBotId && (emp.clientBotId._id || emp.clientBotId).toString() === companyId.toString());
+        const filteredEmps = allEmployees.filter(emp => {
+            const owner = emp.companyId || emp.clientBotId;
+            return owner && String(owner._id || owner) === String(companyId);
+        });
         
         if (filteredEmps.length === 0) {
-            empSelect.innerHTML = '<option value="" disabled selected>لا يوجد موظفين مسجلين لهذه الشركة</option>';
+            placeholder.text = 'لا يوجد موظفين مسجلين لهذه الشركة';
             empSelect.required = false;
         } else {
             empSelect.required = true;
             filteredEmps.forEach(emp => {
                 const roleLabel = emp.role === 'accountant' ? 'محاسب' : 'موظف';
-                empSelect.innerHTML += `<option value="${emp._id}">${emp.name} (${roleLabel})</option>`;
+                empSelect.add(new Option(String(emp.name || '') + ` (${roleLabel})`, String(emp._id)));
             });
         }
     }
@@ -273,13 +280,18 @@
         }
     }
 
-    function openEditModal(type, id, username, password) {
+    function openEditModal(type, id, username) {
         document.getElementById('editAccountType').value = type;
         document.getElementById('editAccountId').value = id;
         document.getElementById('editWebUsername').value = username;
-        document.getElementById('editWebPassword').value = password;
+        document.getElementById('editWebPassword').value = '';
         new bootstrap.Modal(document.getElementById('editWebAccountModal')).show();
     }
+    document.querySelectorAll('[data-edit-web-account]').forEach(button => {
+        button.addEventListener('click', () => openEditModal(
+            button.dataset.accountType, button.dataset.accountId, button.dataset.webUsername
+        ));
+    });
 </script>
 </body>
 </html>
