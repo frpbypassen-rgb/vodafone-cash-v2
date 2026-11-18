@@ -347,6 +347,61 @@ describe('Client Transaction Controller Tests', () => {
         }));
     });
 
+    test.each([
+        ['committed transaction', true, true],
+        ['aborted transaction', true, false],
+        ['compensated standalone request', false, false]
+    ])('transfer attachment cleanup preserves durability: %s', async (_scenario, transactionEnabled, committed) => {
+        const fs = require('node:fs');
+        const { logAction } = require('../services/auditService');
+        const previousDb = mongoose.connection.db;
+        const session = {
+            startTransaction: jest.fn(),
+            commitTransaction: committed ? jest.fn().mockResolvedValue() : jest.fn().mockRejectedValue(new Error('commit failed')),
+            abortTransaction: jest.fn().mockResolvedValue(),
+            endSession: jest.fn()
+        };
+        const startSession = jest.spyOn(mongoose, 'startSession').mockResolvedValue(session);
+        const remove = jest.spyOn(fs.promises, 'unlink').mockResolvedValue();
+        const release = jest.fn().mockRejectedValueOnce(new Error('unexpected release failure')).mockResolvedValue();
+        const account = { _id: 'client123', name: 'Client', tier: 1, balance: 1000, creditLimit: 0, phone: '01012345678' };
+        const queryFor = (value) => Object.assign(Promise.resolve(value), { session: jest.fn().mockReturnThis() });
+        const query = () => queryFor(account);
+        mongoose.connection.db = { admin: () => ({ command: transactionEnabled
+            ? jest.fn().mockResolvedValue({ setName: 'test-replica' })
+            : jest.fn().mockRejectedValue(new Error('No replication')) }) };
+        req.body = { amount: '100', phone: '01012345678', type: 'كاش', name: 'Recipient', number: '123' };
+        req.file = { path: '/test-only-identity.png', filename: 'test-only-identity.png' };
+        User.findById = jest.fn(query);
+        User.findOneAndUpdate = jest.fn(query);
+        Settings.findOne = jest.fn(() => queryFor({ rateLevel1: 6.4 }));
+        Counter.findOneAndUpdate = jest.fn().mockResolvedValue({ value: 45 });
+        Ledger.prototype.save = jest.fn().mockResolvedValue({});
+        Transaction.prototype.save = jest.fn().mockResolvedValue({});
+        logAction.mockResolvedValue(undefined).mockResolvedValueOnce({ release });
+        try {
+            await clientTransactionController.postTransfer(req, res);
+            expect(session.commitTransaction).toHaveBeenCalledTimes(transactionEnabled ? 1 : 0);
+            expect(Transaction).toHaveBeenCalledWith(expect.objectContaining({ idCardImage: '/uploads/test-only-identity.png' }));
+            if (committed) {
+                expect(release).toHaveBeenCalled();
+                expect(req.clientDocumentAttached).toBe(true);
+                expect(session.abortTransaction).not.toHaveBeenCalled();
+                expect(remove).not.toHaveBeenCalled();
+            } else {
+                expect(req.clientDocumentAttached).not.toBe(true);
+                expect(session.abortTransaction).toHaveBeenCalledTimes(transactionEnabled ? 1 : 0);
+                expect(remove).toHaveBeenCalledWith('/test-only-identity.png');
+                if (!transactionEnabled) expect(Transaction.deleteOne).toHaveBeenCalled();
+            }
+        } finally {
+            mongoose.connection.db = previousDb;
+            startSession.mockRestore();
+            remove.mockRestore();
+            logAction.mockReset();
+        }
+    });
+
     test('postTransfer - يحسب تحويل سيفا بقيمة 10 وسعر 15 على أنه 150 دينار', async () => {
         req.body = {
             amount: '10',

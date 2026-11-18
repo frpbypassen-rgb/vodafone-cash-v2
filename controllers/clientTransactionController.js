@@ -574,6 +574,8 @@ exports.postTransfer = async (req, res) => {
         // ✅ تأكيد العملية بنجاح (Commit) ثم تحرير قفل سلسلة التدقيق
         if (useTransaction) {
             await session.commitTransaction();
+            // The record already owns the image even if later housekeeping fails.
+            if (req.file) req.clientDocumentAttached = true;
             session.endSession();
             useTransaction = false;
         }
@@ -582,6 +584,10 @@ exports.postTransfer = async (req, res) => {
             auditRelease = null;
         }
         standaloneCompensations = [];
+
+        // Upload middleware cleans files from requests rejected before commit.
+        // Retain this image only after its financial record is durable.
+        if (req.file) req.clientDocumentAttached = true;
 
         if (autoRouteExecutor) {
             setImmediate(() => {
@@ -636,7 +642,7 @@ exports.postTransfer = async (req, res) => {
             }
             standaloneCompensations = [];
         }
-        if (req.file?.path) {
+        if (req.file?.path && !req.clientDocumentAttached) {
             fs.promises.unlink(req.file.path).catch(() => {});
         }
 
