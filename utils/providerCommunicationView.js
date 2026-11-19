@@ -46,6 +46,18 @@ const dateText = value => {
 };
 const statusCode = n => Number.isInteger(n) && n >= 100 && n <= 599 ? 'HTTP ' + n : '';
 const marker = '--- سجل الـ API';
+const receiptReadStages = new Map(Object.entries({auth:'المصادقة', print:'قراءة الإيصال', configuration:'الإعدادات'}));
+const transportErrors = new Map(Object.entries({timeout:'انتهت مهلة الاتصال', connection:'تعذّر الاتصال', dns:'تعذّر حل اسم المضيف', tls:'تعذّر الاتصال المشفّر', unknown:'خطأ اتصال غير محدد'}));
+
+function zaynTerminalLabel(data) {
+    if (!data.providerMatchedAt) return '';
+    switch (data.providerMatchedState) {
+    case 'returned': return data.providerMatchedReversal ? 'مسترجعة لدى زين' : 'ملغاة لدى زين';
+    case 'rejected': return 'مرفوضة لدى زين';
+    case 'paid': return 'ناجحة لدى زين';
+    default: return '';
+    }
+}
 
 // Build the same allowlisted operator view for current observations and old transactions.
 // Notes and arbitrary provider strings never become communications payloads in the browser.
@@ -68,6 +80,14 @@ function providerCommunicationView(tx) {
         && !data.providerDispatchResult && !data.providerMatchedAt && !markerInNotes) return null;
 
     const zayn = !kenan && Boolean(data.zaynFollowupAttemptId || payment || preflight);
+    const finalLabel = zayn ? zaynTerminalLabel(data) : '';
+    let rowStatus = '';
+    if (zayn && tx.status === 'processing') {
+        if (finalLabel) rowStatus = finalLabel;
+        else if (data.providerMonitorState === 'failed') rowStatus = 'تعذّر استعلام زين';
+        else if (data.providerMonitorState === 'mismatch') rowStatus = 'رد زين غير مطابق';
+        else if (data.providerTransactionId) rowStatus = 'بانتظار رد زين';
+    }
     const legacyAcknowledged = !payment && !data.providerResolutionOutcome && Boolean(providerId)
         && ['accepted','pending_reference'].includes(data.providerDispatchResult);
     const receiptReference = safeRef(data.providerReportedReference || data.referenceNumber);
@@ -95,15 +115,23 @@ function providerCommunicationView(tx) {
     add('وقت رد الإنشاء', dateText(data.kenanReceivedAt || data.kenanCreateReplyAt || data.zaynPaymentReplyAt));
     const lastKenan = kenanStatuses.get(data.kenanProviderStatus || data.kenanOrder?.status);
     const monitor = monitorStates.get(data.providerMonitorState);
-    add('نتيجة المزود', lastKenan || monitorStates.get(data.providerMatchedState) || monitorStates.get(data.zaynPaymentStatus));
+    add('نتيجة المزود', lastKenan || finalLabel || monitorStates.get(data.providerMatchedState) || monitorStates.get(data.zaynPaymentStatus));
     add('آخر رد مطابق', dateText(kenan ? data.kenanLastCheckedAt : data.providerMatchedAt));
     add('آخر فحص', kenan ? [kenanChecks.get(data.kenanLastPollOutcome),statusCode(data.kenanLastPollHttpStatus)].filter(Boolean).join(' · ') : monitor);
     add('وقت آخر فحص', dateText(kenan ? data.kenanLastPollAt : data.providerMonitorCheckedAt || data.providerLastCheckedAt));
+    if (zayn && data.providerMonitorState === 'failed') {
+        add('مرحلة الفحص', receiptReadStages.get(data.providerLastCheckStage));
+        add('نتيجة الاتصال', [statusCode(data.providerLastCheckHttpStatus), transportErrors.get(data.providerLastCheckTransport)].filter(Boolean).join(' · '));
+        if (Number.isSafeInteger(data.providerLastCheckProviderCode)) add('كود زين', String(data.providerLastCheckProviderCode));
+        if (Number.isSafeInteger(data.providerLastCheckRetryAfterSeconds) && data.providerLastCheckRetryAfterSeconds > 0) {
+            add(data.providerLastCheckRetrySource === 'provider_header' ? 'مهلة المزود' : 'مهلة إعادة المحاولة', data.providerLastCheckRetryAfterSeconds + ' ثانية');
+        }
+    }
     add('الاستعلام التالي', dateText(kenan ? (data.kenanAwaitingStatus && data.kenanNextPollAt) : (!data.providerMonitorStopped && data.providerMonitorNextCheckAt)));
     add('حالة الموقع', localStates.get(tx.status));
     if (kenan) add('التسوية', kenanSettlement.get(data.kenanCompletionState));
     if (pendingLabel) lines.push(pendingLabel);
-    return { confirmed, title: 'سجل التخاطب مع المزود', receipt, text:lines.join('\n'), pendingLabel };
+    return { confirmed, title: 'سجل التخاطب مع المزود', receipt, text:lines.join('\n'), pendingLabel, rowStatus };
 }
 
 // These are view objects detached from MongoDB. Historical rows can contain the

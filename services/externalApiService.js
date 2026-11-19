@@ -23,6 +23,7 @@ const {
     resolveProviderBaseUrl
 } = require('../utils/runtimeControls');
 
+const { readDiagnostics, readRetryAfterSeconds } = require('../utils/providerReadDiagnostics');
 const { classifyZaynReceiptStatus } = require('../utils/zaynReceiptStatus');
 
 const SUPPORT_PHONE = '01108172258';
@@ -62,13 +63,14 @@ const normalizeProviderTransaction = (data = {}, fallbackTransactionNumber = '')
     reportedTransactionId: String(data.TransactionId || data.TransactionNumber || '').trim(),
     providerTransactionId: String(data.TransactionId || data.TransactionNumber || fallbackTransactionNumber || '').trim(),
     referenceNumber: String(data.RefNumber || data.PaymentServiceProviderTransactionId || '').trim(),
-    providerStatus: String(data.TransactionStatus || '').trim(),
+    providerStatus: String(data.TransactionStatus || '').trim() || String(data.Status || '').trim(),
     amount: Number.isFinite(Number(data.Amount)) ? Number(data.Amount) : null,
     phone: extractProviderPhone(data),
     serviceName: String(data.ServiceName || '').trim(),
     providerDate: String(data.Date || '').trim(),
     providerTime: String(data.Time || '').trim(),
-    isReturned: isReturnedProviderStatus(data.TransactionStatus),
+    isReturned: String(data.TransactionStatus || '').trim() ? isReturnedProviderStatus(data.TransactionStatus)
+        : classifyZaynReceiptStatus(data.Status) === 'returned',
     rawData: data
 });
 
@@ -148,16 +150,6 @@ const refuseResolvedProvider = (config) => {
     return null;
 };
 
-const readRetryAfterSeconds = response => {
-    const header = String(response?.headers?.['retry-after'] ?? '').trim();
-    const date = Date.parse(header);
-    let retryAfterSeconds = null;
-    if (/^\d{1,9}$/.test(header)) retryAfterSeconds = Number(header);
-    else if (Number.isFinite(date) && new Date(date).toUTCString() === header) {
-        retryAfterSeconds = Math.max(0, Math.ceil((date - Date.now()) / 1000));
-    }
-    return retryAfterSeconds;
-};
 const logPreflightAuthFailure = (response) => {
     const status = response?.status;
     const code = String(response?.data?.Code ?? '');
@@ -631,7 +623,7 @@ const getApiProviderBalance = async (apiBot) => {
 
 const getApiProviderTransactions = async (apiBot, transactionNumbers = []) => {
     const blocked = providerCallBlock();
-    if (blocked) return blocked;
+    if (blocked) return { ...blocked, diagnostics:readDiagnostics('configuration') };
     if (apiBot?.apiProviderKey === 'kenan') return require('./kenanProviderService').getTransactions(apiBot, Array.isArray(transactionNumbers) ? transactionNumbers : [transactionNumbers]);
     const processLog = [];
     const addLog = (step, detail) => {
@@ -648,15 +640,18 @@ const getApiProviderTransactions = async (apiBot, transactionNumbers = []) => {
         return { success: true, operations: [], processLog: '' };
     }
 
+    let stage = 'configuration';
     try {
         const config = resolveApiProviderConfig(apiBot || {});
         const refused = refuseResolvedProvider(config);
-        if (refused) return refused;
+        if (refused) return { ...refused, diagnostics:readDiagnostics(stage) };
+        stage = 'auth';
         const auth = await authorizeApiProvider(config, addLog);
         if (!auth.success) {
-            return { success: false, message: auth.message, code: auth.code, operations: [], processLog: processLog.join('\n') };
+            return { success: false, message: auth.message, code: auth.code, diagnostics:readDiagnostics('configuration'), operations: [], processLog: processLog.join('\n') };
         }
 
+        stage = 'print';
         const operations = [];
         for (const transactionNumber of uniqueNumbers) {
             try {
@@ -667,7 +662,7 @@ const getApiProviderTransactions = async (apiBot, transactionNumbers = []) => {
                         success: false,
                         providerTransactionId: transactionNumber,
                         requestedTransactionId: transactionNumber,
-                        retryAfterSeconds:readRetryAfterSeconds(printRes),
+                        diagnostics:readDiagnostics(stage, printRes), retryAfterSeconds:readRetryAfterSeconds(printRes),
                         message: 'تعذر استرجاع تفاصيل العملية من المزود'
                     });
                     continue;
@@ -676,6 +671,7 @@ const getApiProviderTransactions = async (apiBot, transactionNumbers = []) => {
                 operations.push({
                     success: true,
                     ...normalizeProviderTransaction(responseData.Data, transactionNumber),
+                    diagnostics:readDiagnostics(stage, printRes),
                     requestedTransactionId: transactionNumber,
                     message: 'تمت قراءة إيصال العملية من المزود'
                 });
@@ -685,6 +681,7 @@ const getApiProviderTransactions = async (apiBot, transactionNumbers = []) => {
                     success: false,
                     providerTransactionId: transactionNumber,
                     requestedTransactionId: transactionNumber,
+                    diagnostics:readDiagnostics(String(error.code || '').startsWith('PROVIDER_AUTH_') ? 'auth' : stage, error.response, error),
                     retryAfterSeconds, message:'تعذر الاتصال بمسار مراجعة العمليات'
                 });
             }
@@ -704,7 +701,7 @@ const getApiProviderTransactions = async (apiBot, transactionNumbers = []) => {
         addLog('SYSTEM_ERROR', providerMessage);
         return {
             success: false,
-            message: providerMessage, retryAfterSeconds:error.retryAfterSeconds ?? readRetryAfterSeconds(error.response),
+            message: providerMessage, diagnostics:readDiagnostics(stage, error.response, error), retryAfterSeconds:error.retryAfterSeconds ?? readRetryAfterSeconds(error.response),
             operations: [],
             processLog: processLog.join('\n')
         };
@@ -714,7 +711,8 @@ const getApiProviderTransactions = async (apiBot, transactionNumbers = []) => {
 const getApiProviderTransaction = async (apiBot, transactionNumber) => {
     const result = await getApiProviderTransactions(apiBot, [transactionNumber]);
     if (!result.operations?.length) {
-        return { success: false, message: result.message || 'العملية غير موجودة لدى المزود', retryAfterSeconds:result.retryAfterSeconds };
+        return { success: false, message: result.message || 'العملية غير موجودة لدى المزود',
+            ...(result.diagnostics && {diagnostics:result.diagnostics}), retryAfterSeconds:result.retryAfterSeconds };
     }
     return result.operations[0];
 };

@@ -6,6 +6,31 @@ const ejs = require('ejs');
 const at = new Date('2026-11-19T10:00:00Z');
 const row = data => ({ status: 'processing', apiResultData: data });
 
+test.each([
+    ['returned', false, 'ملغاة لدى زين'],
+    ['returned', true, 'مسترجعة لدى زين'],
+    ['rejected', false, 'مرفوضة لدى زين'],
+    ['paid', false, 'ناجحة لدى زين']
+])('shows a matched terminal receipt on the row separately from local settlement', (state, reversed, label) => {
+    const tx = row({zaynFollowupAttemptId:'a', providerDispatchAttemptId:'a', providerTransactionId:'123',
+        providerMatchedState:state, providerMatchedAt:at, providerMatchedReversal:reversed});
+    expect(providerCommunicationView(tx).rowStatus).toBe(label);
+    expect(providerCommunicationView(tx).text).toContain('حالة الموقع — قيد التنفيذ');
+    delete tx.apiResultData.providerMatchedAt;
+    expect(providerCommunicationView(tx).rowStatus).not.toBe(label);
+});
+
+test('reports a failed receipt read with only allowlisted diagnostics and no invented cancellation', () => {
+    const tx = row({zaynFollowupAttemptId:'a', providerDispatchAttemptId:'a', providerMonitorState:'failed',
+        providerLastCheckStage:'print', providerLastCheckHttpStatus:429, providerLastCheckProviderCode:429,
+        providerLastCheckRetryAfterSeconds:90, providerLastCheckRetrySource:'provider_header', providerLastCheckTransport:'SECRET'});
+    const view = providerCommunicationView(tx);
+    expect(view.rowStatus).toBe('تعذّر استعلام زين');
+    expect(view.text).toContain('HTTP 429');
+    expect(view.text).toContain('90');
+    expect(view.text).not.toMatch(/SECRET|ملغاة/);
+});
+
 test('a local dispatch or uncorrelated HTTP reply never confirms provider receipt', () => {
     for (const data of [
         { providerDispatchStartedAt: at },

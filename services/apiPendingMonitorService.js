@@ -13,6 +13,7 @@ const { isFinancialSchedulersEnabled, isExternalApiEnabled, isSwitchEnabled } = 
 const { allowsBackgroundWork } = require('../utils/runtimeRole');
 const { isFinalZaynState, zaynReceiptObservation, matchedZaynReceiptFields, zaynAccountMatches } = require('../utils/zaynReceiptStatus');
 const logger = require('../utils/logger');
+const { readDiagnostics } = require('../utils/providerReadDiagnostics');
 
 const MAX_ATTEMPTS = 8;
 const BATCH_SIZE = 10;
@@ -161,6 +162,7 @@ const checkPendingOperation = async (candidate, now = new Date()) => {
             providerMonitorCheckedAt: checkedAt,
             providerMonitorMessage: stateLabels[finalState]
         };
+        if (zayn) Object.assign(metadata, result?.diagnostics || readDiagnostics(null));
         if (result) {
             metadata.providerLastCheckedAt = checkedAt;
             metadata.providerStatusCheckSucceeded = Boolean(result.success && state !== 'mismatch');

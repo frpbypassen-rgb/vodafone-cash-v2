@@ -47,6 +47,17 @@ const renderTransactions = (overrides = {}) => ejs.render(
 );
 
 describe('central ledger page layout', () => {
+    test('the rendered ledger exposes the provider client script and all inline handlers can be parsed', () => {
+        const { Script } = require('node:vm');
+        const html = renderTransactions({ operationWorkspace: true });
+        const scripts = [...html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script\s*>/gi)];
+        for (const [, attributes, code] of scripts) {
+            if (/\bsrc=|type="application\/json"/i.test(attributes)) continue;
+            expect(() => new Script(code)).not.toThrow();
+        }
+        expect(scripts.filter(([, attrs]) => /src="\/js\/provider-communication\.js(?:\?[^"]*)?"/.test(attrs))).toHaveLength(1);
+    });
+
     test.each(['queued', 'assigned', 'executing', 'verifying', 'review', 'success'])('Kenan %s shows its response on desktop/mobile and waits without manual review actions', (status) => {
         const tx = { _id: '507f1f77bcf86cd799439011', customId: 'ATT-KENAN', status: 'processing', amount: 100,
             vodafoneNumber: '01099887766', transferType: 'vodafone', createdAt: new Date(), updatedAt: new Date(),

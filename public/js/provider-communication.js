@@ -42,6 +42,8 @@ document.addEventListener('click', event => {
                 label.textContent = result.pendingLabel;
                 label.hidden = !result.pendingLabel;
             }
+            const badge = button.closest('tr,.mobile-tx-card')?.querySelector('[data-provider-row-state]');
+            if (badge && result.rowStatus) badge.textContent = result.rowStatus;
             if (result.refresh) timer = setTimeout(() => refresh(popup), 5000);
         } catch (error) {
             if (!current()) return;

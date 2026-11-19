@@ -195,7 +195,7 @@
                                 <% if(tx.transferType === 'balance_transfer') { %> <span class="badge-st st-done"><i class="fa-solid fa-check"></i> مكتمل</span>
                                 <% } else if(tx.status === 'completed') { %> <span class="badge-st st-done"><i class="fa-solid fa-check"></i> مكتمل</span>
                                 <% } else if(tx.status === 'pending') { %> <span class="badge-st st-wait"><i class="fa-solid fa-pause"></i> معلق</span>
-                                <% } else if(tx.status === 'processing') { %> <span class="badge-st st-proc"><i class="fa-solid fa-spinner fa-spin"></i> توجيه</span>
+                                <% } else if(tx.status === 'processing') { %> <span class="badge-st st-proc" data-provider-row-state><%= communication?.rowStatus || 'توجيه' %></span>
                                 <% } else if(tx.status === 'accepted') { %> <span class="badge-st st-work"><i class="fa-solid fa-user-gear"></i> قيد العمل</span>
                                 <% } else if(tx.status === 'deposit_pending') { %> <span class="badge-st st-wait"><i class="fa-solid fa-hand"></i> طلب إيداع</span>
                                 <% } else if(tx.status === 'deposit') { %> <span class="badge-st st-done"><i class="fa-solid fa-arrow-down"></i> إيداع</span>
@@ -345,7 +345,7 @@
                                 <% } else if(tx.status === 'completed') { %> <span class="badge bg-success opacity-75 mt-1 rounded-pill"><i class="fa-solid fa-check"></i> مكتملة</span>
                                 <% } else if(tx.status === 'rejected' || tx.status === 'cancelled_by_admin') { %> <span class="badge bg-danger opacity-75 mt-1 rounded-pill"><i class="fa-solid fa-xmark"></i> ملغاة</span>
                                 <% } else if(tx.status === 'pending') { %> <span class="badge bg-warning text-dark opacity-75 mt-1 rounded-pill"><i class="fa-solid fa-pause"></i> معلقة</span>
-                                <% } else if(tx.status === 'processing') { %> <span class="badge bg-info text-dark opacity-75 mt-1 rounded-pill"><i class="fa-solid fa-spinner fa-spin"></i> توجيه</span>
+                                <% } else if(tx.status === 'processing') { %> <span class="badge bg-info text-dark opacity-75 mt-1 rounded-pill" data-provider-row-state><%= communication?.rowStatus || 'توجيه' %></span>
                                 <% } else if(tx.status === 'accepted') { %> <span class="badge bg-primary opacity-75 mt-1 rounded-pill"><i class="fa-solid fa-user-gear"></i> قيد العمل</span>
                                 <% } else { %> <span class="badge bg-secondary opacity-75 mt-1 rounded-pill"><%= tx.status %></span> <% } %>
                             </div>

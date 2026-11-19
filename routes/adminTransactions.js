@@ -70,6 +70,7 @@ const {
 } = require('../services/externalApiService');
 const { resolveProviderResult } = require('../services/providerResolutionService');
 const { canReviewProviderOperation, providerTransactionIdOf, providerOperationMatches, pendingProviderQuery } = require('../utils/providerPendingOperation');
+const { readDiagnostics } = require('../utils/providerReadDiagnostics');
 const { isFinalZaynState, explicitlyReversed, zaynReceiptObservation, matchedZaynReceiptFields, zaynAccountMatches } = require('../utils/zaynReceiptStatus');
 const { stateLabels: providerMonitorLabels, monitorEnabled: pendingMonitorEnabled } = require('../services/apiPendingMonitorService');
 
@@ -547,6 +548,8 @@ const communicationProjection = ['customId', 'status', 'executorGroupId', ...[
     'providerTransactionId','externalTransactionId','providerTransactionNumber','transactionNumber','referenceNumber',
     'providerResultUnresolved','providerDispatchExecutorGroupId','providerMatchedAt','providerMatchedState','providerStatusCheckSucceeded','providerReportedReference',
     'providerMonitorState','providerMonitorStopped','providerMonitorCheckedAt','providerMonitorNextCheckAt','providerLastCheckedAt',
+    'providerMatchedReversal','providerLastCheckStage','providerLastCheckHttpStatus','providerLastCheckProviderCode',
+    'providerLastCheckTransport','providerLastCheckRetryAfterSeconds','providerLastCheckRetrySource',
     'providerPreflightOutcome','providerPreflightStage','providerPreflightAt','providerPreflightHttpStatus',
     'zaynFollowupAttemptId','zaynPaymentHttpStatus','zaynPaymentReplyState','zaynPaymentReplyAt','zaynPaymentStatus',
     'kenanOrder.status'
@@ -1150,6 +1153,7 @@ router.post('/transaction/:id/provider-status-check', requirePermission(PROVIDER
         const zaynState = conflict ? 'mismatch' : observedState;
         const matchedZayn = markedZayn && operation.success && zaynState !== 'mismatch';
         const checkData = markedZayn ? {
+            ...(operation.diagnostics || readDiagnostics(null)),
             providerLastCheckedAt:checkedAt, providerStatusCheckSucceeded:matchedZayn,
             providerMonitorState:zaynState, providerMonitorMessage:providerMonitorLabels[zaynState],
             providerMonitorCheckedAt:checkedAt,
@@ -1207,7 +1211,7 @@ router.post('/transaction/:id/provider-status-check', requirePermission(PROVIDER
             const codes = {mismatch:'PROVIDER_DETAILS_MISMATCH', paid:'ZAYN_PAID_AWAITING_SETTLEMENT', failed:'PROVIDER_CHECK_FAILED',
                 returned:'PROVIDER_RETURNED', rejected:'PROVIDER_REJECTED', pending:'PROVIDER_STILL_PENDING'};
             return respondTransactionAction(req, res, zaynState === 'mismatch' ? 409 : 200, {
-                success:matchedZayn, code:codes[zaynState], message:providerMonitorLabels[zaynState],
+                success:matchedZayn, code:codes[zaynState], message:providerMonitorLabels[zaynState], diagnostics:operation.diagnostics,
                 providerOperation:matchedZayn ? {providerTransactionId, referenceNumber:checkData.providerReportedReference,
                     providerStatus:zaynState, amount:operation.amount, isReturned:zaynState === 'returned'} : null
             });

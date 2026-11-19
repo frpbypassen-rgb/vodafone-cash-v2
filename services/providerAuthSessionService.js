@@ -3,6 +3,7 @@
 const axios = require('axios');
 const crypto = require('node:crypto');
 const logger = require('../utils/logger');
+const { transportCategory } = require('../utils/providerReadDiagnostics');
 const sessions = new Map();
 const TOKEN_TTL_MS = 5 * 60 * 1000;
 const MAX_JWT_CACHE_MS = 24 * 60 * 60 * 1000;
@@ -35,7 +36,7 @@ const failure = entry => {
             : `المزود يقيّد تسجيل الدخول مؤقتاً. انتظر ${retryAfterSeconds} ثانية حسب مهلة المزود قبل المحاولة التالية.`)
         : 'تعذر تسجيل الدخول لدى المزود. تحقق من بيانات الاتصال قبل إعادة المحاولة.'), {
         code: entry.code, retryAfterSeconds, retryAfterSource: entry.retryAfterSource,
-        providerHttpStatus: entry.providerHttpStatus, providerCode: entry.providerCode
+        providerHttpStatus: entry.providerHttpStatus, providerCode: entry.providerCode, providerTransport: entry.providerTransport
     });
 };
 const tokenDeadline = (token, now) => {
@@ -108,6 +109,7 @@ async function getProviderAuthSession(config, { onLogin, onRejected } = {}) {
             entry.retryAfterSource = delay.source;
             const status = Number(response?.status), providerCode = Number(response?.data?.Code);
             entry.providerHttpStatus = Number.isInteger(status) && status >= 100 && status <= 599 ? status : null;
+            entry.providerTransport = response ? null : transportCategory(error);
             entry.providerCode = Number.isSafeInteger(providerCode) && providerCode > 0 ? providerCode : null;
             entry.blockedUntil = Date.now() + delay.seconds * 1000;
             if (entry.code === RATE_LIMIT_CODE) logger.warn('PROVIDER_AUTH_THROTTLED', {

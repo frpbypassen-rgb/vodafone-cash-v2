@@ -8,7 +8,8 @@ const { providerOperationMatches } = require('./providerPendingOperation');
 const terminalStates = new Map();
 for (const [state, labels] of Object.entries({
     paid: ['paid','success','successful','completed','عملية ناجحة','ناجحة','تم الدفع بنجاح','تم التنفيذ بنجاح'],
-    returned: ['refunded','reversed','returned','cancelled','canceled','عملية مسترجعة','مرتجعة','مسترجعة','عملية ملغاة','ملغاة','ملغية'],
+    returned: ['refunded','reversed','returned','cancelled','canceled','عملية مسترجعة','مرتجعة','مسترجعة','عملية ملغاة','ملغاة','ملغية',
+        'ملغي','ملغى','العملية ملغاة','تم الإلغاء','تم إلغاء العملية','تم إلغاء العملية وردها'],
     rejected: ['failed','rejected','declined','عملية فاشلة','عملية مرفوضة','فاشلة','مرفوضة']
 })) {
     for (const label of labels) terminalStates.set(normalizeProviderStatus(label), state);
@@ -27,6 +28,11 @@ function zaynReceiptObservation(tx, result) {
     const details = result.rawData || {};
     const paid = booleanFlag(details.IsPaid);
     const failed = booleanFlag(details.IsFailure);
+    // Print replies can contain both status fields; a pending or contrary
+    // field must not authorize a terminal outcome from the other field.
+    if (String(details.TransactionStatus || '').trim() && String(details.Status || '').trim()
+        && classifyZaynReceiptStatus(details.Status) !== state) return 'mismatch';
+    if (state === 'returned' && paid === true && !explicitlyReversed(result.providerStatus)) return 'mismatch';
     if ((details.IsPaid != null && paid === null) || (details.IsFailure != null && failed === null)
         || (state === 'paid' && (failed === true || paid === false)) || (state === 'rejected' && paid === true)) return 'mismatch';
     return state;

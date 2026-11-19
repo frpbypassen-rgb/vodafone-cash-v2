@@ -623,6 +623,8 @@ describe('manual provider resolution', () => {
         expect(stored.status).toBe(state === 'paid' ? 'completed' : 'processing');
         expect(stored.apiResultData.providerMonitorState).toBe(state);
         expect(stored.apiResultData.providerLastCheckedRaw).toBeUndefined();
+        expect(stored.apiResultData.providerLastCheckStage).toBe('print');
+        expect(stored.apiResultData.providerLastCheckProviderCode).toBe(200);
         expect(stored.apiResultData.providerReportedReference).toBe(state === 'mismatch' ? 'earlier' : reference);
         expect(await moneySnapshot(executor._id)).toEqual({debits:state === 'paid' ? 1 : 0,refunds:0,paymentCalls:0});
     });

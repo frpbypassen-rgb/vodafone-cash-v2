@@ -16,11 +16,18 @@ beforeAll(async () => {
             res.setHeader('Content-Type', 'application/json');
             if (req.url.endsWith('/GetToken')) {
                 logins++;
+                if (mode === 'auth-network-reset') return req.socket.destroy();
                 if (mode === 'throttled') { res.statusCode = 429; res.setHeader('Retry-After', '120'); return res.end(JSON.stringify({ message: 'Too many attempts' })); }
                 const accessToken = mode === 'long-jwt'
                     ? 'header.' + Buffer.from(JSON.stringify({ exp: Date.now() / 1000 + 3600 })).toString('base64url') + '.signature'
                     : 'isolated-token';
                 return res.end(JSON.stringify({ Code: 200, Data: { Access_Token: accessToken } }));
+            }
+            if (req.url.endsWith('/Print')) {
+                reads++;
+                if (mode === 'print-network-reset') return req.socket.destroy();
+                if (mode === 'print-business-error') return res.end(JSON.stringify({ Code:422, Message:'private',
+                    Data:{TransactionId:'receipt-1', TransactionStatus:'cancelled', Amount:10, PhoneNumber:'01000000000'} }));
             }
             if (req.url.endsWith('/GetBalance')) { reads++; return res.end(JSON.stringify({ Code: 200, Data: { AvailableBalance: 1000 } })); }
             if (req.url.endsWith('/Inquiry')) return res.end(JSON.stringify({ Code: 200, Data: { PaymentBillInfo: 'isolated-bill' } }));
@@ -77,4 +84,32 @@ test.each(['success', 'throttled'])('direct and queued clients share one real HT
     } finally {
         keys.forEach((key, i) => { if (previous[i] === undefined) delete process.env[key]; else process.env[key] = previous[i]; });
     }
+});
+
+test('status lookup identifies authentication throttling without leaking provider diagnostics', async () => {
+    mode = 'throttled';
+    const result = await api.getApiProviderTransaction(config, 'receipt-1');
+    expect(result).toMatchObject({success:false, diagnostics:{
+        providerLastCheckStage:'auth', providerLastCheckHttpStatus:429, providerLastCheckProviderCode:null, providerLastCheckRetrySource:'provider_header',
+        providerLastCheckRetryAfterSeconds:expect.any(Number),providerLastCheckTransport:null
+    }});
+    expect(logins).toBe(1);
+    expect(payments).toBe(0);
+    expect(reads).toBe(0);
+});
+
+test.each([
+    ['auth-network-reset','auth',null,null,'connection',0],
+    ['print-network-reset','print',null,null,'connection',1],
+    ['print-business-error','print',200,422,null,1]
+])('status lookup reports only safe diagnostics for %s', async (scenario, stage, http, code, transport, readCount) => {
+    mode = scenario;
+    const result = await api.getApiProviderTransaction(config,'receipt-1');
+    expect(result).toMatchObject({success:false, diagnostics:{
+        providerLastCheckStage:stage, providerLastCheckHttpStatus:http,
+        providerLastCheckProviderCode:code, providerLastCheckTransport:transport
+    }});
+    expect(result.providerStatus).toBeUndefined();
+    expect(JSON.stringify(result)).not.toContain('private');
+    expect({logins,payments,reads}).toEqual({logins:1,payments:0,reads:readCount});
 });
