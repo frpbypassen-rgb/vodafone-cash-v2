@@ -13,6 +13,9 @@ test.each([
     ['ملغي', {IsPaid:false}, 'returned'],
     ['عملية ناجحة', {TransactionStatus:'عملية ناجحة', Status:'cancelled'}, 'mismatch'],
     ['cancelled', {TransactionStatus:'cancelled', Status:'refund pending'}, 'mismatch'],
+    ['قيدالفحص', {}, 'pending'],
+    ['معلقه', {}, 'pending'],
+    ['عمليه ناجحه', {}, 'paid'],
     ['refund pending', {}, 'pending'],
     ['لم يتم إلغاء العملية', {}, 'pending']
 ])('a matched Zayn receipt with status %s and flags %j gives %s', (status, fields, expected) => {

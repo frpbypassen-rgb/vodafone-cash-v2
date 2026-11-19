@@ -20,7 +20,8 @@ for (const [reply, expected] of [
     Object.assign(process.env, {APP_ENV:'staging', RUNTIME_ROLE:'full', EXTERNAL_API_ENABLED:'true',
         ZAYN_AUTO_FOLLOWUP_ENABLED:'true', API_PENDING_MONITOR_ENABLED:'false', FINANCIAL_SCHEDULERS_ENABLED:'false'});
     const phone = '01000000000';
-    const number = 'wire-zayn-301';
+    const number = reply.Status ? '810074' : 'wire-zayn-301';
+    const expectedWireNumber = reply.Status ? 810074 : number;
     const calls = [];
     let receipt = {TransactionStatus:'pending'};
     let unavailable = false;
@@ -31,6 +32,9 @@ for (const [reply, expected] of [
         calls.push({path:req.url, number:body.TransactionNumber || null});
         res.setHeader('Content-Type', 'application/json');
         if (req.headers.authorization !== 'Bearer fixture-token') return res.writeHead(401).end();
+        if (req.url.endsWith('/Print') && body.TransactionNumber !== expectedWireNumber) {
+            return res.end(JSON.stringify({Code:500, Data:null}));
+        }
         if (unavailable && req.url.endsWith('/Print')) {
             res.setHeader('Retry-After', '600');
             return res.writeHead(503).end(JSON.stringify({Code:4021, Message:'sensitive diagnostic text',
@@ -104,7 +108,7 @@ for (const [reply, expected] of [
         assert.deepEqual(await Transaction.collection.findOne({_id:older._id}),oldSnapshot);
         assert.deepEqual(await Campaign.collection.findOne({_id:campaign._id}),campaignSnapshot);
         assert.equal(calls.filter(c=>c.path.endsWith('/Payment')).length,1);
-        assert.deepEqual(calls.filter(c=>c.path.endsWith('/Print')).map(c=>c.number),reply.Status ? [number,number,number] : [number,number]);
+        assert.deepEqual(calls.filter(c=>c.path.endsWith('/Print')).map(c=>c.number),Array(reply.Status ? 3 : 2).fill(expectedWireNumber));
     } finally {
         if (server.listening) await new Promise(resolve=>server.close(resolve));
         await mongoose.disconnect();

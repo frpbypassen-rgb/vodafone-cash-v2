@@ -59,9 +59,25 @@ const extractProviderPhone = (data = {}) => {
     return phoneEntry && phoneEntry.Value ? String(phoneEntry.Value).trim() : '';
 };
 
+const exactTransactionId = (...values) => {
+    for (const value of values) {
+        if (typeof value === 'number' && Number.isSafeInteger(value) && value > 0) return String(value);
+        if (typeof value === 'string' && value.trim()) return value.trim();
+    }
+    return '';
+};
+
+// The documented Zayn Print contract takes a JSON integer. String IDs remain
+// exact inside our database and for legacy opaque/out-of-range provider IDs.
+const printTransactionNumber = (id, providerKey) => {
+    if (!['zayn_external_aggregator','zaynpay_legacy'].includes(providerKey) || !/^[1-9]\d*$/.test(id)) return id;
+    const number = Number(id);
+    return Number.isSafeInteger(number) ? number : id;
+};
+
 const normalizeProviderTransaction = (data = {}, fallbackTransactionNumber = '') => ({
-    reportedTransactionId: String(data.TransactionId || data.TransactionNumber || '').trim(),
-    providerTransactionId: String(data.TransactionId || data.TransactionNumber || fallbackTransactionNumber || '').trim(),
+    reportedTransactionId: exactTransactionId(data.TransactionId, data.TransactionNumber),
+    providerTransactionId: exactTransactionId(data.TransactionId, data.TransactionNumber, fallbackTransactionNumber),
     referenceNumber: String(data.RefNumber || data.PaymentServiceProviderTransactionId || '').trim(),
     providerStatus: String(data.TransactionStatus || '').trim() || String(data.Status || '').trim(),
     amount: Number.isFinite(Number(data.Amount)) ? Number(data.Amount) : null,
@@ -508,7 +524,7 @@ const executeTransferViaApi = async (tx, apiBot) => {
         if (Number(paymentData.Code) === 401) invalidateProviderAuthSession(config, headers.Authorization);
         const pd = paymentData.Data || {};
         const print = pd.PrintBill || {};
-        const extRef = firstNonEmpty(pd.TransactionNumber, pd.TransactionId, print.TransactionId);
+        const extRef = exactTransactionId(pd.TransactionNumber, pd.TransactionId, print.TransactionId);
         const refTxNum = firstNonEmpty(
             pd.RefTransactionNumber,
             pd.RefNumber,
@@ -630,11 +646,12 @@ const getApiProviderTransactions = async (apiBot, transactionNumbers = []) => {
         const timeStr = new Date().toLocaleTimeString('en-GB', { timeZone: SYSTEM_TIME_ZONE, hour12: false });
         processLog.push(`[${timeStr}] ${step}: ${detail}`);
     };
-    const uniqueNumbers = [...new Set(
-        (Array.isArray(transactionNumbers) ? transactionNumbers : [transactionNumbers])
-            .map((value) => String(value || '').trim())
-            .filter(Boolean)
-    )].slice(0, 100);
+    const inputs = Array.isArray(transactionNumbers) ? transactionNumbers : [transactionNumbers];
+    if (inputs.some(value => typeof value === 'number' && !Number.isSafeInteger(value))) {
+        return {success:false, code:'INVALID_PROVIDER_REFERENCE', message:'رقم عملية المزود غير دقيق.',
+            operations:[], diagnostics:readDiagnostics('configuration')};
+    }
+    const uniqueNumbers = [...new Set(inputs.map(value => exactTransactionId(value)).filter(Boolean))].slice(0, 100);
 
     if (!uniqueNumbers.length) {
         return { success: true, operations: [], processLog: '' };
@@ -652,10 +669,12 @@ const getApiProviderTransactions = async (apiBot, transactionNumbers = []) => {
         }
 
         stage = 'print';
+        const providerKey = String(apiBot?.apiProviderKey || '').trim() || config.preset.key;
         const operations = [];
         for (const transactionNumber of uniqueNumbers) {
             try {
-                const printRes = await postProviderRead(config, auth.headers, '/api/V1/Transactions/Print', { TransactionNumber: transactionNumber }, addLog);
+                const printRes = await postProviderRead(config, auth.headers, '/api/V1/Transactions/Print',
+                    { TransactionNumber: printTransactionNumber(transactionNumber, providerKey) }, addLog);
                 const responseData = printRes.data || {};
                 if (!hasSuccessCode(responseData) || !responseData.Data) {
                     operations.push({

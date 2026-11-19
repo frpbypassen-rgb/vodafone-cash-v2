@@ -399,6 +399,24 @@ describe('externalApiService', () => {
         );
     });
 
+    test('Print uses JSON integers only for unambiguous representable Zayn numbers', async () => {
+        axios.post.mockResolvedValue({ status:200,data:{Code:200,Data:{TransactionStatus:'معلقه'}} });
+        const ids = ['42','00042','abc-42','9007199254740991','9007199254740993','1e2'];
+        await getApiProviderTransactions({apiProviderKey:'zayn_external_aggregator',apiUrl:'https://zayn.example',apiToken:'local-token'},ids);
+        expect(axios.post.mock.calls.map(([,body])=>body.TransactionNumber)).toEqual([42,'00042','abc-42',Number.MAX_SAFE_INTEGER,'9007199254740993','1e2']);
+    });
+
+    test('an already imprecise JS number cannot be sent to Print or used as a matched receipt ID', async () => {
+        const group={apiProviderKey:'zayn_external_aggregator',apiUrl:'https://zayn.example',apiToken:'local-token'};
+        const imprecise=Number.MAX_SAFE_INTEGER + 1;
+        const invalid=await getApiProviderTransactions(group,[imprecise]);
+        expect(invalid.success).toBe(false);
+        expect(axios.post).not.toHaveBeenCalled();
+        axios.post.mockResolvedValueOnce({data:{Code:200,Data:{TransactionId:imprecise,TransactionStatus:'cancelled'}}});
+        const checked=await getApiProviderTransactions(group,['9007199254740992']);
+        expect(checked.operations[0].reportedTransactionId).toBe('');
+    });
+
     test('reviews provider transactions with one authentication and detects returned statuses', async () => {
         axios.post
             .mockResolvedValueOnce({
@@ -450,7 +468,7 @@ describe('externalApiService', () => {
         expect(axios.post).toHaveBeenNthCalledWith(
             2,
             'https://zayn.example/api/V1/Transactions/Print',
-            { TransactionNumber: '9001' },
+            { TransactionNumber: 9001 },
             expect.objectContaining({
                 headers: expect.objectContaining({ Authorization: 'Bearer review-token' })
             })

@@ -579,7 +579,7 @@ describe('manual provider resolution', () => {
         const admin = await resolver(['transactions.resolve_provider']);
         axios.post.mockImplementationOnce(async (url, body) => {
             expect(url).toContain('/Transactions/Print');
-            expect(body).toEqual({ TransactionNumber: '6103691' });
+            expect(body).toEqual({ TransactionNumber: 6103691 });
             if (scenario === 'changed') await Transaction.updateOne({ _id: tx._id }, { $set: { status: 'cancelled_by_admin' } });
             return { data: { Code: 200, Data: {
                 TransactionId: '6103691', RefNumber: '0121****429',
