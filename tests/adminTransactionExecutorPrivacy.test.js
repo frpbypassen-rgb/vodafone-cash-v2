@@ -1,8 +1,9 @@
 'use strict';
 
 const path = require('node:path');
+const http = require('node:http');
 const express = require('express');
-const request = require('supertest');
+
 
 jest.mock('../models/Transaction', () => ({ countDocuments: jest.fn(), aggregate: jest.fn() }));
 jest.mock('../models/ExecutorGroup', () => ({ find: jest.fn() }));
@@ -58,7 +59,14 @@ const makeApp = () => {
     return app;
 };
 
-let app;
+let app, server;
+
+async function readOperationsPage() {
+    const url = new URL('/transactions/operations', 'http://127.0.0.1');
+    url.port = String(server.address().port);
+    const response = await fetch(url);
+    return { status: response.status, text: await response.text() };
+}
 beforeAll(async () => {
     // Compile the real page/includes once outside individual request timings.
     // Cold EJS startup shares CPU with the full suite's recycled Jest workers.
@@ -68,8 +76,21 @@ beforeAll(async () => {
         lean: jest.fn().mockResolvedValue([])
     }));
     app = makeApp();
-    expect((await request(app).get('/transactions/operations')).status).toBe(200);
+    // Own one explicitly loopback-bound server for the suite. Do not create and
+    // close a different dual-stack listener for each Supertest request.
+    server = http.createServer(app);
+    await new Promise((resolve, reject) => {
+        server.once('error', reject);
+        server.listen(0, '127.0.0.1', resolve);
+    });
+    expect((await readOperationsPage()).status).toBe(200);
 }, 30000);
+
+afterAll(async () => {
+    if (server?.listening) await new Promise((resolve, reject) => {
+        server.close(error => error ? reject(error) : resolve());
+    });
+});
 
 beforeEach(() => {
     jest.clearAllMocks();
@@ -82,7 +103,7 @@ test.each([false, true])('real operations HTML exposes only executor selection f
     ExecutorGroup.find.mockImplementation(() => Object.assign(Promise.resolve([group]), {
         lean: jest.fn().mockResolvedValue([{ ...groupData }])
     }));
-    const response = await request(app).get('/transactions/operations');
+    const response = await readOperationsPage();
     expect(response.status).toBe(200);
     const serialized = response.text.match(/<script id="executorBotsData"[^>]*>([\s\S]*?)<\/script>/)?.[1];
     expect(serialized).toBeDefined();

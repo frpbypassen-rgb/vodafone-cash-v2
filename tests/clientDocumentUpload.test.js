@@ -67,10 +67,16 @@ describe('client identity image upload boundary', () => {
     test('rejects oversized uploads and unexpected fields', async () => {
         const large = await request(app).post('/transfer')
             .attach('idCardImage', Buffer.alloc(5 * 1024 * 1024 + 1), { filename: 'large.png', contentType: 'image/png' });
-        expect(large.status).toBe(422);
+        expect(large.status).toBe(413);
         const unexpected = await request(app).post('/transfer')
             .attach('otherImage', png, { filename: 'image.png', contentType: 'image/png' });
-        expect(unexpected.status).toBe(422);
+        expect(unexpected.status).toBe(400);
+        expect(handled).toBe(0);
+    });
+    test('unsupported MIME is a 415 client error without invoking the handler', async () => {
+        const response = await request(app).post('/transfer')
+            .attach('idCardImage', Buffer.from('<svg/>'), { filename: 'image.svg', contentType: 'image/svg+xml' });
+        expect(response.status).toBe(415);
         expect(handled).toBe(0);
     });
     test('removes a valid image when a later authorization step rejects the request', async () => {

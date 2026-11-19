@@ -80,6 +80,7 @@ const {
 } = require('../utils/passwordResetAvailability');
 const { getBrandContact } = require('../utils/brandContact');
 const passwordResetLimiter = createPasswordResetIpLimiter(8);
+const validatePasswordResetInput = require('../middlewares/passwordResetInput');
 
 const adminOtpVerifyLimiter = rateLimit({
     windowMs: 5 * 60 * 1000,
@@ -1525,7 +1526,7 @@ router.post('/admin/verify', adminOtpVerifyLimiter, async (req, res) => {
     }
 });
 
-router.post('/api/password-reset/start', passwordResetLimiter, async (req, res) => {
+router.post('/api/password-reset/start', passwordResetLimiter, validatePasswordResetInput(['username', 'phone']), async (req, res) => {
     const { startPasswordReset } = require('../services/passwordResetService');
     if (!isPasswordResetEmailEnabled()) {
         return res.status(200).json(await startPasswordReset({ req }));
@@ -1538,7 +1539,7 @@ router.post('/api/password-reset/start', passwordResetLimiter, async (req, res) 
     return res.status(200).json(body);
 });
 
-router.post('/api/password-reset/verify-otp', passwordResetLimiter, async (req, res) => {
+router.post('/api/password-reset/verify-otp', passwordResetLimiter, validatePasswordResetInput(['requestId', 'otp']), async (req, res) => {
     if (!isPasswordResetEmailEnabled()) {
         return res.status(400).json(passwordResetUnavailableBody());
     }
@@ -1552,7 +1553,7 @@ router.post('/api/password-reset/verify-otp', passwordResetLimiter, async (req, 
     return res.status(body.success ? 200 : 400).json(body);
 });
 
-router.post('/api/password-reset/submit', passwordResetLimiter, async (req, res) => {
+router.post('/api/password-reset/submit', passwordResetLimiter, validatePasswordResetInput(['requestId', 'newPassword', 'confirmPassword']), async (req, res) => {
     if (!isPasswordResetEmailEnabled()) {
         return res.status(400).json(passwordResetUnavailableBody());
     }

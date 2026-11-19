@@ -16,7 +16,7 @@ const receive = multer({
     limits: { fileSize: 5 * 1024 * 1024, files: 1, fieldArrayIndexLimit: 16 },
     fileFilter: (_req, file, callback) => {
         const allowed = new Set(['image/jpeg', 'image/jpg', 'image/png', 'image/webp']);
-        if (!allowed.has(file.mimetype)) return callback(new Error('INVALID_DOCUMENT_TYPE'));
+        if (!allowed.has(file.mimetype)) return callback(Object.assign(new Error('INVALID_DOCUMENT_TYPE'), { statusCode: 415 }));
         return callback(null, true);
     },
 });
@@ -28,7 +28,15 @@ module.exports = {
     single(field) {
         const parse = receive.single(field);
         return (req, res, next) => parse(req, res, async (error) => {
-            if (error || !req.file) return next(error);
+            if (error) {
+                // Multer errors have a code but no HTTP status. Classify client
+                // upload mistakes here rather than turning them into HTTP 500.
+                if (error instanceof multer.MulterError) {
+                    error.statusCode = error.code === 'LIMIT_FILE_SIZE' ? 413 : 400;
+                }
+                return next(error);
+            }
+            if (!req.file) return next();
             try {
                 const buffer = await fs.readFile(req.file.path);
                 parseExecutorImageDataUrl(`data:${req.file.mimetype};base64,${buffer.toString('base64')}`, {
