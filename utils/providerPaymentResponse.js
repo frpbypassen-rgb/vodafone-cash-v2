@@ -58,4 +58,4 @@ const classifyProviderPaymentResponse = (response, { returned = false } = {}) =>
     return 'unresolved';
 };
 
-module.exports = { classifyProviderPaymentResponse, normalizeProviderStatus, isReturnedProviderStatus };
+module.exports = { classifyProviderPaymentResponse, normalizeProviderStatus, isReturnedProviderStatus, booleanFlag };

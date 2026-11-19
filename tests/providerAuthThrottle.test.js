@@ -3,6 +3,7 @@ jest.mock('axios', () => ({ post: jest.fn() }));
 jest.mock('../utils/logger', () => ({ warn: jest.fn(), info: jest.fn(), error: jest.fn() }));
 jest.mock('../services/providerDispatchClaimService', () => ({
     ...jest.requireActual('../services/providerDispatchClaimService'),
+    saveZaynReply: jest.fn(async (tx, _id, fields) => { Object.assign(tx.apiResultData, fields); }),
     claimProviderDispatch: jest.fn(async tx => { tx.apiResultData = { providerDispatchAttemptId: 'test-attempt' }; return { claimed: true, attemptId: 'test-attempt' }; }),
     releaseProviderDispatchClaim: jest.fn(async () => ({ released: true }))
 }));
@@ -70,7 +71,7 @@ test('an expired cached token refreshes a read once without repeated authenticat
 test('the full balance, inquiry, Payment and post-balance sequence authenticates once', async () => {
     axios.post.mockImplementation(async url => url.endsWith('/GetToken') ? token('single-login')
         : url.endsWith('/GetBalance') ? balance : url.endsWith('/Inquiry') ? { data: { Code: 200, Data: { PaymentBillInfo: 'bill' } } }
-        : { data: { Code: 200, Data: { TransactionId: 'provider-1', RefNumber: '010****678' } } });
+        : { data: { Code: 200, Data: { TransactionId: 'provider-1', RefNumber: '010****678', Status: 'paid' } } });
     await api.getApiProviderBalance(config);
     const result = await api.executeTransferViaApi({ _id: 'operation-1', executorGroupId: 'group-1', amount: 100, vodafoneNumber: '01012345678' }, config);
     await api.getApiProviderBalance(config);

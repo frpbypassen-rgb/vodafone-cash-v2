@@ -3,6 +3,7 @@
 const ACTIVE_STATUSES = ['pending', 'processing', 'accepted'];
 const providerTransactionIdOf = (tx) => {
     const data = tx?.apiResultData || {};
+    if (data.zaynFollowupAttemptId) return String(data.providerTransactionId || '').trim();
     return String(data.externalTransactionId || data.providerTransactionId
         || data.providerTransactionNumber || data.transactionNumber || '').trim();
 };

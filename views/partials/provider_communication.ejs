@@ -1,0 +1,8 @@
+<% if (communication) { %>
+    <div class="d-inline-flex flex-column gap-1 align-items-center">
+        <button type="button" class="btn btn-sm <%= communication.confirmed ? 'btn-success' : 'btn-outline-warning' %> d-inline-flex align-items-center justify-content-center rounded-3 p-0" style="width:32px;height:32px;flex-shrink:0" data-provider-communication="<%= communication.text %>" data-observation-url="<%= typeof roomId !== 'undefined' ? '/executor/' + encodeURIComponent(roomId) : '' %>/transactions/<%= encodeURIComponent(tx._id) %>/provider-communication" title="<%= communication.title %> — <%= communication.receipt %>" aria-label="<%= communication.title %> — <%= communication.receipt %>">
+            <i class="fa-solid <%= communication.confirmed ? 'fa-comment-dots' : 'fa-clock' %>" aria-hidden="true"></i>
+        </button>
+        <span class="small text-info" role="status" data-provider-pending-label<%= communication.pendingLabel ? '' : ' hidden' %>><%= communication.pendingLabel %></span>
+    </div>
+<% } %>

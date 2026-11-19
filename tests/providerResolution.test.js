@@ -602,6 +602,56 @@ describe('manual provider resolution', () => {
         }
     });
 
+    test.each([
+        ['pending','010****321','6103691','pending','PROVIDER_STILL_PENDING'],
+        ['عملية ناجحة','full-reference','6103691','paid',null],
+        ['عملية ناجحة','010****321',undefined,'mismatch','PROVIDER_DETAILS_MISMATCH']
+    ])('marked Zayn manual status check verifies provider identity and finality for %s %s %s', async (status, reference, reportedId, state, code) => {
+        const { tx, executor } = await createHeldTransfer();
+        Object.assign(tx.apiResultData, {zaynFollowupAttemptId:tx.apiResultData.providerDispatchAttemptId,
+            providerTransactionId:'6103691', providerReportedReference:'earlier'});
+        tx.markModified('apiResultData');
+        await tx.save();
+        const admin = await resolver(['transactions.resolve_provider']);
+        axios.post.mockResolvedValueOnce({data:{Code:200, Data:{TransactionId:reportedId, RefNumber:reference,
+            PhoneNumber:tx.vodafoneNumber, Amount:AMOUNT, TransactionStatus:status, SecretValue:'private-fixture'}}});
+        const response = await request(adminApp(admin)).post(`/transaction/${tx._id}/provider-status-check`).set('Accept','application/json');
+        const stored = await Transaction.findById(tx._id);
+        if (code) expect(response.body.code).toBe(code);
+        else expect(response.body.action).toBe('completed_from_provider_check');
+        expect(JSON.stringify(response.body)).not.toContain('private-fixture');
+        expect(stored.status).toBe(state === 'paid' ? 'completed' : 'processing');
+        expect(stored.apiResultData.providerMonitorState).toBe(state);
+        expect(stored.apiResultData.providerLastCheckedRaw).toBeUndefined();
+        expect(stored.apiResultData.providerReportedReference).toBe(state === 'mismatch' ? 'earlier' : reference);
+        expect(await moneySnapshot(executor._id)).toEqual({debits:state === 'paid' ? 1 : 0,refunds:0,paymentCalls:0});
+    });
+
+    test('a confirmed paid Zayn receipt only permits operator release after an explicit matched reversal', async () => {
+        const {tx,executor} = await createHeldTransfer();
+        const admin = await resolver(['transactions.resolve_provider']);
+        Object.assign(tx.apiResultData, {zaynFollowupAttemptId:tx.apiResultData.providerDispatchAttemptId,
+            providerTransactionId:'6103691', referenceNumber:'010****321', referenceMasked:true,
+            providerMatchedState:'paid', providerMatchedPaidAt:new Date()});
+        tx.markModified('apiResultData');
+        await tx.save();
+        const check = async status => {
+            axios.post.mockResolvedValueOnce({data:{Code:200,Data:{TransactionId:'6103691',RefNumber:'010****321',
+                PhoneNumber:tx.vodafoneNumber,Amount:AMOUNT,TransactionStatus:status}}});
+            return request(adminApp(admin)).post(`/transaction/${tx._id}/provider-status-check`).set('Accept','application/json');
+        };
+        expect((await check('refund pending')).body.code).toBe('PROVIDER_DETAILS_MISMATCH');
+        expect((await Transaction.findById(tx._id)).apiResultData.providerMatchedState).toBe('paid');
+        expect((await preview(tx,admin,'provider_not_paid')).code).toBe(NOT_PAID_CONFLICT_CODE);
+        expect((await check('Refunded')).body.code).toBe('PROVIDER_RETURNED');
+        const current = await Transaction.findById(tx._id);
+        expect(current.apiResultData.providerMatchedReversal).toBe(true);
+        expect(current.apiResultData.providerMatchedPaidAt).toBeTruthy();
+        const decision = await confirmResolution(current,admin,'provider_not_paid',current.updatedAt);
+        expect(decision.applied).toBe(true);
+        expect(await moneySnapshot(executor._id)).toEqual({debits:0,refunds:0,paymentCalls:0});
+    });
+
     test.each(['funded', 'unfunded', 'mismatch', 'assigned', 'unavailable', 'known-success-unavailable', 'stale', 'held-pending'])('Kenan numeric success reference is reported accurately (%s)', async scenario => {
         const { tx, executor } = await createHeldTransfer({ status: scenario === 'held-pending' ? 'pending' : 'processing' });
         await ExecutorGroup.updateOne({ _id: executor._id }, { $set: { apiProviderKey: 'kenan',
@@ -832,6 +882,13 @@ describe('manual provider resolution', () => {
 
         const pendingReference = await createHeldTransfer();
         cases.push(['pending_reference', pendingReference.tx]);
+
+        const {tx:fullPaid} = await createHeldTransfer();
+        Object.assign(fullPaid.apiResultData, {zaynFollowupAttemptId:fullPaid.apiResultData.providerDispatchAttemptId,
+            providerTransactionId:'wire-paid', referenceNumber:'full', referenceMasked:false, providerMatchedState:'paid'});
+        fullPaid.markModified('apiResultData');
+        await fullPaid.save();
+        cases.push(['zayn_confirmed_paid',fullPaid]);
 
         const withReference = await createAmbiguousTransfer();
         withReference.tx.apiResultData = {

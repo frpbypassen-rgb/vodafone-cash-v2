@@ -287,6 +287,10 @@ class ApiTransferQueue {
                     code: UNRESOLVED_CODE
                 });
             } else {
+                if (apiResult.preflightStage) {
+                    tx.apiResultData = { ...tx.apiResultData, providerPreflightAt:new Date(), providerPreflightOutcome:'failed',
+                        providerPreflightStage:apiResult.preflightStage, providerPreflightHttpStatus:apiResult.providerHttpStatus || null };
+                }
                 await releaseFailedApiExecutionToPending(tx, {
                     failureNote: `[فشل التنفيذ الآلي: ${apiResult.message}]`,
                     detailedLog

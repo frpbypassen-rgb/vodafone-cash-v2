@@ -28,7 +28,7 @@ async function reconcileKenanOrder({ transactionId, executorGroupId, actor, req,
     if (tx.status !== 'processing' || !reference || tx.apiResultData?.providerResolutionOutcome) throw new Error('KENAN_STATE_CONFLICT');
     const response = await provider.getTransactions(bot, [reference]);
     const operation = response.operations?.[0];
-    if (!operation?.success || operation.phone !== tx.vodafoneNumber || operation.amount !== Number(tx.amount)
+    if (!operation?.success || operation.phone !== (tx.vodafoneNumber || tx.accountNumber) || operation.amount !== Number(tx.amount)
         || operation.providerTransactionId !== reference) throw new Error('KENAN_AUTHORITATIVE_RESULT_UNAVAILABLE');
     const order = operation.rawData;
     const debitQuery = { entityModel: 'ExecutorGroup', entityId: bot._id, transactionId: tx.customId, type: 'TRANSFER' };

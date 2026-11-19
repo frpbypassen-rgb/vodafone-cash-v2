@@ -8,6 +8,7 @@ const VIEW_PATH = path.join(__dirname, '..', 'views', 'transactions.ejs');
 const tableStyles = fs.readFileSync(path.join(__dirname, '..', 'public/css/admin-transactions.css'), 'utf8');
 
 const baseLocals = {
+    providerCommunicationView: require('../utils/providerCommunicationView').providerCommunicationView,
     adminName: 'مدير الاختبار',
     role: 'admin',
     csrfToken: 'test-csrf',
@@ -53,10 +54,11 @@ describe('central ledger page layout', () => {
                 kenanAwaitingStatus: status !== 'success', waitingApiAutoCompletion: status === 'success',
                 kenanOrder: { executor_phone: '01012345678', reason: '<script>unsafe</script>' } } };
         const html = renderTransactions({ transactions: [tx], operationWorkspace: true });
-        expect(html.match(/data-kenan-response-text=/g)).toHaveLength(2);
+        expect(html.match(/data-provider-communication=/g)).toHaveLength(2);
         expect(html).toContain('0000020');
-        expect(html).toContain('01012345678');
-        expect(html).toContain('&lt;script&gt;unsafe&lt;/script&gt;');
+        const logs = html.match(/data-provider-communication="[^"]*"/g).join(' ');
+        expect(logs).not.toContain('01012345678');
+        expect(logs).not.toContain('unsafe');
         expect(html).not.toContain('data-provider-row-action=');
         expect(html).not.toContain(`/transaction/${tx._id}/pull-task`);
         expect(html).not.toContain(`/transaction/${tx._id}/global-cancel`);

@@ -3,6 +3,7 @@
 jest.mock('axios', () => ({ post: jest.fn() }));
 jest.mock('../services/providerDispatchClaimService', () => ({
     UNRESOLVED_CODE: 'PROVIDER_RESULT_UNRESOLVED',
+    saveZaynReply: jest.fn(async (tx, _id, fields) => { Object.assign(tx.apiResultData, fields); }),
     claimProviderDispatch: jest.fn(async tx => {
         tx.apiResultData = { providerDispatchAttemptId: 'attempt-1' };
         return { claimed: true, attemptId: 'attempt-1' };
@@ -61,4 +62,24 @@ test.each([null, {}, ' '])('rejects malformed authentication tokens before Inqui
         { apiUrl: 'https://provider.test', apiUsername: 'test-user', apiPassword: 'test-password' });
     expect(result.success).toBe(false);
     expect(axios.post).toHaveBeenCalledTimes(1);
+});
+
+test('a masked receipt with an explicit pending state is held and raw provider fields are not logged', async () => {
+    axios.post.mockResolvedValueOnce({data:{Code:200,Data:{PaymentBillInfo:'test-bill'}}})
+        .mockResolvedValueOnce({status:200,data:{Code:200,Data:{Status:'pending',TransactionId:'00042',
+            RefNumber:'010****123', ExtraDiagnostic:'PRIVATE_FIXTURE_ONLY'}}});
+    const result = await executeTransferViaApi({_id:'tx-1',executorGroupId:'group-1',amount:100,vodafoneNumber:'01012345678'}, provider);
+    expect(result.success).toBe('pending');
+    expect(result.provider_transaction_id).toBe('00042');
+    expect(result.processLog).not.toContain('PRIVATE_FIXTURE_ONLY');
+    expect(result.processLog).not.toContain('01012345678');
+    expect(axios.post).toHaveBeenCalledTimes(2);
+});
+
+test('a success-shaped Payment response for a different amount cannot settle the transfer', async () => {
+    axios.post.mockResolvedValueOnce({data:{Code:200,Data:{PaymentBillInfo:'test-bill'}}})
+        .mockResolvedValueOnce({status:200,data:{Code:200,Data:{Amount:101,Status:'paid',TransactionId:'00043',RefNumber:'010****123'}}});
+    const result=await executeTransferViaApi({_id:'tx-1',executorGroupId:'group-1',amount:100,vodafoneNumber:'01012345678'},provider);
+    expect(result.success).toBe('unresolved');
+    expect(releaseProviderDispatchClaim).not.toHaveBeenCalled();
 });

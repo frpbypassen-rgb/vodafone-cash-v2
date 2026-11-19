@@ -23,7 +23,7 @@ async function refreshMissingReceipts() {
         if (!bot?.isApiBot || bot.apiProviderKey !== 'kenan') continue;
         const response = await getTransactions(bot, [claimed.apiResultData.kenanReference]);
         const op = response.operations?.[0];
-        if (!op?.success || op.providerStatus !== 'success' || op.phone !== claimed.vodafoneNumber
+        if (!op?.success || op.providerStatus !== 'success' || op.phone !== (claimed.vodafoneNumber || claimed.accountNumber)
             || op.amount !== Number(claimed.amount) || op.providerTransactionId !== claimed.apiResultData.kenanReference) continue;
         const fresh = await Transaction.findOneAndUpdate({ _id: claimed._id, status: 'completed', updatedAt: claimed.updatedAt,
             executorGroupId: claimed.executorGroupId, 'apiResultData.executorReceiptProof': null }, { $set: {
@@ -80,7 +80,9 @@ function startKenanFollowupMonitor() {
     timer = setInterval(scan, 5000);
     timer.unref?.();
     void scan();
-    logger.info('Kenan automatic saved-reference follow-up started', { intervalMs: 5000 });
+    logger.info('Kenan automatic saved-reference follow-up started', {
+        pid:process.pid, startedAt:new Date().toISOString(), intervalMs:5000
+    });
     return timer;
 }
 function stopKenanFollowupMonitor() { if (timer) clearInterval(timer); timer = null; }

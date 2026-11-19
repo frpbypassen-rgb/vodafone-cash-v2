@@ -9,7 +9,8 @@ jest.mock('../services/providerDispatchClaimService', () => {
     const actual = jest.requireActual('../services/providerDispatchClaimService');
     return {
         ...actual,
-        claimProviderDispatch: jest.fn(async (tx) => {
+        saveZaynReply: jest.fn(async (tx, _id, fields) => { Object.assign(tx.apiResultData, fields); }),
+    claimProviderDispatch: jest.fn(async (tx) => {
             const attemptId = 'unit-attempt';
             const claimedAt = new Date('2026-01-01T00:00:00.000Z');
             if (tx) {

@@ -39,10 +39,13 @@ test.each([50, 100, 60000])('v7 sends exactly integer pounds without a second co
     expect(axios.post.mock.calls[0][1]).toEqual({ phone: '01000000000', amount });
 });
 test('a mismatching acceptance amount remains unresolved and cannot authorize settlement', async () => {
-    axios.post.mockResolvedValue({ data: order('success', { amount_minor: 10000 }) });
+    axios.post.mockResolvedValue({ status:200, data: order('success', { amount_minor: 10000 }) });
     expect(await api.executeTransferViaApi(tx(), bot)).toMatchObject({ success: 'unresolved' });
     expect(dispatch.releaseProviderDispatchClaim).not.toHaveBeenCalled();
-    expect(Transaction.updateOne).not.toHaveBeenCalled();
+    expect(Transaction.updateOne.mock.calls[0][1].$set).toEqual({
+        'apiResultData.kenanCreateReplyState':'unknown', 'apiResultData.kenanCreateHttpStatus':200,
+        'apiResultData.kenanCreateReplyAt':expect.any(Date)
+    });
 });
 test('Kenan balance is converted from piastres to EGP', async () => {
     axios.get.mockResolvedValue({ data: { credit: 10000, reserved: 1000, available: 9000 } });
@@ -80,6 +83,31 @@ test('an ambiguous POST timeout holds the dispatch and never repeats it', async 
     expect(dispatch.releaseProviderDispatchClaim).not.toHaveBeenCalled();
     expect(axios.post).toHaveBeenCalledTimes(1);
     expect(JSON.stringify(result)).not.toContain('fixture-secret');
+    expect(Transaction.updateOne.mock.calls[0][1].$set).toMatchObject({
+        'apiResultData.kenanCreateReplyState':'unknown', 'apiResultData.kenanCreateHttpStatus':null
+    });
+});
+test.each([[401,'definitive_rejection','rejected',true],[503,'unresolved','unknown',false]])('records HTTP %i against the active claim before release or hold', async (status, classification, reply, released) => {
+    dispatch.classifyPaymentTransportError.mockReturnValueOnce(classification);
+    axios.post.mockRejectedValueOnce({response:{status,data:{message:'upstream-private'}}});
+    const result = await api.executeTransferViaApi(tx(), bot);
+    const [filter,update,options] = Transaction.updateOne.mock.calls[0];
+    expect(filter).toMatchObject({_id:'tx-1',status:'processing',executorGroupId:'executor-1','apiResultData.providerDispatchAttemptId':'claim-1',
+        'apiResultData.providerResolutionOutcome':{$exists:false}});
+    expect(update.$set).toEqual({'apiResultData.kenanCreateReplyState':reply, 'apiResultData.kenanCreateHttpStatus':status,
+        'apiResultData.kenanCreateReplyAt':expect.any(Date)});
+    expect(options.writeConcern.w).toBe('majority');
+    expect(Boolean(result.dispatchReleased)).toBe(released);
+    if(released) expect(Transaction.updateOne.mock.invocationCallOrder[0]).toBeLessThan(dispatch.releaseProviderDispatchClaim.mock.invocationCallOrder[0]);
+    expect(axios.post).toHaveBeenCalledTimes(1);
+});
+test('a concurrent claim change prevents release even on a definitive upstream rejection', async () => {
+    dispatch.classifyPaymentTransportError.mockReturnValueOnce('definitive_rejection');
+    axios.post.mockRejectedValueOnce({response:{status:401}});
+    Transaction.updateOne.mockResolvedValueOnce({matchedCount:0});
+    expect((await api.executeTransferViaApi(tx(),bot)).success).toBe('unresolved');
+    expect(dispatch.releaseProviderDispatchClaim).not.toHaveBeenCalled();
+    expect(axios.post).toHaveBeenCalledTimes(1);
 });
 test('runtime switch blocks Kenan before every outbound request', async () => {
     process.env.EXTERNAL_API_ENABLED = 'false';
@@ -122,9 +150,25 @@ describe('durable Kenan status polling', () => {
         expect(axios.post).not.toHaveBeenCalled();
     });
     test.each([{ phone: '01111111111' }, { amount_minor: 10000 }, { reference: '0000002' }, { status: 'unknown' }])('mismatched or malformed response %j retains the hold', async extra => {
-        axios.get.mockResolvedValue({ data: order('success', extra) });
+        axios.get.mockResolvedValue({ status:200, data: order('success', extra) });
         await service.pollPendingOrders();
-        expect(Transaction.updateOne).not.toHaveBeenCalled();
+        const [guard, update] = Transaction.updateOne.mock.calls[0];
+        expect(guard).toMatchObject({'apiResultData.kenanReference':'0000001',updatedAt:row.updatedAt});
+        expect(update.$set).toEqual({
+            'apiResultData.kenanLastPollAt':expect.any(Date), 'apiResultData.kenanLastPollOutcome':'mismatch',
+            'apiResultData.kenanLastPollHttpStatus':200, 'apiResultData.kenanNextPollAt':expect.any(Date)
+        });
+        expect(axios.post).not.toHaveBeenCalled();
+    });
+    test('a read throttle persists the next attempt and preserves the last verified receipt', async () => {
+        axios.get.mockRejectedValue({response:{status:429,headers:{'retry-after':'240'}}});
+        const start=Date.now();
+        await service.pollPendingOrders();
+        const patch=Transaction.updateOne.mock.calls[0][1].$set;
+        expect(patch).toMatchObject({'apiResultData.kenanLastPollOutcome':'unavailable','apiResultData.kenanLastPollHttpStatus':429});
+        expect(patch['apiResultData.kenanNextPollAt'].getTime()).toBeGreaterThanOrEqual(start+240000);
+        expect(patch['apiResultData.kenanProviderStatus']).toBeUndefined();
+        expect(axios.post).not.toHaveBeenCalled();
     });
     test('another worker holding the poll lease prevents duplicate status handling', async () => {
         Transaction.findOneAndUpdate.mockResolvedValue(null);

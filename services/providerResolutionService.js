@@ -77,17 +77,21 @@ const notPaidEvidenceConflict = async (tx) => {
     if (!tx) return null;
     const data = tx.apiResultData || {};
     if (data.providerResolutionEffectStartedAt) return 'providerResolutionEffectStartedAt';
-    if ([data.referenceNumber, data.providerReportedReference].some((value) => /[*＊×•·]/u.test(clean(value)))) return 'provider_reference';
-    const dispatchResult = clean(data.providerDispatchResult);
-    if (dispatchResult === 'accepted') return dispatchResult;
-    if (dispatchResult === 'pending_reference' && data.referenceMasked !== false) return dispatchResult;
-    const reference = storedProviderReference(tx);
-    // A full provider reference is the explicit pending outcome supported by
-    // the provider contract. It may be cancelled after evidence confirms that
-    // the provider rejected or returned it. Masked references remain proof of
-    // payment and cannot be resolved as not-paid.
-    if (reference && data.referenceMasked !== false) return 'provider_reference';
-    if (data.waitingApiAutoCompletion === true && clean(data.referenceNumber)) return 'waiting_reference';
+    const marked = data.zaynFollowupAttemptId && data.zaynFollowupAttemptId === data.providerDispatchAttemptId;
+    const confirmedReversal = marked && data.providerMatchedState === 'returned' && data.providerMatchedReversal === true;
+    if (marked && !confirmedReversal && (data.providerMatchedPaidAt || data.providerMatchedState === 'paid'
+        || data.zaynPaymentReplyState === 'accepted')) return 'zayn_confirmed_paid';
+    // An exact, matched negative receipt can be reviewed for operator release.
+    // A previous paid receipt needs an explicit reversal; all local effect/ledger checks still apply.
+    const verifiedNegative = marked && data.providerMatchedAt && ['returned','rejected'].includes(data.providerMatchedState);
+    if (!verifiedNegative) {
+        if ([data.referenceNumber, data.providerReportedReference].some((value) => /[*＊×•·]/u.test(clean(value)))) return 'provider_reference';
+        const dispatchResult = clean(data.providerDispatchResult);
+        if (dispatchResult === 'accepted') return dispatchResult;
+        if (dispatchResult === 'pending_reference' && data.referenceMasked !== false) return dispatchResult;
+        if (storedProviderReference(tx) && data.referenceMasked !== false) return 'provider_reference';
+        if (data.waitingApiAutoCompletion === true && clean(data.referenceNumber)) return 'waiting_reference';
+    }
     if (tx.customId) {
         const debit = await Ledger.findOne({
             entityModel: 'ExecutorGroup',

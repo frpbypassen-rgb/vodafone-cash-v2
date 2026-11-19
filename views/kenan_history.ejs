@@ -16,4 +16,14 @@
 <section><h2>دفعات حساب كنان</h2><small>سجل للمراجعة؛ لا يضيف أرصدة إلى النظام تلقائيًا.</small><% if (!deposits.success) { %><p role="alert"><%= deposits.message %></p><% } %>
 <table><thead><tr><th>المرجع</th><th>القيمة</th><th>التاريخ (UTC)</th><th>المسؤول</th></tr></thead><tbody>
 <% deposits.deposits.forEach(d => { %><tr><td dir="ltr"><%= d.reference %></td><td><%= money(d.amount_minor) %></td><td dir="ltr"><%= d.created_at || 'غير متاح' %></td><td><%= d.responsible || 'غير متاح' %></td></tr><% }) %></tbody></table></section>
+<section><h2>سجل التخاطب لدى كنان</h2>
+<% if (!communications.success) { %><p role="alert"><%= communications.message %></p>
+<% } else { %>
+<% if (communications.communications.length) { %>
+<table><thead><tr><th>وقت الطلب (UTC)</th><th>الطلب</th><th>المسار</th><th>رمز HTTP</th><th>مرجع كنان</th></tr></thead><tbody>
+<% communications.communications.forEach(row => { %><tr><td dir="ltr"><%= row.createdAt || '—' %></td><td><%= row.method || '—' %></td><td dir="ltr"><%= row.path || '—' %></td><td><%= row.httpStatus || '—' %></td><td dir="ltr"><%= row.reference || '—' %></td></tr><% }) %>
+</tbody></table>
+<% } else if (!communications.unrecognized) { %><p>لا توجد سجلات تخاطب.</p><% } %>
+<% if (communications.unrecognized) { %><p>عدد السجلات التي لم تتضمن حقولًا قابلة للعرض: <%= communications.unrecognized %></p><% } %>
+<% } %></section>
 </main></body></html>

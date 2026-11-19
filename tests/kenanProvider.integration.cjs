@@ -43,9 +43,16 @@ before(async () => {
                     res.writeHead(400).end(JSON.stringify({ error: 'INTEGER_AMOUNT_IN_POUNDS_REQUIRED' })); return;
                 }
                 postCount += 1;
+                if (providerStatus === 'create401' || providerStatus === 'create503') {
+                    res.writeHead(providerStatus === 'create401' ? 401 : 503).end(JSON.stringify({message:'private fixture error'})); return;
+                }
                 res.end(JSON.stringify({ reference: '0000001', phone: payload.phone, amount_minor: payload.amount * 100, status: 'queued' }));
             });
-        } else if (req.url === '/api/company/orders/0000001') {
+        } else if (req.method === 'GET' && req.url === '/api/company/orders/0000001') {
+            if (providerStatus === 'throttled') {
+                res.writeHead(429, {'Retry-After':'180'}).end(JSON.stringify({message:'private upstream diagnostic'}));
+                return;
+            }
             res.end(JSON.stringify({ reference: '0000001', phone: '01000000000', amount_minor: 5000, fee_minor: 0, status: providerStatus,
                 executor_phone: providerStatus === 'success' ? '01100000000' : null, completed_at: providerStatus === 'success' ? '2026-11-15T00:00:00Z' : null }));
         } else res.writeHead(404).end('{}');
@@ -60,14 +67,39 @@ after(async () => {
     mock.restoreAll();
 });
 beforeEach(() => { providerStatus = 'queued'; postCount = 0; published.mock.resetCalls(); });
-const createOrder = async suffix => {
+const setupOrder = async (suffix, destination = {vodafoneNumber:'01000000000'}) => {
     const bot = await ExecutorGroup.create({ name: 'Kenan fixture', apiProviderKey: 'kenan', apiUrl: url, apiToken: 'fixture-key', isApiBot: true, balance: 1000 });
-    const tx = await Transaction.create({ customId: 'KENAN-' + suffix, status: 'processing', executorGroupId: bot._id, transferType: 'vodafone', vodafoneNumber: '01000000000', amount: 50, costLYD: 10 });
+    const tx = await Transaction.create({ customId: 'KENAN-' + suffix, status: 'processing', executorGroupId: bot._id, transferType: 'vodafone', ...destination, amount: 50, costLYD: 10 });
+    return {bot, tx};
+};
+const createOrder = async (suffix, destination) => {
+    const {bot, tx} = await setupOrder(suffix, destination);
     const result = await api.executeTransferViaApi(tx, bot);
     assert.equal(result.success, 'pending');
     return { bot, tx };
 };
 const makeDue = tx => Transaction.updateOne({ _id: tx._id }, { $set: { 'apiResultData.kenanNextPollAt': new Date(0) } });
+test('rejected and uncertain HTTP create replies persist without manufacturing receipt or resending', async () => {
+    for (const status of [401,503]) {
+        providerStatus = 'create'+status;
+        const before = postCount;
+        const {bot, tx} = await setupOrder('CREATE-'+status);
+        const result = await api.executeTransferViaApi(tx,bot);
+        assert.equal(result.success,status === 401 ? false : 'unresolved');
+        const saved = await Transaction.findById(tx._id);
+        assert.equal(saved.apiResultData.kenanCreateHttpStatus,status);
+        assert.equal(saved.apiResultData.kenanCreateReplyState,status === 401 ? 'rejected' : 'unknown');
+        assert.ok(saved.apiResultData.kenanCreateReplyAt instanceof Date);
+        assert.equal(saved.apiResultData.kenanReference,undefined);
+        assert.equal(JSON.stringify(saved.apiResultData).includes('private fixture error'),false);
+        assert.equal(automaticPaymentBlocked(saved),status === 503);
+        if (status === 503) assert.equal((await api.executeTransferViaApi(saved,bot)).success,'unresolved');
+        await pollPendingOrders();
+        assert.equal(postCount,before+1);
+        assert.equal(await Ledger.countDocuments({transactionId:tx.customId}),0);
+        assert.equal((await ExecutorGroup.findById(bot._id)).balance,1000);
+    }
+});
 test('acceptance stays held until verified success and concurrent finalizers post one debit', async () => {
     const { bot, tx } = await createOrder('SUCCESS');
     let fresh = await Transaction.findById(tx._id);
@@ -102,6 +134,37 @@ test('verified failure returns to administration without a debit or refund', asy
     assert.equal((await ExecutorGroup.findById(bot._id)).balance, 1000);
     assert.equal(await Ledger.countDocuments({ transactionId: tx.customId }), 0);
     assert.equal(postCount, 1);
+});
+
+test('a throttled GET preserves acceptance and later completes through the independent Kenan worker without a second POST', async () => {
+    const previous = process.env.FINANCIAL_SCHEDULERS_ENABLED;
+    process.env.FINANCIAL_SCHEDULERS_ENABLED = 'false';
+    try {
+        const { bot, tx } = await createOrder('THROTTLED-GET', {accountNumber:'01000000000'});
+        const accepted = await Transaction.findById(tx._id);
+        providerStatus = 'throttled';
+        await makeDue(tx);
+        const started = Date.now();
+        const { runKenanFollowupCycle } = require('../services/kenanFollowupService');
+        await runKenanFollowupCycle();
+        const pending = await Transaction.findById(tx._id);
+        assert.equal(pending.apiResultData.kenanLastPollOutcome,'unavailable');
+        assert.equal(pending.apiResultData.kenanLastPollHttpStatus,429);
+        assert.ok(new Date(pending.apiResultData.kenanNextPollAt).getTime() >= started + 180000);
+        assert.equal(pending.apiResultData.kenanReceivedAt.getTime(),accepted.apiResultData.kenanReceivedAt.getTime());
+        assert.equal(pending.apiResultData.kenanProviderStatus,'queued');
+        assert.equal(await Ledger.countDocuments({transactionId:tx.customId}),0);
+        providerStatus = 'success';
+        await makeDue(tx);
+        await runKenanFollowupCycle();
+        const finished = await Transaction.findById(tx._id);
+        assert.equal(finished.status,'completed');
+        assert.equal(finished.apiResultData.kenanLastPollOutcome,'matched');
+        assert.equal(finished.apiResultData.kenanLastPollHttpStatus,200);
+        assert.equal((await ExecutorGroup.findById(bot._id)).balance,950);
+        assert.equal(postCount,1);
+        assert.equal(process.env.FINANCIAL_SCHEDULERS_ENABLED,'false');
+    } finally { process.env.FINANCIAL_SCHEDULERS_ENABLED = previous; }
 });
 test('a new claim clears the previous rejection before any retry can be transmitted', async () => {
     const { bot, tx } = await createOrder('RETRY');

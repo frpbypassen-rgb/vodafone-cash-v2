@@ -17,7 +17,7 @@ jest.setTimeout(120000);
 let database;
 let serial = 0;
 const envKeys = ['FINANCIAL_SCHEDULERS_ENABLED', 'EXTERNAL_API_ENABLED', 'API_PENDING_MONITOR_ENABLED'];
-const oldEnv = Object.fromEntries(envKeys.map((key) => [key, process.env[key]]));
+const oldEnv = Object.fromEntries([...envKeys, 'ZAYN_AUTO_FOLLOWUP_ENABLED'].map((key) => [key, process.env[key]]));
 const receipt = () => ({ success: true, providerTransactionId: '6103691', referenceNumber: '0121****429',
     phone: '01099887766', amount: 100, providerStatus: 'عمليه ناجحه', isReturned: false });
 const createPending = async (data = {}) => {
@@ -37,6 +37,7 @@ beforeAll(async () => {
 });
 beforeEach(() => {
     envKeys.forEach((key) => { process.env[key] = 'true'; });
+    process.env.ZAYN_AUTO_FOLLOWUP_ENABLED = 'false';
     getApiProviderTransaction.mockReset().mockResolvedValue(receipt());
 });
 afterEach(async () => {
@@ -45,11 +46,93 @@ afterEach(async () => {
 });
 afterAll(async () => {
     monitor.stopApiPendingMonitor();
-    for (const key of envKeys) {
+    for (const key of Object.keys(oldEnv)) {
         if (oldEnv[key] === undefined) delete process.env[key]; else process.env[key] = oldEnv[key];
     }
     await mongoose.disconnect();
     await database.stop();
+});
+
+test('forward Zayn receipt reads continue past eight tries with campaigns and the historical monitor off', async () => {
+    process.env.FINANCIAL_SCHEDULERS_ENABLED = 'false';
+    process.env.API_PENDING_MONITOR_ENABLED = 'false';
+    process.env.ZAYN_AUTO_FOLLOWUP_ENABLED = 'true';
+    const {tx, group} = await createPending({zaynFollowupAttemptId:'new-claim', providerDispatchAttemptId:'new-claim',
+        providerMonitorAttempts:8, providerReportedReference:'verified-earlier'});
+    await Transaction.updateOne({_id:tx._id}, {$set:{'apiResultData.providerDispatchExecutorGroupId':group._id}});
+    await createPending();
+    await createPending({zaynFollowupAttemptId:'past-claim', providerDispatchAttemptId:'other-claim'});
+    const reply = {...receipt(), reportedTransactionId:'6103691'};
+    getApiProviderTransaction.mockResolvedValueOnce({...reply, providerStatus:'pending', isReturned:false})
+        .mockResolvedValueOnce({...reply, phone:'01000000000'})
+        .mockResolvedValueOnce({...reply, providerStatus:'refund pending', isReturned:true})
+        .mockResolvedValueOnce({...reply, rawData:{}, reportedTransactionId:''})
+        .mockResolvedValueOnce({...reply, rawData:{IsFailure:true}})
+        .mockResolvedValueOnce({...reply, referenceNumber:'full-reference'});
+    for (const [index,expected] of ['pending','mismatch','pending','mismatch','mismatch','paid'].entries()) {
+        expect(await monitor.runPendingMonitorCycle()).toEqual({checked:1});
+        const saved = await Transaction.findById(tx._id).lean();
+        expect(saved.apiResultData.providerMonitorState).toBe(expected);
+        expect(saved.apiResultData.providerMatchedState).toBe(expected === 'paid' ? 'paid' : 'pending');
+        expect(saved.apiResultData.providerMonitorStopped).toBe(expected === 'paid');
+        expect(saved.apiResultData.providerMonitorAttempts).toBe(9 + index);
+        expect(saved.status).toBe('processing');
+        if (expected !== 'paid') {
+            expect(saved.apiResultData.providerMonitorNextCheckAt.getTime()).toBeGreaterThan(Date.now());
+            await Transaction.updateOne({_id:tx._id}, {$set:{'apiResultData.providerMonitorNextCheckAt':new Date(0)}});
+        }
+    }
+    expect(await monitor.runPendingMonitorCycle()).toEqual({checked:0});
+    expect(getApiProviderTransaction).toHaveBeenCalledTimes(6);
+    expect((await ExecutorGroup.findById(group._id)).balance).toBe(5000);
+});
+
+test('forward Zayn does not substitute a local/reference number and does not send old alerts', async () => {
+    process.env.FINANCIAL_SCHEDULERS_ENABLED = 'false';
+    process.env.API_PENDING_MONITOR_ENABLED = 'false';
+    process.env.ZAYN_AUTO_FOLLOWUP_ENABLED = 'true';
+    const {tx, group} = await createPending({zaynFollowupAttemptId:'new', providerDispatchAttemptId:'new',
+        providerTransactionId:null, referenceNumber:'do-not-query', externalTransactionId:'do-not-query'});
+    await Transaction.updateOne({_id:tx._id}, {$set:{'apiResultData.providerDispatchExecutorGroupId':group._id}});
+    const {tx:old} = await createPending({providerMonitorAlertPending:true,
+        providerMonitorAlert:{fingerprint:'historical', title:'old', message:'old', state:'pending'}});
+    await monitor.runPendingMonitorCycle();
+    const saved = (await Transaction.findById(tx._id)).apiResultData;
+    expect(saved.providerMonitorState).toBe('missing_reference');
+    expect(saved.providerMonitorStopped).toBe(false);
+    expect(getApiProviderTransaction).not.toHaveBeenCalled();
+    expect((await Transaction.findById(old._id)).apiResultData.providerMonitorAlertPending).toBe(true);
+    expect(await Notification.countDocuments({targetId:old._id})).toBe(0);
+});
+
+test.each([3600, 172800])('forward Zayn honors provider Retry-After of %i seconds', async retryAfterSeconds => {
+    process.env.FINANCIAL_SCHEDULERS_ENABLED = 'false';
+    process.env.ZAYN_AUTO_FOLLOWUP_ENABLED = 'true';
+    const {tx, group} = await createPending({zaynFollowupAttemptId:'new', providerDispatchAttemptId:'new'});
+    await Transaction.updateOne({_id:tx._id}, {$set:{'apiResultData.providerDispatchExecutorGroupId':group._id}});
+    getApiProviderTransaction.mockResolvedValueOnce({success:false,retryAfterSeconds});
+    await monitor.runPendingMonitorCycle();
+    const saved = (await Transaction.findById(tx._id)).apiResultData;
+    expect(saved.providerMonitorNextCheckAt - saved.providerMonitorCheckedAt).toBe(retryAfterSeconds * 1000);
+    expect(saved.providerMonitorStopped).toBe(false);
+});
+
+test('the dedicated timer starts with financial schedulers off and stays off on probe runtimes', () => {
+    const priorRole = process.env.RUNTIME_ROLE;
+    process.env.FINANCIAL_SCHEDULERS_ENABLED = 'false';
+    process.env.API_PENDING_MONITOR_ENABLED = 'false';
+    process.env.ZAYN_AUTO_FOLLOWUP_ENABLED = 'true';
+    try {
+        process.env.RUNTIME_ROLE = 'probe';
+        expect(monitor.startApiPendingMonitor()).toBeNull();
+        process.env.RUNTIME_ROLE = 'full';
+        const timer = monitor.startApiPendingMonitor();
+        expect(timer).toBeTruthy();
+        expect(monitor.startApiPendingMonitor()).toBe(timer);
+    } finally {
+        monitor.stopApiPendingMonitor();
+        if (priorRole === undefined) delete process.env.RUNTIME_ROLE; else process.env.RUNTIME_ROLE = priorRole;
+    }
 });
 
 test.each([

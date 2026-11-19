@@ -10,7 +10,9 @@ const Notification = require('../models/Notification');
 const ApiBalanceAudit = require('../models/ApiBalanceAudit');
 const ApiProviderReturn = require('../models/ApiProviderReturn');
 const Settings = require('../models/Settings');
-const { requireAuth, requireMaster } = require('../middlewares/auth');
+const { requireAuth, requireMaster, requirePermission } = require('../middlewares/auth');
+const { adminAccountScope, tenantWriteId } = require('../utils/tenantScope');
+const { tenantMode } = require('../middlewares/tenantResolver');
 const { systemDateRange } = require('../config/systemTime');
 const { syncBotBalance, escapeRegex } = require('../utils/helpers');
 const { DEFAULT_API_PROVIDER_KEY, getApiProviderPreset, getApiProviderPresets } = require('../utils/apiProviderPresets');
@@ -575,13 +577,18 @@ router.post('/executor/:id/kenan-reconcile/:transactionId', requireAuth, require
     } catch (_) { return res.status(409).send('لم يُعتمد تغيير جديد. تحقق من حالة العملية ونتيجة كنان والرصيد، ثم أعد فتح المعاينة. لا تُعد إرسال التحويل.'); }
 });
 
-router.get('/executor/:id/kenan-history', requireAuth, async (req, res) => {
+router.get('/executor/:id/kenan-history', requireAuth, requirePermission('executors.read'), async (req, res) => {
     try {
-        const bot = await ExecutorGroup.findById(req.params.id);
-        if (!bot?.isApiBot || bot.apiProviderKey !== 'kenan') return res.sendStatus(404);
+        if (!/^[a-f\d]{24}$/i.test(req.params.id) || (tenantMode() === 'multi' && !tenantWriteId(req))) return res.sendStatus(404);
+        const bot = await ExecutorGroup.findOne({ ...adminAccountScope(req), _id:req.params.id, isApiBot:true, apiProviderKey:'kenan' })
+            .select('name apiUrl apiToken').lean();
+        if (!bot) return res.sendStatus(404);
         const provider = require('../services/kenanProviderService');
-        const [orders, deposits] = await Promise.all([provider.getLatestOrders(bot), provider.getDeposits(bot)]);
-        return res.render('kenan_history', { bot, orders, deposits });
+        const [orders, deposits, communications] = await Promise.all([
+            provider.getLatestOrders(bot), provider.getDeposits(bot), provider.getCommunications(bot)
+        ]);
+        res.set('Cache-Control', 'private, no-store');
+        return res.render('kenan_history', { bot:{_id:bot._id,name:bot.name}, orders, deposits, communications });
     } catch (_) { return res.sendStatus(503); }
 });
 

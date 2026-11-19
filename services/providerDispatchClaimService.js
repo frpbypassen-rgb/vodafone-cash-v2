@@ -147,12 +147,26 @@ const clearClaimOnDoc = (tx) => {
     if (typeof tx.markModified === 'function') tx.markModified('apiResultData');
 };
 
-const claimProviderDispatch = async (tx, { expectedStatus = 'processing' } = {}) => {
+// A newly authorized attempt cannot inherit the previous attempt's receipt or poll lease.
+const attemptField = key => /^(?:kenan|zayn|providerMonitor|providerMatched|providerReported|providerLastCheck|providerPreflight|providerStatusCheck|providerReturnDetected|providerResponseMode)/.test(key)
+    || ['referenceNumber','referenceMasked','providerTransactionId','providerTransactionNumber','transactionNumber','externalTransactionId','waitingApiAutoCompletion',
+        'autoCompleteAt','providerResultUnresolvedAt','providerResultUnresolvedReason','providerResultUnresolvedCode'].includes(key);
+const claimProviderDispatch = async (tx, { expectedStatus = 'processing', zaynFollowup = false } = {}) => {
     if (!tx || !tx._id || !tx.executorGroupId || (expectedStatus === 'accepted' && !tx.operatorId)) {
         return { claimed: false, reason: 'missing_transaction' };
     }
     const priorResolution = Object.fromEntries(Object.entries(dataOf(tx)).filter(([key]) =>
         key.startsWith('providerResolution') && key !== 'providerResolutionHistory' || key === 'providerResolvedAt'));
+    const previous = dataOf(tx);
+    const oldAttemptKeys = Object.keys(previous).filter(attemptField);
+    const oldAttempt = Object.fromEntries(['kenanReference','kenanProviderStatus','providerTransactionId','referenceNumber',
+        'zaynPaymentReplyState','providerMatchedState','providerMatchedAt','zaynPaymentReplyAt','kenanReceivedAt']
+        .filter(key => previous[key] != null).map(key => [key, previous[key]]));
+    const history = {};
+    if (Object.keys(oldAttempt).length) history['apiResultData.providerDispatchHistory'] = { $each:[oldAttempt], $slice:-20 };
+    if (Object.keys(priorResolution).length) history['apiResultData.providerResolutionHistory'] = priorResolution;
+    const attemptUnset = Object.fromEntries(oldAttemptKeys.filter(key => !(zaynFollowup && key === 'zaynFollowupAttemptId'))
+        .map(key => ['apiResultData.' + key, '']));
     const resolutionUnset = Object.fromEntries(Object.keys(priorResolution).map(key => [`apiResultData.${key}`, '']));
     const attemptId = crypto.randomUUID();
     const claimedAt = new Date();
@@ -185,12 +199,11 @@ const claimProviderDispatch = async (tx, { expectedStatus = 'processing' } = {})
                 ]
             },
             {
-                ...(Object.keys(priorResolution).length ? {
-                    $push: { 'apiResultData.providerResolutionHistory': priorResolution },
-                } : {}),
-                $unset: { ...resolutionUnset, 'apiResultData.providerDispatchResult': '' },
+                ...(Object.keys(history).length ? { $push: history } : {}),
+                $unset: { ...attemptUnset, ...resolutionUnset, 'apiResultData.providerDispatchResult': '' },
                 $set: {
                     ...(expectedStatus === 'accepted' ? { status: 'processing' } : {}),
+                    ...(zaynFollowup ? { 'apiResultData.zaynFollowupAttemptId': attemptId } : {}),
                     'apiResultData.providerDispatchStartedAt': claimedAt,
                     'apiResultData.providerDispatchAttemptId': attemptId,
                     'apiResultData.providerDispatchExecutorGroupId': asObjectId(tx.executorGroupId),
@@ -207,7 +220,10 @@ const claimProviderDispatch = async (tx, { expectedStatus = 'processing' } = {})
             for (const key of Object.keys(priorResolution)) delete tx.apiResultData[key];
         }
         if (tx.apiResultData) delete tx.apiResultData.providerDispatchResult;
+        for (const key of oldAttemptKeys) delete tx.apiResultData[key];
         applyClaimToDoc(tx, { attemptId, claimedAt });
+        if (zaynFollowup) tx.apiResultData.zaynFollowupAttemptId = attemptId;
+        if (Object.keys(oldAttempt).length) tx.apiResultData.providerDispatchHistory = [...(previous.providerDispatchHistory || []),oldAttempt].slice(-20);
         return { claimed: true, attemptId, claimedAt };
     } catch (error) {
         logger.error('Provider dispatch claim failed closed', {
@@ -216,6 +232,18 @@ const claimProviderDispatch = async (tx, { expectedStatus = 'processing' } = {})
         });
         return { claimed: false, reason: 'claim_error', attemptId, error };
     }
+};
+
+// Fence the upstream reply to the still-open dispatch before the queue does further I/O.
+const saveZaynReply = async (tx, attemptId, fields) => {
+    const update = Object.fromEntries(Object.entries(fields).map(([key, value]) => ['apiResultData.' + key, value]));
+    const result = await Transaction.collection.updateOne({
+        _id: asObjectId(tx._id), status: 'processing', executorGroupId: asObjectId(tx.executorGroupId),
+        'apiResultData.providerDispatchAttemptId': attemptId, 'apiResultData.zaynFollowupAttemptId': attemptId,
+        'apiResultData.providerResolutionOutcome': { $exists: false }
+    }, { $set: { ...update, updatedAt: new Date() } }, { writeConcern: { w:'majority' } });
+    if (!result.matchedCount) throw new Error('PROVIDER_DISPATCH_STATE_CHANGED');
+    tx.apiResultData = { ...dataOf(tx), ...fields };
 };
 
 const releaseProviderDispatchClaim = async (tx, attemptId) => {
@@ -359,6 +387,7 @@ module.exports = {
     classifyPaymentTransportError,
     claimProviderDispatch,
     releaseProviderDispatchClaim,
+    saveZaynReply,
     clearClaimOnDoc,
     markProviderResultUnresolved,
     guardAutomaticProviderRedispatch,

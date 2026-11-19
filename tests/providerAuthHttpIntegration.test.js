@@ -1,6 +1,7 @@
 'use strict';
 jest.mock('../services/providerDispatchClaimService', () => ({
     ...jest.requireActual('../services/providerDispatchClaimService'),
+    saveZaynReply: jest.fn(async (tx, _id, fields) => { Object.assign(tx.apiResultData, fields); }),
     claimProviderDispatch: jest.fn(async tx => { tx.apiResultData = { providerDispatchAttemptId: 'isolated' }; return { claimed: true, attemptId: 'isolated' }; })
 }));
 jest.mock('../utils/logger', () => ({ warn: jest.fn(), info: jest.fn(), error: jest.fn() }));
@@ -23,7 +24,7 @@ beforeAll(async () => {
             }
             if (req.url.endsWith('/GetBalance')) { reads++; return res.end(JSON.stringify({ Code: 200, Data: { AvailableBalance: 1000 } })); }
             if (req.url.endsWith('/Inquiry')) return res.end(JSON.stringify({ Code: 200, Data: { PaymentBillInfo: 'isolated-bill' } }));
-            payments++; res.end(JSON.stringify({ Code: 200, Data: { TransactionId: 'isolated-1', RefNumber: '010****678' } }));
+            payments++; res.end(JSON.stringify({ Code: 200, Data: { TransactionId: 'isolated-1', RefNumber: '010****678', Status: 'paid' } }));
         });
     });
     await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));

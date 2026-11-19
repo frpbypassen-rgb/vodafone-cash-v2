@@ -8,6 +8,6 @@
     <span class="d-block">رد المزود: <%= reviewData.providerReportedStatus || 'لا يوجد رد مسجل' %></span>
     <% if (reviewData.providerReportedReference) { %><span class="d-block">المرجع: <b dir="ltr"><%= reviewData.providerReportedReference %></b></span><% } %>
     <span class="d-block">آخر استعلام: <%= reviewDate(reviewData.providerLastCheckedAt || reviewData.providerMonitorCheckedAt) %></span>
-    <span class="d-block">الفحوص الدورية: <%= Number(reviewData.providerMonitorAttempts || 0) %> / 8</span>
+    <span class="d-block">الفحوص الدورية: <%= Number(reviewData.providerMonitorAttempts || 0) %><%= reviewData.zaynFollowupAttemptId ? '' : ' / 8' %></span>
     <span class="d-block"><%= reviewData.providerMonitorStopped ? 'الفحص الدوري متوقف — القرار للإدارة' : (reviewData.providerMonitorNextCheckAt ? 'الموعد التالي: ' + reviewDate(reviewData.providerMonitorNextCheckAt) : 'تُفحص تلقائيًا عند حلول دورها إذا كانت المتابعة مفعلة') %></span>
 </div>

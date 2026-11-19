@@ -58,8 +58,11 @@ const safeFailure = error => {
         404: 'رابط كنان أو مرجع العملية غير موجود.', 409: 'رصيد كنان المتاح لا يغطي الطلب.',
         429: 'مهلة كنان لمنع تكرار التحويل ما زالت سارية. راجع الطلب السابق قبل إعادة المحاولة.' };
     const result = errorResult(error.code === 'EXTERNAL_API_DISABLED' ? error.code : 'KENAN_REQUEST_FAILED', messages[status] || 'تعذر الاتصال بكنان. راجع الرابط والمفتاح وحالة المزود.');
-    const retry = Number(error.response?.data?.retry_after_seconds || error.response?.headers?.['retry-after']);
-    if (status === 429 && Number.isSafeInteger(retry) && retry > 0 && retry <= 86400) result.retryAfterSeconds = retry;
+    if (Number.isInteger(status) && status >= 100 && status <= 599) result.httpStatus = status;
+    const retryAfter = error.response?.data?.retry_after_seconds || error.response?.headers?.['retry-after'];
+    const retry = typeof retryAfter === 'string' && !/^\d+$/.test(retryAfter)
+        ? Math.ceil((Date.parse(retryAfter) - Date.now()) / 1000) : Number(retryAfter);
+    if ([429,503].includes(status) && Number.isSafeInteger(retry) && retry > 0 && retry <= 31536000) result.retryAfterSeconds = retry;
     return result;
 };
 
@@ -99,20 +102,34 @@ const executeTransfer = async (tx, bot) => {
         const payload = validateTransfer(tx.vodafoneNumber || tx.accountNumber, Number(tx.amount), tx.transferType);
         claim = await claimProviderDispatch(tx);
         if (!claim.claimed) return { success: 'unresolved', code: UNRESOLVED_CODE, message: 'توجد مطالبة إرسال سابقة. راجع العملية قبل إعادة المحاولة.' };
-        let response;
-        try { response = await axios.post(`${config.baseUrl}/api/company/orders`, payload, config.options); }
+        let response, order;
+        try {
+            response = await axios.post(`${config.baseUrl}/api/company/orders`, payload, config.options);
+            order = parseOrder(response.data, { phone: payload.phone, amount_minor: payload.amount * 100 });
+        }
         catch (error) {
-            const classification = classifyPaymentTransportError(error);
-            if (classification === 'before_send' || (classification === 'definitive_rejection' && [400, 401, 404, 409, 429].includes(Number(error.response?.status)))) {
+            const classification = response ? 'unresolved' : classifyPaymentTransportError(error);
+            const status = Number(response?.status ?? error.response?.status);
+            const rejected = classification === 'definitive_rejection' && [400, 401, 404, 409, 429].includes(status);
+            const observation = { kenanCreateReplyAt: new Date(), kenanCreateReplyState: rejected ? 'rejected' : 'unknown',
+                kenanCreateHttpStatus: Number.isInteger(status) && status >= 100 && status <= 599 ? status : null };
+            const set = Object.fromEntries(Object.entries(observation).map(([key, value]) => [`apiResultData.${key}`, value]));
+            const write = await Transaction.updateOne({ _id:tx._id, status:'processing', executorGroupId:tx.executorGroupId,
+                'apiResultData.providerDispatchAttemptId':claim.attemptId, 'apiResultData.providerResolutionOutcome':{$exists:false},
+                'apiResultData.kenanReference':{$in:[null,'']} }, { $set:set }, { writeConcern:{w:'majority'} });
+            if (write.matchedCount !== 1) throw new Error('DISPATCH_STATE_CHANGED');
+            tx.apiResultData = { ...(tx.apiResultData || {}), ...observation };
+            if (classification === 'before_send' || rejected) {
                 await releaseProviderDispatchClaim(tx, claim.attemptId);
                 return { ...safeFailure(error), dispatchReleased: true };
             }
             throw error;
         }
-        const order = parseOrder(response.data, { phone: payload.phone, amount_minor: payload.amount * 100 });
+        const receivedAt = new Date();
         const data = {
             kenanReference: order.reference, kenanProviderStatus: order.status, kenanOrder: order,
-            kenanLastCheckedAt: new Date(), kenanAwaitingStatus: true,
+            kenanReceivedAt: receivedAt, kenanLastCheckedAt: receivedAt, kenanAwaitingStatus: true,
+            kenanLastPollAt: null, kenanLastPollOutcome: null, kenanLastPollHttpStatus: null,
             kenanNextPollAt: new Date(Date.now() + 5000), referenceNumber: order.reference,
             providerTransactionId: order.reference, externalTransactionId: order.reference,
             providerResultUnresolved: true, providerDispatchResult: 'kenan_pending', waitingApiAutoCompletion: false
@@ -138,13 +155,20 @@ const getTransactions = async (bot, references = []) => {
         const config = configuration(bot);
         for (const reference of [...new Set(references.map(String))].slice(0, 100)) {
             if (!/^\d{1,64}$/.test(reference)) { operations.push({ success: false, requestedTransactionId: reference }); continue; }
+            let response;
             try {
-                const { data } = await axios.get(`${config.baseUrl}/api/company/orders/${encodeURIComponent(reference)}`, config.options);
-                const order = parseOrder(data, { reference });
-                operations.push({ success: true, providerTransactionId: order.reference, requestedTransactionId: reference,
+                response = await axios.get(`${config.baseUrl}/api/company/orders/${encodeURIComponent(reference)}`, config.options);
+            } catch (error) {
+                operations.push({ ...safeFailure(error), outcome:'unavailable', requestedTransactionId:reference });
+                continue;
+            }
+            const httpStatus = response?.status ?? null;
+            try {
+                const order = parseOrder(response.data, { reference });
+                operations.push({ success: true, httpStatus, providerTransactionId: order.reference, requestedTransactionId: reference,
                     referenceNumber: order.reference, providerStatus: order.status, phone: order.phone, amount: order.amount_minor / 100,
                     providerDate: order.created_at, isReturned: ['failed', 'cancelled'].includes(order.status), rawData: order });
-            } catch (_) { operations.push({ success: false, requestedTransactionId: reference, message: 'تعذر التحقق من عملية كنان.' }); }
+            } catch (_) { operations.push({ success: false, httpStatus, outcome:'mismatch', requestedTransactionId: reference, message: 'ردّ كنان غير مطابق أو غير مكتمل.' }); }
         }
         return { success: operations.some(item => item.success), operations, checkedCount: operations.length, failedCount: operations.filter(item => !item.success).length };
     } catch (error) { return { ...safeFailure(error), operations: [], checkedCount: 0, failedCount: 0 }; }
@@ -176,6 +200,38 @@ const getDeposits = async bot => {
     } catch (error) { return { ...safeFailure(error), deposits: [] }; }
 };
 
+// The company feed has no fixed row schema in v7. Expose only recognized
+// metadata; even a documented route can carry credentials in a query string.
+const getCommunications = async bot => {
+    try {
+        const config = configuration(bot);
+        const { data } = await axios.get(`${config.baseUrl}/api/company/communications`, config.options);
+        const rows = Array.isArray(data) ? data : data?.communications;
+        if (!Array.isArray(rows) || rows.length > 100) {
+            return { success:false, communications:[], message:'وصل رد كنان بصيغة غير معروفة لسجل التخاطب.' };
+        }
+        const communications = [];
+        for (const row of rows) {
+            if (!row || typeof row !== 'object') continue;
+            const path = row.path ?? row.endpoint;
+            const created = row.created_at ?? row.timestamp;
+            const status = row.http_status ?? row.status_code;
+            const entry = {
+                method:['GET','POST'].includes(row.method) ? row.method : null,
+                path:typeof path === 'string' && /^\/api\/company\/(?:balance|communications|deposits|orders(?:\/check|\/\d{1,64})?)$/.test(path) ? path : null,
+                httpStatus:['number','string'].includes(typeof status) && /^[1-5]\d{2}$/.test(String(status)) ? Number(status) : null,
+                reference:typeof row.reference === 'string' && /^\d{1,64}$/.test(row.reference) ? row.reference : null,
+                createdAt:typeof created === 'string' && /^\d{4}-\d{2}-\d{2}T[\d:.]+(?:Z|[+-]\d{2}:\d{2})$/.test(created)
+                    && Number.isFinite(Date.parse(created)) ? new Date(created).toISOString() : null
+            };
+            if (Object.values(entry).some(value => value !== null)) communications.push(entry);
+        }
+        return { success:true, communications, unrecognized:rows.length - communications.length };
+    } catch (error) {
+        return { ...safeFailure(error), communications:[] };
+    }
+};
+
 const pollPendingOrders = async () => {
     if (!isKenanFollowupEnabled()) return;
     const now = new Date();
@@ -192,20 +248,26 @@ const pollPendingOrders = async () => {
         const claimed = await Transaction.findOneAndUpdate(filter,
             { $set: { 'apiResultData.kenanNextPollAt': new Date(Date.now() + 60000) } }, { returnDocument: 'after' });
         if (!claimed) continue;
-        const bot = await ExecutorGroup.findById(tx.executorGroupId);
-        if (!bot || bot.apiProviderKey !== 'kenan') continue;
-        const response = await getTransactions(bot, [claimed.apiResultData.kenanReference]);
-        const operation = response.operations?.[0];
-        if (!operation?.success || operation.phone !== claimed.vodafoneNumber
-            || operation.amount !== Number(claimed.amount)) continue;
-        const set = { 'apiResultData.kenanProviderStatus': operation.providerStatus,
-            'apiResultData.kenanOrder': operation.rawData,
-            'apiResultData.kenanFeeMinor': operation.rawData.fee_minor,
-            'apiResultData.kenanLastCheckedAt': new Date() };
+        const reference = claimed.apiResultData.kenanReference;
         const stateFilter = { _id: claimed._id, status: 'processing', executorGroupId: claimed.executorGroupId,
-            'apiResultData.kenanReference': operation.providerTransactionId,
+            'apiResultData.kenanReference': reference, 'apiResultData.providerDispatchAttemptId': claimed.apiResultData.providerDispatchAttemptId,
             updatedAt: claimed.updatedAt, 'apiResultData.providerResultUnresolved': true,
             'apiResultData.providerResolutionOutcome': { $exists: false } };
+        const bot = await ExecutorGroup.findById(claimed.executorGroupId);
+        const response = bot?.apiProviderKey === 'kenan' ? await getTransactions(bot, [reference]) : {};
+        const operation = response.operations?.[0];
+        const observedAt = new Date();
+        const set = { 'apiResultData.kenanLastPollAt': observedAt, 'apiResultData.kenanLastPollHttpStatus': operation?.httpStatus ?? null };
+        if (!operation?.success || operation.phone !== (claimed.vodafoneNumber || claimed.accountNumber) || operation.amount !== Number(claimed.amount)) {
+            const outcome = operation ? (operation.outcome || 'mismatch') : 'configuration';
+            set['apiResultData.kenanLastPollOutcome'] = outcome;
+            set['apiResultData.kenanNextPollAt'] = new Date(observedAt.getTime() + Math.max(60, operation?.retryAfterSeconds || 0) * 1000);
+            await Transaction.updateOne(stateFilter, { $set:set });
+            continue;
+        }
+        Object.assign(set, { 'apiResultData.kenanLastPollOutcome':'matched', 'apiResultData.kenanProviderStatus': operation.providerStatus,
+            'apiResultData.kenanOrder': operation.rawData, 'apiResultData.kenanFeeMinor': operation.rawData.fee_minor,
+            'apiResultData.kenanLastCheckedAt': observedAt });
         if (operation.providerStatus === 'success') {
             Object.assign(set, { 'apiResultData.kenanAwaitingStatus': false,
                 'apiResultData.providerResultUnresolved': false, 'apiResultData.providerDispatchResult': 'accepted',
@@ -232,4 +294,4 @@ const pollPendingOrders = async () => {
     }
 };
 
-module.exports = { getBalance, preflight, executeTransfer, getTransactions, getLatestOrders, getDeposits, parseOrder, pollPendingOrders };
+module.exports = { getBalance, preflight, executeTransfer, getTransactions, getLatestOrders, getDeposits, getCommunications, parseOrder, pollPendingOrders };

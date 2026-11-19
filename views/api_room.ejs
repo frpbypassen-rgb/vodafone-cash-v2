@@ -471,8 +471,7 @@
                                 <tr><td colspan="6" class="py-5 text-muted">لا يوجد سجل عمليات حتى الآن.</td></tr>
                             <% } %>
                             <% transactions.forEach(tx => {
-                                const apiLogText = [tx.adminNotes, tx.notes].filter(Boolean).join('\n');
-                                const hasApiLog = apiLogText.includes('--- سجل الـ API');
+                                const communication = providerCommunicationView(tx);
                             %>
                                 <tr>
                                     <td class="text-muted small"><%= new Date(tx.updatedAt).toLocaleString('en-GB', { timeZone: 'Africa/Tripoli' }) %></td>
@@ -480,10 +479,8 @@
                                     <td class="font-monospace text-warning"><%= tx.vodafoneNumber || 'تسديد حساب' %></td>
                                     <td class="fw-bold fs-5"><%= tx.amount %></td>
                                     <td>
-                                        <% if (hasApiLog) { %>
-                                            <button onclick="showApiLog(this)" data-log="<%= encodeURIComponent(apiLogText) %>" class="btn-api-log">
-                                                <i class="fa-solid fa-terminal me-2"></i> عرض السجل
-                                            </button>
+                                        <% if (communication) { %>
+                                            <%- include('partials/provider_communication', { communication, roomId:bot._id, tx }) %>
                                         <% } else { %>
                                             <span class="text-muted small text-wrap" style="max-width: 150px; display: inline-block;">
                                                 <%= tx.notes || '---' %>
@@ -491,10 +488,10 @@
                                         <% } %>
                                     </td>
                                     <td>
-                                        <% if(tx.status === 'completed') { %> <span class="badge border border-success text-success bg-transparent px-3 py-2"><i class="fa-solid fa-check me-1"></i> نجاح (200 OK)</span>
+                                        <% if(tx.status === 'completed') { %> <span class="badge border border-success text-success bg-transparent px-3 py-2"><i class="fa-solid fa-check me-1"></i> مكتملة محليًا</span>
                                         <% } else if(tx.status === 'deposit') { %> <span class="badge border border-info text-info bg-transparent px-3 py-2"><i class="fa-solid fa-arrow-down me-1"></i> إيداع عهدة</span>
                                         <% } else if(tx.status === 'deduction') { %> <span class="badge border border-danger text-danger bg-transparent px-3 py-2"><i class="fa-solid fa-arrow-up me-1"></i> سحب عهدة</span>
-                                        <% } else { %> <span class="badge border border-warning text-warning bg-transparent px-3 py-2"><i class="fa-solid fa-triangle-exclamation me-1"></i> خطأ استجابة</span> <% } %>
+                                        <% } else { %> <span class="badge border border-warning text-warning bg-transparent px-3 py-2"><%= ({ pending:'معلّقة', processing:'قيد التنفيذ', accepted:'قيد العمل', rejected:'مرفوضة', cancelled:'ملغاة', cancelled_by_admin:'ملغاة من الإدارة' })[tx.status] || 'حالة أخرى' %></span> <% } %>
                                     </td>
                                 </tr>
                             <% }) %>
@@ -514,30 +511,6 @@
     }
 
     // 🟢 دالة عرض نافذة السجل المنبثقة (Terminal View)
-    function showApiLog(btn) {
-        const rawNotes = decodeURIComponent(btn.getAttribute('data-log'));
-        const logMarker = '--- سجل الـ API (Terminal Log) ---';
-        let logContent = rawNotes;
-        if(rawNotes.includes(logMarker)) {
-            logContent = rawNotes.split(logMarker)[1].trim();
-        } else if (rawNotes.includes('--- سجل الـ API ---')) {
-            logContent = rawNotes.split('--- سجل الـ API ---')[1].trim();
-        } else if (rawNotes.includes('--- سجل الـ API')) {
-            logContent = rawNotes.split('--- سجل الـ API')[1].trim();
-        }
-        
-        Swal.fire({
-            title: '<div style="color:#10b981; font-family:monospace; font-size:1.2rem; display:flex; align-items:center; gap:10px; justify-content:center;"><i class="fa-solid fa-terminal"></i> سجل التخاطب مع السيرفر</div>',
-            html: `<div style="background:#0f172a; color:#a5b4fc; padding:15px; border-radius:8px; text-align:left; direction:ltr; font-family:'JetBrains Mono', monospace; font-size:0.85rem; white-space:pre-wrap; max-height:400px; overflow-y:auto; border:1px solid #334155; box-shadow:inset 0 2px 4px rgba(0,0,0,0.5);">${logContent}</div>`,
-            background: '#1e293b',
-            color: '#fff',
-            confirmButtonColor: '#3b82f6',
-            confirmButtonText: 'إغلاق الشاشة',
-            width: '600px',
-            customClass: { popup: 'border border-secondary rounded-4' }
-        });
-    }
-
     function escapeHtml(value) {
         return String(value ?? '')
             .replace(/&/g, '&amp;')
@@ -813,5 +786,6 @@
     }
 </script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script src="/js/provider-communication.js"></script>
 </body>
 </html>

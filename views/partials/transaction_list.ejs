@@ -60,10 +60,6 @@
             systemText: systemParts.filter(Boolean).join('\n').trim()
         };
     };
-    const apiLogForView = (tx = {}) => {
-        const merged = [tx.adminNotes, tx.notes].filter(Boolean).join('\n');
-        return merged.includes('--- سجل الـ API') ? merged : '';
-    };
     const formatCount = (value) => Number(value || 0).toLocaleString('en-US');
     const formatMoney = (value) => Number(value || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     const ledgerPeriodStats = (typeof periodStats !== 'undefined' && periodStats) ? periodStats : { today: { count: 0, amountEGP: 0 }, week: { count: 0, amountEGP: 0 }, month: { count: 0, amountEGP: 0 } };
@@ -111,7 +107,7 @@
                         <% } %>
                         <% transactions.forEach(tx => {
                             const noteView = splitTxNotesForView(tx);
-                            const apiLog = apiLogForView(tx);
+                            const communication = providerCommunicationView(tx);
                             const canVoidBalanceAdjustment = ['deposit', 'deduction'].includes(tx.status) && Boolean(tx.balanceAdjustment && tx.balanceAdjustment.reversible);
                             const eligibleExecutorBots = (executorBots || []).filter((bot) => (bot.supportedTransferTypes || ['vodafone']).includes(tx.transferType || 'vodafone'));
                             const executorDisplay = (executorDisplayByTransaction || {})[String(tx._id)] || {};
@@ -219,7 +215,7 @@
                                         </form>
                                     <% } else { %>
 
-                                        <%- include('kenan_response', { tx }) %>
+                                        <%- include('provider_communication', { communication, tx }) %>
                                         <% if (providerResolutionPending) { %>
                                             <div class="provider-row-actions" data-provider-row-actions>
                                                 <button type="button" class="btn provider-check" data-provider-row-action="check" data-transaction-id="<%= tx._id %>" data-provider-updated-at="<%= tx.updatedAt ? new Date(tx.updatedAt).toISOString() : '' %>" onclick="runProviderRowAction(this)" title="استعلام عن رد جديد من المزود"><i class="fa-solid fa-rotate"></i> استعلام عن رد جديد</button>
@@ -265,9 +261,6 @@
                                                 </form>
                                             <% } %>
 
-                                            <% if (apiLog) { %>
-                                                <button class="btn-action-sm api-log" data-log="<%= encodeURIComponent(apiLog) %>" onclick="showApiLog(this)" title="سجل Terminal للـ API"><i class="fa-solid fa-terminal"></i></button>
-                                            <% } %>
 
                                             <% if (tx.status === 'completed' && (tx.proofImage || (tx.proofImages && tx.proofImages.length > 0))) { %>
                                                 <form action="/transaction/<%= tx._id %>/resend-proof" method="POST" class="m-0" onsubmit="return confirm('إعادة إرسال الإيصال للعميل؟')">
@@ -318,7 +311,7 @@
                     let isPendingGroup = ['pending', 'processing', 'accepted', 'deposit_pending'].includes(tx.status);
                     let displayClass = isPendingGroup ? 'mobile-card-pending' : 'mobile-card-completed';
                     const mobileNoteView = splitTxNotesForView(tx);
-                    const mobileApiLog = apiLogForView(tx);
+                    const communication = providerCommunicationView(tx);
                     const canVoidMobileAdjustment = ['deposit', 'deduction'].includes(tx.status) && Boolean(tx.balanceAdjustment && tx.balanceAdjustment.reversible);
                     const mobileEligibleExecutorBots = (executorBots || []).filter((bot) => (bot.supportedTransferTypes || ['vodafone']).includes(tx.transferType || 'vodafone'));
                     const mobileExecutorDisplay = (executorDisplayByTransaction || {})[String(tx._id)] || {};
@@ -396,7 +389,7 @@
                         <% } %>
 
                         <%
-                        const hasApiLog = Boolean(mobileApiLog);
+                        const hasApiLog = Boolean(communication);
                         const isPendingOrProcessing = ['pending', 'processing', 'accepted'].includes(tx.status);
                         const canGlobalCancel = ['pending', 'processing', 'accepted', 'completed'].includes(tx.status) && tx.transferType !== 'balance_transfer' && !mobileProviderResolutionPending;
                         if (isPendingOrProcessing || hasApiLog || canGlobalCancel || mobileProviderResolutionPending || canVoidMobileAdjustment) {
@@ -431,7 +424,7 @@
                                     </form>
                                 <% } %>
 
-                                <%- include('kenan_response', { tx }) %>
+                                <%- include('provider_communication', { communication, tx }) %>
                                 <% if (mobileProviderResolutionPending) { %>
                                     <div class="provider-row-actions" data-provider-row-actions>
                                         <button type="button" class="btn provider-check" data-provider-row-action="check" data-transaction-id="<%= tx._id %>" data-provider-updated-at="<%= tx.updatedAt ? new Date(tx.updatedAt).toISOString() : '' %>" onclick="runProviderRowAction(this)" title="استعلام عن رد جديد من المزود"><i class="fa-solid fa-rotate"></i> استعلام عن رد جديد</button>
@@ -454,9 +447,6 @@
                                     </form>
                                 <% } %>
 
-                                <% if (hasApiLog) { %>
-                                     <button type="button" class="btn btn-sm fw-bold rounded-3 px-3 <%= !isPendingOrProcessing ? 'w-100' : '' %>" style="background: rgba(16, 185, 129, 0.1); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.2);" data-log="<%= encodeURIComponent(mobileApiLog) %>" onclick="showApiLog(this)" title="سجل Terminal للـ API"><i class="fa-solid fa-terminal text-success <%= !isPendingOrProcessing ? 'me-1' : '' %>"></i><%= !isPendingOrProcessing ? ' سجل الـ API' : '' %></button>
-                                 <% } %>
                             </div>
                         <% } %>
                     </div>

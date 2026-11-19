@@ -23,6 +23,7 @@ const { systemDateKey, systemDateRange } = require('../config/systemTime');
 const { syncBotBalance } = require('../utils/helpers');
 const { escapeRegex } = require('../middlewares/sanitize');
 const { customerNoteFromTransaction } = require('../utils/transactionNotes');
+const { providerCommunicationView, redactLegacyProviderData } = require('../utils/providerCommunicationView');
 const { sanitizeStatementTransaction } = require('../utils/accountStatementPrivacy');
 const {
     requireAdminActor,
@@ -49,6 +50,7 @@ const eventBus = require('../services/eventBus');
 const { sendCompletedTransactionReceipt } = require('../services/whatsappReceiptDeliveryService');
 const { adminVisibleTransactionQuery, applyAdminTxPrivacy } = require('../services/adminAccountVisibilityService');
 const { adminAccountScope } = require('../utils/tenantScope');
+const { tenantMode } = require('../middlewares/tenantResolver');
 const {
     emptyPeriodStats,
     loadCentralLedgerOverview
@@ -68,6 +70,7 @@ const {
 } = require('../services/externalApiService');
 const { resolveProviderResult } = require('../services/providerResolutionService');
 const { canReviewProviderOperation, providerTransactionIdOf, providerOperationMatches, pendingProviderQuery } = require('../utils/providerPendingOperation');
+const { isFinalZaynState, explicitlyReversed, zaynReceiptObservation, matchedZaynReceiptFields, zaynAccountMatches } = require('../utils/zaynReceiptStatus');
 const { stateLabels: providerMonitorLabels, monitorEnabled: pendingMonitorEnabled } = require('../services/apiPendingMonitorService');
 
 const providerOperationView = (operation = {}) => ({
@@ -463,6 +466,7 @@ const renderTransactions = async (req, res, operationsWorkspace = false) => {
         });
         const executorDisplayByTransaction = {};
         transactions.forEach((tx) => {
+            redactLegacyProviderData(tx);
             tx.providerReviewAvailable = canReviewProviderOperation(tx);
             if (tx.providerReviewAvailable) {
                 const data = tx.apiResultData || {};
@@ -534,6 +538,53 @@ const renderTransactions = async (req, res, operationsWorkspace = false) => {
 
 router.get('/transactions', (req, res) => renderTransactions(req, res, false));
 router.get('/transactions/operations', (req, res) => renderTransactions(req, res, true));
+
+// The modal reads persisted observations only; this request never contacts a provider.
+const communicationProjection = ['customId', 'status', 'executorGroupId', ...[
+    'kenanReference','kenanReceivedAt','kenanCreateReplyAt','kenanCreateHttpStatus','kenanCreateReplyState','kenanLastCheckedAt','kenanProviderStatus','kenanLastPollAt',
+    'kenanLastPollHttpStatus','kenanLastPollOutcome','kenanAwaitingStatus','kenanNextPollAt','kenanCompletionState','waitingApiAutoCompletion',
+    'providerResolutionOutcome','providerDispatchResult','providerDispatchStartedAt','providerDispatchAttemptId',
+    'providerTransactionId','externalTransactionId','providerTransactionNumber','transactionNumber','referenceNumber',
+    'providerResultUnresolved','providerDispatchExecutorGroupId','providerMatchedAt','providerMatchedState','providerStatusCheckSucceeded','providerReportedReference',
+    'providerMonitorState','providerMonitorStopped','providerMonitorCheckedAt','providerMonitorNextCheckAt','providerLastCheckedAt',
+    'providerPreflightOutcome','providerPreflightStage','providerPreflightAt','providerPreflightHttpStatus',
+    'zaynFollowupAttemptId','zaynPaymentHttpStatus','zaynPaymentReplyState','zaynPaymentReplyAt','zaynPaymentStatus',
+    'kenanOrder.status'
+].map(key => 'apiResultData.' + key)].join(' ');
+async function readProviderCommunication(req, res, next) {
+    try {
+        res.set('Cache-Control', 'private, no-store');
+        const {id, executorId} = req.params;
+        if (!mongoose.isObjectIdOrHexString(id) || (executorId && !mongoose.isObjectIdOrHexString(executorId))) return res.sendStatus(404);
+        const tenantScope = adminAccountScope(req);
+        if (tenantMode() === 'multi' && !tenantScope.tenantId) return res.sendStatus(403);
+        const scope = adminVisibleTransactionQuery(tenantScope, { _id:id });
+        if (executorId) {
+            const group = await ExecutorGroup.findOne({...tenantScope, _id:executorId, isApiBot:true, status:{ $ne:'archived' }})
+                .select('isManagerBot').lean();
+            if (!group) return res.sendStatus(404);
+            scope[group.isManagerBot ? 'managerGroupId' : 'executorGroupId'] = executorId;
+        }
+        const tx = await Transaction.findOne(scope).select(communicationProjection).lean();
+        if (!tx) return res.sendStatus(404);
+        const summary = providerCommunicationView(tx);
+        if (!summary) return res.sendStatus(204);
+        const data = tx.apiResultData || {};
+        const recentClaim = Date.now() - new Date(data.providerDispatchStartedAt).getTime();
+        const inFlight = recentClaim >= 0 && recentClaim < 180000 && !data.providerDispatchResult && !data.zaynPaymentReplyAt && !data.kenanCreateReplyAt;
+        const waitingKenan = data.kenanReference && (data.kenanAwaitingStatus || data.waitingApiAutoCompletion)
+            && !['success','failed','cancelled'].includes(data.kenanProviderStatus || data.kenanOrder?.status)
+            && require('../utils/runtimeControls').isKenanFollowupEnabled();
+        const waitingZayn = data.zaynFollowupAttemptId && data.zaynFollowupAttemptId === data.providerDispatchAttemptId
+            && data.providerResultUnresolved === true && data.providerDispatchExecutorGroupId && String(data.providerDispatchExecutorGroupId) === String(tx.executorGroupId)
+            && data.providerTransactionId && !data.providerMonitorStopped && require('../services/apiPendingMonitorService').zaynMonitorEnabled();
+        const refresh = ['processing','accepted','pending'].includes(tx.status) && !data.providerResolutionOutcome
+            && Boolean(inFlight || waitingKenan || waitingZayn);
+        return res.json({...summary,refresh});
+    } catch (error) { return next(error); }
+}
+router.get('/transactions/:id/provider-communication', requirePermission('transactions.read'), readProviderCommunication);
+router.get('/executor/:executorId/transactions/:id/provider-communication', requirePermission('executors.read'), readProviderCommunication);
 
 router.get('/transactions/print', async (req, res) => {
     try {
@@ -1074,6 +1125,10 @@ router.post('/transaction/:id/provider-status-check', requirePermission(PROVIDER
             });
         }
 
+        const markedZayn = Boolean(data.zaynFollowupAttemptId);
+        if (markedZayn && !zaynAccountMatches(transaction, executorGroup)) return respondTransactionAction(req, res, 409, {
+            success:false, code:'EXECUTOR_MISMATCH', message:'تعذر مطابقة المنفذ مع محاولة الإرسال.'
+        });
         const operation = await getApiProviderTransaction(executorGroup, providerTransactionId);
         const checkedAt = new Date();
         const isKenan = executorGroup.apiProviderKey === 'kenan';
@@ -1088,7 +1143,19 @@ router.post('/transaction/:id/provider-status-check', requirePermission(PROVIDER
                 message: 'وصل رد كنان لكن المرجع أو رقم العميل أو القيمة غير مطابق. لم تتغير الحالة أو الأرصدة.',
                 providerOperation: providerOperationView(operation) });
         }
-        const checkData = {
+        const observedState = markedZayn ? zaynReceiptObservation(transaction, operation) : null;
+        const confirmedReversal = observedState === 'returned' && explicitlyReversed(operation.providerStatus);
+        const conflict = markedZayn && isFinalZaynState(data.providerMatchedState) && operation.success
+            && observedState !== data.providerMatchedState && !(data.providerMatchedState === 'paid' && confirmedReversal);
+        const zaynState = conflict ? 'mismatch' : observedState;
+        const matchedZayn = markedZayn && operation.success && zaynState !== 'mismatch';
+        const checkData = markedZayn ? {
+            providerLastCheckedAt:checkedAt, providerStatusCheckSucceeded:matchedZayn,
+            providerMonitorState:zaynState, providerMonitorMessage:providerMonitorLabels[zaynState],
+            providerMonitorCheckedAt:checkedAt,
+            ...(matchedZayn ? matchedZaynReceiptFields(operation, zaynState, checkedAt) : {}),
+            ...(isFinalZaynState(zaynState) ? {providerMonitorStopped:true, providerMonitorNextCheckAt:null} : {})
+        } : {
             providerLastCheckedAt: checkedAt,
             providerStatusCheckSucceeded: Boolean(operation.success),
             providerReportedStatus: operation.providerStatus || '',
@@ -1097,7 +1164,6 @@ router.post('/transaction/:id/provider-status-check', requirePermission(PROVIDER
             providerReportedAmount: operation.amount,
             providerReturnDetectedAt: operation.isReturned ? checkedAt : data.providerReturnDetectedAt || null
         };
-        if (operation.rawData) checkData.providerLastCheckedRaw = operation.rawData;
         if (isKenan && operation.success) {
             Object.assign(checkData, { kenanReference: operation.rawData.reference,
                 kenanProviderStatus: operation.providerStatus, kenanOrder: operation.rawData,
@@ -1112,7 +1178,7 @@ router.post('/transaction/:id/provider-status-check', requirePermission(PROVIDER
         const latest = await Transaction.findOneAndUpdate({
             _id: transaction._id, updatedAt: transaction.updatedAt,
             status: transaction.status, executorGroupId: transaction.executorGroupId
-        }, { $set: checkUpdate }, { returnDocument: 'after' });
+        }, { $set: checkUpdate, $unset: {'apiResultData.providerLastCheckedRaw':''} }, { returnDocument: 'after' });
         if (!latest) return respondTransactionAction(req, res, 409, {
             success: false, code: 'ROW_CHANGED', message: 'تغيّرت العملية أثناء الاستعلام. حدّث الصفحة قبل اتخاذ قرار.'
         });
@@ -1137,7 +1203,16 @@ router.post('/transaction/:id/provider-status-check', requirePermission(PROVIDER
                 providerOperation: providerOperationView(operation) });
         }
 
-        if (operation.success && !operation.isReturned && operation.referenceNumber && isMaskedProviderReference(operation.referenceNumber)) {
+        if (markedZayn && (zaynState !== 'paid' || !checkData.providerReportedReference)) {
+            const codes = {mismatch:'PROVIDER_DETAILS_MISMATCH', paid:'ZAYN_PAID_AWAITING_SETTLEMENT', failed:'PROVIDER_CHECK_FAILED',
+                returned:'PROVIDER_RETURNED', rejected:'PROVIDER_REJECTED', pending:'PROVIDER_STILL_PENDING'};
+            return respondTransactionAction(req, res, zaynState === 'mismatch' ? 409 : 200, {
+                success:matchedZayn, code:codes[zaynState], message:providerMonitorLabels[zaynState],
+                providerOperation:matchedZayn ? {providerTransactionId, referenceNumber:checkData.providerReportedReference,
+                    providerStatus:zaynState, amount:operation.amount, isReturned:zaynState === 'returned'} : null
+            });
+        }
+        if (markedZayn || (operation.success && !operation.isReturned && operation.referenceNumber && isMaskedProviderReference(operation.referenceNumber))) {
             if (!providerOperationMatches(latest, operation)) return respondTransactionAction(req, res, 409, {
                 success: false, code: 'PROVIDER_DETAILS_MISMATCH',
                 message: 'رد المزود يحمل مرجع نجاح، لكن رقم العملية أو المستلم أو المبلغ لا يطابق البيانات أو غير مكتمل. يلزم مراجعة يدوية؛ لم تتغير الحالة أو الأرصدة.',
@@ -1146,8 +1221,9 @@ router.post('/transaction/:id/provider-status-check', requirePermission(PROVIDER
             const resolved = await resolveProviderResult({
                 transactionId: transaction._id,
                 outcome: 'provider_paid',
-                evidenceReference: operation.referenceNumber,
-                note: `استعلام آلي من المزود بتاريخ ${checkedAt.toISOString()} أكد أن المرجع مقنّع والعملية ناجحة.`,
+                evidenceReference: markedZayn ? checkData.providerReportedReference : operation.referenceNumber,
+                note: markedZayn ? `طابق استعلام زين بتاريخ ${checkedAt.toISOString()} بيانات العملية وأكد نجاحها.`
+                    : `استعلام آلي من المزود بتاريخ ${checkedAt.toISOString()} أكد أن المرجع مقنّع والعملية ناجحة.`,
                 confirm: true,
                 expectedUpdatedAt: latest.updatedAt,
                 actor: {
@@ -1160,7 +1236,8 @@ router.post('/transaction/:id/provider-status-check', requirePermission(PROVIDER
             });
             return respondTransactionAction(req, res, resolved.statusCode || 200, {
                 ...resolved,
-                providerOperation: providerOperationView(operation),
+                providerOperation: markedZayn ? {providerTransactionId, referenceNumber:checkData.providerReportedReference,
+                    providerStatus:zaynState, amount:operation.amount, isReturned:false} : providerOperationView(operation),
                 action: 'completed_from_provider_check'
             });
         }
@@ -1378,7 +1455,7 @@ router.get('/transactions/:id/details', async (req, res) => {
         transaction.executorProofCount = getExecutorProofIds(tx, officialProofIds).length;
         const partProofs = describeSplitPartProofs(tx);
         if (partProofs.length) transaction.partProofs = partProofs;
-        res.json({ success: true, transaction, ledgerInfo, balanceTransferPair });
+        res.json({ success: true, transaction: redactLegacyProviderData(transaction), ledgerInfo, balanceTransferPair });
     } catch (e) {
         console.error('[adminTransactions/GET details] خطأ:', e.message);
         res.status(500).json({ success: false, error: 'حدث خطأ أثناء تحميل تفاصيل العملية.' });

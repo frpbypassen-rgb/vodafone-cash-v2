@@ -10,6 +10,8 @@ const Notification = require('../models/Notification');
 const { getApiProviderTransaction, isMaskedProviderReference } = require('./externalApiService');
 const { pendingProviderQuery, canReviewProviderOperation, providerTransactionIdOf, providerOperationMatches } = require('../utils/providerPendingOperation');
 const { isFinancialSchedulersEnabled, isExternalApiEnabled, isSwitchEnabled } = require('../utils/runtimeControls');
+const { allowsBackgroundWork } = require('../utils/runtimeRole');
+const { isFinalZaynState, zaynReceiptObservation, matchedZaynReceiptFields, zaynAccountMatches } = require('../utils/zaynReceiptStatus');
 const logger = require('../utils/logger');
 
 const MAX_ATTEMPTS = 8;
@@ -21,18 +23,42 @@ const BACKOFF_MS = [5, 10, 20, 30, 60, 120, 120, 120].map((minutes) => minutes *
 let timer = null;
 let running = false;
 
-const monitorEnabled = () => isFinancialSchedulersEnabled() && isExternalApiEnabled()
+const legacyMonitorEnabled = () => isFinancialSchedulersEnabled() && isExternalApiEnabled()
     && isSwitchEnabled(process.env.API_PENDING_MONITOR_ENABLED);
+const zaynMonitorEnabled = () => allowsBackgroundWork() && isExternalApiEnabled()
+    && isSwitchEnabled(process.env.ZAYN_AUTO_FOLLOWUP_ENABLED);
+const monitorEnabled = () => legacyMonitorEnabled() || zaynMonitorEnabled();
+const legacyScope = { 'apiResultData.zaynFollowupAttemptId': { $exists:false } };
+// Only the new Zayn dispatch code can opt in a specific attempt. A change of
+// executor/attempt must not query a different account with a stale reference.
+const zaynScope = {
+    'apiResultData.zaynFollowupAttemptId': { $type:'string', $ne:'' },
+    $expr: { $and: [
+        { $eq:['$apiResultData.zaynFollowupAttemptId', '$apiResultData.providerDispatchAttemptId'] },
+        { $eq:['$apiResultData.providerDispatchExecutorGroupId', '$executorGroupId'] }
+    ] }
+};
+const scanScopes = now => {
+    const scopes = [];
+    if (legacyMonitorEnabled()) scopes.push({ ...legacyScope, ...pendingProviderQuery(now) });
+    if (zaynMonitorEnabled()) scopes.push({
+        ...zaynScope, ...pendingProviderQuery(now, 0),
+        'apiResultData.providerResultUnresolved': true
+    });
+    return scopes;
+};
 
 const stateLabels = {
     awaiting: 'بانتظار الفحص', pending: 'ما زالت معلقة لدى المزود',
     paid: 'المزود يؤكد النجاح — تحتاج اعتماد الإدارة', returned: 'المزود أفاد بالإلغاء أو الرد — تحتاج مراجعة',
     mismatch: 'بيانات الرد غير مطابقة أو ناقصة', failed: 'تعذر الاتصال بالمزود',
+    rejected: 'المزود أكد رفض العملية',
     missing_reference: 'رقم عملية المزود غير متوفر', missing_executor: 'إعدادات المنفذ غير متاحة',
     exhausted: 'توقفت المتابعة بعد الحد الأقصى للمحاولات'
 };
 
-const classifyObservation = (tx, result) => {
+const classifyObservation = (tx, result, zayn) => {
+    if (zayn) return zaynReceiptObservation(tx, result);
     if (!result.success) return 'failed';
     if (!providerOperationMatches(tx, result)) return 'mismatch';
     if (result.isReturned) return 'returned';
@@ -43,7 +69,11 @@ const classifyObservation = (tx, result) => {
 // Durable internal notification outbox. Deterministic _id uses MongoDB's
 // built-in unique index, including deployments without a dedupeKey index.
 const flushMonitorAlerts = async () => {
-    const rows = await Transaction.find({ 'apiResultData.providerMonitorAlertPending': true })
+    const scopes = [];
+    if (legacyMonitorEnabled()) scopes.push(legacyScope);
+    if (zaynMonitorEnabled()) scopes.push(zaynScope);
+    if (!scopes.length) return;
+    const rows = await Transaction.find({ 'apiResultData.providerMonitorAlertPending': true, $or:scopes })
         .select('_id tenantId customId status apiResultData.providerResolutionOutcome apiResultData.providerMonitorAlert').limit(20).lean();
     for (const tx of rows) {
         const alert = tx.apiResultData?.providerMonitorAlert;
@@ -74,6 +104,9 @@ const flushMonitorAlerts = async () => {
 
 const checkPendingOperation = async (candidate, now = new Date()) => {
     if (!canReviewProviderOperation(candidate)) return { checked: false };
+    const zayn = Boolean(candidate.apiResultData?.zaynFollowupAttemptId);
+    const scopes = scanScopes(now);
+    if (!scopes.length) return { checked:false };
     const token = crypto.randomUUID();
     const due = { $or: [
         { 'apiResultData.providerMonitorNextCheckAt': { $exists: false } },
@@ -86,7 +119,7 @@ const checkPendingOperation = async (candidate, now = new Date()) => {
     const tx = await Transaction.findOneAndUpdate({
         _id: candidate._id, updatedAt: candidate.updatedAt,
         'apiResultData.providerMonitorStopped': { $ne: true },
-        $and: [pendingProviderQuery(now), due, leaseFree]
+        $and: [{ $or:scopes }, due, leaseFree]
     }, { $set: {
         'apiResultData.providerMonitorLeaseToken': token,
         'apiResultData.providerMonitorLeaseUntil': new Date(now.getTime() + LEASE_MS)
@@ -96,29 +129,35 @@ const checkPendingOperation = async (candidate, now = new Date()) => {
     let result = null;
     let state;
     try {
-        const providerId = providerTransactionIdOf(tx);
+        const providerId = zayn ? data.providerTransactionId : providerTransactionIdOf(tx);
         const previousAttempts = Number(data.providerMonitorAttempts || 0);
-        if (previousAttempts >= MAX_ATTEMPTS) state = 'exhausted';
+        if (!zayn && previousAttempts >= MAX_ATTEMPTS) state = 'exhausted';
         else if (!providerId) state = 'missing_reference';
         else {
             const group = await ExecutorGroup.findById(tx.executorGroupId);
-            if (!group || !(group.isApiBot || group.isApiGroup) || (tx.tenantId && String(tx.tenantId) !== String(group.tenantId))) {
+            if (!group || !(group.isApiBot || group.isApiGroup) || (tx.tenantId && String(tx.tenantId) !== String(group.tenantId))
+                || (zayn && !zaynAccountMatches(tx, group))) {
                 state = 'missing_executor';
             } else {
                 try { result = await getApiProviderTransaction(group, providerId); }
                 catch (_) { result = { success: false }; }
-                state = classifyObservation(tx, result);
+                state = classifyObservation(tx, result, zayn);
             }
         }
-        const attempts = Math.min(MAX_ATTEMPTS, previousAttempts + 1);
+        const attempts = zayn ? previousAttempts + 1 : Math.min(MAX_ATTEMPTS, previousAttempts + 1);
         const failures = state === 'failed' ? Number(data.providerMonitorFailures || 0) + 1 : 0;
-        const stopped = !['pending', 'failed'].includes(state) || attempts >= MAX_ATTEMPTS;
-        const finalState = attempts >= MAX_ATTEMPTS && ['pending', 'failed'].includes(state) ? 'exhausted' : state;
+        const stopped = zayn ? isFinalZaynState(state) : !['pending', 'failed'].includes(state) || attempts >= MAX_ATTEMPTS;
+        const finalState = !zayn && attempts >= MAX_ATTEMPTS && ['pending', 'failed'].includes(state) ? 'exhausted' : state;
         const checkedAt = new Date();
+        const delay = BACKOFF_MS[Math.min(attempts - 1, BACKOFF_MS.length - 1)];
+        const retryAfter = Number(result?.retryAfterSeconds);
+        const nextDelay = zayn && Number.isSafeInteger(retryAfter) && retryAfter > 0
+            && Number.isFinite(new Date(checkedAt.getTime() + retryAfter * 1000).getTime())
+            ? Math.max(delay, retryAfter * 1000) : delay;
         const metadata = {
             providerMonitorAttempts: attempts, providerMonitorFailures: failures,
             providerMonitorState: finalState, providerMonitorStopped: stopped,
-            providerMonitorNextCheckAt: stopped ? null : new Date(checkedAt.getTime() + BACKOFF_MS[Math.min(attempts - 1, BACKOFF_MS.length - 1)]),
+            providerMonitorNextCheckAt: stopped ? null : new Date(checkedAt.getTime() + nextDelay),
             providerMonitorCheckedAt: checkedAt,
             providerMonitorMessage: stateLabels[finalState]
         };
@@ -126,13 +165,13 @@ const checkPendingOperation = async (candidate, now = new Date()) => {
             metadata.providerLastCheckedAt = checkedAt;
             metadata.providerStatusCheckSucceeded = Boolean(result.success && state !== 'mismatch');
             // Keep verified evidence when a read fails or returns a different operation.
-            if (result.success && state !== 'mismatch') Object.assign(metadata, {
+            if (result.success && state !== 'mismatch') Object.assign(metadata, zayn ? matchedZaynReceiptFields(result, state, checkedAt) : {
                 providerReportedStatus: result.providerStatus || '', providerReportedReference: result.referenceNumber || '',
                 providerReportedPhone: result.phone || '', providerReportedAmount: result.amount,
-                ...(result.isReturned ? { providerReturnDetectedAt: checkedAt } : {})
+                ...(state === 'returned' ? { providerReturnDetectedAt: checkedAt } : {})
             });
         }
-        const shouldAlert = stopped || failures >= 3;
+        const shouldAlert = stopped || failures >= 3 || (zayn && (state === 'mismatch' || attempts >= MAX_ATTEMPTS || state.startsWith('missing_')));
         const fingerprint = crypto.createHash('sha256').update(JSON.stringify([
             finalState, result?.success ? result.providerStatus : '', result?.success ? result.referenceNumber : ''
         ])).digest('hex');
@@ -148,6 +187,8 @@ const checkPendingOperation = async (candidate, now = new Date()) => {
         const saved = await Transaction.updateOne({
             _id: tx._id, updatedAt: tx.updatedAt, status: tx.status, executorGroupId: tx.executorGroupId,
             'apiResultData.providerMonitorLeaseToken': token,
+            ...(zayn ? { 'apiResultData.zaynFollowupAttemptId':data.providerDispatchAttemptId,
+                'apiResultData.providerDispatchAttemptId':data.providerDispatchAttemptId } : {}),
             'apiResultData.providerResolutionOutcome': { $in: [null, ''] }
         }, { $set: update, $unset: { 'apiResultData.providerMonitorLeaseToken': '', 'apiResultData.providerMonitorLeaseUntil': '' } });
         return { checked: true, saved: saved.modifiedCount === 1, state: finalState };
@@ -165,7 +206,7 @@ const runPendingMonitorCycle = async () => {
     try {
         await flushMonitorAlerts();
         const now = new Date();
-        const candidates = await Transaction.find({ $and: [pendingProviderQuery(now), {
+        const candidates = await Transaction.find({ $and: [{ $or:scanScopes(now) }, {
             'apiResultData.providerMonitorStopped': { $ne: true },
             $or: [{ 'apiResultData.providerMonitorNextCheckAt': { $exists: false } }, { 'apiResultData.providerMonitorNextCheckAt': { $lte: now } }]
         }] }).sort({ 'apiResultData.providerMonitorNextCheckAt': 1, createdAt: 1 }).limit(BATCH_SIZE * 3);
@@ -189,9 +230,12 @@ const startApiPendingMonitor = () => {
         logger.error('Pending API monitor cycle failed', { error: error.message });
     }), INTERVAL_MS);
     timer.unref?.();
+    if (zaynMonitorEnabled()) logger.info('Zayn automatic receipt follow-up started', {
+        pid:process.pid, intervalMs:INTERVAL_MS, startedAt:new Date().toISOString()
+    });
     return timer;
 };
 const stopApiPendingMonitor = () => { if (timer) clearInterval(timer); timer = null; };
 
-module.exports = { MAX_ATTEMPTS, MINIMUM_AGE_MS, BATCH_SIZE, INTERVAL_MS, stateLabels, monitorEnabled,
+module.exports = { MAX_ATTEMPTS, MINIMUM_AGE_MS, BATCH_SIZE, INTERVAL_MS, stateLabels, monitorEnabled, zaynMonitorEnabled,
     classifyObservation, checkPendingOperation, flushMonitorAlerts, runPendingMonitorCycle, startApiPendingMonitor, stopApiPendingMonitor };

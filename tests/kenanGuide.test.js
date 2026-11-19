@@ -20,3 +20,24 @@ test('reads the latest orders and deposits without creating transfers', async ()
     expect(await service.getDeposits(bot)).toMatchObject({ success: true, deposits: [{ reference: 'DEP-1', amount_minor: 10000 }] });
     expect(axios.post).not.toHaveBeenCalled();
 });
+
+test('reads account communications using allowlisted metadata and excludes raw provider input', async () => {
+    axios.get.mockResolvedValue({data:{communications:[
+        {method:'POST',path:'/api/company/orders',http_status:201,created_at:'2026-11-19T07:00:00Z',
+            reference:'0000014', request:{Authorization:'private-value'},response:'customer phone', reason:'private reason'},
+        {path:'/unknown?token=secret',method:'GET secrets',reference:'bad',created_at:'invalid',http_status:'<token>'}
+    ]}});
+    const result=await service.getCommunications(bot);
+    expect(axios.get).toHaveBeenCalledWith('https://kenan.example/api/company/communications',
+        expect.objectContaining({headers:expect.objectContaining({Authorization:'Bearer fixture-key'}),maxRedirects:0}));
+    expect(result).toEqual({success:true,unrecognized:1,communications:[{
+        method:'POST',path:'/api/company/orders',httpStatus:201,createdAt:'2026-11-19T07:00:00.000Z',reference:'0000014'
+    }]});
+    expect(axios.post).not.toHaveBeenCalled();
+});
+test('unknown communications envelopes and oversized feeds are explicitly unavailable', async () => {
+    for(const body of [{unknown:[]},Array(101).fill({method:'GET'})]){
+        axios.get.mockResolvedValue({data:body});
+        expect(await service.getCommunications(bot)).toMatchObject({success:false,communications:[]});
+    }
+});

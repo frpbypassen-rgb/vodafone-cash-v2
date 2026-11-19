@@ -107,6 +107,7 @@ app.use(runtimeRoleGate(process.env));
 app.use(startupGate(() => app.locals.startupReady === true));
 const isProduction = process.env.NODE_ENV === 'production';
 app.locals.systemTimeZone = SYSTEM_TIME_ZONE;
+app.locals.providerCommunicationView = require('./utils/providerCommunicationView').providerCommunicationView;
 app.locals.sessionStoreHealthy = true;
 app.locals.isShuttingDown = false;
 
@@ -551,12 +552,12 @@ Promise.all([connectDB(), initRedis()]).then(() => startBoundHttpServer({
             require('./services/merchantIntegrationEventService').ensureMerchantIntegrationEventIndexes()
         ]);
         require('./services/kenanFollowupService').startKenanFollowupMonitor();
+        startApiPendingMonitor();
         if (isFinancialSchedulersEnabled()) {
             await restorePendingRateActivation({ app });
             startRateChangeActivationMonitor({ app });
             startApiCompletionMonitor();
             startApiProviderReturnMonitor();
-            startApiPendingMonitor();
             closeEligibleDailySettlement().catch((error) => {
                 logger.error('Initial financial day close failed', { error: error.message });
             });

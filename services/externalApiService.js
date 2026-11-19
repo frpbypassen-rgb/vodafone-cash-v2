@@ -12,6 +12,7 @@ const { classifyProviderPaymentResponse, normalizeProviderStatus, isReturnedProv
 const {
     UNRESOLVED_CODE,
     claimProviderDispatch,
+    saveZaynReply,
     releaseProviderDispatchClaim,
     classifyPaymentTransportError
 } = require('./providerDispatchClaimService');
@@ -21,6 +22,8 @@ const {
     isExternalApiEnabled,
     resolveProviderBaseUrl
 } = require('../utils/runtimeControls');
+
+const { classifyZaynReceiptStatus } = require('../utils/zaynReceiptStatus');
 
 const SUPPORT_PHONE = '01108172258';
 
@@ -56,7 +59,8 @@ const extractProviderPhone = (data = {}) => {
 };
 
 const normalizeProviderTransaction = (data = {}, fallbackTransactionNumber = '') => ({
-    providerTransactionId: String(data.TransactionId || fallbackTransactionNumber || '').trim(),
+    reportedTransactionId: String(data.TransactionId || data.TransactionNumber || '').trim(),
+    providerTransactionId: String(data.TransactionId || data.TransactionNumber || fallbackTransactionNumber || '').trim(),
     referenceNumber: String(data.RefNumber || data.PaymentServiceProviderTransactionId || '').trim(),
     providerStatus: String(data.TransactionStatus || '').trim(),
     amount: Number.isFinite(Number(data.Amount)) ? Number(data.Amount) : null,
@@ -144,9 +148,7 @@ const refuseResolvedProvider = (config) => {
     return null;
 };
 
-const logPreflightAuthFailure = (response) => {
-    const status = response?.status;
-    const code = String(response?.data?.Code ?? '');
+const readRetryAfterSeconds = response => {
     const header = String(response?.headers?.['retry-after'] ?? '').trim();
     const date = Date.parse(header);
     let retryAfterSeconds = null;
@@ -154,6 +156,12 @@ const logPreflightAuthFailure = (response) => {
     else if (Number.isFinite(date) && new Date(date).toUTCString() === header) {
         retryAfterSeconds = Math.max(0, Math.ceil((date - Date.now()) / 1000));
     }
+    return retryAfterSeconds;
+};
+const logPreflightAuthFailure = (response) => {
+    const status = response?.status;
+    const code = String(response?.data?.Code ?? '');
+    const retryAfterSeconds = readRetryAfterSeconds(response);
     logger.warn('PROVIDER_PREFLIGHT_AUTH_FAILED', {
         providerHttpStatus: Number.isInteger(status) && status >= 100 && status <= 599 ? status : null,
         providerCode: /^\d{1,9}$/.test(code) ? Number(code) : null,
@@ -238,8 +246,8 @@ const hasSuccessCode = (data) => Number(data?.Code) === 200;
 
 const firstNonEmpty = (...values) => {
     for (const value of values) {
-        const clean = String(value || '').trim();
-        if (clean) return clean;
+        const clean = ['number','string'].includes(typeof value) ? String(value).trim() : '';
+        if (clean && clean.length <= 128 && !/[\u0000-\u001f\u007f]/.test(clean)) return clean;
     }
     return '';
 };
@@ -399,7 +407,8 @@ const executeTransferViaApi = async (tx, apiBot) => {
     const blocked = providerCallBlock();
     if (blocked) return blocked;
     if (apiBot?.apiProviderKey === 'kenan') return require('./kenanProviderService').executeTransfer(tx, apiBot);
-    let processLog = [];
+    let preflightStage = 'configuration';
+    const processLog = [];
     const addLog = (step, detail) => {
         const timeStr = new Date().toLocaleTimeString('en-GB', { timeZone: SYSTEM_TIME_ZONE, hour12: false });
         processLog.push(`[${timeStr}] ${step}: ${detail}`);
@@ -422,30 +431,32 @@ const executeTransferViaApi = async (tx, apiBot) => {
         if (configurationIssues.length) {
             const message = configurationIssues.join(', ');
             addLog('CONFIG_FAIL', message);
-            return { success: false, message, processLog: processLog.join('\n') };
+            return { success: false, message, preflightStage, processLog: processLog.join('\n') };
         }
+        preflightStage = 'auth';
         const auth = await authorizeApiProvider(config, addLog);
         if (!auth.success) {
-            return { success: false, message: auth.message, processLog: processLog.join('\n') };
+            return { success: false, message: auth.message, preflightStage, processLog: processLog.join('\n') };
         }
+        preflightStage = 'inquiry';
         const headers = auth.headers;
         
         addLog("PROVIDER", `${preset.name} | serviceId=${serviceId} | currentServiceProviderId=${providerId} | fieldKey=${fieldKey}`);
-        addLog("INQUIRY", `جاري الاستعلام وفحص الرقم [${targetNumber}]...`);
+        addLog("INQUIRY", 'جارٍ فحص أهلية المحفظة والمبلغ.');
         const inquiryPayload = buildInquiryPayload(config, targetNumber, amount);
         const inquiryRes = await postProviderRead(config, headers, '/api/V1/Transactions/Inquiry', inquiryPayload, addLog);
         const inquiryData = inquiryRes.data || {};
 
         if (!hasSuccessCode(inquiryData) || !inquiryData.Data || !inquiryData.Data.PaymentBillInfo) {
-            const message = providerMessage(inquiryData, 'تم رفض الاستعلام عن التحويل من المزود');
-            addLog("INQUIRY_FAIL", message || "Unexpected provider response");
-            return { success: false, message, processLog: processLog.join('\n') };
+            const message = 'رفض المزود استعلام الأهلية أو أعاد ردًا ناقصًا.';
+            addLog("INQUIRY_FAIL", message);
+            return { success: false, message, preflightStage, providerHttpStatus:inquiryRes.status || null, processLog: processLog.join('\n') };
         }
         
         addLog("INQUIRY_SUCCESS", "الرقم سليم ومتاح للتحويل.");
         addLog("PAYMENT", `جاري إرسال الدفعة النهائية بقيمة [${amount} EGP]...`);
 
-        const claim = await claimProviderDispatch(tx);
+        const claim = await claimProviderDispatch(tx, { zaynFollowup:true });
         if (!claim.claimed) {
             addLog('PAYMENT_BLOCKED', 'لم تُرسل الدفعة: مطالبة الإرسال غير متاحة أو موجودة مسبقاً');
             return {
@@ -470,9 +481,13 @@ const executeTransferViaApi = async (tx, apiBot) => {
             paymentRes = await axios.post(`${baseUrl}/api/V1/Transactions/Payment`, paymentPayload, { headers, timeout: 180000, maxRedirects: 0 });
         } catch (paymentError) {
             if (Number(paymentError.response?.status) === 401) invalidateProviderAuthSession(config, headers.Authorization);
-            const message = errorMessage(paymentError, 'خطأ في الاتصال بسيرفر الشركة');
+            const message = 'تعذر تأكيد وصول الدفعة إلى مزود الخدمة.';
             addLog('SYSTEM_ERROR', message);
             const classification = classifyPaymentTransportError(paymentError);
+            if (paymentError.response) await saveZaynReply(tx, claim.attemptId, {
+                zaynPaymentReplyAt:new Date(), zaynPaymentReplyState:'unknown',
+                zaynPaymentHttpStatus:paymentError.response.status || null
+            });
             if (classification === 'before_send') {
                 try {
                     await releaseProviderDispatchClaim(tx, claim.attemptId);
@@ -510,69 +525,41 @@ const executeTransferViaApi = async (tx, apiBot) => {
             pd.ApprovalNumber
         );
 
-        const prettyLog = `
-=========================================
-[ التفاصيل المالية والتشغيلية للعملية ]
-- رقم الموبايل   : ${targetNumber}
-- القيمة         : ${pd.Amount || amount} EGP
-- الرصيد قبل     : ${pd.BalanceBefore !== undefined ? pd.BalanceBefore + ' EGP' : '---'}
-- الرصيد بعد     : ${pd.BalanceAfter !== undefined ? pd.BalanceAfter + ' EGP' : '---'}
-- الحالة         : ${pd.Status || paymentData.Message || '---'}
-- رقم العملية    : ${extRef || '---'}
-- وقت العملية    : ${pd.TransactionTime || new Date().toLocaleString('ar-LY', { timeZone: SYSTEM_TIME_ZONE })}
-- الرقم المرجعي  : ${refTxNum || 'غير متوفر'}
-=========================================
-[ الاستجابة البرمجية الخام - Raw JSON ]\n${JSON.stringify(paymentRes.data, null, 2)}`;
-
-        const paymentOutcome = classifyProviderPaymentResponse(paymentData, {
+        const echoedPhone = extractProviderPhone(pd);
+        const mismatch = (pd.Amount != null && Number(pd.Amount) !== amount)
+            || (echoedPhone && normalizeApiTargetNumber(echoedPhone) !== targetNumber);
+        const paymentOutcome = mismatch ? 'unresolved' : classifyProviderPaymentResponse(paymentData, {
             returned: isReturnedProviderStatus(pd.Status || paymentData.Message)
         });
-        const paymentAccepted = paymentOutcome === 'accepted';
-
-        if (paymentAccepted) {
-            if (!refTxNum || refTxNum.trim() === '') {
-                addLog("PAYMENT_PENDING", `تم إرسال الدفعة ولكن لم يتم استلام المرجع من الشبكة.`);
-                addLog("API_FULL_RESPONSE", prettyLog);
-                return {
-                    success: 'pending',
-                    external_transaction_id: extRef || refTxNum,
-                    message: 'قيد الانتظار',
-                    dispatchAttemptId: claim.attemptId,
-                    processLog: processLog.join('\n')
-                };
-            }
-            if (!isMaskedProviderReference(refTxNum)) {
-                addLog("PAYMENT_PENDING_REFERENCE", `تم استلام مرجع كامل من المزود (${refTxNum})؛ العملية معلقة حتى قرار الإدارة.`);
-                addLog("API_FULL_RESPONSE", prettyLog);
-                return {
-                    success: 'pending',
-                    external_transaction_id: extRef || refTxNum,
-                    provider_transaction_id: extRef || refTxNum,
-                    reference_number: refTxNum,
-                    reference_masked: false,
-                    status: pd.Status || providerMessage(paymentData, 'العملية معلقة لدى المزود'),
-                    message: 'العملية معلقة لدى المزود وتحتاج قرار الإدارة',
-                    dispatchAttemptId: claim.attemptId,
-                    processLog: processLog.join('\n')
-                };
-            }
-            addLog("PAYMENT_SUCCESS", `اكتملت العملية بنجاح! رقم المرجع: ${extRef}`);
-            addLog("API_FULL_RESPONSE", prettyLog);
-            return {
-                success: true,
-                external_transaction_id: extRef || refTxNum,
-                provider_transaction_id: extRef || refTxNum,
-                reference_number: refTxNum,
-                reference_masked: true,
-                message: providerMessage(paymentData, 'تم التحويل الآلي'),
-                sender_number: refTxNum,
-                balance_before: pd.BalanceBefore,
-                balance_after: pd.BalanceAfter,
-                transaction_time: pd.TransactionTime || new Date().toLocaleString('ar-LY', { timeZone: SYSTEM_TIME_ZONE }),
-                status: pd.Status || providerMessage(paymentData, 'عمليه ناجحه'),
-                dispatchAttemptId: claim.attemptId,
-                processLog: processLog.join('\n')
+        const state = classifyZaynReceiptStatus(pd.TransactionStatus || pd.Status);
+        const paidFlag = [true,1,'1','true'].includes(pd.IsPaid);
+        const statusSupplied = Boolean(String(pd.TransactionStatus || pd.Status || '').trim());
+        const settled = paymentOutcome === 'accepted' && isMaskedProviderReference(refTxNum)
+            && (state === 'paid' || (!statusSupplied && paidFlag));
+        const held = !settled && paymentOutcome !== 'rejected';
+        const evidence = {
+            zaynPaymentReplyAt:new Date(), zaynPaymentHttpStatus:paymentRes.status || null,
+            zaynPaymentReplyState:settled ? 'accepted' : paymentOutcome === 'accepted' ? 'pending'
+                : paymentOutcome === 'rejected' ? 'rejected' : 'unknown',
+            zaynPaymentStatus:state, providerTransactionId:extRef || null, referenceNumber:refTxNum || null,
+            externalTransactionId:extRef || null, referenceMasked:isMaskedProviderReference(refTxNum)
+        };
+        if (held) Object.assign(evidence, {
+            providerResultUnresolved: true, providerDispatchResult: 'pending_reference',
+            providerResultUnresolvedAt: evidence.zaynPaymentReplyAt, providerResultUnresolvedCode: UNRESOLVED_CODE
+        });
+        await saveZaynReply(tx, claim.attemptId, evidence);
+        addLog('PAYMENT_REPLY', 'HTTP=' + (paymentRes.status || 'unknown') + ' | ' + evidence.zaynPaymentReplyState);
+        if (paymentOutcome === 'accepted') {
+            const result = {
+                success:settled || 'pending', providerPending:!settled,
+                provider_transaction_id:extRef || null, external_transaction_id:extRef || (settled ? refTxNum : null),
+                reference_number:refTxNum || null, reference_masked:evidence.referenceMasked, dispatchAttemptId:claim.attemptId,
+                status:state, processLog:processLog.join('\n')
             };
+            if (!settled) return { ...result, message:extRef ? 'سُجل رقم عملية المزود وبانتظار تأكيد النتيجة.' : 'ردّ المزود دون رقم عملية يمكن الاستعلام به.' };
+            return { ...result, message:'أكد المزود نجاح الدفع.',sender_number:refTxNum,
+                balance_before:pd.BalanceBefore,balance_after:pd.BalanceAfter,transaction_time:pd.TransactionTime };
         } else {
             if (paymentOutcome !== 'rejected') {
                 addLog('PAYMENT_UNRESOLVED', 'Provider reply does not establish a final payment outcome');
@@ -580,9 +567,8 @@ const executeTransferViaApi = async (tx, apiBot) => {
                     message: 'نتيجة المزود غير محسومة. يلزم التحقق قبل إعادة الدفع.',
                     dispatchAttemptId: claim.attemptId, processLog: processLog.join('\n') };
             }
-            const message = providerMessage(paymentData, 'تم رفض تنفيذ الدفعة من المزود');
+            const message = 'رفض مزود الخدمة تنفيذ الدفعة.';
             addLog("PAYMENT_FAIL", message);
-            addLog("API_FULL_RESPONSE", prettyLog);
             try {
                 await releaseProviderDispatchClaim(tx, claim.attemptId);
             } catch (releaseError) {
@@ -599,7 +585,7 @@ const executeTransferViaApi = async (tx, apiBot) => {
         }
 
     } catch (error) {
-        const message = errorMessage(error, 'خطأ في الاتصال بسيرفر الشركة');
+        const message = error.code?.startsWith('PROVIDER_AUTH_') ? error.message : 'تعذر التحقق من رد مزود الخدمة.';
         addLog("SYSTEM_ERROR", message);
         const attemptId = tx && tx.apiResultData && tx.apiResultData.providerDispatchAttemptId;
         if (attemptId) {
@@ -611,7 +597,7 @@ const executeTransferViaApi = async (tx, apiBot) => {
                 processLog: processLog.join('\n')
             };
         }
-        return { success: false, message, ...authFailureDetails(error), processLog: processLog.join('\n') };
+        return { success: false, message, preflightStage, providerHttpStatus:error.response?.status || null, ...authFailureDetails(error), processLog: processLog.join('\n') };
     }
 };
 
@@ -681,7 +667,8 @@ const getApiProviderTransactions = async (apiBot, transactionNumbers = []) => {
                         success: false,
                         providerTransactionId: transactionNumber,
                         requestedTransactionId: transactionNumber,
-                        message: responseData.Message || 'تعذر استرجاع تفاصيل العملية من المزود'
+                        retryAfterSeconds:readRetryAfterSeconds(printRes),
+                        message: 'تعذر استرجاع تفاصيل العملية من المزود'
                     });
                     continue;
                 }
@@ -690,17 +677,15 @@ const getApiProviderTransactions = async (apiBot, transactionNumbers = []) => {
                     success: true,
                     ...normalizeProviderTransaction(responseData.Data, transactionNumber),
                     requestedTransactionId: transactionNumber,
-                    message: responseData.Message || 'تمت مراجعة العملية'
+                    message: 'تمت قراءة إيصال العملية من المزود'
                 });
             } catch (error) {
-                const providerMessage = error.response && error.response.data
-                    ? (error.response.data.Message || JSON.stringify(error.response.data))
-                    : error.message;
+                const retryAfterSeconds = error.retryAfterSeconds ?? readRetryAfterSeconds(error.response);
                 operations.push({
                     success: false,
                     providerTransactionId: transactionNumber,
                     requestedTransactionId: transactionNumber,
-                    message: providerMessage || 'تعذر الاتصال بمسار مراجعة العمليات'
+                    retryAfterSeconds, message:'تعذر الاتصال بمسار مراجعة العمليات'
                 });
             }
         }
@@ -715,13 +700,11 @@ const getApiProviderTransactions = async (apiBot, transactionNumbers = []) => {
             processLog: processLog.join('\n')
         };
     } catch (error) {
-        const providerMessage = error.response && error.response.data
-            ? (error.response.data.Message || JSON.stringify(error.response.data))
-            : error.message;
+        const providerMessage = 'تعذر التحقق من جلسة المزود أو قراءة الإيصال.';
         addLog('SYSTEM_ERROR', providerMessage);
         return {
             success: false,
-            message: providerMessage || 'خطأ في الاتصال بمسار مراجعة عمليات المزود',
+            message: providerMessage, retryAfterSeconds:error.retryAfterSeconds ?? readRetryAfterSeconds(error.response),
             operations: [],
             processLog: processLog.join('\n')
         };
@@ -730,8 +713,8 @@ const getApiProviderTransactions = async (apiBot, transactionNumbers = []) => {
 
 const getApiProviderTransaction = async (apiBot, transactionNumber) => {
     const result = await getApiProviderTransactions(apiBot, [transactionNumber]);
-    if (!result.operations.length) {
-        return { success: false, message: result.message || 'العملية غير موجودة لدى المزود' };
+    if (!result.operations?.length) {
+        return { success: false, message: result.message || 'العملية غير موجودة لدى المزود', retryAfterSeconds:result.retryAfterSeconds };
     }
     return result.operations[0];
 };
