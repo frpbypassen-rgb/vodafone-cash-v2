@@ -67,16 +67,40 @@ html.admin-modern .ow-heading h1 { margin: 0; font-size: clamp(1.25rem, 2vw, 1.6
 .ow-total dd, .ow-stat dd {
     margin: 0;
     color: var(--am-ink);
-    font-size: 1rem;
-    font-weight: 800;
-    font-variant-numeric: tabular-nums;
+    font-size: 1.0625rem;
+    font-weight: 750;
+    line-height: 1.5;
+    text-align: end;
     overflow-wrap: anywhere;
 }
-.ow-total dd { font-size: clamp(1rem, 1.3vw, 1.25rem); }
-:is(.ow-total, .ow-stat, .ow-account-facts) small {
+.ow-total dd {
+    color: var(--ow-accent, var(--am-brand));
+    font-size: clamp(1.0625rem, 1.4vw, 1.25rem);
+    font-weight: 800;
+}
+:is(.ow-total, .ow-stat, .ow-account-facts) dd bdi {
+    font-family: "Segoe UI", Tahoma, sans-serif;
+    font-variant-numeric: tabular-nums lining-nums;
+}
+.ow-amount {
+    display: inline-flex;
+    max-inline-size: 100%;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .125rem .25rem;
+    text-align: left;
+    vertical-align: middle;
+    overflow-wrap: anywhere;
+}
+.ow-amount small {
+    padding: .125rem .25rem;
+    border: 1px solid var(--am-line);
+    border-radius: 4px;
+    background: var(--am-paper);
     color: var(--am-muted);
-    font-size: .7rem;
+    font-size: .625rem;
     font-weight: 700;
+    line-height: 1;
 }
 .ow-workspace, .ow-workspace-side {
     display: grid;
@@ -144,6 +168,7 @@ html.admin-modern .ow-panel-title {
 }
 .ow-stat:is(.ow-stat-amount, :nth-last-child(-n+2)) { grid-column: span 3; }
 .ow-stat-amount { background: var(--am-paper); }
+.ow-stat-today dd { color: var(--am-green); }
 .ow-stat-cancelled dd { color: var(--am-red); }
 .ow-stat dt, .ow-account-facts dt {
     color: var(--am-muted);
@@ -159,6 +184,7 @@ html.admin-modern .ow-panel-title {
 }
 .ow-account {
     display: grid;
+    container-type: inline-size;
     align-content: start;
     gap: .5rem;
     background: var(--am-paper);
@@ -197,16 +223,26 @@ html.admin-modern .ow-account-heading {
     justify-content: space-between;
     align-items: baseline;
     flex-wrap: wrap;
-    gap: 0 .375rem;
+    gap: .125rem .375rem;
+    padding-inline: .375rem;
 }
-.ow-account-facts dd { margin: 0; font-size: .81rem; font-weight: 750; font-variant-numeric: tabular-nums; }
+.ow-account-facts dd {
+    min-inline-size: 0;
+    max-inline-size: 100%;
+    margin: 0;
+    margin-inline-start: auto;
+    font-size: .8125rem;
+    font-weight: 700;
+    text-align: end;
+}
 .ow-account-facts .ow-account-balance {
-    margin-block-end: .25rem;
-    padding: .375rem .5rem;
+    margin-block-end: .375rem;
+    padding: .375rem;
     border-radius: 7px;
     background: var(--am-soft);
 }
-.ow-account-balance dd { font-size: 1.05rem; line-height: 1.35; }
+.ow-account-balance dd { font-size: clamp(.9375rem, 10cqi, 1.125rem); font-weight: 800; line-height: 1.4; }
+.ow-account-balance .ow-unavailable { color: var(--am-muted); font-size: .8125rem; font-weight: 600; }
 .ow-positive { color: var(--am-green); }
 .ow-negative { color: var(--am-red); }
 .ow-search {
@@ -283,7 +319,7 @@ html.admin-modern .operations-workspace-page #transactionsTable :is(td,th) { pad
 }
 @container (min-width: 32rem) {
     .ow-totals { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-    .ow-total { grid-template-rows: minmax(2rem, auto) auto; }
+    .ow-total { grid-template-rows: minmax(2rem, auto) auto; padding-inline: .4375rem; }
     .ow-total dd { font-size: 1.0625rem; }
     .ow-stat-grid { grid-template-columns: repeat(10, minmax(0, 1fr)); }
     .ow-stat-grid > .ow-stat { grid-column: span 2; }

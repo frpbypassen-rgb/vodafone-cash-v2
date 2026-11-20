@@ -4,15 +4,15 @@
         <div class="ow-account-balance">
             <dt>رصيد الكاش</dt>
             <% if (executor.cashBalance != null) { %>
-            <dd class="<%= executor.cashBalance < 0 ? 'ow-negative' : (executor.cashBalance > 0 ? 'ow-positive' : '') %>"><bdi dir="ltr"><%= formatMoney(executor.cashBalance) %> <small>EGP</small></bdi></dd>
-            <% } else { %><dd>غير متاح</dd><% } %>
+            <dd class="<%= executor.cashBalance < 0 ? 'ow-negative' : (executor.cashBalance > 0 ? 'ow-positive' : '') %>"><bdi class="ow-amount" dir="ltr"><%= formatMoney(executor.cashBalance) %> <small>EGP</small></bdi></dd>
+            <% } else { %><dd class="ow-unavailable">غير متاح</dd><% } %>
         </div>
         <% if (executor.bankBalance != null) { %>
-        <div><dt>رصيد البنك</dt><dd class="<%= executor.bankBalance < 0 ? 'ow-negative' : (executor.bankBalance > 0 ? 'ow-positive' : '') %>"><bdi dir="ltr"><%= formatMoney(executor.bankBalance) %> <small>EGP</small></bdi></dd></div>
+        <div><dt>رصيد البنك</dt><dd class="<%= executor.bankBalance < 0 ? 'ow-negative' : (executor.bankBalance > 0 ? 'ow-positive' : '') %>"><bdi class="ow-amount" dir="ltr"><%= formatMoney(executor.bankBalance) %> <small>EGP</small></bdi></dd></div>
         <% } %>
-        <div><dt>المنفذة اليوم</dt><dd><bdi><%= formatCount(executor.completedToday) %></bdi></dd></div>
+        <div><dt>المنفذة اليوم</dt><dd><bdi dir="ltr"><%= formatCount(executor.completedToday) %></bdi></dd></div>
         <% if (executor.depositsToday) { %>
-        <div><dt>إيداع اليوم</dt><dd><bdi dir="ltr"><%= formatMoney(executor.depositsToday) %> <small>EGP</small></bdi></dd></div>
+        <div><dt>إيداع اليوم</dt><dd><bdi class="ow-amount" dir="ltr"><%= formatMoney(executor.depositsToday) %> <small>EGP</small></bdi></dd></div>
         <% } %>
     </dl>
 </a>

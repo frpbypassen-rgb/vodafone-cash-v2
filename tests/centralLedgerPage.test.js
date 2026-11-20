@@ -259,7 +259,7 @@ describe('central ledger page layout', () => {
         const companies = html.slice(html.indexOf('class="ow-companies"'),html.indexOf('class="ow-workspace-side"'));
         expect(companies).toContain('href="/company/c1"');expect(companies).toContain('href="/company/c2"');
         expect(companies).toContain('88.50');expect(companies).toContain('-12.00');expect(companies).toContain('ow-negative');
-        expect(companies).toContain('<dt>المكتملة اليوم</dt><dd><bdi>7</bdi></dd>');
+        expect(companies).toContain('<dt>المكتملة اليوم</dt><dd><bdi dir="ltr">7</bdi></dd>');
         expect(companies).toContain('1,234,567.89');
         expect(companies).toContain('900.00');
         expect(companies.indexOf('شركة النور')).toBeLessThan(companies.indexOf('شركة الأمل'));
@@ -268,8 +268,8 @@ describe('central ledger page layout', () => {
         expect(executors).toContain('/transactions/operations?executorId=e1');expect(executors).toContain('href="/executor/e2"');
         for(const amount of ['2,500.50','128,450.75','0.00','320.50']) expect(executors).toContain(amount);
         expect(executors).toContain('رصيد الكاش');expect(executors).toContain('رصيد البنك');
-        expect(executors).toContain('<dt>المنفذة اليوم</dt><dd><bdi>4</bdi></dd>');
-        expect(executors).toContain('<dt>المنفذة اليوم</dt><dd><bdi>0</bdi></dd>');
+        expect(executors).toContain('<dt>المنفذة اليوم</dt><dd><bdi dir="ltr">4</bdi></dd>');
+        expect(executors).toContain('<dt>المنفذة اليوم</dt><dd><bdi dir="ltr">0</bdi></dd>');
         expect(executors.indexOf('منفذ كاش')).toBeLessThan(executors.indexOf('منفذ سريع'));
         expect(executors).not.toContain('<details');
         expect(html.indexOf('class="ow-dashboard"')).toBeLessThan(html.indexOf('id="transactionsTable"'));
