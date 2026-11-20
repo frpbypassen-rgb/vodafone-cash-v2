@@ -1,0 +1,12 @@
+<a class="ow-account ow-executor" href="<%= active ? '/transactions/operations?executorId=' + encodeURIComponent(executor.id) + '&fromDate=&toDate=' : '/executor/' + encodeURIComponent(executor.id) %>">
+    <div class="ow-account-heading"><b><%= executor.name %></b><i class="fa-solid fa-chevron-left" aria-hidden="true"></i></div>
+    <div class="ow-account-meta"><span>رصيد الكاش</span>
+        <% if (executor.cashBalance != null) { %>
+        <strong dir="ltr" class="<%= executor.cashBalance < 0 ? 'ow-negative' : 'ow-positive' %>"><%= formatMoney(executor.cashBalance) %> <small>EGP</small></strong>
+        <% } else { %><strong>غير متاح</strong><% } %>
+    </div>
+    <% if (executor.bankBalance != null) { %>
+    <div class="ow-account-meta"><span>رصيد البنك</span><strong dir="ltr" class="<%= executor.bankBalance < 0 ? 'ow-negative' : 'ow-positive' %>"><%= formatMoney(executor.bankBalance) %> <small>EGP</small></strong></div>
+    <% } %>
+    <span>المنفذة اليوم <b><%= formatCount(executor.completedToday) %></b></span>
+</a>

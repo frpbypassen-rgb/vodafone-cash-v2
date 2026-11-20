@@ -1,0 +1,55 @@
+<% if(tx.status === 'pending') { %>
+    <div class="dropdown">
+        <button class="btn btn-sm btn-primary fw-bold rounded-3 dropdown-toggle" type="button" data-bs-toggle="dropdown">توجيه</button>
+        <ul class="dropdown-menu border-0 shadow-lg" style="border-radius: 12px; min-width: 180px;">
+            <li class="px-3 py-2 text-muted small fw-bold border-bottom mb-1">اختر البوت:</li>
+            <% if(eligibleExecutorBots.length > 0) { %>
+                <% eligibleExecutorBots.forEach(bot => { %>
+                    <li>
+                        <form action="/transaction/<%= tx._id %>/assign-executor" method="POST" class="m-0 p-0 js-transaction-action">
+                            <input type="hidden" name="executorBotId" value="<%= bot._id %>">
+                            <button type="submit" class="dropdown-item py-2 fw-bold text-dark d-flex align-items-center"><i class="fa-solid fa-robot text-primary me-2"></i> <span><%= bot.name %><small class="d-block text-muted"><%= bot.serviceLabel %></small></span></button>
+                        </form>
+                    </li>
+                <% }) %>
+            <% } else { %>
+                <li class="px-3 py-2 text-danger small fw-bold">لا يوجد منفذ نشط لهذه الخدمة.</li>
+            <% } %>
+        </ul>
+    </div>
+<% } else if((tx.status === 'processing' || tx.status === 'accepted') && !kenanAutoWaiting) { %>
+    <form action="/transaction/<%= tx._id %>/pull-task" method="POST" class="mb-0 js-transaction-action" data-confirm="تأكيد سحب المهمة؟">
+        <button class="btn btn-sm btn-warning fw-bold rounded-3 text-dark px-3" title="سحب للإدارة">سحب</button>
+    </form>
+    <form action="/transaction/<%= tx._id %>/emergency-alert" method="POST" class="mb-0" onsubmit="return confirmEmergencyAlert(this);">
+        <input type="hidden" name="alertMessage" class="alert-message-input">
+        <button type="submit" class="btn btn-sm btn-danger fw-bold rounded-3 px-3 ms-1" title="إطلاق إنذار أحمر">إنذار</button>
+    </form>
+<% } %>
+
+<% if(['pending', 'processing', 'accepted', 'completed', 'deposit', 'deduction', 'rejected'].includes(tx.status)) { %>
+    <% if (canVoidBalanceAdjustment) { %>
+        <form action="/transaction/<%= tx._id %>/void-balance-adjustment" method="POST" class="m-0" onsubmit="return confirm('هل تريد حذف هذه التسوية؟ سيتم عكس أثرها من الرصيد مع الاحتفاظ بها في السجل المالي.');">
+            <input type="hidden" name="reason" value="حذف التسوية من السجل المركزي">
+            <button type="submit" class="btn-action-sm undo" title="حذف التسوية وعكس الرصيد" aria-label="حذف التسوية وعكس الرصيد"><i class="fa-solid fa-trash-can"></i></button>
+        </form>
+    <% } %>
+
+
+    <% if (tx.status === 'completed' && (tx.proofImage || (tx.proofImages && tx.proofImages.length > 0))) { %>
+        <form action="/transaction/<%= tx._id %>/resend-proof" method="POST" class="m-0" onsubmit="return confirm('إعادة إرسال الإيصال للعميل؟')">
+            <button type="submit" class="btn-action-sm send" title="إعادة الإرسال"><i class="fa-solid fa-paper-plane"></i></button>
+        </form>
+    <% } %>
+    <button class="btn-action-sm edit" onclick="openEditTxModal('<%= tx._id %>', '<%= tx.amount %>', '<%= tx.createdAt.toISOString() %>')" title="تعديل"><i class="fa-solid fa-pen"></i></button>
+    <% if(tx.status !== 'deposit' && tx.status !== 'deduction') { %>
+        <button class="btn-action-sm edit" onclick="openEditRateModal('<%= tx._id %>', '<%= tx.exchangeRate ? Number(tx.exchangeRate).toFixed(2) : (tx.costLYD ? (tx.amount / tx.costLYD).toFixed(2) : 0) %>')" title="تعديل الصرف"><i class="fa-solid fa-percent"></i></button>
+    <% } %>
+<% } %>
+
+<% if(['pending', 'processing', 'accepted', 'completed'].includes(tx.status) && tx.transferType !== 'balance_transfer' && !providerResolutionPending && !kenanAutoWaiting) { %>
+    <form action="/transaction/<%= tx._id %>/global-cancel" method="POST" class="m-0 js-transaction-action">
+        <input type="hidden" name="reason" class="cancel-reason-input">
+        <button class="btn-action-sm undo" title="تراجع"><i class="fa-solid fa-rotate-left"></i></button>
+    </form>
+<% } %>

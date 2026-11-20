@@ -15,9 +15,14 @@
     <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&family=JetBrains+Mono:wght@700;800&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
-    <link rel="stylesheet" href="/css/admin-transactions.css?v=20261024-perf">
+    <link rel="stylesheet" href="/css/admin-transactions.css?v=20261120">
     <link rel="stylesheet" href="/css/admin-operation-details.css?v=20261030-operation-copy">
 <%- include('partials/admin_modern_head') %>
+    <% if (typeof providerReviewMode !== 'undefined' && providerReviewMode) { %>
+    <link rel="stylesheet" href="/css/provider-review.css?v=20261120-4">
+    <% } else if (typeof operationWorkspace !== 'undefined' && operationWorkspace) { %>
+    <link rel="stylesheet" href="/css/operations-workspace.css?v=20261120-4">
+    <% } %>
 </head>
 <body>
 <%
@@ -89,7 +94,6 @@
     const ledgerExecutors = Array.isArray(typeof fundedExecutorCompanies !== 'undefined' ? fundedExecutorCompanies : null) ? fundedExecutorCompanies : [];
     const opsWorkspace = typeof operationWorkspace !== 'undefined' && Boolean(operationWorkspace);
     const providerReviewView = typeof providerReviewMode !== 'undefined' && providerReviewMode;
-    const reviewCounts = Object.fromEntries((typeof providerReviewCounts !== 'undefined' ? providerReviewCounts : []).map((item) => [item._id || 'awaiting', item.count]));
     const opsSummary = opsWorkspace
         ? ((typeof operationsSummary !== 'undefined' && operationsSummary) ? operationsSummary : { today: { egyptianEGP: 0, libyanLYD: 0, cashEGP: 0, bankEGP: 0, totalLYD: 0 }, todayDepositsTotal: 0, todayExecutorDepositsTotal: 0, activeExecutors: [], companies: [] })
         : null;
@@ -113,9 +117,26 @@
 
 <%- include('partials/sidebar', { activePage: typeof operationWorkspace !== 'undefined' && operationWorkspace ? 'transactions' : 'transactions_central' }) %>
 
-<div class="main-content am-operations-page">
-    <div class="container-fluid"><% if (opsWorkspace) { %><header class="am-page-heading"><span>إدارة العمليات</span><h1><%= providerReviewView ? 'مراجعة عمليات API' : 'سجل العمليات' %></h1><p>متابعة التنفيذ والنتائج والتكاليف من مكان واحد</p></header><% } %>
-        <%- include('partials/transaction_review_summary') %>
+<div class="main-content am-operations-page<%= providerReviewView ? ' provider-review-page' : opsWorkspace ? ' operations-workspace-page' : '' %>">
+    <div class="container-fluid">
+        <% if (providerReviewView) { %>
+        <section class="review-overview" aria-labelledby="reviewTitle" aria-describedby="reviewScope">
+            <header class="review-heading">
+                <h1 id="reviewTitle">مراجعة عمليات <bdi>API</bdi></h1>
+                <a href="/transactions/operations"><i class="fa-solid fa-arrow-right" aria-hidden="true"></i> السجل</a>
+                <p id="reviewScope" class="visually-hidden">متابعة ردود المزود على العمليات غير المكتملة منذ خمس دقائق أو أكثر.</p>
+            </header>
+            <%- include('partials/transaction_review_summary') %>
+        </section>
+        <% } else if (opsWorkspace) { %>
+        <header class="ow-heading">
+            <h1>سجل العمليات</h1>
+            <nav aria-label="التنقل في سجل العمليات">
+                <a href="#operationsListHeading"><i class="fa-solid fa-arrow-down" aria-hidden="true"></i> النتائج</a>
+                <a href="/transactions/operations?providerReview=1"><i class="fa-solid fa-clock-rotate-left" aria-hidden="true"></i> مراجعة <bdi>API</bdi></a>
+            </nav>
+        </header>
+        <% } %>
         <% if (!operationWorkspace) { %>
         <div class="d-flex justify-content-between align-items-center mb-4 tx-page-title">
             <h3 class="fw-bold m-0" style="color: var(--text-main);"><i class="fa-solid fa-server text-primary me-2"></i> السجل المركزي والمراقبة <span class="spinner-grow spinner-grow-sm text-success ms-2 opacity-50" title="تحديث تلقائي"></span></h3>
@@ -228,34 +249,38 @@
 
 
         <% if (opsWorkspace && providerReviewView) { %>
-        <form method="GET" action="/transactions/operations" class="am-operation-filters d-flex flex-wrap align-items-end gap-2 mb-3" aria-label="فترة العمليات">
-            <% if (providerReviewView) { %>
+        <form method="GET" action="/transactions/operations" class="review-filters" aria-labelledby="reviewFilterTitle">
+            <h2 id="reviewFilterTitle" class="visually-hidden">البحث والتصفية</h2>
             <input type="hidden" name="providerReview" value="1">
-            <div><label class="form-label small fw-bold mb-1" for="providerSearch">رقم العملية أو المستلم</label><input class="form-control form-control-sm" id="providerSearch" name="search" value="<%= search %>"></div>
-            <div><label class="form-label small fw-bold mb-1" for="providerState">نتيجة المتابعة</label>
+            <div class="review-search">
+                <label class="visually-hidden" for="providerSearch">رقم العملية أو المستلم</label>
+                <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+                <input class="form-control" type="search" id="providerSearch" name="search" value="<%= search %>" placeholder="رقم العملية أو المستلم">
+            </div>
+            <div class="review-state"><label class="visually-hidden" for="providerState">نتيجة المتابعة</label>
                 <select class="form-select form-select-sm" id="providerState" name="providerState">
-                    <% for (const [value, label] of Object.entries({ '': 'كل النتائج', awaiting: 'بانتظار الفحص', pending: 'بانتظار المزود', paid: 'نجاح لدى المزود', returned: 'إلغاء لدى المزود', mismatch: 'اختلاف البيانات', failed: 'تعذر الفحص', missing_reference: 'رقم المزود مفقود', missing_executor: 'إعدادات المنفذ', exhausted: 'انتهت المحاولات' })) { %>
+                    <% for (const [value, label] of Object.entries({ '': 'كل النتائج', awaiting: 'بانتظار الفحص', pending: 'بانتظار المزود', paid: 'نجاح لدى المزود', returned: 'إلغاء لدى المزود', rejected: 'رفض لدى المزود', mismatch: 'اختلاف البيانات', failed: 'تعذر الفحص', missing_reference: 'رقم المزود مفقود', missing_executor: 'إعدادات المنفذ', exhausted: 'انتهت المحاولات' })) { %>
                     <option value="<%= value %>" <%= (query.providerState || '') === value ? 'selected' : '' %>><%= label %></option>
                     <% } %>
                 </select>
             </div>
-            <% } %>
-            <% if (!providerReviewView) { %>
-            <div class="am-wide-field"><label for="operationSearch" class="form-label">رقم العملية أو المستلم</label><input id="operationSearch" class="form-control" name="search" value="<%= search %>" placeholder="رقم العملية، الهاتف، اسم العميل"></div>
-            <div><label for="operationStatus" class="form-label">الحالة</label><select id="operationStatus" name="status" class="form-select"><% [['','كل الحالات'],['pending','معلقة'],['processing','قيد التنفيذ'],['accepted','مقبولة'],['completed','مكتملة'],['rejected','مرفوضة'],['cancelled_by_admin','ملغية']].forEach(([value,label])=>{ %><option value="<%= value %>" <%= statusFilter===value?'selected':'' %>><%= label %></option><% }); %></select></div>
-            <% } %>
-            <div>
-                <label for="operationsFromDate" class="form-label small fw-bold mb-1">من</label>
-                <input id="operationsFromDate" name="fromDate" type="date" class="form-control form-control-sm" value="<%= fromDate %>">
+            <details class="review-date-range"<%= fromDate || toDate ? ' open' : '' %>>
+                <summary><i class="fa-regular fa-calendar" aria-hidden="true"></i> الفترة <i class="fa-solid fa-chevron-down" aria-hidden="true"></i></summary>
+                <div class="review-date-fields">
+                    <div>
+                        <label for="operationsFromDate" class="form-label small fw-bold mb-1">من</label>
+                        <input id="operationsFromDate" name="fromDate" type="date" class="form-control form-control-sm" value="<%= fromDate %>">
+                    </div>
+                    <div>
+                        <label for="operationsToDate" class="form-label small fw-bold mb-1">إلى</label>
+                        <input id="operationsToDate" name="toDate" type="date" class="form-control form-control-sm" value="<%= toDate %>">
+                    </div>
+                </div>
+            </details>
+            <div class="review-filter-actions">
+                <button type="submit" class="btn btn-primary">بحث</button>
+                <% if (search || query.providerState || fromDate || toDate) { %><a href="/transactions/operations?providerReview=1">مسح الفلاتر</a><% } %>
             </div>
-            <div>
-                <label for="operationsToDate" class="form-label small fw-bold mb-1">إلى</label>
-                <input id="operationsToDate" name="toDate" type="date" class="form-control form-control-sm" value="<%= toDate %>">
-            </div>
-            <button type="submit" class="btn btn-sm btn-primary">عرض الفترة</button>
-            <a href="/transactions/operations" class="btn btn-sm btn-outline-secondary">كل العمليات</a>
-            <% if (!providerReviewView) { %><a href="/transactions/operations?providerReview=1" class="btn btn-sm btn-outline-warning">مراجعة عمليات API المتأخرة</a><% } %>
-            <span class="small text-muted ms-auto" aria-live="polite"><%= Number(totalTxs) || 0 %> عملية</span>
         </form>
         <% } %>
 
@@ -272,6 +297,9 @@
             <div class="od-header" id="od-header">
                 <div class="od-header-toolbar">
                     <div class="od-header-actions">
+                        <a class="btn btn-sm od-copy-btn" id="od-lifecycle-link" hidden>
+                            <i class="fa-solid fa-route me-1" aria-hidden="true"></i> مسار العملية
+                        </a>
                         <button type="button" class="btn btn-sm od-copy-btn" id="od-copy-id" title="نسخ رقم العملية">
                             <i class="fa-regular fa-copy me-1"></i> نسخ رقم العملية
                         </button>
@@ -510,6 +538,10 @@
 
     async function viewTransactionDetails(el) {
         const reference = JSON.parse(el.getAttribute('data-tx'));
+        const lifecycleLink = document.getElementById('od-lifecycle-link');
+        const hasStoredId = /^[a-f\d]{24}$/i.test(String(reference._id || ''));
+        lifecycleLink.hidden = !hasStoredId;
+        if (hasStoredId) lifecycleLink.href = '/transactions/live?operation=' + encodeURIComponent(reference._id);
         const snapshots = JSON.parse(document.getElementById('transactionRowsData')?.textContent || '{}');
         const txData = snapshots[reference._id] || reference;
         const modalEl = document.getElementById('txModal');
@@ -1157,12 +1189,20 @@
             if (response.status === 204) return;
             const doc = new DOMParser().parseFromString(await response.text(), 'text/html');
             // A dialog may have opened while the request was running. Do not replace its source controls.
-            if (document.hidden || document.querySelector('.modal.show, .dropdown-menu.show, .swal2-container')) return;
+            if (document.hidden || document.querySelector('.modal.show, .dropdown-menu.show, .swal2-container, .review-extra-actions.collapsing')) return;
+            if (document.activeElement?.matches('#providerReviewRows :focus-visible')) return;
             let mobileChanged = false;
-            for (const selector of ['#transactionsTable tbody', '#mobileTransactionRows', '#transactionPagination', '#providerReviewSummary', '#transactionRowsData']) {
+            for (const selector of ['#operationsListHeading', '#transactionsTable tbody', '#mobileTransactionRows', '#providerReviewRows', '#transactionPagination', '#providerReviewSummary', '#transactionRowsData']) {
                 const incoming = doc.querySelector(selector);
                 const current = document.querySelector(selector);
                 if (incoming && current && current.innerHTML !== incoming.innerHTML) {
+                    if (selector === '#providerReviewRows') {
+                        const expanded = Array.from(current.querySelectorAll('.review-extra-actions.show'), panel => panel.id);
+                        for (const id of expanded) {
+                            incoming.querySelector('#' + CSS.escape(id))?.classList.add('show');
+                            incoming.querySelector('[aria-controls="' + CSS.escape(id) + '"]')?.setAttribute('aria-expanded', 'true');
+                        }
+                    }
                     current.innerHTML = incoming.innerHTML;
                     if (selector === '#mobileTransactionRows') mobileChanged = true;
                 }
@@ -1234,7 +1274,7 @@
 
         const emptyState = document.getElementById('mobileEmptyState');
         if (emptyState) {
-            if (count === 0) {
+            if (count === 0 && !(isOperationsWorkspace && document.querySelector('#mobileTransactionRows [data-list-empty]'))) {
                 emptyState.style.setProperty('display', 'block', 'important');
             } else {
                 emptyState.style.setProperty('display', 'none', 'important');

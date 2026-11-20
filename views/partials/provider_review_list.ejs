@@ -1,0 +1,81 @@
+<section id="providerReviewRows" class="review-results" aria-labelledby="reviewResultsTitle">
+    <header class="review-results-heading">
+        <h2 id="reviewResultsTitle"><i class="fa-solid fa-list-check" aria-hidden="true"></i> نتائج المراجعة</h2>
+        <span><bdi><%= Number(totalTxs).toLocaleString('ar-LY') %></bdi> عملية</span>
+    </header>
+    <% if (!transactions.length) {
+        const filtered = search || query.providerState || fromDate || toDate;
+    %>
+        <div class="review-empty">
+            <i class="fa-solid fa-inbox" aria-hidden="true"></i>
+            <strong><%= filtered ? 'لا توجد عمليات مطابقة.' : 'لا توجد عمليات تحتاج إلى مراجعة.' %></strong>
+            <% if (filtered) { %><a href="/transactions/operations?providerReview=1">مسح الفلاتر</a><% } %>
+        </div>
+    <% } %>
+    <% for (const tx of transactions) {
+        const id = String(tx._id);
+        const label = tx.customId || id.slice(-6);
+        const executor = executorDisplayByTransaction[id] || {};
+        const communication = providerCommunicationView(tx);
+        const data = tx.apiResultData || {};
+        const kenanAutoWaiting = tx.status === 'processing' && data.kenanReference && !data.providerResolutionOutcome
+            && (data.kenanAwaitingStatus === true || data.waitingApiAutoCompletion === true);
+        const providerResolutionPending = tx.providerReviewAvailable === true && !kenanAutoWaiting;
+        const eligibleExecutorBots = (executorBots || []).filter(bot => (bot.supportedTransferTypes || ['vodafone']).includes(tx.transferType || 'vodafone'));
+        const updatedAt = tx.updatedAt ? new Date(tx.updatedAt).toISOString() : '';
+        const status = ({ pending: 'معلّقة', processing: 'قيد التنفيذ', accepted: 'قيد العمل' })[tx.status];
+        const tone = data.providerMonitorState === 'paid' ? 'paid'
+            : ['pending', 'awaiting', undefined, null, ''].includes(data.providerMonitorState) ? 'waiting' : 'attention';
+    %>
+        <article class="review-operation review-<%= tone %>" aria-labelledby="review-operation-<%= id %>">
+            <div class="review-operation-info">
+                <div class="review-operation-top">
+                    <div class="review-operation-ref">
+                        <button type="button" class="review-reference" id="review-operation-<%= id %>" data-tx="<%= JSON.stringify({ _id: id }) %>" onclick="viewTransactionDetails(this)">
+                            <bdi>#<%= label %></bdi><i class="fa-solid fa-arrow-up-right-from-square" aria-hidden="true"></i>
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary tx-copy-operation" data-copy-operation="<%= id %>" aria-label="نسخ بيانات العملية <%= label %>">
+                            <i class="fa-regular fa-copy" aria-hidden="true"></i>
+                        </button>
+                    </div>
+                    <p class="review-amount"><bdi><%= formatMoney(tx.amount) %></bdi> <small>ج.م</small></p>
+                </div>
+                <div class="review-amount-line">
+                    <% if (tx.costLYD) { %><span class="review-cost" aria-label="التكلفة بالدينار الليبي"><bdi><%= formatMoney(tx.costLYD) %></bdi> د.ل</span><% } %>
+                    <% if (status) { %><span class="review-local-status"><%= status %> · <%= operationAgeFor(tx).label %></span><% } %>
+                </div>
+                <dl class="review-parties">
+                    <div><dt>العميل</dt><dd><%= tx.subAccountName || tx.companyName || tx.employeeName || '—' %></dd></div>
+                    <div><dt><%= isBankTransferOperation(tx) ? 'الحساب' : 'المستلم' %></dt><dd><bdi><%= tx.vodafoneNumber || tx.accountNumber || '—' %></bdi></dd></div>
+                    <div><dt>المنفذ</dt><dd><%= executor.companyName || executor.executorName || tx.executorName || 'غير محدد' %></dd></div>
+                </dl>
+            </div>
+            <%- include('provider_review_status', { tx, communication }) %>
+            <div class="review-operation-actions" data-provider-row-actions>
+                <% if (providerResolutionPending) { %>
+                    <button type="button" class="btn review-check" data-provider-row-action="check" data-transaction-id="<%= id %>" data-provider-updated-at="<%= updatedAt %>" onclick="runProviderRowAction(this)">
+                        <i class="fa-solid fa-rotate" aria-hidden="true"></i> استعلام الآن
+                    </button>
+                <% } %>
+                <button type="button" class="btn review-options-toggle" data-bs-toggle="collapse" data-bs-target="#review-actions-<%= id %>" aria-controls="review-actions-<%= id %>" aria-expanded="false">
+                    إجراءات <i class="fa-solid fa-chevron-down" aria-hidden="true"></i>
+                </button>
+                <div class="collapse review-extra-actions" id="review-actions-<%= id %>">
+                    <% if (providerResolutionPending) { %>
+                    <div class="provider-row-actions">
+                        <button type="button" class="btn provider-paid" data-provider-row-action="paid" data-transaction-id="<%= id %>" data-provider-updated-at="<%= updatedAt %>" onclick="runProviderRowAction(this)">
+                            <i class="fa-solid fa-check" aria-hidden="true"></i> إنجاح العملية
+                        </button>
+                        <button type="button" class="btn provider-cancel" data-provider-row-action="cancel" data-transaction-id="<%= id %>" data-provider-updated-at="<%= updatedAt %>" onclick="runProviderRowAction(this)">
+                            <i class="fa-solid fa-rotate-left" aria-hidden="true"></i> إلغاء ورد الرصيد
+                        </button>
+                    </div>
+                    <% } %>
+                    <div class="review-secondary-actions">
+                        <%- include('transaction_extra_actions', { tx, eligibleExecutorBots, kenanAutoWaiting, canVoidBalanceAdjustment: false, providerResolutionPending }) %>
+                    </div>
+                </div>
+            </div>
+        </article>
+    <% } %>
+</section>

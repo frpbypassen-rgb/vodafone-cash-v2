@@ -96,7 +96,8 @@ describe('central ledger page layout', () => {
         const statusMarkup = html.match(/data-provider-monitor-status>[\s\S]*?<\/div>/g).join('');
         expect(statusMarkup).not.toContain('<script>unsafe</script>');
         expect(html).not.toContain('data-ops-summary-strip="operations"');
-        expect((html.match(/data-provider-monitor-status/g) || []).length).toBe(2);
+        expect(html.match(/data-provider-monitor-status/g)).toHaveLength(1);
+        expect(html).toContain('id="providerReviewRows"');
     });
     test.each(['processing', 'completed'])('provider controls are consistent on desktop and mobile for %s', (status) => {
         const { canReviewProviderOperation } = require('../utils/providerPendingOperation');
@@ -250,9 +251,11 @@ describe('central ledger page layout', () => {
         expect(html).not.toContain('class="ledger-stats-bar');
 
         const totals = html.slice(html.indexOf('class="ow-totals"'),html.indexOf('class="ow-workspace"'));
-        for(const label of ['إجمالي اليوم بالمصري','الكاش','البنكي','مقابل شغل اليوم بالليبي','إيداعات الشركات اليوم','إيداعات المنفذين اليوم','مقارنة عدد العمليات']) expect(totals).toContain(label);
-        for(const amount of ['12,400.50','10,000.50','2,400.00','2,310.25','900.00','745.25','1,234,567.89','320.50']) expect(totals).toContain(amount);
+        for(const label of ['إجمالي اليوم بالمصري','تكلفة اليوم بالليبي','إيداعات الشركات اليوم','إيداعات المنفذين اليوم']) expect(totals).toContain(label);
+        for(const amount of ['12,400.50','2,310.25','900.00','745.25']) expect(totals).toContain(amount);
         expect(totals).toContain('EGP');expect(totals).toContain('LYD');
+        const breakdown = html.slice(html.indexOf('class="ow-breakdown"'),html.indexOf('class="ow-companies"'));
+        for(const value of ['الكاش','البنكي','آخر 7 أيام','10,000.50','2,400.00','1,234,567.89','320.50']) expect(breakdown).toContain(value);
         const companies = html.slice(html.indexOf('class="ow-companies"'),html.indexOf('class="ow-search"'));
         expect(companies).toContain('href="/company/c1"');expect(companies).toContain('href="/company/c2"');
         expect(companies).toContain('88.50');expect(companies).toContain('-12.00');expect(companies).toContain('ow-negative');
@@ -263,10 +266,12 @@ describe('central ledger page layout', () => {
         for(const amount of ['2,500.50','128,450.75','0.00']) expect(executors).toContain(amount);
         expect(executors).toContain('رصيد الكاش');expect(executors).toContain('رصيد البنك');
         expect(executors).toContain('المنفذة اليوم <b>4</b>');expect(executors).toContain('المنفذة اليوم <b>0</b>');
-        expect(executors.indexOf('منفذ كاش')).toBeLessThan(executors.indexOf('<details>'));
-        expect(executors.indexOf('<details>')).toBeLessThan(executors.indexOf('منفذ سريع'));
+        expect(executors.indexOf('منفذ كاش')).toBeLessThan(executors.indexOf('باقي المنفذين'));
+        expect(executors.indexOf('باقي المنفذين')).toBeLessThan(executors.indexOf('منفذ سريع'));
+        expect(executors).not.toContain('<details');
         expect(html.indexOf('class="ow-dashboard"')).toBeLessThan(html.indexOf('id="transactionsTable"'));
-        expect(html).toContain('@media(max-width:760px)');expect(html).toContain('@media(max-width:440px)');
+        expect(html).toContain('/css/operations-workspace.css');
+        expect(html).toContain('id="owStatus"');
 
     });
 

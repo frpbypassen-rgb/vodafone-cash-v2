@@ -1,17 +1,30 @@
-<% const providerReviewView = typeof providerReviewMode !== 'undefined' && providerReviewMode; const reviewCounts = Object.fromEntries((typeof providerReviewCounts !== 'undefined' ? providerReviewCounts : []).map(item => [item._id || 'awaiting', item.count])); %>
-        <% if (providerReviewView) { %>
-        <section class="data-card p-3 mb-3" id="providerReviewSummary" aria-label="متابعة عمليات API المتأخرة">
-            <div class="d-flex flex-wrap justify-content-between gap-2 align-items-center">
-                <h3 class="fw-bold m-0">عمليات API تحتاج مراجعة</h3>
-                <span class="badge <%= providerMonitorEnabled ? 'bg-success' : 'bg-secondary' %>"><%= providerMonitorEnabled ? 'المتابعة الدورية مفعّلة' : 'المتابعة الدورية متوقفة في إعدادات السيرفر' %></span>
-            </div>
-            <p class="small text-muted mt-2">العمليات غير المكتملة منذ 5 دقائق أو أكثر. الفحص الدوري يقرأ رد المزود فقط، ولا يعيد الدفع أو يغيّر الأرصدة. تُحدّث القائمة كل 30 ثانية.</p>
-            <div class="row g-2">
-                <div class="col-6 col-md-3"><div class="border rounded p-3"><span class="d-block small">إجمالي المعروض</span><strong class="fs-4"><%= totalTxs %></strong></div></div>
-                <div class="col-6 col-md-3"><div class="border rounded p-3 text-success"><span class="d-block small">نجاح لدى المزود</span><strong class="fs-4"><%= reviewCounts.paid || 0 %></strong></div></div>
-                <div class="col-6 col-md-3"><div class="border rounded p-3 text-warning"><span class="d-block small">بانتظار نتيجة</span><strong class="fs-4"><%= (reviewCounts.pending || 0) + (reviewCounts.awaiting || 0) %></strong></div></div>
-                <div class="col-6 col-md-3"><div class="border rounded p-3 text-danger"><span class="d-block small">تحتاج تدخلاً</span><strong class="fs-4"><%= ['returned','mismatch','failed','missing_reference','missing_executor','exhausted'].reduce((sum, key) => sum + (reviewCounts[key] || 0), 0) %></strong></div></div>
-            </div>
-            <p class="small text-muted mt-3 mb-0">حتى 10 عمليات في الدورة، وبحد أقصى 8 محاولات لكل عملية. يتوقف الفحص عند اكتشاف نجاح أو إلغاء أو بيانات غير مطابقة؛ القرار يبقى للإدارة.</p>
-        </section>
+<% if (typeof providerReviewMode !== 'undefined' && providerReviewMode) {
+    const counts = Object.fromEntries((typeof providerReviewCounts !== 'undefined' ? providerReviewCounts : []).map(item => [item._id || 'awaiting', item.count]));
+    const attention = ['returned','rejected','mismatch','failed','missing_reference','missing_executor','exhausted']
+        .reduce((sum, key) => sum + (counts[key] || 0), 0);
+    const metrics = [
+        ['total', 'layer-group', 'إجمالي النتائج', totalTxs],
+        ['waiting', 'hourglass-half', 'بانتظار نتيجة', (counts.pending || 0) + (counts.awaiting || 0)],
+        ['paid', 'circle-check', 'نجاح لدى المزود', counts.paid || 0],
+        ['attention', 'circle-exclamation', 'تحتاج تدخّلًا', attention]
+    ];
+%>
+<section id="providerReviewSummary" class="review-summary" aria-labelledby="reviewSummaryTitle">
+    <h2 class="visually-hidden" id="reviewSummaryTitle">عمليات API تحتاج مراجعة</h2>
+    <dl class="review-metrics">
+        <% for (const [tone, icon, label, count] of metrics) { %>
+        <div class="review-metric review-<%= tone %>">
+            <dt><span class="review-metric-icon"><i class="fa-solid fa-<%= icon %>" aria-hidden="true"></i></span><%= label %></dt>
+            <dd><bdi><%= Number(count).toLocaleString('ar-LY') %></bdi></dd>
+        </div>
         <% } %>
+    </dl>
+    <div class="review-monitor-bar">
+        <span class="review-monitor <%= providerMonitorEnabled ? 'is-enabled' : '' %>" title="يفحص المراقب العام حتى 10 عمليات في الدورة، وبحد أقصى 8 محاولات لكل عملية. تراجع الإدارة النتيجة عند تأكيد النجاح أو الإلغاء أو اختلاف البيانات.">
+            <i class="fa-solid <%= providerMonitorEnabled ? 'fa-rotate' : 'fa-pause' %>" aria-hidden="true"></i>
+            المتابعة الدورية <%= providerMonitorEnabled ? 'مفعّلة' : 'متوقفة' %>
+        </span>
+        <span><i class="fa-regular fa-clock" aria-hidden="true"></i> تحديث كل 30 ثانية</span>
+    </div>
+</section>
+<% } %>

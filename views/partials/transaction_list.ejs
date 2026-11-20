@@ -67,7 +67,8 @@
     const ledgerExecutors = Array.isArray(typeof fundedExecutorCompanies !== 'undefined' ? fundedExecutorCompanies : null) ? fundedExecutorCompanies : [];
     const opsWorkspace = typeof operationWorkspace !== 'undefined' && Boolean(operationWorkspace);
     const providerReviewView = typeof providerReviewMode !== 'undefined' && providerReviewMode;
-    const reviewCounts = Object.fromEntries((typeof providerReviewCounts !== 'undefined' ? providerReviewCounts : []).map((item) => [item._id || 'awaiting', item.count]));
+    const executorPageParam = opsWorkspace && typeof executorId !== 'undefined' && executorId ? '&executorId=' + encodeURIComponent(executorId) : '';
+    const providerPageParams = providerReviewView ? '&providerReview=1&providerState=' + encodeURIComponent(query.providerState || '') : '';
     const opsSummary = opsWorkspace
         ? ((typeof operationsSummary !== 'undefined' && operationsSummary) ? operationsSummary : { today: { egyptianEGP: 0, libyanLYD: 0, cashEGP: 0, bankEGP: 0, totalLYD: 0 }, todayDepositsTotal: 0, todayExecutorDepositsTotal: 0, activeExecutors: [], companies: [] })
         : null;
@@ -85,7 +86,16 @@
         return { label: active ? label : `أُنشئت ${label}`, isLate: active && minutes >= 15 };
     };
 %>
-        <div class="data-card border-0 p-0 overflow-hidden">
+        <% if (opsWorkspace && !providerReviewView) { %>
+        <header class="ow-results-heading" id="operationsListHeading" tabindex="-1">
+            <h2><i class="fa-solid fa-list-check" aria-hidden="true"></i> نتائج العمليات</h2>
+            <output class="ow-result-count"><%= Number(totalTxs) || 0 %> عملية</output>
+        </header>
+        <% } %>
+        <div class="<%= providerReviewView ? 'review-list' : 'data-card border-0 p-0 overflow-hidden' %>">
+        <% if (providerReviewView) { %>
+            <%- include('provider_review_list', { operationAgeFor, isBankTransferOperation, formatMoney }) %>
+        <% } else { %>
             <div class="table-responsive border-0 m-0 d-none d-lg-block">
                 <table class="table text-center align-middle m-0" id="transactionsTable">
                     <thead class="table-light">
@@ -98,7 +108,7 @@
                             <th>بوت التنفيذ</th>
                             <th>الملاحظة</th>
                             <th>الحالة</th>
-                            <th>اجراء</th>
+                            <th>الإجراءات</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -120,9 +130,9 @@
 
                             <td>
                                 <span class="tx-operation-reference"><button type="button" class="btn btn-sm btn-outline-secondary tx-copy-operation" data-copy-operation="<%= tx._id %>" aria-label="نسخ بيانات العملية <%= tx.customId || tx._id %>" title="نسخ الجهة المرسلة ورقم الحساب والمبلغ"><i class="fa-regular fa-copy" aria-hidden="true"></i></button>
-                                <a class="clickable-id mono-num fs-6" data-tx='<%- JSON.stringify({ _id: tx._id }).replace(/'/g, "&#39;") %>' onclick="viewTransactionDetails(this)">
+                                <button type="button" class="clickable-id mono-num fs-6" data-tx="<%= JSON.stringify({ _id: tx._id }) %>" onclick="viewTransactionDetails(this)">
                                     #<%= tx.customId || tx._id.toString().slice(-6) %>
-                                </a></span>
+                                </button></span>
                                 <% if (tx.cancellationNumber) { %>
                                     <div class="badge bg-danger-subtle text-danger mono-num mt-1" style="font-size: 0.7rem;"><i class="fa-solid fa-ban me-1"></i><%= tx.cancellationNumber %></div>
                                 <% } %>
@@ -202,7 +212,6 @@
                                 <% } else if(tx.status === 'deduction') { %> <span class="badge-st" style="background: rgba(108,117,125,0.1); color:#6c757d;"><i class="fa-solid fa-arrow-up"></i> خصم</span>
                                 <% } else { %> <span class="badge-st st-fail"><i class="fa-solid fa-ban"></i> ملغاة</span> <% } %>
                                 <% if (operationWorkspace) { %><span class="operation-age <%= operationAge.isLate ? 'is-late' : '' %>"><i class="fa-regular fa-clock ms-1"></i><%= operationAge.label %></span><% } %>
-                                <% if (providerReviewView) { %><%- include('provider_review_status', { tx }) %><% } %>
                             </td>
 
                             <td>
@@ -224,61 +233,7 @@
                                             </div>
                                         <% } %>
 
-                                        <% if(tx.status === 'pending') { %>
-                                            <div class="dropdown">
-                                                <button class="btn btn-sm btn-primary fw-bold rounded-3 dropdown-toggle" type="button" data-bs-toggle="dropdown">توجيه</button>
-                                                <ul class="dropdown-menu border-0 shadow-lg" style="border-radius: 12px; min-width: 180px;">
-                                                    <li class="px-3 py-2 text-muted small fw-bold border-bottom mb-1">اختر البوت:</li>
-                                                    <% if(eligibleExecutorBots.length > 0) { %>
-                                                        <% eligibleExecutorBots.forEach(bot => { %>
-                                                            <li>
-                                                                <form action="/transaction/<%= tx._id %>/assign-executor" method="POST" class="m-0 p-0 js-transaction-action">
-                                                                    <input type="hidden" name="executorBotId" value="<%= bot._id %>">
-                                                                    <button type="submit" class="dropdown-item py-2 fw-bold text-dark d-flex align-items-center"><i class="fa-solid fa-robot text-primary me-2"></i> <span><%= bot.name %><small class="d-block text-muted"><%= bot.serviceLabel %></small></span></button>
-                                                                </form>
-                                                            </li>
-                                                        <% }) %>
-                                                    <% } else { %>
-                                                        <li class="px-3 py-2 text-danger small fw-bold">لا يوجد منفذ نشط لهذه الخدمة.</li>
-                                                    <% } %>
-                                                </ul>
-                                            </div>
-                                        <% } else if((tx.status === 'processing' || tx.status === 'accepted') && !kenanAutoWaiting) { %>
-                                            <form action="/transaction/<%= tx._id %>/pull-task" method="POST" class="mb-0 js-transaction-action" data-confirm="تأكيد سحب المهمة؟">
-                                                <button class="btn btn-sm btn-warning fw-bold rounded-3 text-dark px-3" title="سحب للإدارة">سحب</button>
-                                            </form>
-                                            <form action="/transaction/<%= tx._id %>/emergency-alert" method="POST" class="mb-0" onsubmit="return confirmEmergencyAlert(this);">
-                                                <input type="hidden" name="alertMessage" class="alert-message-input">
-                                                <button type="submit" class="btn btn-sm btn-danger fw-bold rounded-3 px-3 ms-1" title="إطلاق إنذار أحمر">إنذار</button>
-                                            </form>
-                                        <% } %>
-
-                                        <% if(['pending', 'processing', 'accepted', 'completed', 'deposit', 'deduction', 'rejected'].includes(tx.status)) { %>
-                                            <% if (canVoidBalanceAdjustment) { %>
-                                                <form action="/transaction/<%= tx._id %>/void-balance-adjustment" method="POST" class="m-0" onsubmit="return confirm('هل تريد حذف هذه التسوية؟ سيتم عكس أثرها من الرصيد مع الاحتفاظ بها في السجل المالي.');">
-                                                    <input type="hidden" name="reason" value="حذف التسوية من السجل المركزي">
-                                                    <button type="submit" class="btn-action-sm undo" title="حذف التسوية وعكس الرصيد" aria-label="حذف التسوية وعكس الرصيد"><i class="fa-solid fa-trash-can"></i></button>
-                                                </form>
-                                            <% } %>
-
-
-                                            <% if (tx.status === 'completed' && (tx.proofImage || (tx.proofImages && tx.proofImages.length > 0))) { %>
-                                                <form action="/transaction/<%= tx._id %>/resend-proof" method="POST" class="m-0" onsubmit="return confirm('إعادة إرسال الإيصال للعميل؟')">
-                                                    <button type="submit" class="btn-action-sm send" title="إعادة الإرسال"><i class="fa-solid fa-paper-plane"></i></button>
-                                                </form>
-                                            <% } %>
-                                            <button class="btn-action-sm edit" onclick="openEditTxModal('<%= tx._id %>', '<%= tx.amount %>', '<%= tx.createdAt.toISOString() %>')" title="تعديل"><i class="fa-solid fa-pen"></i></button>
-                                            <% if(tx.status !== 'deposit' && tx.status !== 'deduction') { %>
-                                                <button class="btn-action-sm edit" onclick="openEditRateModal('<%= tx._id %>', '<%= tx.exchangeRate ? Number(tx.exchangeRate).toFixed(2) : (tx.costLYD ? (tx.amount / tx.costLYD).toFixed(2) : 0) %>')" title="تعديل الصرف"><i class="fa-solid fa-percent"></i></button>
-                                            <% } %>
-                                        <% } %>
-
-                                        <% if(['pending', 'processing', 'accepted', 'completed'].includes(tx.status) && tx.transferType !== 'balance_transfer' && !providerResolutionPending && !kenanAutoWaiting) { %>
-                                            <form action="/transaction/<%= tx._id %>/global-cancel" method="POST" class="m-0 js-transaction-action">
-                                                <input type="hidden" name="reason" class="cancel-reason-input">
-                                                <button class="btn-action-sm undo" title="تراجع"><i class="fa-solid fa-rotate-left"></i></button>
-                                            </form>
-                                        <% } %>
+                                        <%- include('transaction_extra_actions', { tx, eligibleExecutorBots, kenanAutoWaiting, canVoidBalanceAdjustment, providerResolutionPending }) %>
                                     <% } %>
                                 </div>
                             </td>
@@ -295,7 +250,7 @@
                     <button type="button" class="btn btn-sm flex-fill fw-bold rounded-3 py-2 active mobile-tab-btn" onclick="filterMobileCards('all', this)" style="transition: 0.2s;"><i class="fa-solid fa-list-check me-1"></i> الكل</button>
                     <button type="button" class="btn btn-sm flex-fill fw-bold rounded-3 py-2 mobile-tab-btn" onclick="filterMobileCards('pending', this)" style="transition: 0.2s;"><i class="fa-solid fa-hourglass-half me-1"></i> المعلقة</button>
                     <button type="button" class="btn btn-sm flex-fill fw-bold rounded-3 py-2 mobile-tab-btn" onclick="filterMobileCards('completed', this)" style="transition: 0.2s;"><i class="fa-solid fa-check-circle me-1"></i> المنتهية</button>
-                    <button type="button" class="btn btn-sm flex-fill fw-bold rounded-3 py-2 mobile-tab-btn" onclick="filterMobileCards('deposit', this)" style="transition: 0.2s;"><i class="fa-solid fa-wallet me-1"></i> التسويات</button>
+                    <% if (!opsWorkspace) { %><button type="button" class="btn btn-sm flex-fill fw-bold rounded-3 py-2 mobile-tab-btn" onclick="filterMobileCards('deposit', this)" style="transition: 0.2s;"><i class="fa-solid fa-wallet me-1"></i> التسويات</button><% } %>
                 </div>
 
                 <div id="mobileEmptyState" class="text-center py-5 text-muted fw-bold border-0 fs-5 data-card" style="display: none; background: var(--card-bg); border-radius: 16px; border: 1px solid var(--border-glass);">
@@ -304,7 +259,7 @@
 
 <div id="mobileTransactionRows">
                 <% if (transactions.length === 0) { %>
-                    <div class="text-center py-5 text-muted fw-bold border-0 fs-5 data-card"><i class="fa-solid fa-folder-open fs-1 d-block mb-3 opacity-25"></i> لا توجد عمليات مطابقة.</div>
+                    <div class="text-center py-5 text-muted fw-bold border-0 fs-5 data-card" data-list-empty><i class="fa-solid fa-folder-open fs-1 d-block mb-3 opacity-25"></i> لا توجد عمليات مطابقة.</div>
                 <% } %>
 
                 <% transactions.forEach(tx => {
@@ -329,9 +284,9 @@
                         <div class="d-flex justify-content-between align-items-start mb-2">
                             <div>
                                 <span class="tx-operation-reference"><button type="button" class="btn btn-sm btn-outline-secondary tx-copy-operation" data-copy-operation="<%= tx._id %>" aria-label="نسخ بيانات العملية <%= tx.customId || tx._id %>" title="نسخ الجهة المرسلة ورقم الحساب والمبلغ"><i class="fa-regular fa-copy" aria-hidden="true"></i></button>
-                                <a class="clickable-id mono-num fs-6 fw-bold" data-tx='<%- JSON.stringify({ _id: tx._id }).replace(/'/g, "&#39;") %>' onclick="viewTransactionDetails(this)">
+                                <button type="button" class="clickable-id mono-num fs-6 fw-bold" data-tx="<%= JSON.stringify({ _id: tx._id }) %>" onclick="viewTransactionDetails(this)">
                                     #<%= tx.customId || tx._id.toString().slice(-6) %>
-                                </a></span>
+                                </button></span>
                                 <% if (tx.cancellationNumber) { %>
                                     <div class="badge bg-danger-subtle text-danger mono-num mt-1" style="font-size: 0.7rem;"><i class="fa-solid fa-ban me-1"></i><%= tx.cancellationNumber %></div>
                                 <% } %>
@@ -371,7 +326,6 @@
                                 <% if (mobileBankLabel) { %><div class="small text-muted"><%= mobileBankLabel %></div><% } %>
                             </div>
                         </div>
-                        <% if (providerReviewView) { %><%- include('provider_review_status', { tx }) %><% } %>
                         <% if (mobileNoteView.customerText) { %>
                             <div class="small fw-bold mt-2 pt-2" style="border-top: 1px dashed var(--border-glass); white-space: pre-line; color: var(--text-muted);">
                                 <i class="fa-regular fa-comment-dots me-1"></i><%= mobileNoteView.customerText %>
@@ -394,7 +348,7 @@
                         const canGlobalCancel = ['pending', 'processing', 'accepted', 'completed'].includes(tx.status) && tx.transferType !== 'balance_transfer' && !mobileProviderResolutionPending;
                         if (isPendingOrProcessing || hasApiLog || canGlobalCancel || mobileProviderResolutionPending || canVoidMobileAdjustment) {
                         %>
-                            <div class="d-flex gap-2 mt-3 pt-2" style="border-top: 1px dashed var(--border-glass);">
+                            <div class="d-flex gap-2 mt-3 pt-2 mobile-operation-actions" style="border-top: 1px dashed var(--border-glass);">
                                 <% if(tx.status === 'pending') { %>
                                     <div class="dropdown flex-fill mobile-executor-routing">
                                         <button class="btn btn-sm btn-primary fw-bold rounded-3 dropdown-toggle w-100" type="button" data-bs-toggle="dropdown" data-bs-auto-close="outside" data-bs-display="static" aria-expanded="false"><i class="fa-solid fa-paper-plane me-1"></i> توجيه</button>
@@ -454,19 +408,20 @@
 </div>
             </div>
 
+        <% } %>
             <div id="transactionPagination"><% if (typeof totalPages !== 'undefined' && totalPages > 1) { %>
                 <nav class="mt-4 pt-3 pb-3">
                     <ul class="pagination justify-content-center mb-0">
                         <li class="page-item <%= currentPage === 1 ? 'disabled' : '' %>">
-                            <a class="page-link shadow-sm" href="?page=<%= currentPage - 1 %>&search=<%= encodeURIComponent(search) %>&status=<%= statusFilter %>&fromDate=<%= fromDate %>&toDate=<%= toDate %>&filterType=<%= typeof filterType !== 'undefined' ? filterType : '' %><%= providerReviewView ? '&providerReview=1&providerState=' + encodeURIComponent(query.providerState || '') : '' %>"><i class="fa-solid fa-angle-right"></i></a>
+                            <a class="page-link shadow-sm" href="?page=<%= currentPage - 1 %>&search=<%= encodeURIComponent(search) %>&status=<%= statusFilter %>&fromDate=<%= fromDate %>&toDate=<%= toDate %>&filterType=<%= typeof filterType !== 'undefined' ? filterType : '' %><%= providerPageParams + executorPageParam %>"><i class="fa-solid fa-angle-right"></i></a>
                         </li>
                         <% let startPage = Math.max(1, currentPage - 2); let endPage = Math.min(totalPages, currentPage + 2); for(let i = startPage; i <= endPage; i++) { %>
                             <li class="page-item <%= currentPage === i ? 'active' : '' %>">
-                                <a class="page-link shadow-sm" href="?page=<%= i %>&search=<%= encodeURIComponent(search) %>&status=<%= statusFilter %>&fromDate=<%= fromDate %>&toDate=<%= toDate %>&filterType=<%= typeof filterType !== 'undefined' ? filterType : '' %><%= providerReviewView ? '&providerReview=1&providerState=' + encodeURIComponent(query.providerState || '') : '' %>"><%= i %></a>
+                                <a class="page-link shadow-sm" href="?page=<%= i %>&search=<%= encodeURIComponent(search) %>&status=<%= statusFilter %>&fromDate=<%= fromDate %>&toDate=<%= toDate %>&filterType=<%= typeof filterType !== 'undefined' ? filterType : '' %><%= providerPageParams + executorPageParam %>"><%= i %></a>
                             </li>
                         <% } %>
                         <li class="page-item <%= currentPage === totalPages ? 'disabled' : '' %>">
-                            <a class="page-link shadow-sm" href="?page=<%= currentPage + 1 %>&search=<%= encodeURIComponent(search) %>&status=<%= statusFilter %>&fromDate=<%= fromDate %>&toDate=<%= toDate %>&filterType=<%= typeof filterType !== 'undefined' ? filterType : '' %><%= providerReviewView ? '&providerReview=1&providerState=' + encodeURIComponent(query.providerState || '') : '' %>"><i class="fa-solid fa-angle-left"></i></a>
+                            <a class="page-link shadow-sm" href="?page=<%= currentPage + 1 %>&search=<%= encodeURIComponent(search) %>&status=<%= statusFilter %>&fromDate=<%= fromDate %>&toDate=<%= toDate %>&filterType=<%= typeof filterType !== 'undefined' ? filterType : '' %><%= providerPageParams + executorPageParam %>"><i class="fa-solid fa-angle-left"></i></a>
                         </li>
                     </ul>
                 </nav>

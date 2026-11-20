@@ -1,13 +1,25 @@
 <%
     const reviewData = tx.apiResultData || {};
     const reviewDate = (value) => value && Number.isFinite(new Date(value).getTime())
-        ? new Date(value).toLocaleString('ar-LY', { timeZone: 'Africa/Tripoli' }) : 'لم يتم الفحص بعد';
+        ? new Date(value).toLocaleString('ar-LY', {
+            timeZone: 'Africa/Tripoli', day: 'numeric', month: 'numeric', year: 'numeric',
+            hour: '2-digit', minute: '2-digit', hourCycle: 'h23'
+        }) : 'لم يُفحص بعد';
 %>
-<div class="provider-monitor-status mt-2 p-2 rounded border small" data-provider-monitor-status>
-    <strong class="d-block"><%= tx.providerMonitorLabel || 'بانتظار الفحص' %></strong>
-    <span class="d-block">رد المزود: <%= reviewData.providerReportedStatus || 'لا يوجد رد مسجل' %></span>
-    <% if (reviewData.providerReportedReference) { %><span class="d-block">المرجع: <b dir="ltr"><%= reviewData.providerReportedReference %></b></span><% } %>
-    <span class="d-block">آخر استعلام: <%= reviewDate(reviewData.providerLastCheckedAt || reviewData.providerMonitorCheckedAt) %></span>
-    <span class="d-block">الفحوص الدورية: <%= Number(reviewData.providerMonitorAttempts || 0) %><%= reviewData.zaynFollowupAttemptId ? '' : ' / 8' %></span>
-    <span class="d-block"><%= reviewData.providerMonitorStopped ? 'الفحص الدوري متوقف — القرار للإدارة' : (reviewData.providerMonitorNextCheckAt ? 'الموعد التالي: ' + reviewDate(reviewData.providerMonitorNextCheckAt) : 'تُفحص تلقائيًا عند حلول دورها إذا كانت المتابعة مفعلة') %></span>
+<div class="provider-monitor-status" data-provider-monitor-status>
+    <div class="review-reply-heading">
+        <strong class="review-status-chip"><%= tx.providerMonitorLabel || communication?.rowStatus || 'بانتظار الفحص' %></strong>
+        <%- include('provider_communication', { communication, tx }) %>
+    </div>
+    <dl class="review-provider-meta">
+        <div><dt>رد المزود</dt><dd><bdi><%= reviewData.providerReportedStatus || 'لا يوجد رد مسجل' %></bdi></dd></div>
+        <% if (reviewData.providerReportedReference) { %>
+        <div><dt>المرجع</dt><dd><bdi><%= reviewData.providerReportedReference %></bdi></dd></div>
+        <% } %>
+        <div><dt>آخر استعلام:</dt><dd><%= reviewDate(reviewData.providerLastCheckedAt || reviewData.providerMonitorCheckedAt) %></dd></div>
+        <div><dt>الفحوص الدورية</dt><dd><bdi><%= Number(reviewData.providerMonitorAttempts || 0) %><%= reviewData.zaynFollowupAttemptId ? '' : ' / 8' %></bdi></dd></div>
+    </dl>
+    <% if (reviewData.providerMonitorStopped || reviewData.providerMonitorNextCheckAt) { %>
+    <p class="review-poll-note"><%= reviewData.providerMonitorStopped ? 'توقفت المتابعة لهذه العملية' : 'الموعد التالي: ' + reviewDate(reviewData.providerMonitorNextCheckAt) %></p>
+    <% } %>
 </div>

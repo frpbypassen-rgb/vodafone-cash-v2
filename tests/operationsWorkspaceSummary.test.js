@@ -25,7 +25,7 @@ test('adds independent period counts and activity without changing balances', as
     expect(Transaction.aggregate.mock.calls[1][0][1].$facet.cancelled[0].$match.status).toBe('cancelled_by_admin');
 });
 
-test('renders centered account cards and all-date search, escaping account names', async () => {
+test('renders account sections without collapse controls and escapes account names', async () => {
     const html = await ejs.renderFile(path.join(__dirname, '../views/partials/operations_workspace_summary.ejs'), {
         opsSummary: { counts: {}, todayDepositsTotal: 0, todayExecutorDepositsTotal: 0 },
         opsToday: {}, opsCompanies: [{ id: 'c', name: '<script>bad</script>', balance: -123456789, completedToday: 4 }],
@@ -35,7 +35,7 @@ test('renders centered account cards and all-date search, escaping account names
     expect(html).toContain('&lt;script&gt;bad&lt;/script&gt;');
     expect(html).toContain('name="fromDate" value=""');
     expect(html).toContain('name="toDate" value=""');
-    expect(html.indexOf('Busy')).toBeLessThan(html.indexOf('<details>'));
-    expect(html.indexOf('Idle')).toBeGreaterThan(html.indexOf('<details>'));
+    expect(html).toMatch(/<section class="ow-executors"[^>]*>[\s\S]*?Busy[\s\S]*?باقي المنفذين[\s\S]*?Idle[\s\S]*?<\/section>/);
+    expect(html).not.toMatch(/<details class="ow-(breakdown|companies|executors)"/);
     expect(html).toContain('ow-negative');
 });
