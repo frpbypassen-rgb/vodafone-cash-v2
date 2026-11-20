@@ -273,6 +273,7 @@ const applyAutoRouteFields = (tx, executorGroup) => {
     tx.managerGroupId = getParentGroupId(executorGroup);
     tx.executorReceivedAt = new Date();
     tx.executorName = executorGroup.name;
+    tx.routingHistory = [{ kind: 'auto_routed', at: tx.executorReceivedAt, executor: executorGroup.name }];
     tx.status = 'processing';
     tx.broadcastMessages = [];
 

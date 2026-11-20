@@ -4,6 +4,12 @@ const mongoose = require('mongoose');
 const Transaction = require('../models/Transaction');
 const AuditLog = require('../models/AuditLog');
 const Ledger = require('../models/Ledger');
+const SubAccount = require('../models/SubAccount');
+const User = require('../models/User');
+const ExecutorGroup = require('../models/ExecutorGroup');
+const { hasPermission } = require('../middlewares/auth');
+const { buildLifecycle } = require('./transactionLifecycleView');
+const { getTransferPricingDefinition } = require('../utils/transferPricing');
 const { systemDateKey, systemDateRange } = require('../config/systemTime');
 const { tenantScope } = require('../utils/tenantScope');
 const { applyAdminTxPrivacy } = require('./adminAccountVisibilityService');
@@ -146,6 +152,7 @@ const mapLiveTransaction = (transaction, audit = null) => {
         status: transaction.status,
         type: transaction.transferType,
         amount: Number(transaction.amount || 0),
+        amountCurrency: getTransferPricingDefinition(transaction.transferType).amountCurrencyCode,
         costLYD: Number(transaction.costLYD || 0),
         exchangeRate: Number(transaction.exchangeRate || 0),
         customer: transactionCustomer(transaction),
@@ -257,28 +264,46 @@ const getLiveMetrics = async (req, now = new Date()) => {
     };
 };
 
+function loadSourceAccount(transaction, scope) {
+    if (transaction.subAccountId) return SubAccount.findOne({ ...scope, _id:transaction.subAccountId }).select('masterType').lean();
+    if (transaction.companyId || (transaction.clientActorModel && transaction.clientActorModel !== 'User')) return Promise.resolve(null);
+    const identity = transaction.clientActorId || transaction.userId;
+    if (!identity) return Promise.resolve(null);
+    const lookup = mongoose.isValidObjectId(identity) ? { _id:identity } : { phone:identity };
+    return User.findOne({ ...scope, ...lookup }).select('role name').lean();
+}
+
 const getTransactionDetail = async (req, id) => {
     if (!mongoose.isValidObjectId(id)) return null;
-    const transaction = await Transaction.findOne(applyAdminTxPrivacy({ _id: id, ...tenantScope(req) })).select(`+clientActorId +clientActorModel ${DISPLAY_PROJECTION}`).lean();
+    const scope = tenantScope(req);
+    const transaction = await Transaction.findOne(applyAdminTxPrivacy({ _id: id, ...scope }))
+        .select(`+clientActorId +clientActorModel +routingHistory ${DISPLAY_PROJECTION} isSubAccountTx tenantId executorGroupId operatorId assignedExecutorName routedByAdminName routedAt cancelledBy cancellationNumber`).lean();
     if (!transaction) return null;
-    const [audits, ledgers] = await Promise.all([
-        AuditLog.find({ $or: [{ targetId: transaction._id }, { 'metadata.transactionId': transaction.customId }] })
-            .sort({ createdAt: 1 }).limit(100).lean(),
-        Ledger.find({ transactionId: transaction.customId }).sort({ createdAt: 1 }).limit(100)
-            .select('type amount currency balanceBefore balanceAfter createdAt metadata').lean()
+    const canReadFinance = hasPermission(req.session, 'reports.read');
+    const limit = 200;
+    const auditTargets = [{ targetId:{ $in:[transaction._id, String(transaction._id)] } }];
+    if (transaction.customId) auditTargets.push(
+        { 'metadata.transactionId':transaction.customId, targetModel:{ $in:['Transaction', null] } },
+        { 'metadata.customId':transaction.customId, targetModel:{ $in:['Transaction', null] } }
+    );
+    const [auditRows, ledgerRows, account] = await Promise.all([
+        AuditLog.find({ ...scope, $or:auditTargets }).sort({ createdAt:1, _id:1 }).limit(limit + 1)
+            .select('action success performedByName performedByModel ipAddress userAgent deviceType location createdAt oldData.executorName oldData.assignedExecutorName oldData.routedByAdminName newData.executorName metadata.executorName metadata.routedByAdminName metadata.lifecycleRecorded').lean(),
+        canReadFinance && transaction.customId
+            ? Ledger.find({ ...scope, transactionId:transaction.customId }).sort({ createdAt:1, _id:1 }).limit(limit + 1)
+                .select('entityId entityModel type amount currency settledCurrency balanceBefore balanceAfter createdAt').lean()
+            : Promise.resolve([]),
+        loadSourceAccount(transaction, scope)
     ]);
-    const timeline = [
-        { key: 'created', label: 'بدأت العملية', at: transaction.createdAt, state: 'done' },
-        transaction.assignedExecutorAt && { key: 'assigned', label: 'تم توجيهها للمنفذ', at: transaction.assignedExecutorAt, state: 'done' },
-        transaction.executorReceivedAt && { key: 'received', label: 'استلمها المنفذ', at: transaction.executorReceivedAt, state: 'done' },
-        ...ledgers.map((entry) => ({ key: `ledger-${entry._id}`, label: `حركة مالية: ${entry.type}`, at: entry.createdAt, state: 'done' })),
-        ...audits.map((audit) => ({
-            key: `audit-${audit._id}`, label: audit.performedByName ? `${audit.action} · ${audit.performedByName}` : audit.action,
-            at: audit.createdAt, state: audit.success === false ? 'error' : 'done', errorCode: audit.errorCode || ''
-        })),
-        transaction.completedAt && { key: 'completed', label: 'اكتملت وتسوت العملية', at: transaction.completedAt, state: 'done' },
-        transaction.cancelledAt && { key: 'cancelled', label: 'ألغيت العملية', at: transaction.cancelledAt, state: 'error' }
-    ].filter(Boolean).sort((left, right) => new Date(left.at) - new Date(right.at));
+    const audits = auditRows.slice(0, limit);
+    const ledgers = ledgerRows.slice(0, limit);
+    const executorIds = ledgers.filter(row => ['ExecutorGroup','ExecutorBot'].includes(row.entityModel) && row.entityId).map(row => row.entityId);
+    const executorAccounts = executorIds.length
+        ? await ExecutorGroup.find({ ...scope, _id:{ $in:executorIds } }).select('name').lean() : [];
+    const lifecycle = buildLifecycle(transaction, {
+        audits, ledgers, account, executorNames:new Map(executorAccounts.map(row => [String(row._id), row.name])), canReadFinance,
+        auditTruncated:auditRows.length > limit, financeTruncated:ledgerRows.length > limit
+    });
     const creationAudit = audits.find((item) => item.action === 'TRANSFER_CREATED') || audits[0] || null;
     return {
         transaction: mapLiveTransaction(transaction, creationAudit),
@@ -287,7 +312,8 @@ const getTransactionDetail = async (req, id) => {
             senderActor: transaction.employeeName || 'المدير',
             recipient: transactionRecipient(transaction)
         },
-        timeline,
+        lifecycle,
+        timeline: lifecycle.events.map(event => ({ ...event, state: ['cancelled', 'rejected'].includes(event.kind) ? 'error' : 'done' })),
         error: safeApiError(transaction),
         audit: creationAudit ? {
             ip: creationAudit.ipAddress || '', deviceType: creationAudit.deviceType || '',

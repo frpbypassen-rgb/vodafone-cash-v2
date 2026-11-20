@@ -37,6 +37,13 @@ export interface ITransaction extends Document {
     settlementDetails?: any;
     status: 'pending' | 'processing' | 'accepted' | 'completed' | 'rejected' | 'deposit_pending' | 'deposit' | 'deduction' | 'cancelled_by_admin';
     executorGroupId?: mongoose.Types.ObjectId;
+    routingHistory?: Array<{
+        kind: 'admin_routed' | 'admin_pulled' | 'auto_routed' | 'executor_assigned' | 'executor_accepted';
+        at: Date;
+        actor?: string;
+        executor?: string;
+        previousRouter?: string;
+    }>;
     managerGroupId?: mongoose.Types.ObjectId;
     executorReceivedAt?: Date;
     executorGroupName?: string;
@@ -144,6 +151,7 @@ const transactionSchema = new Schema<ITransaction>({
         default: 'pending' 
     },
     executorGroupId: { type: Schema.Types.ObjectId, ref: 'ExecutorGroup' },
+    routingHistory: require('../../../models/schemas/transactionRoutingHistory'),
     managerGroupId: { type: Schema.Types.ObjectId, ref: 'ExecutorGroup' },
     executorReceivedAt: { type: Date },
     executorGroupName: { type: String },

@@ -135,6 +135,8 @@ const transactionSchema = new mongoose.Schema({
     routedByAdminId: { type: String, trim: true },
     routedByAdminName: { type: String, trim: true },
     routedAt: { type: Date },
+    // Preserve prior assignments when a task is pulled or sent to another executor.
+    routingHistory: require('./schemas/transactionRoutingHistory'),
     // المدير الذي سجّل إيداعاً أو خصماً أو اعتمد حركة الرصيد.
     performedByAdminId: { type: String, trim: true },
     performedByAdminName: { type: String, trim: true },

@@ -276,7 +276,8 @@ const acceptExecutorTask = async ({ transactionId, executor, tenantId = null }) 
                     assignedExecutorId: employeeId,
                     assignedExecutorName: executor.name,
                     emergencyAlert: undefined
-                }
+                },
+                $push: { routingHistory: { kind: 'executor_accepted', at: new Date(), actor: executor.name, executor: executor.name } }
             },
             { returnDocument: 'after' }
         );
@@ -347,15 +348,17 @@ const routeExecutorTask = async ({ transactionId, manager, employeeId, tenantId 
             ...taskGroupFilter(groupId)
         };
         if (tenantId) taskQuery.tenantId = tenantId;
+        const assignedAt = new Date();
         const transaction = await Transaction.findOneAndUpdate(
             taskQuery,
             {
                 $set: {
                     assignedExecutorId: String(employee._id),
                     assignedExecutorName: employee.name,
-                    assignedExecutorAt: new Date(),
+                    assignedExecutorAt: assignedAt,
                     emergencyAlert: undefined
-                }
+                },
+                $push: { routingHistory: { kind: 'executor_assigned', at: assignedAt, actor: manager.name, executor: employee.name } }
             },
             { returnDocument: 'after' }
         );

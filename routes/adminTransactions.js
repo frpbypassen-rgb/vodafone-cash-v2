@@ -728,7 +728,10 @@ router.post('/transaction/:id/assign-executor', async (req, res) => {
             // fields no longer match the current schema.
             const updateResult = await Transaction.collection.updateOne(
                 { _id: tx._id, status: 'pending' },
-                { $set: assignment },
+                {
+                    $set: assignment,
+                    $push: { routingHistory: { kind: 'admin_routed', at: routedAt, actor: actor.name, executor: executorGroup.name } }
+                },
             );
             if (!updateResult.acknowledged || updateResult.modifiedCount !== 1) {
                 return respondTransactionAction(req, res, 409, {
@@ -749,7 +752,8 @@ router.post('/transaction/:id/assign-executor', async (req, res) => {
                 metadata: reportAuditMetadata(routedTx, {
                     routedByAdminId: actor.id,
                     routedByAdminName: actor.name,
-                    executorGroupId: String(executorGroup._id)
+                    executorGroupId: String(executorGroup._id),
+                    lifecycleRecorded: true
                 })
             });
             
@@ -832,33 +836,45 @@ router.post('/transaction/:id/pull-task', async (req, res) => {
         const previousRouter = {
             routedByAdminId: tx.routedByAdminId || '',
             routedByAdminName: tx.routedByAdminName || '',
-            executorName: tx.executorName || ''
+            executorName: tx.executorName || '',
+            assignedExecutorName: tx.assignedExecutorName || '',
+            status: tx.status
         };
 
-        tx.status = 'pending'; tx.executorGroupId = undefined; tx.managerGroupId = undefined; tx.executorName = undefined; tx.operatorId = undefined; tx.assignedExecutorId = undefined; tx.assignedExecutorName = undefined; tx.assignedExecutorAt = undefined; tx.routedByAdminId = undefined; tx.routedByAdminName = undefined; tx.routedAt = undefined; tx.broadcastMessages = []; tx.adminMessages = []; tx.emergencyAlert = undefined;
-
-        // 🟢 إشعارات الانسحاب عبر Socket.IO
-
-        await tx.save();
-        await Transaction.updateOne(
-            { _id: tx._id },
-            { $unset: { routedByAdminId: 1, routedByAdminName: 1, routedAt: 1 } }
+        const filter = { _id: tx._id, status: tx.status, executorGroupId: oldGroupId || null };
+        if (tx.updatedAt) filter.updatedAt = tx.updatedAt;
+        const result = await Transaction.collection.updateOne(
+            filter,
+            {
+                $set: { status: 'pending', broadcastMessages: [], adminMessages: [], updatedAt: actor.at },
+                $unset: { executorGroupId: 1, managerGroupId: 1, executorName: 1, operatorId: 1, assignedExecutorId: 1, assignedExecutorName: 1, assignedExecutorAt: 1, routedByAdminId: 1, routedByAdminName: 1, routedAt: 1, emergencyAlert: 1 },
+                $push: {
+                    routingHistory: {
+                        kind: 'admin_pulled', at: actor.at, actor: actor.name,
+                        executor: previousRouter.assignedExecutorName || previousRouter.executorName,
+                        previousRouter: previousRouter.routedByAdminName
+                    }
+                }
+            }
         );
+        if (result.modifiedCount !== 1) {
+            return respondTransactionAction(req, res, 409, { success: false, message: 'تغيرت العملية أثناء السحب. حدّث القائمة وحاول مجددًا.' });
+        }
         await auditAdminAction(req, actor, {
             action: 'TRANSACTION_PULLED',
             targetId: tx._id,
             oldData: previousRouter,
             newData: { status: 'pending' },
-            metadata: reportAuditMetadata(tx, previousRouter)
+            metadata: reportAuditMetadata(tx, { ...previousRouter, lifecycleRecorded: true })
         });
         eventBus.publish('executor:task-withdrawn', {
-            tx: { ...tx.toObject(), executorGroupId: oldGroupId },
+            tx: { ...tx.toObject(), status: 'pending', executorGroupId: oldGroupId },
             source: 'admin-pull'
         });
         return respondTransactionAction(req, res, 200, {
             success: true,
             message: `تم سحب العملية ${displayId} إلى الإدارة.`,
-            transaction: { id: String(tx._id), status: tx.status }
+            transaction: { id: String(tx._id), status: 'pending' }
         });
     } catch (e) {
         if (isAdminActorError(e)) return respondActorRequired(req, res, operationsListReturnUrl(req));
