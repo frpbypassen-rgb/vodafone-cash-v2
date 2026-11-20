@@ -250,11 +250,11 @@ describe('central ledger page layout', () => {
         expect(html).not.toContain('الشركات النشطة');
         expect(html).not.toContain('class="ledger-stats-bar');
 
-        const totals = html.slice(html.indexOf('class="ow-totals"'),html.indexOf('class="ow-workspace"'));
+        const totals = html.slice(html.indexOf('class="ow-totals"'),html.indexOf('class="ow-stat-grid"'));
         for(const label of ['إجمالي اليوم بالمصري','تكلفة اليوم بالليبي','إيداعات الشركات اليوم','إيداعات المنفذين اليوم']) expect(totals).toContain(label);
         for(const amount of ['12,400.50','2,310.25','900.00','745.25']) expect(totals).toContain(amount);
         expect(totals).toContain('EGP');expect(totals).toContain('LYD');
-        const breakdown = html.slice(html.indexOf('class="ow-breakdown"'),html.indexOf('class="ow-companies"'));
+        const breakdown = html.slice(html.indexOf('class="ow-breakdown"'),html.indexOf('class="ow-search"'));
         for(const value of ['الإحصائيات','الكاش','البنكي','آخر 7 أيام','10,000.50','2,400.00']) expect(breakdown).toContain(value);
         const companies = html.slice(html.indexOf('class="ow-companies"'),html.indexOf('class="ow-executors"'));
         expect(companies).toContain('href="/company/c1"');expect(companies).toContain('href="/company/c2"');
@@ -264,6 +264,7 @@ describe('central ledger page layout', () => {
         expect(companies).toContain('900.00');
         expect(companies.indexOf('شركة النور')).toBeLessThan(companies.indexOf('شركة الأمل'));
         const executors = html.slice(html.indexOf('class="ow-executors"'),html.indexOf('</section>',html.indexOf('class="ow-executors"')));
+        expect(html).toMatch(/class="ow-companies"[\s\S]*?class="ow-workspace-side"[\s\S]*?class="ow-executors"[\s\S]*?class="ow-breakdown"/);
         expect(executors).toContain('/transactions/operations?executorId=e1');expect(executors).toContain('href="/executor/e2"');
         for(const amount of ['2,500.50','128,450.75','0.00','320.50']) expect(executors).toContain(amount);
         expect(executors).toContain('رصيد الكاش');expect(executors).toContain('رصيد البنك');
