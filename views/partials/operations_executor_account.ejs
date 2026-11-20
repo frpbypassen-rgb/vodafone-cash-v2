@@ -1,12 +1,18 @@
 <a class="ow-account ow-executor" href="<%= active ? '/transactions/operations?executorId=' + encodeURIComponent(executor.id) + '&fromDate=&toDate=' : '/executor/' + encodeURIComponent(executor.id) %>">
-    <div class="ow-account-heading"><b><%= executor.name %></b><i class="fa-solid fa-chevron-left" aria-hidden="true"></i></div>
-    <div class="ow-account-meta"><span>رصيد الكاش</span>
-        <% if (executor.cashBalance != null) { %>
-        <strong dir="ltr" class="<%= executor.cashBalance < 0 ? 'ow-negative' : 'ow-positive' %>"><%= formatMoney(executor.cashBalance) %> <small>EGP</small></strong>
-        <% } else { %><strong>غير متاح</strong><% } %>
-    </div>
-    <% if (executor.bankBalance != null) { %>
-    <div class="ow-account-meta"><span>رصيد البنك</span><strong dir="ltr" class="<%= executor.bankBalance < 0 ? 'ow-negative' : 'ow-positive' %>"><%= formatMoney(executor.bankBalance) %> <small>EGP</small></strong></div>
-    <% } %>
-    <span>المنفذة اليوم <b><%= formatCount(executor.completedToday) %></b></span>
+    <h3 class="ow-account-heading"><bdi><%= executor.name %></bdi><i class="fa-solid fa-chevron-left" aria-hidden="true"></i></h3>
+    <dl class="ow-account-facts">
+        <div class="ow-account-balance">
+            <dt>رصيد الكاش</dt>
+            <% if (executor.cashBalance != null) { %>
+            <dd class="<%= executor.cashBalance < 0 ? 'ow-negative' : (executor.cashBalance > 0 ? 'ow-positive' : '') %>"><bdi dir="ltr"><%= formatMoney(executor.cashBalance) %> <small>EGP</small></bdi></dd>
+            <% } else { %><dd>غير متاح</dd><% } %>
+        </div>
+        <% if (executor.bankBalance != null) { %>
+        <div><dt>رصيد البنك</dt><dd class="<%= executor.bankBalance < 0 ? 'ow-negative' : (executor.bankBalance > 0 ? 'ow-positive' : '') %>"><bdi dir="ltr"><%= formatMoney(executor.bankBalance) %> <small>EGP</small></bdi></dd></div>
+        <% } %>
+        <div><dt>المنفذة اليوم</dt><dd><bdi><%= formatCount(executor.completedToday) %></bdi></dd></div>
+        <% if (executor.depositsToday) { %>
+        <div><dt>إيداع اليوم</dt><dd><bdi dir="ltr"><%= formatMoney(executor.depositsToday) %> <small>EGP</small></bdi></dd></div>
+        <% } %>
+    </dl>
 </a>

@@ -13,6 +13,8 @@ test('passes page-local summary variables explicitly into the included template'
     const include = source.match(/<%- include\('partials\/operations_workspace_summary'[^\n]+/)[0];
     const html = ejs.render(`<% const opsSummary = { counts: {} }; const opsToday = {}; const opsCompanies = []; const opsExecutors = []; const formatMoney = value => String(value || 0); const formatCount = formatMoney; const search = ''; %>${include}`, {}, { filename });
     expect(html).toContain('بحث شامل');
+    expect(html).toContain('لا توجد شركات نشطة.');
+    expect(html).toContain('لا يوجد منفذون للعرض.');
 });
 
 test('adds independent period counts and activity without changing balances', async () => {
@@ -25,17 +27,21 @@ test('adds independent period counts and activity without changing balances', as
     expect(Transaction.aggregate.mock.calls[1][0][1].$facet.cancelled[0].$match.status).toBe('cancelled_by_admin');
 });
 
-test('renders account sections without collapse controls and escapes account names', async () => {
+test('renders visible summary cards with account balances, deposits and links', async () => {
     const html = await ejs.renderFile(path.join(__dirname, '../views/partials/operations_workspace_summary.ejs'), {
         opsSummary: { counts: {}, todayDepositsTotal: 0, todayExecutorDepositsTotal: 0 },
-        opsToday: {}, opsCompanies: [{ id: 'c', name: '<script>bad</script>', balance: -123456789, completedToday: 4 }],
-        opsExecutors: [{ id: 'busy', name: 'Busy', activityCount: 1, balance: 9 }, { id: 'idle', name: 'Idle', activityCount: 0, balance: -9 }],
+        opsToday: {}, opsCompanies: [{ id: 'c', name: '<شركة>', balance: -123456789, completedToday: 4, depositsToday: 24 }],
+        opsExecutors: [{ id: 'idle', name: 'Idle', activityCount: 0 }, { id: 'busy', name: 'Busy', activityCount: 1, cashBalance: 9, bankBalance: -5, depositsToday: 150 }],
         formatMoney: value => String(value || 0), formatCount: value => String(value || 0), search: ''
     });
-    expect(html).toContain('&lt;script&gt;bad&lt;/script&gt;');
+    expect(html).toContain('&lt;شركة&gt;');
     expect(html).toContain('name="fromDate" value=""');
     expect(html).toContain('name="toDate" value=""');
-    expect(html).toMatch(/<section class="ow-executors"[^>]*>[\s\S]*?Busy[\s\S]*?باقي المنفذين[\s\S]*?Idle[\s\S]*?<\/section>/);
+    expect(html).toMatch(/<section class="ow-executors"[^>]*>[\s\S]*?Busy[\s\S]*?Idle[\s\S]*?<\/section>/);
     expect(html).not.toMatch(/<details class="ow-(breakdown|companies|executors)"/);
-    expect(html).toContain('ow-negative');
+    expect(html.match(/class="ow-total"/g)).toHaveLength(4);
+    expect(html.match(/class="ow-stat(?: |")/g)).toHaveLength(7);
+    expect(html).toMatch(/href="\/company\/c"[\s\S]*?ow-negative[\s\S]*?-123456789[\s\S]*?إيداع اليوم[\s\S]*?24 <small>LYD<\/small>/);
+    expect(html).toMatch(/href="\/transactions\/operations\?executorId=busy&amp;fromDate=&amp;toDate="[\s\S]*?رصيد البنك[\s\S]*?ow-negative[\s\S]*?-5 <small>EGP<\/small>[\s\S]*?150 <small>EGP<\/small>/);
+    expect(html).toMatch(/href="\/executor\/idle"[\s\S]*?غير متاح/);
 });

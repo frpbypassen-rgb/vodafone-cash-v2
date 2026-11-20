@@ -25,105 +25,162 @@ html.admin-modern .ow-heading h1 { margin: 0; font-size: clamp(1.25rem, 2vw, 1.6
     font-size: .82rem;
 }
 .ow-heading a:hover { background: var(--am-brand-bg); }
-.ow-dashboard { margin-block-end: 12px; }
+.ow-dashboard {
+    display: grid;
+    gap: .75rem;
+    margin-block-end: .75rem;
+}
 .ow-totals {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 7px;
-    padding: 8px;
-    border: 1px solid #385074;
-    border-radius: 12px;
-    background: linear-gradient(115deg, #163e54, #11233f 64%);
-    box-shadow: 0 6px 18px #0a1b311c;
+    gap: .75rem;
+    margin: 0;
 }
-.ow-total {
-    display: grid;
-    justify-items: start;
-    align-content: start;
-    min-width: 0;
-    gap: 3px;
-    padding: 6px 9px;
-    border: 1px solid #aac7e44a;
-    border-radius: 8px;
-    background: #c0d9ff12;
-}
-html.admin-modern .ow-total h2 { margin: 0; color: #d5e4f5 !important; font-size: .78rem !important; }
-.ow-total h2 i { color: #81d9cb; margin-inline-end: 3px; }
-.ow-total strong { color: #fff; font-size: clamp(.9rem, 1.6vw, 1.3rem); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
-.ow-total small { color: #b8cee5; font-size: .7rem; }
-.ow-workspace {
-    display: grid;
-    grid-template-columns: minmax(0, 1.25fr) repeat(2, minmax(0, 1fr));
-    gap: 8px;
-    align-items: start;
-    margin-block-start: 8px;
-}
-.ow-workspace > section {
+.ow-total, .ow-workspace > section {
     min-width: 0;
     border: 1px solid var(--am-line);
     border-radius: 12px;
     background: var(--am-paper);
     box-shadow: var(--am-shadow);
 }
-.ow-date-range { min-width: 0; }
-.ow-date-range summary {
-    padding: 3px 5px;
-    min-height: 30px;
-    cursor: pointer;
-    font-size: .79rem;
-    font-weight: 650;
-    border-radius: 7px;
+.ow-total {
+    padding: .75rem;
+    border-block-start: 2px solid var(--ow-accent, var(--am-brand));
 }
-html.admin-modern .ow-panel-title {
+.ow-total:nth-child(n+3), .ow-companies {
+    --ow-accent: var(--am-green);
+    --ow-accent-bg: var(--am-green-bg);
+}
+.ow-total dt, .ow-panel-title {
     display: flex;
     align-items: center;
-    gap: 7px;
-    padding: 8px 10px;
+    gap: .5rem;
+}
+.ow-total dt {
+    min-width: 0;
+    color: var(--am-muted);
+    font-size: .81rem;
+    line-height: 1.3;
+}
+.ow-total dd, .ow-stat dd {
+    margin: .25rem 0 0;
+    color: var(--am-ink);
+    font-size: 1rem;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    overflow-wrap: anywhere;
+}
+.ow-total dd { font-size: clamp(1.06rem, 1.5vw, 1.4rem); }
+:is(.ow-total, .ow-stat, .ow-account-facts) small {
+    color: var(--am-muted);
+    font-size: .7rem;
+    font-weight: 700;
+}
+.ow-workspace {
+    display: grid;
+    grid-template-columns: minmax(0, .9fr) repeat(2, minmax(0, 1fr));
+    gap: .75rem;
+    align-items: start;
+}
+html.admin-modern .ow-panel-title {
     margin: 0;
+    padding: .625rem .75rem;
     border-block-end: 1px solid var(--am-line);
     color: var(--am-ink) !important;
-    font-size: .87rem !important;
+    font-size: .96rem !important;
 }
-.ow-panel-title i {
-    display: grid;
+.ow-card-icon {
+    display: inline-grid;
+    flex: 0 0 1.75rem;
     place-items: center;
-    width: 24px;
-    height: 24px;
-    border-radius: 6px;
-    background: var(--am-brand-bg);
-    color: var(--am-brand);
+    width: 1.75rem;
+    height: 1.75rem;
+    border-radius: 8px;
+    background: var(--ow-accent-bg, var(--am-brand-bg));
+    color: var(--ow-accent, var(--am-brand));
+    font-size: .82rem;
+}
+.ow-panel-title bdi {
+    margin-inline-start: auto;
+    padding: .125rem .5rem;
+    border-radius: 20px;
+    background: var(--ow-accent-bg, var(--am-brand-bg));
+    color: var(--ow-accent, var(--am-brand));
+    font-size: .77rem;
+    font-variant-numeric: tabular-nums;
+}
+.ow-stat-grid, .ow-cards {
+    display: grid;
+    gap: .5rem;
+    padding: .625rem;
+    margin: 0;
+}
+.ow-stat-grid { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+.ow-cards { grid-template-columns: repeat(auto-fit, minmax(min(100%, 9.5rem), 1fr)); }
+.ow-stat, .ow-account {
+    min-width: 0;
+    padding: .625rem;
+    border: 1px solid var(--am-line);
+    border-radius: 10px;
+    background: var(--am-soft);
+}
+.ow-stat { grid-column: span 2; }
+.ow-stat:is(.ow-stat-amount, :nth-last-child(-n+2)) { grid-column: span 3; }
+.ow-stat-amount { background: var(--am-brand-bg); }
+.ow-stat-cancelled dd { color: var(--am-red); }
+.ow-stat dt, .ow-account-facts dt {
+    color: var(--am-muted);
+    font-size: .74rem;
+    font-weight: 600;
+}
+.ow-panel-empty {
+    grid-column: 1 / -1;
+    margin: 0;
+    padding: .5rem;
+    color: var(--am-muted);
     font-size: .78rem;
 }
-.ow-companies .ow-panel-title i { background: var(--am-green-bg); color: var(--am-green); }
-.ow-panel-title bdi { margin-inline-start: auto; padding-inline: 6px; border-radius: 20px; background: var(--am-soft); color: var(--am-muted); }
-.ow-breakdown-grid, .ow-cards { padding: 7px; display: grid; gap: 5px; }
-.ow-workspace p { margin: 0; color: var(--am-muted); font-size: .76rem; }
-html.admin-modern :is(.ow-breakdown-grid h3, .ow-panel-subtitle) { margin: 3px 0 2px; color: var(--am-ink) !important; font-size: .79rem !important; }
-.ow-panel-subtitle { padding-inline: 9px; }
-.ow-lines { margin: 0; font-size: .77rem; }
-.ow-lines > div { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 1px 5px; padding-block: 2px; }
-.ow-lines dt { color: var(--am-muted); font-weight: 550; overflow-wrap: anywhere; }
-.ow-lines dd { min-width: 0; margin: 0; color: var(--am-ink); font-weight: 700; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
-.ow-stat-lines { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; }
-.ow-stat-lines > div { padding: 3px 6px; border-radius: 6px; background: var(--am-soft); }
-.ow-deposit-list { min-width: 0; border-block-start: 1px solid var(--am-line); padding-inline: 3px; }
 .ow-account {
     display: grid;
-    gap: 2px;
-    padding: 6px 8px;
-    border: 1px solid var(--am-line);
-    border-radius: 8px;
+    align-content: start;
+    gap: .5rem;
     color: var(--am-ink);
-    background: var(--am-soft);
     overflow-wrap: anywhere;
-    font-size: .78rem;
 }
-.ow-account:hover { color: var(--am-ink); border-color: var(--am-brand); }
-.ow-account-heading, .ow-account-meta { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 1px 5px; }
-.ow-account-heading { margin-block-end: 1px; color: var(--am-ink); font-size: .84rem; }
-.ow-account-heading i { color: var(--am-brand); font-size: .65rem; }
-.ow-account strong[dir] { unicode-bidi: isolate; font-variant-numeric: tabular-nums; }
-.ow-account span { color: var(--am-muted); }
+.ow-account:hover, .ow-account:focus-visible {
+    color: var(--am-ink);
+    border-color: var(--ow-accent, var(--am-brand));
+    background: var(--am-paper);
+}
+.ow-account:focus-visible { outline: 2px solid var(--ow-accent, var(--am-brand)); outline-offset: 2px; }
+html.admin-modern .ow-account-heading {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: .5rem;
+    margin: 0;
+    color: var(--am-ink) !important;
+    font-size: .9rem !important;
+    line-height: 1.35;
+}
+.ow-account-heading bdi { min-width: 0; }
+.ow-account-heading i { color: var(--ow-accent, var(--am-brand)); font-size: .67rem; }
+.ow-account-facts { margin: 0; }
+.ow-account-facts > div {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 0 .375rem;
+}
+.ow-account-facts dd { margin: 0; font-size: .81rem; font-weight: 750; font-variant-numeric: tabular-nums; }
+.ow-account-facts .ow-account-balance {
+    display: grid;
+    margin-block-end: .25rem;
+    padding-block-end: .375rem;
+    border-block-end: 1px solid var(--am-line);
+}
+.ow-account-balance dd { font-size: 1.05rem; line-height: 1.35; }
 .ow-positive { color: var(--am-green); }
 .ow-negative { color: var(--am-red); }
 .ow-search {
@@ -151,9 +208,9 @@ html.admin-modern .ow-search #owSearch { padding-inline-start: 31px; width: 100%
     color: var(--am-brand);
     border: 1px solid var(--am-line);
 }
-.ow-date-range { grid-area: period; }
+.ow-date-range { grid-area: period; min-width: 0; }
 .ow-date-range[open] { display: contents; }
-.ow-date-range summary { grid-area: period; padding: 8px; border: 1px solid var(--am-line); min-height: 42px; color: var(--am-ink); }
+.ow-date-range summary { grid-area: period; padding: 8px; border: 1px solid var(--am-line); min-height: 42px; color: var(--am-ink); cursor: pointer; font-size: .79rem; font-weight: 650; border-radius: 7px; }
 .ow-date-range[open] summary { background: var(--am-brand-bg); }
 .ow-date-range > div { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; max-width: 440px; }
 .ow-date-range label { min-width: 0; }
@@ -195,15 +252,23 @@ html.admin-modern .operations-workspace-page #transactionsTable :is(td,th) { pad
     }
     .operations-workspace-page [data-list-empty] { grid-column: 1 / -1; }
 }
+@media (max-width: 1050px) {
+    .ow-workspace { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .ow-breakdown { grid-column: 1 / -1; }
+}
+@media (min-width: 901px) and (max-width: 1050px) {
+    .ow-stat-grid { grid-template-columns: repeat(7, minmax(0, 1fr)); }
+    .ow-stat, .ow-stat:is(.ow-stat-amount, :nth-last-child(-n+2)) { grid-column: auto; }
+}
+@media (max-width: 900px) {
+    .ow-totals { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .5rem; }
+}
 @media (max-width: 700px) {
     .ow-heading { margin-block-end: 8px; }
     .ow-heading nav { gap: 4px; }
     .ow-heading a { min-height: 31px; padding-inline: 6px; font-size: .74rem; }
-    .ow-totals { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    .ow-workspace { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    .ow-breakdown { grid-column: 1 / -1; }
-    .ow-breakdown-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    .ow-breakdown-grid > div .ow-lines > div { display: grid; gap: 0; }
+    .ow-workspace { grid-template-columns: minmax(0, 1fr); }
+    .ow-total { padding: .5rem; }
     .ow-search {
         grid-template-columns: minmax(0, 1fr) auto auto;
         grid-template-areas: "search submit refresh" "status status period";

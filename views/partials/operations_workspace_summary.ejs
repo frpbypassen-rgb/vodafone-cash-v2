@@ -1,95 +1,78 @@
 <%
 const summaryCounts = opsSummary.counts || {};
 const orderedCompanies = [...opsCompanies].sort((left, right) => (right.activityCount || 0) - (left.activityCount || 0));
-const busyExecutors = opsExecutors.filter(row => row.activityCount > 0).sort((left, right) => (right.activityCount || 0) - (left.activityCount || 0));
-const idleExecutors = opsExecutors.filter(row => !row.activityCount);
+const orderedExecutors = [...opsExecutors].sort((left, right) => (right.activityCount || 0) - (left.activityCount || 0));
 const rangeStart = typeof fromDate === 'undefined' ? '' : fromDate;
 const rangeEnd = typeof toDate === 'undefined' ? '' : toDate;
 const activeExecutor = typeof executorId === 'undefined' ? '' : executorId;
 const activeStatus = typeof statusFilter === 'undefined' ? '' : statusFilter;
 const activeType = typeof filterType === 'undefined' ? '' : filterType;
-const deposits = [
-    { title: 'إيداعات الشركات اليوم', icon: 'building', rows: opsCompanies, total: opsSummary.todayDepositsTotal, currency: 'LYD' },
-    { title: 'إيداعات المنفذين اليوم', icon: 'wallet', rows: opsExecutors, total: opsSummary.todayExecutorDepositsTotal, currency: 'EGP' }
+const totals = [
+    { label: 'إجمالي اليوم بالمصري', icon: 'arrow-right-arrow-left', value: opsToday.egyptianEGP, currency: 'EGP' },
+    { label: 'تكلفة اليوم بالليبي', icon: 'coins', value: opsToday.totalLYD, currency: 'LYD' },
+    { label: 'إيداعات الشركات اليوم', icon: 'building', value: opsSummary.todayDepositsTotal, currency: 'LYD' },
+    { label: 'إيداعات المنفذين اليوم', icon: 'wallet', value: opsSummary.todayExecutorDepositsTotal, currency: 'EGP' }
+];
+const periodCounts = [
+    ['today', 'المنفذة اليوم'],
+    ['cancelled', 'الملغاة اليوم'],
+    ['week', 'آخر 7 أيام'],
+    ['month', 'الشهر الحالي'],
+    ['total', 'إجمالي المنفذة']
 ];
 %>
 <section class="ow-dashboard" aria-label="ملخص العمليات">
-    <div class="ow-totals">
-        <article class="ow-total">
-            <h2><i class="fa-solid fa-arrow-right-arrow-left" aria-hidden="true"></i> إجمالي اليوم بالمصري</h2>
-            <strong dir="ltr"><%= formatMoney(opsToday.egyptianEGP) %> <small>EGP</small></strong>
-        </article>
-        <article class="ow-total">
-            <h2><i class="fa-solid fa-coins" aria-hidden="true"></i> تكلفة اليوم بالليبي</h2>
-            <strong dir="ltr"><%= formatMoney(opsToday.totalLYD) %> <small>LYD</small></strong>
-        </article>
-        <% for (const deposit of deposits) { %>
-        <article class="ow-total">
-            <h2><i class="fa-solid fa-<%= deposit.icon %>" aria-hidden="true"></i> <%= deposit.title %></h2>
-            <strong dir="ltr"><%= formatMoney(deposit.total) %> <small><%= deposit.currency %></small></strong>
-        </article>
+    <dl class="ow-totals">
+        <% for (const total of totals) { %>
+        <div class="ow-total">
+            <dt><i class="ow-card-icon fa-solid fa-<%= total.icon %>" aria-hidden="true"></i> <span><%= total.label %></span></dt>
+            <dd><bdi dir="ltr"><%= formatMoney(total.value) %> <small><%= total.currency %></small></bdi></dd>
+        </div>
         <% } %>
-    </div>
+    </dl>
 
     <div class="ow-workspace">
         <section class="ow-breakdown" aria-labelledby="owBreakdownTitle">
-            <h2 id="owBreakdownTitle" class="ow-panel-title"><i class="fa-solid fa-chart-simple" aria-hidden="true"></i> إحصاءات وإيداعات</h2>
-            <div class="ow-breakdown-grid">
-                <dl class="ow-lines ow-stat-lines">
-                    <div><dt>الكاش</dt><dd><bdi><%= formatMoney(opsToday.cashEGP) %> EGP</bdi></dd></div>
-                    <div><dt>البنكي</dt><dd><bdi><%= formatMoney(opsToday.bankEGP) %> EGP</bdi></dd></div>
-                    <% for (const [key, label] of [['today','المنفذة اليوم'],['cancelled','الملغاة اليوم'],['week','آخر 7 أيام'],['month','الشهر الحالي'],['total','كل المنفذة']]) { %>
-                    <div><dt><%= label %></dt><dd><bdi><%= formatCount(summaryCounts[key]) %></bdi></dd></div>
-                    <% } %>
-                </dl>
-                <% for (const deposit of deposits) {
-                    const depositRows = deposit.rows.filter(row => row.depositsToday);
-                %>
-                <div class="ow-deposit-list">
-                    <h3><%= deposit.title %></h3>
-                    <dl class="ow-lines">
-                        <% for (const row of depositRows) { %>
-                        <div><dt><%= row.name %></dt><dd><bdi><%= formatMoney(row.depositsToday) %> <%= deposit.currency %></bdi></dd></div>
-                        <% } %>
-                    </dl>
-                    <% if (!depositRows.length) { %><p>لا توجد إيداعات للحسابات المعروضة.</p><% } %>
-                </div>
+            <h2 id="owBreakdownTitle" class="ow-panel-title"><i class="ow-card-icon fa-solid fa-chart-simple" aria-hidden="true"></i> الإحصائيات</h2>
+            <dl class="ow-stat-grid">
+                <div class="ow-stat ow-stat-amount"><dt>الكاش اليوم</dt><dd><bdi dir="ltr"><%= formatMoney(opsToday.cashEGP) %> <small>EGP</small></bdi></dd></div>
+                <div class="ow-stat ow-stat-amount"><dt>البنكي اليوم</dt><dd><bdi dir="ltr"><%= formatMoney(opsToday.bankEGP) %> <small>EGP</small></bdi></dd></div>
+                <% for (const [key, label] of periodCounts) { %>
+                <div class="ow-stat<%= key === 'cancelled' ? ' ow-stat-cancelled' : '' %>"><dt><%= label %></dt><dd><bdi><%= formatCount(summaryCounts[key]) %></bdi></dd></div>
                 <% } %>
-            </div>
+            </dl>
         </section>
 
         <section class="ow-companies" aria-labelledby="owCompaniesTitle">
-            <h2 id="owCompaniesTitle" class="ow-panel-title"><i class="fa-solid fa-building" aria-hidden="true"></i> الشركات <bdi><%= orderedCompanies.length %></bdi></h2>
+            <h2 id="owCompaniesTitle" class="ow-panel-title"><i class="ow-card-icon fa-solid fa-building" aria-hidden="true"></i> الشركات <bdi><%= formatCount(orderedCompanies.length) %></bdi></h2>
             <div class="ow-cards">
                 <% for (const company of orderedCompanies) { %>
-                <a class="ow-account ow-company" href="/company/<%= company.id %>">
-                    <div class="ow-account-heading"><b><%= company.name %></b><i class="fa-solid fa-chevron-left" aria-hidden="true"></i></div>
-                    <div class="ow-account-meta">
-                        <span>المكتملة اليوم <b><%= formatCount(company.completedToday) %></b></span>
-                        <strong class="<%= company.balance < 0 ? 'ow-negative' : (company.balance > 0 ? 'ow-positive' : '') %>" dir="ltr"><%= formatMoney(company.balance) %> <small>LYD</small></strong>
-                    </div>
+                <a class="ow-account ow-company" href="/company/<%= encodeURIComponent(company.id) %>">
+                    <h3 class="ow-account-heading"><bdi><%= company.name %></bdi><i class="fa-solid fa-chevron-left" aria-hidden="true"></i></h3>
+                    <dl class="ow-account-facts">
+                        <div class="ow-account-balance">
+                            <dt>الرصيد</dt>
+                            <dd class="<%= company.balance < 0 ? 'ow-negative' : (company.balance > 0 ? 'ow-positive' : '') %>"><bdi dir="ltr"><%= formatMoney(company.balance) %> <small>LYD</small></bdi></dd>
+                        </div>
+                        <div><dt>المكتملة اليوم</dt><dd><bdi><%= formatCount(company.completedToday) %></bdi></dd></div>
+                        <% if (company.depositsToday) { %>
+                        <div><dt>إيداع اليوم</dt><dd><bdi dir="ltr"><%= formatMoney(company.depositsToday) %> <small>LYD</small></bdi></dd></div>
+                        <% } %>
+                    </dl>
                 </a>
                 <% } %>
-                <% if (!orderedCompanies.length) { %><p>لا توجد شركات نشطة.</p><% } %>
+                <% if (!orderedCompanies.length) { %><p class="ow-panel-empty">لا توجد شركات نشطة.</p><% } %>
             </div>
         </section>
 
         <section class="ow-executors" aria-labelledby="owExecutorsTitle">
-            <h2 id="owExecutorsTitle" class="ow-panel-title"><i class="fa-solid fa-user-gear" aria-hidden="true"></i> المنفذون <bdi><%= opsExecutors.length %></bdi></h2>
+            <h2 id="owExecutorsTitle" class="ow-panel-title"><i class="ow-card-icon fa-solid fa-user-gear" aria-hidden="true"></i> المنفذون <bdi><%= formatCount(opsExecutors.length) %></bdi></h2>
             <div class="ow-cards">
-                <% for (const executor of busyExecutors) { %>
-                <%- include('operations_executor_account', { executor, formatMoney, formatCount, active: true }) %>
+                <% for (const executor of orderedExecutors) { %>
+                <%- include('operations_executor_account', { executor, formatMoney, formatCount, active: executor.activityCount > 0 }) %>
                 <% } %>
-                <% if (!busyExecutors.length) { %><p>لا توجد حركة اليوم أو عمليات جارية.</p><% } %>
+                <% if (!orderedExecutors.length) { %><p class="ow-panel-empty">لا يوجد منفذون للعرض.</p><% } %>
             </div>
-            <% if (idleExecutors.length) { %>
-            <h3 class="ow-panel-subtitle">باقي المنفذين (<%= idleExecutors.length %>)</h3>
-            <div class="ow-cards">
-                <% for (const executor of idleExecutors) { %>
-                <%- include('operations_executor_account', { executor, formatMoney, formatCount, active: false }) %>
-                <% } %>
-            </div>
-            <% } %>
         </section>
     </div>
 </section>
