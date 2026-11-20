@@ -46,16 +46,6 @@ const periodCounts = [
         </section>
 
         <div class="ow-workspace-side">
-            <section class="ow-executors" aria-labelledby="owExecutorsTitle">
-                <h2 id="owExecutorsTitle" class="ow-panel-title"><i class="ow-card-icon fa-solid fa-user-gear" aria-hidden="true"></i> المنفذون <bdi><%= formatCount(opsExecutors.length) %></bdi></h2>
-                <div class="ow-cards">
-                    <% for (const executor of orderedExecutors) { %>
-                    <%- include('operations_executor_account', { executor, formatMoney, formatCount, active: executor.activityCount > 0 }) %>
-                    <% } %>
-                    <% if (!orderedExecutors.length) { %><p class="ow-panel-empty">لا يوجد منفذون للعرض.</p><% } %>
-                </div>
-            </section>
-
             <section class="ow-breakdown" aria-labelledby="owBreakdownTitle">
                 <h2 id="owBreakdownTitle" class="ow-panel-title"><i class="ow-card-icon fa-solid fa-chart-simple" aria-hidden="true"></i> الإحصائيات</h2>
                 <dl class="ow-totals">
@@ -73,6 +63,16 @@ const periodCounts = [
                     <div class="ow-stat<%= key === 'cancelled' ? ' ow-stat-cancelled' : '' %>"><dt><%= label %></dt><dd><bdi><%= formatCount(summaryCounts[key]) %></bdi></dd></div>
                     <% } %>
                 </dl>
+            </section>
+
+            <section class="ow-executors" aria-labelledby="owExecutorsTitle">
+                <h2 id="owExecutorsTitle" class="ow-panel-title"><i class="ow-card-icon fa-solid fa-user-gear" aria-hidden="true"></i> المنفذون <bdi><%= formatCount(opsExecutors.length) %></bdi></h2>
+                <div class="ow-cards">
+                    <% for (const executor of orderedExecutors) { %>
+                    <%- include('operations_executor_account', { executor, formatMoney, formatCount, active: executor.activityCount > 0 }) %>
+                    <% } %>
+                    <% if (!orderedExecutors.length) { %><p class="ow-panel-empty">لا يوجد منفذون للعرض.</p><% } %>
+                </div>
             </section>
         </div>
     </div>
