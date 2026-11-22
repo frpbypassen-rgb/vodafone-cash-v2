@@ -156,20 +156,19 @@ html.admin-modern .ow-panel-title {
 }
 .ow-breakdown { container-type: inline-size; }
 .ow-stat-grid { grid-template-columns: repeat(6, minmax(0, 1fr)); }
-.ow-cards { grid-template-columns: repeat(auto-fit, minmax(min(100%, 9.5rem), 1fr)); }
-.ow-companies { container: operations-companies / inline-size; }
-.ow-companies > .ow-cards {
+.ow-cards {
     grid-template-columns: repeat(auto-fit, minmax(min(100%, max(9.5rem, calc((100% - 1.5rem) / 4))), 1fr));
 }
-/* Start the first complete row after the remainder of the company cards. */
-@container operations-companies (20.75rem <= width < 30.75rem) {
-    .ow-company:nth-child(2):nth-last-child(2n) { grid-column-start: 1; }
+:is(.ow-companies, .ow-executors) { container: operations-accounts / inline-size; }
+/* Start the first complete row after the remaining cards. */
+@container operations-accounts (20.75rem <= width < 30.75rem) {
+    .ow-cards > .ow-account:nth-child(2):nth-last-child(2n) { grid-column-start: 1; }
 }
-@container operations-companies (30.75rem <= width < 40.75rem) {
-    .ow-company:nth-child(n + 2):nth-child(-n + 3):nth-last-child(3n) { grid-column-start: 1; }
+@container operations-accounts (30.75rem <= width < 40.75rem) {
+    .ow-cards > .ow-account:nth-child(n + 2):nth-child(-n + 3):nth-last-child(3n) { grid-column-start: 1; }
 }
-@container operations-companies (width >= 40.75rem) {
-    .ow-company:nth-child(n + 2):nth-child(-n + 4):nth-last-child(4n) { grid-column-start: 1; }
+@container operations-accounts (width >= 40.75rem) {
+    .ow-cards > .ow-account:nth-child(n + 2):nth-child(-n + 4):nth-last-child(4n) { grid-column-start: 1; }
 }
 .ow-stat, .ow-account {
     min-width: 0;
