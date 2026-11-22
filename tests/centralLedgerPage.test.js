@@ -194,7 +194,7 @@ describe('central ledger page layout', () => {
         const html = renderTransactions({
             operationWorkspace: true,
             operationsSummary: {
-                today: { egyptianEGP: 12400.5, libyanLYD: 2310.25, cashEGP: 10000.5, bankEGP: 2400, totalLYD: 2310.25 },
+                today: { egyptianEGP: 12400.5, libyanLYD: 2310.25, cashEGP: 10000.5, vodafoneCashEGP: 9200.25, bankEGP: 2400, totalLYD: 2310.25 },
                 todayDepositsTotal: 900,
                 todayExecutorDepositsTotal: 745.25,
                 activeExecutors: [
@@ -255,7 +255,8 @@ describe('central ledger page layout', () => {
         for(const amount of ['12,400.50','2,310.25','900.00','745.25']) expect(totals).toContain(amount);
         expect(totals).toContain('EGP');expect(totals).toContain('LYD');
         const breakdown = html.slice(html.indexOf('class="ow-breakdown"'),html.indexOf('class="ow-executors"'));
-        for(const value of ['الإحصائيات','الكاش','البنكي','آخر 7 أيام','10,000.50','2,400.00']) expect(breakdown).toContain(value);
+        for(const value of ['الإحصائيات','الكاش','فودافون كاش','البنكي','آخر 7 أيام','9,200.25','2,400.00']) expect(breakdown).toContain(value);
+        expect(breakdown).not.toContain('10,000.50');
         const companies = html.slice(html.indexOf('class="ow-companies"'),html.indexOf('class="ow-workspace-side"'));
         expect(companies).toContain('href="/company/c1"');expect(companies).toContain('href="/company/c2"');
         expect(companies).toContain('88.50');expect(companies).toContain('-12.00');expect(companies).toContain('ow-negative');

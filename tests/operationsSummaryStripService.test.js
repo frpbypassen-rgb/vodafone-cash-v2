@@ -52,6 +52,11 @@ describe('operations summary strip', () => {
         expect(group.egyptianEGP).toEqual({ $sum: amount });
         expect(group.libyanLYD).toEqual({ $sum: costLYD });
         expect(group.cashEGP).toEqual({ $sum: { $cond: [isBank, 0, amount] } });
+        const [isVodafoneCash, qualifyingAmount, otherAmount] = group.vodafoneCashEGP.$sum.$cond;
+        expect(qualifyingAmount).toEqual(amount);
+        expect(otherAmount).toBe(0);
+        expect(isVodafoneCash.$and[0].$in[1]).toEqual(['vodafone', 'cash']);
+        expect(isVodafoneCash.$and[1].$not[0].$in[1]).toEqual([...OPERATIONS_TODAY_BANK_TYPES, 'balance_transfer']);
         expect(group.bankEGP).toEqual({ $sum: { $cond: [isBank, amount, 0] } });
         expect(group.cashLYD).toEqual({ $sum: { $cond: [isBank, 0, costLYD] } });
         expect(group.bankLYD).toEqual({ $sum: { $cond: [isBank, costLYD, 0] } });
@@ -147,6 +152,7 @@ describe('operations summary strip', () => {
             egyptianEGP: 12400.5,
             libyanLYD: 2310.25,
             cashEGP: 10000.5,
+            vodafoneCashEGP: 9200.25,
             bankEGP: 2400,
             cashLYD: 1900.25,
             bankLYD: 410
@@ -154,6 +160,7 @@ describe('operations summary strip', () => {
             egyptianEGP: 12400.5,
             libyanLYD: 2310.25,
             cashEGP: 10000.5,
+            vodafoneCashEGP: 9200.25,
             bankEGP: 2400,
             totalLYD: 2310.25
         });
@@ -161,6 +168,7 @@ describe('operations summary strip', () => {
             egyptianEGP: 0,
             libyanLYD: 0,
             cashEGP: 0,
+            vodafoneCashEGP: 0,
             bankEGP: 0,
             totalLYD: 0
         });
@@ -173,6 +181,7 @@ describe('operations summary strip', () => {
                     egyptianEGP: 12400.5,
                     libyanLYD: 2310.25,
                     cashEGP: 10000.5,
+                    vodafoneCashEGP: 9200.25,
                     bankEGP: 2400,
                     cashLYD: 1900.25,
                     bankLYD: 410
@@ -212,6 +221,7 @@ describe('operations summary strip', () => {
             egyptianEGP: 12400.5,
             libyanLYD: 2310.25,
             cashEGP: 10000.5,
+            vodafoneCashEGP: 9200.25,
             bankEGP: 2400,
             totalLYD: 2310.25
         });

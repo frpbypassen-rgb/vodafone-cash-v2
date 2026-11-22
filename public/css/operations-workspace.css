@@ -60,6 +60,56 @@ html.admin-modern .ow-heading h1 { margin: 0; font-size: clamp(1.25rem, 2vw, 1.6
     align-items: center;
     gap: .5rem;
 }
+.ow-daily-channels {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: .5rem;
+    margin: 0;
+    padding: .625rem .625rem 0;
+}
+.ow-daily-channel {
+    --ow-accent: var(--am-brand);
+    --ow-accent-bg: var(--am-brand-bg);
+    display: grid;
+    align-content: space-between;
+    gap: .625rem;
+    min-width: 0;
+    padding: .625rem;
+    border: 1px solid color-mix(in srgb, var(--ow-accent) 25%, var(--am-line));
+    border-inline-start: 3px solid var(--ow-accent);
+    border-radius: 10px;
+    background: color-mix(in srgb, var(--ow-accent-bg) 36%, var(--am-paper));
+}
+.ow-daily-channel-cash {
+    --ow-accent: var(--am-green);
+    --ow-accent-bg: var(--am-green-bg);
+}
+.ow-daily-channel dt {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .25rem .5rem;
+    min-width: 0;
+    color: var(--am-ink);
+    font-size: .9rem;
+    font-weight: 800;
+    line-height: 1.35;
+}
+.ow-daily-channel dt small {
+    display: block;
+    margin-block-start: .125rem;
+    color: var(--am-muted);
+    font-size: .73rem;
+    font-weight: 600;
+}
+.ow-daily-channel dd {
+    min-width: 0;
+    margin: 0;
+    color: var(--ow-accent);
+    font-size: clamp(1.125rem, 4.5cqi, 1.625rem);
+    font-weight: 800;
+    line-height: 1.25;
+}
 .ow-total dt {
     min-width: 0;
     color: var(--am-ink);
@@ -80,7 +130,7 @@ html.admin-modern .ow-heading h1 { margin: 0; font-size: clamp(1.25rem, 2vw, 1.6
     font-size: clamp(1.0625rem, 1.4vw, 1.25rem);
     font-weight: 800;
 }
-:is(.ow-total, .ow-stat, .ow-account-facts) dd bdi {
+:is(.ow-daily-channel, .ow-total, .ow-stat, .ow-account-facts) dd bdi {
     font-family: "Segoe UI", Tahoma, sans-serif;
     font-variant-numeric: tabular-nums lining-nums;
 }
@@ -181,8 +231,7 @@ html.admin-modern .ow-panel-title {
     padding: .375rem .5rem;
     background: var(--am-soft);
 }
-.ow-stat:is(.ow-stat-amount, :nth-last-child(-n+2)) { grid-column: span 3; }
-.ow-stat-amount { background: var(--am-paper); }
+.ow-stat:nth-last-child(-n+2) { grid-column: span 3; }
 .ow-stat-today dd { color: var(--am-green); }
 .ow-stat-cancelled dd { color: var(--am-red); }
 .ow-stat dt, .ow-account-facts dt {
@@ -338,7 +387,6 @@ html.admin-modern .operations-workspace-page #transactionsTable :is(td,th) { pad
     .ow-total dd { font-size: 1.0625rem; }
     .ow-stat-grid { grid-template-columns: repeat(10, minmax(0, 1fr)); }
     .ow-stat-grid > .ow-stat { grid-column: span 2; }
-    .ow-stat-grid > .ow-stat-amount { grid-column: span 5; }
 }
 @media (max-width: 700px) {
     .ow-heading { margin-block-end: 8px; }

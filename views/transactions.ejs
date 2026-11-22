@@ -21,7 +21,7 @@
     <% if (typeof providerReviewMode !== 'undefined' && providerReviewMode) { %>
     <link rel="stylesheet" href="/css/provider-review.css?v=20261120-4">
     <% } else if (typeof operationWorkspace !== 'undefined' && operationWorkspace) { %>
-    <link rel="stylesheet" href="/css/operations-workspace.css?v=20261123-account-rows">
+    <link rel="stylesheet" href="/css/operations-workspace.css?v=20261123-daily-channels">
     <% } %>
 </head>
 <body>
@@ -95,9 +95,9 @@
     const opsWorkspace = typeof operationWorkspace !== 'undefined' && Boolean(operationWorkspace);
     const providerReviewView = typeof providerReviewMode !== 'undefined' && providerReviewMode;
     const opsSummary = opsWorkspace
-        ? ((typeof operationsSummary !== 'undefined' && operationsSummary) ? operationsSummary : { today: { egyptianEGP: 0, libyanLYD: 0, cashEGP: 0, bankEGP: 0, totalLYD: 0 }, todayDepositsTotal: 0, todayExecutorDepositsTotal: 0, activeExecutors: [], companies: [] })
+        ? ((typeof operationsSummary !== 'undefined' && operationsSummary) ? operationsSummary : { today: { egyptianEGP: 0, libyanLYD: 0, vodafoneCashEGP: 0, bankEGP: 0, totalLYD: 0 }, todayDepositsTotal: 0, todayExecutorDepositsTotal: 0, activeExecutors: [], companies: [] })
         : null;
-    const opsToday = opsSummary && opsSummary.today ? opsSummary.today : { egyptianEGP: 0, libyanLYD: 0, cashEGP: 0, bankEGP: 0, totalLYD: 0 };
+    const opsToday = opsSummary && opsSummary.today ? opsSummary.today : { egyptianEGP: 0, libyanLYD: 0, vodafoneCashEGP: 0, bankEGP: 0, totalLYD: 0 };
     const opsExecutors = opsSummary && Array.isArray(opsSummary.activeExecutors) ? opsSummary.activeExecutors : [];
     const opsCompanies = opsSummary && Array.isArray(opsSummary.companies) ? opsSummary.companies : [];
     const operationAgeFor = (tx = {}) => {

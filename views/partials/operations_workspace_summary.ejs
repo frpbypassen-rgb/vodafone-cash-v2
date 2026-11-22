@@ -13,6 +13,10 @@ const totals = [
     { label: 'إيداعات الشركات اليوم', icon: 'building', value: opsSummary.todayDepositsTotal, currency: 'LYD' },
     { label: 'إيداعات المنفذين اليوم', icon: 'wallet', value: opsSummary.todayExecutorDepositsTotal, currency: 'EGP' }
 ];
+const dailyChannels = [
+    { key: 'cash', label: 'الكاش اليوم', detail: 'فودافون كاش', icon: 'mobile-screen-button', value: opsToday.vodafoneCashEGP },
+    { key: 'bank', label: 'البنكي اليوم', detail: 'التحويلات المكتملة', icon: 'building-columns', value: opsToday.bankEGP }
+];
 const periodCounts = [
     ['today', 'المنفذة اليوم'],
     ['cancelled', 'الملغاة اليوم'],
@@ -48,6 +52,17 @@ const periodCounts = [
         <div class="ow-workspace-side">
             <section class="ow-breakdown" aria-labelledby="owBreakdownTitle">
                 <h2 id="owBreakdownTitle" class="ow-panel-title"><i class="ow-card-icon fa-solid fa-chart-simple" aria-hidden="true"></i> الإحصائيات</h2>
+                <dl class="ow-daily-channels">
+                    <% for (const channel of dailyChannels) { %>
+                    <div class="ow-daily-channel ow-daily-channel-<%= channel.key %>">
+                        <dt>
+                            <i class="ow-card-icon fa-solid fa-<%= channel.icon %>" aria-hidden="true"></i>
+                            <span><%= channel.label %><small><%= channel.detail %></small></span>
+                        </dt>
+                        <dd><bdi class="ow-amount" dir="ltr"><%= formatMoney(channel.value) %> <small>EGP</small></bdi></dd>
+                    </div>
+                    <% } %>
+                </dl>
                 <dl class="ow-totals">
                     <% for (const total of totals) { %>
                     <div class="ow-total">
@@ -57,8 +72,6 @@ const periodCounts = [
                     <% } %>
                 </dl>
                 <dl class="ow-stat-grid">
-                    <div class="ow-stat ow-stat-amount"><dt>الكاش اليوم</dt><dd><bdi class="ow-amount" dir="ltr"><%= formatMoney(opsToday.cashEGP) %> <small>EGP</small></bdi></dd></div>
-                    <div class="ow-stat ow-stat-amount"><dt>البنكي اليوم</dt><dd><bdi class="ow-amount" dir="ltr"><%= formatMoney(opsToday.bankEGP) %> <small>EGP</small></bdi></dd></div>
                     <% for (const [key, label] of periodCounts) { %>
                     <div class="ow-stat ow-stat-<%= key %>"><dt><%= label %></dt><dd><bdi dir="ltr"><%= formatCount(summaryCounts[key]) %></bdi></dd></div>
                     <% } %>

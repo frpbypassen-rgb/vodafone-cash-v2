@@ -30,7 +30,7 @@ test('adds independent period counts and activity without changing balances', as
 test('renders visible summary cards with account balances, deposits and links', async () => {
     const html = await ejs.renderFile(path.join(__dirname, '../views/partials/operations_workspace_summary.ejs'), {
         opsSummary: { counts: {}, todayDepositsTotal: 0, todayExecutorDepositsTotal: 0 },
-        opsToday: {}, opsCompanies: [{ id: 'c', name: '<شركة>', balance: -123456789, completedToday: 4, depositsToday: 24 }],
+        opsToday: { cashEGP: 1000, vodafoneCashEGP: 250, bankEGP: 350 }, opsCompanies: [{ id: 'c', name: '<شركة>', balance: -123456789, completedToday: 4, depositsToday: 24 }],
         opsExecutors: [{ id: 'idle', name: 'Idle', activityCount: 0 }, { id: 'busy', name: 'Busy', activityCount: 1, cashBalance: 9, bankBalance: -5, depositsToday: 150 }],
         formatMoney: value => String(value || 0), formatCount: value => String(value || 0), search: ''
     });
@@ -40,7 +40,10 @@ test('renders visible summary cards with account balances, deposits and links', 
     expect(html).toMatch(/<section class="ow-executors"[^>]*>[\s\S]*?Busy[\s\S]*?Idle[\s\S]*?<\/section>/);
     expect(html).not.toMatch(/<details class="ow-(breakdown|companies|executors)"/);
     expect(html.match(/class="ow-total"/g)).toHaveLength(4);
-    expect(html.match(/class="ow-stat(?: |")/g)).toHaveLength(7);
+    expect(html.match(/class="ow-stat(?: |")/g)).toHaveLength(5);
+    expect(html).toMatch(/class="ow-daily-channel ow-daily-channel-cash"[^]*?الكاش اليوم<small>فودافون كاش<\/small>[^]*?250 <small>EGP/);
+    expect(html).toMatch(/class="ow-daily-channel ow-daily-channel-bank"[^]*?البنكي اليوم[^]*?350 <small>EGP/);
+    expect(html).not.toContain('1000 <small>EGP');
     expect(html).toMatch(/href="\/company\/c"[\s\S]*?ow-negative[\s\S]*?-123456789[\s\S]*?إيداع اليوم[\s\S]*?24 <small>LYD<\/small>/);
     expect(html).toMatch(/href="\/transactions\/operations\?executorId=busy&amp;fromDate=&amp;toDate="[\s\S]*?رصيد البنك[\s\S]*?ow-negative[\s\S]*?-5 <small>EGP<\/small>[\s\S]*?150 <small>EGP<\/small>/);
     expect(html).toMatch(/href="\/executor\/idle"[\s\S]*?غير متاح/);

@@ -22,6 +22,7 @@ const emptyTodayTotals = () => ({
     egyptianEGP: 0,
     libyanLYD: 0,
     cashEGP: 0,
+    vodafoneCashEGP: 0,
     bankEGP: 0,
     totalLYD: 0
 });
@@ -216,10 +217,20 @@ const operationsTodayTotalsGroup = () => {
             { $in: [loweredField('$canonicalServiceKey'), OPERATIONS_TODAY_BANK_TYPES] }
         ]
     };
+    const canonicalType = { $trim: { input: loweredField('$canonicalServiceKey') } };
+    const transferType = { $trim: { input: loweredField('$transferType') } };
+    const serviceType = { $cond: [{ $eq: [canonicalType, ''] }, transferType, canonicalType] };
+    const isVodafoneCash = {
+        $and: [
+            { $in: [serviceType, ['vodafone', 'cash']] },
+            { $not: [{ $in: [transferType, [...OPERATIONS_TODAY_BANK_TYPES, 'balance_transfer']] }] }
+        ]
+    };
     return {
         egyptianEGP: { $sum: amount },
         libyanLYD: { $sum: costLYD },
         cashEGP: { $sum: { $cond: [isBank, 0, amount] } },
+        vodafoneCashEGP: { $sum: { $cond: [isVodafoneCash, amount, 0] } },
         bankEGP: { $sum: { $cond: [isBank, amount, 0] } },
         cashLYD: { $sum: { $cond: [isBank, 0, costLYD] } },
         bankLYD: { $sum: { $cond: [isBank, costLYD, 0] } }
@@ -233,6 +244,7 @@ const mapTodayTotals = (totals = {}) => {
         egyptianEGP: Number(totals.egyptianEGP) || 0,
         libyanLYD: Number(totals.libyanLYD) || 0,
         cashEGP: Number(totals.cashEGP) || 0,
+        vodafoneCashEGP: Number(totals.vodafoneCashEGP) || 0,
         bankEGP: Number(totals.bankEGP) || 0,
         totalLYD: cashLYD + bankLYD
     };
