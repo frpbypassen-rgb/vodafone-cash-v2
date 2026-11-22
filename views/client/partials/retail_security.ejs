@@ -3,8 +3,13 @@
 <% } else if (securityView?.key === 'verification') { %>
     <div class="retail-security-factors">
         <%- include('../../partials/mfa_security_panel',{retailSecurity:true}) %>
-        <%- include('../../partials/email_login_security_panel',{retailSecurity:true,portalBasePath:'/client'}) %>
-        <%- include('../../partials/telegram_login_security_panel',{retailSecurity:true,portalBasePath:'/client'}) %>
+        <section class="retail-verification-channels" aria-labelledby="retailVerificationChannels">
+            <h2 id="retailVerificationChannels">قنوات رمز الدخول</h2>
+            <div class="retail-verification-channel-list">
+                <%- include('../../partials/email_login_security_panel',{retailSecurity:true,portalBasePath:'/client'}) %>
+                <%- include('../../partials/telegram_login_security_panel',{retailSecurity:true,portalBasePath:'/client'}) %>
+            </div>
+        </section>
     </div>
 <% } else { %>
     <nav class="retail-security-menu" aria-label="خيارات أمان الحساب">

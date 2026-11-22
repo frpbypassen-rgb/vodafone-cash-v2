@@ -1,5 +1,11 @@
 <section class="mfa-security-panel mfa-compact email-login-panel" data-telegram-login data-base="<%= portalBasePath %>" data-csrf="<%= typeof csrfToken !== 'undefined' ? csrfToken : '' %>">
+    <% if (locals.retailSecurity) { %>
+    <details class="retail-verification-channel">
+        <%- include('retail_verification_channel_summary',{title:'تليجرام وقناة الدخول',icon:'fa-brands fa-telegram',stateAttribute:'data-tg-state'}) %>
+        <div class="retail-verification-channel-body">
+    <% } else { %>
     <div class="mfa-panel-heading"><h2><i class="fa-brands fa-telegram" aria-hidden="true"></i> التحقق عبر تليجرام</h2><span class="mfa-state" data-tg-state>جارٍ الفحص</span></div>
+    <% } %>
     <p class="mfa-description">ربط حساب تليجرام واحد ببوت الأكواد <bdi>@Ahram_otp_bot</bdi>. لا يبدأ استقبال أكواد الدخول قبل تأكيد الربط واختيار القناة.</p>
     <p class="mfa-login-summary" data-tg-account></p>
     <p class="mfa-message" role="status" aria-live="polite" data-tg-message hidden></p>
@@ -23,6 +29,10 @@
         <label class="bw-field"><span>كود التأكيد من القناة الحالية</span><input name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" dir="ltr" required></label>
         <button class="mfa-button primary" type="submit">تأكيد تغيير القناة</button>
     </form>
+    <% if (locals.retailSecurity) { %>
+        </div>
+    </details>
+    <% } %>
 </section>
 <link rel="stylesheet" href="/css/telegram-login-security.css?v=1">
 <script src="/js/telegram-login-security.js?v=2" defer></script>

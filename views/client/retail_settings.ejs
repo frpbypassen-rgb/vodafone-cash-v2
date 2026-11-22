@@ -10,7 +10,7 @@ const settingsItems = [
 const currentItem = settingsItems.find(item=>item.key===currentSection);
 const securityPath = '/client/settings?section=security';
 const securityItems = [
-    { key: 'verification', title: 'التحقق بخطوتين', icon: 'fa-shield-halved', copy: 'أدر تطبيق المصادقة وقناة رمز الدخول.', caption: 'تطبيق المصادقة والبريد الإلكتروني وتليجرام' },
+    { key: 'verification', title: 'التحقق بخطوتين', icon: 'fa-shield-halved', copy: 'إدارة طرق التحقق عند تسجيل الدخول.', caption: 'تطبيق المصادقة والبريد الإلكتروني وتليجرام' },
     { key: 'password', title: 'تغيير كلمة المرور', icon: 'fa-key', copy: 'أدخل كلمة المرور الحالية ثم اختر كلمة مرور جديدة.' },
     { key: 'sessions', title: 'الأجهزة والجلسات', icon: 'fa-laptop', copy: 'راجع الأجهزة المتصلة بحسابك.', href: '/security/sessions' }
 ];
@@ -23,7 +23,7 @@ const headingItem = securityView || currentItem;
 <head><%- include('partials/retail_page_head',{retailPage:'settings',retailTitle:isSecurity ? headingItem.title : undefined}) %></head>
 <body class="retail-page retail-settings-page" data-customer-shell>
 <%- include('partials/retail_shell_start',{activeRetailNav:'settings'}) %>
-<section class="retail-settings<%= isSecurity ? ' retail-settings-security' : '' %>" aria-labelledby="retailSettingsTitle">
+<section class="retail-settings<%= isSecurity ? ' retail-settings-security' : '' %><%= securityView?.key === 'verification' ? ' retail-settings-verification' : '' %>" aria-labelledby="retailSettingsTitle">
 <header class="retail-settings-heading">
     <div class="<%= isSecurity ? 'retail-security-title' : '' %>">
         <% if (isSecurity) { %><span class="retail-settings-icon"><i class="fa-solid <%= headingItem.icon %>" aria-hidden="true"></i></span><% } %>

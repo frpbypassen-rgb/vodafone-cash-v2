@@ -185,6 +185,10 @@ test.each(['day', 'night'])(
         expect(html).toContain('data-telegram-login');
         expect(html.indexOf('data-mfa-panel')).toBeLessThan(html.indexOf('data-email-login'));
         expect(html.indexOf('data-email-login')).toBeLessThan(html.indexOf('data-telegram-login'));
+        expect(html).toContain('<h2 id="retailVerificationChannels">قنوات رمز الدخول</h2>');
+        expect(html.match(/<details class="retail-verification-channel">/g)).toHaveLength(2);
+        expect(html).toMatch(/<summary>[^]*?data-email-state role="status"[^]*?<\/summary>/);
+        expect(html).toMatch(/<summary>[^]*?data-tg-state role="status"[^]*?<\/summary>/);
         expect(html).toContain('href="/client/settings?section=profile"');
     }
 );

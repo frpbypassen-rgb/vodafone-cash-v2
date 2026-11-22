@@ -9,7 +9,11 @@
         <span class="mfa-state" data-mfa-state role="status" aria-live="polite">جارٍ الفحص</span>
     </div>
 
+    <% if (locals.retailSecurity) { %>
+    <p class="mfa-description">استخدم رمزًا من تطبيق المصادقة لتأكيد تسجيل الدخول.</p>
+    <% } else { %>
     <p class="mfa-description">أضف رمزًا من تطبيق <b dir="ltr">Authenticator</b> لحماية تسجيل الدخول.</p>
+    <% } %>
     <% if (compactMfaPanel) { %>
     <p class="mfa-login-summary"><span>عند الدخول:</span> <strong data-mfa-login-rule>جارٍ الفحص</strong></p>
     <% } else { %><div class="mfa-device-summary">
@@ -21,10 +25,10 @@
 
     <div class="mfa-actions">
         <button type="button" class="mfa-button primary" data-mfa-start>
-            <i class="fa-solid fa-lock"></i> تفعيل Authenticator
+            <i class="fa-solid fa-lock" aria-hidden="true"></i> <%= locals.retailSecurity ? 'تفعيل تطبيق المصادقة' : 'تفعيل Authenticator' %>
         </button>
         <% if (compactMfaPanel) { %>
-        <button type="button" class="mfa-button primary" data-mfa-manage aria-expanded="false" aria-controls="mfaAccountManagement" hidden><i class="fa-solid fa-sliders" aria-hidden="true"></i> إدارة التحقق الثنائي</button>
+        <button type="button" class="mfa-button primary" data-mfa-manage aria-expanded="false" aria-controls="mfaAccountManagement" hidden><i class="fa-solid fa-sliders" aria-hidden="true"></i> <%= locals.retailSecurity ? 'إدارة تطبيق المصادقة' : 'إدارة التحقق الثنائي' %></button>
         <% } else { %>
         <button type="button" class="mfa-button danger" data-mfa-disable hidden>
             <i class="fa-solid fa-shield-slash"></i> إيقاف الحماية

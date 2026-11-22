@@ -1,5 +1,11 @@
 <section class="mfa-security-panel mfa-compact email-login-panel" data-email-login data-base="<%= portalBasePath %>" data-csrf="<%= typeof csrfToken !== 'undefined' ? csrfToken : '' %>">
+    <% if (locals.retailSecurity) { %>
+    <details class="retail-verification-channel">
+        <%- include('retail_verification_channel_summary',{title:'البريد الإلكتروني',icon:'fa-solid fa-envelope',stateAttribute:'data-email-state'}) %>
+        <div class="retail-verification-channel-body">
+    <% } else { %>
     <div class="mfa-panel-heading"><h2><i class="fa-solid fa-envelope-circle-check" aria-hidden="true"></i> التحقق عبر البريد الإلكتروني</h2><span class="mfa-state" data-email-state>جارٍ الفحص</span></div>
+    <% } %>
     <p class="mfa-description">أكّد بريدك لاستخدامه قناةً لكود الدخول. يبقى Authenticator مطلوبًا إذا كان مفعّلًا.</p>
     <p class="mfa-login-summary" data-email-address></p>
     <p class="mfa-message" data-email-message role="status" aria-live="polite" hidden></p>
@@ -12,6 +18,10 @@
         <label class="bw-field"><span>كود تأكيد البريد</span><input type="text" name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" dir="ltr" required></label>
         <div class="mfa-actions"><button type="submit" class="mfa-button primary">تأكيد وتفعيل</button><button type="button" class="mfa-button" data-email-restart>إرسال كود جديد</button></div>
     </form>
+    <% if (locals.retailSecurity) { %>
+        </div>
+    </details>
+    <% } %>
 </section>
 <link rel="stylesheet" href="/css/email-login-security.css?v=1">
 <script src="/js/email-login-security.js?v=1" defer></script>

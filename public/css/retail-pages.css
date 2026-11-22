@@ -880,8 +880,7 @@ html[data-theme='night'] .retail-profile-help a {
     gap: 12px;
     min-width: 0;
 }
-.retail-security-menu,
-.retail-security-factors {
+.retail-security-menu {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 14px;
@@ -895,8 +894,7 @@ html[data-theme='night'] .retail-profile-help a {
 .retail-security-menu .retail-settings-card:hover {
     border-color: var(--blue);
 }
-.retail-security-menu [data-security-view='sessions'],
-.retail-security-factors > [data-mfa-panel] {
+.retail-security-menu [data-security-view='sessions'] {
     grid-column: 1 / -1;
 }
 .retail-security-menu [data-security-view='sessions'] {
@@ -973,6 +971,20 @@ html[data-theme='night'] #retailPasswordRules .is-valid {
     justify-content: space-between;
     padding-bottom: 0;
 }
+.retail-settings-verification {
+    max-width: 780px;
+}
+.retail-settings-verification .retail-settings-heading {
+    padding: 0 0 16px;
+    border: 0;
+    border-bottom: 1px solid var(--border);
+    border-radius: 0;
+    background: none;
+}
+.retail-security-factors {
+    display: grid;
+    gap: 24px;
+}
 .retail-security-factors .mfa-security-panel {
     --bw-surface: var(--surface);
     --bw-surface-soft: var(--soft);
@@ -981,8 +993,92 @@ html[data-theme='night'] #retailPasswordRules .is-valid {
     --bw-muted: var(--muted);
     margin-top: 0;
 }
-.retail-security-factors .mfa-panel-heading h2 {
+.retail-security-factors > [data-mfa-panel] {
+    display: grid;
+    align-items: center;
+    column-gap: 24px;
+    padding: clamp(14px, 3vw, 24px);
+    background: color-mix(in srgb, var(--soft) 30%, var(--surface));
+}
+.retail-security-factors > [data-mfa-panel] .mfa-panel-heading {
+    justify-content: flex-start;
+    flex-wrap: wrap;
+}
+.retail-security-factors > [data-mfa-panel] .mfa-description {
+    margin: 8px 0 0;
+}
+.retail-security-factors > [data-mfa-panel] .mfa-login-summary {
+    margin: 4px 0 0;
+}
+.retail-security-factors > [data-mfa-panel] > .mfa-actions {
+    margin-top: 14px;
+}
+.retail-verification-channels > h2 {
+    margin: 0 0 10px;
     font-size: 15px;
+    font-weight: 800;
+}
+.retail-verification-channel-list {
+    display: grid;
+    align-items: start;
+    gap: 10px;
+}
+.retail-verification-channel-list > .mfa-security-panel {
+    padding: 0;
+    border-radius: 12px;
+}
+.retail-verification-channel summary {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto auto;
+    align-items: center;
+    gap: 8px;
+    min-height: 64px;
+    padding: 10px 12px;
+    border-radius: 11px;
+    cursor: pointer;
+    list-style: none;
+}
+.retail-verification-channel summary::-webkit-details-marker {
+    display: none;
+}
+.retail-verification-channel summary:hover {
+    background: var(--soft);
+}
+.retail-verification-channel summary:focus-visible {
+    outline: 2px solid var(--blue);
+    outline-offset: 3px;
+}
+.retail-verification-channel-icon {
+    display: grid;
+    width: 34px;
+    height: 34px;
+    place-items: center;
+    border-radius: 9px;
+    background: var(--soft);
+    color: var(--blue);
+}
+.retail-verification-channel-title {
+    font-size: 13px;
+    font-weight: 800;
+    line-height: 1.55;
+}
+.retail-verification-chevron {
+    color: var(--muted);
+    font-size: 10px;
+}
+.retail-verification-channel[open] .retail-verification-chevron {
+    transform: rotate(180deg);
+}
+.retail-verification-channel-body {
+    margin-inline: 12px;
+    padding: 12px 0;
+    border-top: 1px solid var(--border);
+}
+.retail-verification-channel-body :is(.mfa-description, .mfa-login-summary, .mfa-message) {
+    margin: 0 0 10px;
+}
+.retail-verification-channel-body .mfa-login-summary:empty {
+    display: none;
 }
 .retail-security-factors :is(input, select) {
     min-height: 46px;
@@ -997,13 +1093,30 @@ html[data-theme='night'] #retailPasswordRules .is-valid {
     font-size: 12px;
 }
 @media (min-width: 701px) {
-    .retail-security-factors > .mfa-compact > .mfa-actions > .mfa-button {
+    .retail-security-factors > [data-mfa-panel] {
+        grid-template-columns: minmax(0, 1fr) auto;
+    }
+    .retail-security-factors > [data-mfa-panel] > :is(.mfa-panel-heading, .mfa-description, .mfa-login-summary) {
+        grid-column: 1;
+    }
+    .retail-security-factors > [data-mfa-panel] > .mfa-actions {
+        grid-area: 1 / 2 / span 3 / 3;
+        margin-top: 0;
+    }
+    .retail-security-factors > [data-mfa-panel] > .mfa-actions > .mfa-button {
         width: auto;
+    }
+    .retail-security-factors > [data-mfa-panel] > :is(.mfa-message, .mfa-setup, .mfa-management) {
+        grid-column: 1 / -1;
+    }
+}
+@media (min-width: 1000px) {
+    .retail-verification-channel-list {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 }
 @media (max-width: 700px) {
-    .retail-security-menu,
-    .retail-security-factors {
+    .retail-security-menu {
         grid-template-columns: minmax(0, 1fr);
         gap: 10px;
     }
@@ -1025,6 +1138,12 @@ html[data-theme='night'] #retailPasswordRules .is-valid {
     }
     .retail-settings-security .retail-settings-heading h1 {
         font-size: 20px;
+    }
+    .retail-security-factors {
+        gap: 18px;
+    }
+    .retail-settings-verification .retail-settings-heading {
+        align-items: center;
     }
 }
 .rs-summary {
