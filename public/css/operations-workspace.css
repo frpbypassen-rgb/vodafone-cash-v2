@@ -1,4 +1,6 @@
 /* Operations history uses the admin palette and a compact daily overview. */
+/* The mobile sidebar overlays the workspace, so its margin need not animate. */
+html.admin-modern .operations-workspace-page { transition: none; }
 .ow-heading, .ow-results-heading {
     display: flex;
     align-items: center;
