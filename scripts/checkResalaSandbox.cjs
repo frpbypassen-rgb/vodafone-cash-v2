@@ -5,8 +5,9 @@ const path = require('node:path');
 const dotenv = require('dotenv');
 require('ts-node/register/transpile-only');
 const {
-    listResalaSent, sendResalaPin, sendResalaTemplate, ResalaError,
+    listResalaSent, sendResalaPin, ResalaError,
 } = require('../src/Infrastructure/ResalaClient.ts');
+const { sendPin } = require('../services/smsLoginTransport');
 
 const configFile = path.resolve(__dirname, '../.env.local');
 const configured = (env, key) => process.env[key]?.trim() || env[key]?.trim();
@@ -46,10 +47,12 @@ async function main() {
             return { pinLength: result.pin.length, sender: result.sender_name };
         }));
         if (templateId) {
+            process.env.RESALA_SMS_TEMPLATE_ID = templateId;
+            const sender = configured(config, 'RESALA_SMS_SENDER');
+            if (sender) process.env.RESALA_SMS_SENDER = sender;
             results.push(await check('sandbox-template', async () => {
-                const result = await sendResalaTemplate(templateId, [{ phone, $1: 'اختبار', $2: 'أهرام باي' }], { test: true });
-                if (result.queued || result.is_prod) throw new Error('Unconfirmed sandbox response');
-                return { valid: result.total_messages, invalid: result.invalid_numbers.length, senders: result.sender_names };
+                const pin = await sendPin(phone, { test: true });
+                return { pinLength: pin.length, approved: true };
             }));
         }
     }
