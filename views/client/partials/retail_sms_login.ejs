@@ -1,0 +1,23 @@
+<section class="mfa-security-panel mfa-compact email-login-panel retail-sms-login-panel" data-sms-login
+    data-csrf="<%= typeof csrfToken !== 'undefined' ? csrfToken : '' %>">
+    <details class="retail-verification-channel">
+        <%- include('../../partials/retail_verification_channel_summary',{title:'الرسائل النصية (SMS)',icon:'fa-solid fa-comment-sms',stateAttribute:'data-sms-state'}) %>
+        <div class="retail-verification-channel-body">
+            <p class="mfa-description">استلم رمز الدخول إلى البوابة على الرقم الليبي المسجّل في حسابك.</p>
+            <p class="mfa-login-summary" data-sms-phone></p>
+            <p class="mfa-message" data-sms-message role="status" hidden></p>
+            <form data-sms-password hidden>
+                <label class="bw-field"><span>كلمة المرور الحالية</span><input type="password" name="password" autocomplete="current-password" maxlength="128" required></label>
+                <button type="submit" class="mfa-button primary">متابعة التفعيل</button>
+            </form>
+            <form data-sms-code hidden>
+                <label class="bw-field"><span data-sms-code-label>رمز التحقق</span><input type="text" name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" dir="ltr" required></label>
+                <div class="mfa-actions">
+                    <button type="submit" class="mfa-button primary">تأكيد الرمز</button>
+                    <button type="button" class="mfa-button" data-sms-restart>طلب رمز جديد</button>
+                </div>
+            </form>
+        </div>
+    </details>
+</section>
+<script src="/js/sms-login-security.js?v=1" defer></script>

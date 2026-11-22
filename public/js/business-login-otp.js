@@ -101,7 +101,7 @@
             button.disabled = !method.available;
             button.setAttribute('aria-pressed', String(selected === method.key));
             const title = document.createElement('strong');
-            title.textContent = (method.key === 'email' ? '✉ ' : '➤ ') + method.title;
+            title.textContent = method.title;
             const destination = document.createElement('small');
             destination.textContent =
                 '\u2066' + method.destination + '\u2069' + (method.available ? '' : ' — الإرسال غير متاح');

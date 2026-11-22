@@ -285,7 +285,7 @@ const completeAccountMfaChallenge = async (req, res) => {
         return renderAccountMfaChallenge(res, 'رمز Authenticator غير صحيح.', pending.username);
     }
     delete req.session.pendingAccountMfaLogin;
-    if (['email', 'telegram'].includes(account.otpDeliveryChannel)) {
+    if (['email', 'telegram', 'sms'].includes(account.otpDeliveryChannel)) {
         req.session.pendingEmailMfaProof = require('../utils/emailLoginMfaProof').create(account, pending.accountType);
         return startClientOtp(req, res, account, pending.accountType);
     }
@@ -895,7 +895,7 @@ const startClientOtp = async (req, res, account, accountType) => {
     req.session.pendingSecurityLocation = securityControl.parseLocation(req) || (verifiedMfa ? req.session.pendingSecurityLocation : null);
     req.session.pendingSecurityUsername = String(req.body.username || account.webUsername || '');
     const businessChoice = require('../services/businessLoginChoiceService');
-    if (businessChoice.isBusiness(account, accountType) && ['email', 'telegram'].includes(account.otpDeliveryChannel)) {
+    if (businessChoice.isBusiness(account, accountType) && ['email', 'telegram', 'sms'].includes(account.otpDeliveryChannel)) {
         await businessChoice.start(req, account, accountType, {
             pendingSecurityLocation: req.session.pendingSecurityLocation,
             pendingSecurityUsername: req.session.pendingSecurityUsername,
@@ -998,7 +998,7 @@ const startClientOtp = async (req, res, account, accountType) => {
 };
 
 const continueVerifiedPortalLogin = async (req, res, account, accountType) => {
-    if (require('../services/businessLoginChoiceService').isBusiness(account, accountType) && ['email', 'telegram'].includes(account.otpDeliveryChannel)) return startClientOtp(req, res, account, accountType);
+    if (require('../services/businessLoginChoiceService').isBusiness(account, accountType) && ['email', 'telegram', 'sms'].includes(account.otpDeliveryChannel)) return startClientOtp(req, res, account, accountType);
     if (account.otpDeliveryChannel === 'telegram' || account.emailOtpVerifiedAt || isLoginOtpRequired()) return startClientOtp(req, res, account, accountType);
     return finishLoginAfterOtpBypass(req, res, account, accountType);
 };

@@ -12,6 +12,8 @@ const {
 } = require('../utils/otpDeliveryChannel');
 const { getSmtpConfig, getMissingSmtpSettings, sendLoginOtpEmail } = require('./emailOtpMailer');
 const telegram = require('./telegramLoginTransport');
+const sms = require('./smsLoginTransport');
+const { normalizeSmsLoginPhone, verifiedSmsPhone, maskSmsPhone } = require('../utils/smsLoginPhone');
 const proof = require('../utils/emailLoginMfaProof');
 const { establishAuthenticatedSession } = require('../utils/sessionSecurity');
 const { hash, guard, fail } = require('../utils/loginSecurityChallenge');
@@ -49,6 +51,7 @@ const fingerprint = (actor) =>
             String(actor.companyId || actor.agentId || ''),
             String(actor.masterId || ''),
             actor.masterType || '',
+            ...(actor.smsOtpVerifiedPhoneHash ? [actor.smsOtpVerifiedPhoneHash, normalizeSmsLoginPhone(actor.phone)] : []),
         ])
     );
 const sessionBinding = (req) => hash('business-otp:' + req.sessionID);
@@ -74,6 +77,14 @@ const methods = (actor) => {
                 ? '@' + actor.telegramLoginUsername.slice(0, 2) + '***'
                 : 'حساب تليجرام المؤكد',
             available: telegram.configured() && actor.telegramLoginBotId === telegram.config().botId,
+        });
+    const phone = actor.role !== 'agent' && verifiedSmsPhone(actor);
+    if (phone)
+        result.push({
+            key: 'sms',
+            title: 'رسالة نصية (SMS)',
+            destination: maskSmsPhone(phone),
+            available: sms.configured(),
         });
     return result;
 };
@@ -212,8 +223,9 @@ const send = async (req, channel) => {
     );
     if (!reserved.modifiedCount)
         throw fail('COOLDOWN', 'انتظر دقيقة بين طلبات الإرسال، حتى عند تغيير الطريقة.', 429);
-    const code = generateOtp(),
-        generation = record.generation + 1;
+    const generation = record.generation + 1;
+    const purpose = 'business-login:' + record._id + ':' + generation;
+    let code, success = false;
     const claimed = await Challenge.updateOne(
         {
             _id: record._id,
@@ -226,23 +238,27 @@ const send = async (req, channel) => {
             $set: {
                 state: 'sending',
                 channel,
-                codeHash: hashOtp(code, 'business-login:' + record._id + ':' + generation),
                 codeExpiresAt: expiresAt,
                 attempts: 0,
                 resendAt: new Date(now.getTime() + 60000),
             },
             $inc: { generation: 1 },
+            $unset: { codeHash: 1 },
         }
     );
     if (!claimed.modifiedCount) throw fail('CHANGED', 'تغيرت محاولة الدخول. حدّث الصفحة.', 409);
-    let success = false;
     try {
         const fresh = await loadActor(req, record.accountType, actor._id);
         if (fingerprint(fresh.actor) !== record.fingerprint) throw new Error('CHANGED');
-        if (channel === 'telegram') {
+        if (channel === 'sms') {
+            code = await sms.sendPin(verifiedSmsPhone(fresh.actor));
+            success = true;
+        } else if (channel === 'telegram') {
+            code = generateOtp();
             await telegram.sendCode(fresh.actor.telegramLoginChatId, code, 'login', expiresMinutes);
             success = true;
         } else {
+            code = generateOtp();
             const result = await sendLoginOtpEmail({
                 to: resolveAccountOtpEmail(fresh.actor),
                 otp: code,
@@ -282,7 +298,7 @@ const send = async (req, channel) => {
         );
     }
     const sent = await Challenge.updateOne(sentGuard, {
-        $set: { state: 'sent' },
+        $set: { state: 'sent', codeHash: hashOtp(code, purpose) },
     });
     if (!sent.modifiedCount)
         throw fail('CHANGED', 'تم تغيير الطريقة أو إلغاء هذا الكود. أرسل كودًا جديدًا.', 409);

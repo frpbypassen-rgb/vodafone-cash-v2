@@ -14,6 +14,9 @@ jest.mock('../services/emailOtpMailer', () => ({
     sendLoginOtpEmail: jest.fn().mockResolvedValue({ success: true }),
 }));
 jest.mock('../services/auditService', () => ({ logAction: jest.fn().mockResolvedValue() }));
+jest.mock('../src/Infrastructure/ResalaClient.ts', () => ({
+    sendResalaPin: jest.fn().mockResolvedValue({ pin: '048291' }),
+}));
 const mongoose = require('mongoose'),
     { MongoMemoryServer } = require('mongodb-memory-server');
 const User = require('../models/User'),
@@ -28,10 +31,12 @@ const mail = require('../services/emailLoginEnrollmentMailer'),
     loginMailer = require('../services/emailOtpMailer');
 const proof = require('../utils/emailLoginMfaProof'),
     invalidate = require('../utils/invalidateEmailLoginEnrollment');
-let mongo, parent, oldTenant;
+let mongo, parent, oldTenant, oldSecret;
 jest.setTimeout(120000);
 beforeAll(async () => {
     oldTenant = process.env.TENANT_MODE;
+    oldSecret = process.env.SESSION_SECRET;
+    process.env.SESSION_SECRET = require('node:crypto').randomBytes(32).toString('hex');
     process.env.TENANT_MODE = 'single';
     mongo = await MongoMemoryServer.create({ binary: { version: '7.0.24' } });
     await mongoose.connect(mongo.getUri());
@@ -39,9 +44,11 @@ beforeAll(async () => {
 });
 afterAll(async () => {
     await mongoose.disconnect();
-    await mongo.stop();
+    await mongo?.stop();
     if (oldTenant === undefined) delete process.env.TENANT_MODE;
     else process.env.TENANT_MODE = oldTenant;
+    if (oldSecret === undefined) delete process.env.SESSION_SECRET;
+    else process.env.SESSION_SECRET = oldSecret;
 });
 beforeEach(async () => {
     await Promise.all([User.deleteMany({}), Sub.deleteMany({}), Challenge.deleteMany({})]);
@@ -171,6 +178,93 @@ test('inactive parent and cross-tenant access cannot start customer enrollment',
     req.tenant = { _id: new mongoose.Types.ObjectId() };
     await expect(context(req)).rejects.toMatchObject({ statusCode: 401 });
     process.env.TENANT_MODE = 'single';
+});
+
+test('retail SMS verifies the registered phone before requiring a one-time login code', async () => {
+    const sms = require('../services/smsLoginEnrollmentService');
+    const { sendResalaPin } = require('../src/Infrastructure/ResalaClient.ts');
+    const oldKey = process.env.RESALA_API_KEY;
+    process.env.RESALA_API_KEY = 'rsl_test_only';
+    try {
+        const actor = await create('user');
+        const req = reqFor(actor, 'user');
+        const load = () => context(req);
+        await User.updateOne({ _id: actor._id }, { $set: { phone: '0950001234' } });
+        await expect(sms.start({ ...await load(), password: 'test-password' })).rejects.toMatchObject({ code: 'PHONE_INVALID' });
+        expect(sendResalaPin).not.toHaveBeenCalled();
+        await User.updateOne({ _id: actor._id }, { $set: { phone: '0940001234' } });
+        await expect(sms.start({ ...await load(), password: 'wrong' })).rejects.toMatchObject({ code: 'PASSWORD' });
+        expect(sendResalaPin).not.toHaveBeenCalled();
+        await sms.start({ ...await load(), password: 'test-password', phone: '0910009999' });
+        expect(sendResalaPin.mock.calls[0][0]).toBe('218940001234');
+        const pending = (await load()).actor.smsOtpEnrollment;
+        expect(pending.hash).toMatch(/^[a-f0-9]{64}$/);
+        expect(JSON.stringify(pending)).not.toContain('"048291"');
+        await expect(sms.start({ ...await load(), password: 'test-password' })).rejects.toMatchObject({ code: 'COOLDOWN' });
+        expect((await load()).actor.otpDeliveryChannel).toBe('whatsapp');
+        await expect(sms.confirm({ ...await load(), code: '048291', sessionId: 'other-session' })).rejects.toMatchObject({ code: 'EXPIRED' });
+        await expect(sms.confirm({ ...await load(), code: '123456' })).rejects.toMatchObject({ code: 'CODE' });
+        await sms.confirm({ ...await load(), code: '048291' });
+        expect((await load()).actor.otpDeliveryChannel).toBe('sms');
+        await expect(sms.confirm({ ...await load(), code: '048291' })).rejects.toMatchObject({ code: 'EXPIRED' });
+        sendResalaPin.mockResolvedValueOnce({ pin: '005123' });
+        const attempt = loginReq();
+        await login.start(attempt, (await load()).actor, 'user', {});
+        expect((await login.view(attempt)).methods).toEqual([
+            { key: 'sms', title: 'رسالة نصية (SMS)', destination: '094••••234', available: true },
+        ]);
+        await login.send(attempt, 'sms');
+        const stored = await Challenge.findById(attempt.session.businessOtpChallengeId).select('+codeHash').lean();
+        expect(stored.codeHash).toMatch(/^[a-f0-9]{64}$/);
+        await expect(login.consume(attempt, '048291')).rejects.toMatchObject({ code: 'CODE_INVALID' });
+        expect((await login.consume(attempt, '005123')).channel).toBe('sms');
+        await expect(login.consume(attempt, '005123')).rejects.toMatchObject({ code: 'SESSION_EXPIRED' });
+        const next = loginReq();
+        await login.start(next, (await load()).actor, 'user', {});
+        await User.updateOne({ _id: actor._id }, { $set: { phone: '0930001234' } });
+        await expect(login.send(next, 'sms')).rejects.toMatchObject({ code: 'ACCOUNT_CHANGED' });
+        expect(sendResalaPin).toHaveBeenCalledTimes(2);
+    } finally {
+        if (oldKey === undefined) delete process.env.RESALA_API_KEY;
+        else process.env.RESALA_API_KEY = oldKey;
+    }
+});
+
+test('switching from email to SMS requires the existing code and preserves Authenticator for login', async () => {
+    const sms = require('../services/smsLoginEnrollmentService');
+    const { sendResalaPin } = require('../src/Infrastructure/ResalaClient.ts');
+    const oldKey = process.env.RESALA_API_KEY;
+    process.env.RESALA_API_KEY = 'rsl_test_only';
+    try {
+        const actor = await create('sub_client');
+        const req = reqFor(actor, 'sub_client');
+        const load = () => context(req);
+        await email.start({ ...await load(), password: 'test-password' });
+        await email.confirm({ ...await load(), code: mail.sendCode.mock.calls.at(-1)[1] });
+        await Sub.updateOne({ _id: actor._id }, { $set: { phone: '+218 920001234' } });
+        expect((await sms.start({ ...await load(), password: 'test-password' })).stage).toBe('current');
+        expect(sendResalaPin).not.toHaveBeenCalled();
+        const currentPin = mail.sendCode.mock.calls.at(-1)[1];
+        expect((await sms.confirm({ ...await load(), code: currentPin })).stage).toBe('sms');
+        expect(sendResalaPin).toHaveBeenCalledWith('218920001234', expect.objectContaining({ len: 6 }));
+        await sms.confirm({ ...await load(), code: '048291' });
+        const ctx = await load();
+        expect(ctx.actor.otpDeliveryChannel).toBe('sms');
+        await Sub.updateOne({ _id: actor._id }, { $set: { mfaEnabled: true, mfaType: 'totp', mfaConfiguredAt: new Date() } });
+        const enrolled = (await load()).actor;
+        await expect(login.start(loginReq(), enrolled, 'sub_client', {})).rejects.toMatchObject({ code: 'MFA_REQUIRED' });
+        const attempt = loginReq();
+        await login.start(attempt, enrolled, 'sub_client', { pendingEmailMfaProof: proof.create(enrolled, 'sub_client') });
+        expect((await login.view(attempt)).methods.map(method => method.key)).toEqual(['email', 'sms']);
+        sendResalaPin.mockRejectedValueOnce(new Error('provider timeout'));
+        await expect(login.send(attempt, 'sms')).rejects.toMatchObject({ code: 'DELIVERY_FAILED' });
+        await expect(login.consume(attempt, '048291')).rejects.toMatchObject({ code: 'CODE_EXPIRED' });
+        await expect(login.send(attempt, 'sms')).rejects.toMatchObject({ code: 'COOLDOWN' });
+        expect(sendResalaPin).toHaveBeenCalledTimes(2);
+    } finally {
+        if (oldKey === undefined) delete process.env.RESALA_API_KEY;
+        else process.env.RESALA_API_KEY = oldKey;
+    }
 });
 
 test('administrator and customer read/write the same email login state', async () => {

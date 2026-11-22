@@ -172,7 +172,7 @@ test('read-only profile cannot render an edit form', async () => {
 });
 
 test.each(['day', 'night'])(
-    'the dedicated verification page shows all three factors in order in %s mode',
+    'the dedicated verification page shows all four factors in order in %s mode',
     async (clientTheme) => {
         const html = await render('client/hub/settings.ejs', {
             activeSection: 'security', activeSecurityView: 'verification', clientTheme,
@@ -186,7 +186,9 @@ test.each(['day', 'night'])(
         expect(html.indexOf('data-mfa-panel')).toBeLessThan(html.indexOf('data-email-login'));
         expect(html.indexOf('data-email-login')).toBeLessThan(html.indexOf('data-telegram-login'));
         expect(html).toContain('<h2 id="retailVerificationChannels">قنوات رمز الدخول</h2>');
-        expect(html.match(/<details class="retail-verification-channel">/g)).toHaveLength(2);
+        expect(html.match(/<details class="retail-verification-channel">/g)).toHaveLength(3);
+        expect(html).toMatch(/<summary>[^]*?data-sms-state role="status"[^]*?<\/summary>/);
+        expect(html).not.toMatch(/<input[^>]+name="phone"/);
         expect(html).toMatch(/<summary>[^]*?data-email-state role="status"[^]*?<\/summary>/);
         expect(html).toMatch(/<summary>[^]*?data-tg-state role="status"[^]*?<\/summary>/);
         expect(html).toContain('href="/client/settings?section=profile"');

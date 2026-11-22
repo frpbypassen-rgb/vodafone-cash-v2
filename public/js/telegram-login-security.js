@@ -165,7 +165,7 @@
             channelCode.hidden = false;
             message(
                 'أرسلنا كودًا إلى ' +
-                    (result.source === 'telegram' ? 'تليجرام الحالي' : 'البريد الحالي') +
+                    (result.source === 'telegram' ? 'تليجرام الحالي' : result.source === 'sms' ? 'رقم الهاتف المسجّل' : 'البريد الحالي') +
                     ' لتأكيد التغيير.'
             );
             channelCode.elements.code.focus();
@@ -210,9 +210,10 @@
         )
             run(load);
     });
-    document.addEventListener('login-email-verified', () => {
-        if (!busy) run(load);
-    });
+    for (const event of ['login-email-verified', 'login-security-changed'])
+        document.addEventListener(event, () => {
+            if (!busy) run(load);
+        });
     run(async () => {
         try {
             await load();

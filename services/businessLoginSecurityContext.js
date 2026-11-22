@@ -13,7 +13,7 @@ const context = async (req) => {
             throw Object.assign(new Error('انتهت الجلسة.'), { statusCode: 401 });
         const Model = req.session.accountType === 'sub_client' ? models.SubAccount : models.User;
         const actor = await Model.findById(req.session.clientId).select(
-            '+emailOtpEnrollment +telegramOtpEnrollment +loginChannelAction +telegramLoginChatId +telegramLoginUserId'
+            '+emailOtpEnrollment +telegramOtpEnrollment +smsOtpEnrollment +loginChannelAction +telegramLoginChatId +telegramLoginUserId'
         );
         if (!actor || actor.status !== 'active')
             throw Object.assign(new Error('انتهت الجلسة.'), { statusCode: 401 });

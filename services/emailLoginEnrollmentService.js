@@ -138,7 +138,7 @@ const confirm = async (ctx) => {
     // The document update consumes the challenge and enables the canonical admin/login flag atomically.
     delete guard['emailOtpEnrollment.attempts'];
     const set = {
-        otpDeliveryChannel: actor.otpDeliveryChannel === 'telegram' ? 'telegram' : 'email',
+        otpDeliveryChannel: ['telegram', 'sms'].includes(actor.otpDeliveryChannel) ? actor.otpDeliveryChannel : 'email',
         emailOtpVerifiedEmail: pending.email,
         emailOtpVerifiedAt: new Date(),
     };

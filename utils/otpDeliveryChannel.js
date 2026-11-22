@@ -1,6 +1,6 @@
 'use strict';
 
-// Login OTP is opt-in per account. Email and confirmed Telegram channels
+// Login OTP is opt-in per account. Email, confirmed Telegram and retail SMS
 // are selected through account security or administration.
 // WhatsApp remains available to non-login notifications, not login OTP.
 
@@ -42,7 +42,8 @@ const isEmailOtpExplicitlyEnabled = (account = {}) => (
     String(account.otpDeliveryChannel || '').trim().toLowerCase() === 'email'
 );
 
-const isLoginOtpEnabledForAccount = (account = {}) => isEmailOtpExplicitlyEnabled(account) || account.otpDeliveryChannel === 'telegram';
+const isLoginOtpEnabledForAccount = (account = {}) =>
+    isEmailOtpExplicitlyEnabled(account) || ['telegram', 'sms'].includes(account.otpDeliveryChannel);
 
 /**
  * @returns {{ channel: 'disabled', code: string } | { channel: 'email', email: string, code?: string } | { channel: 'telegram', code?: string }}

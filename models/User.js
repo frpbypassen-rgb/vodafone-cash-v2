@@ -32,7 +32,9 @@ const userSchema = new mongoose.Schema({
     },
     // قناة رمز الدخول. حفظ بريد صالح من الإدارة يضبطها على email.
     // whatsapp يبقى للحسابات التي لا يوجد لها بريد صالح.
-    otpDeliveryChannel: { type: String, enum: ['whatsapp', 'email', 'telegram'], default: 'whatsapp' },
+    otpDeliveryChannel: { type: String, enum: ['whatsapp', 'email', 'telegram', 'sms'], default: 'whatsapp' },
+    smsOtpVerifiedPhoneHash: { type: String, default: '' },
+    smsOtpEnrollment: { type: Object, select: false },
     verificationDocuments: [{
         ...require('./schemas/documentReviewFields'),
         kind: { type: String, enum: ['identity', 'tax_card', 'business_license', 'profile_photo'], required: true },

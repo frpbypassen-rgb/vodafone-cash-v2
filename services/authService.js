@@ -371,6 +371,16 @@ const login = async (username, password, req) => {
         };
     }
     const hasAuthenticator = accountMfaService.isEnabled(mfaAccount);
+    const smsLoginRequired = ['client_user', 'sub_client'].includes(accountType) && account.otpDeliveryChannel === 'sms';
+    // The mobile client can complete Authenticator, while the SMS screen is in the web portal.
+    if (smsLoginRequired && !hasAuthenticator) {
+        return {
+            success: false,
+            statusCode: 403,
+            code: 'SMS_WEB_VERIFICATION_REQUIRED',
+            message: 'سجّل الدخول من بوابة العملاء لتأكيد رمز SMS. لاستخدام التطبيق فعّل تطبيق المصادقة من أمان الحساب.'
+        };
+    }
     const incompleteAuthenticator = Boolean(mfaAccount?.mfaEnabled && !hasAuthenticator);
     const deviceId = enforceSecurityControls ? accountMfaService.deviceIdFor(req) : null;
     const mfaToken = String(req.body?.mfaToken || req.headers['x-mfa-token'] || '').trim();
@@ -435,7 +445,7 @@ const login = async (username, password, req) => {
         }),
         trustTtlSeconds: Math.floor(accountMfaService.TRUST_TTL_MS / 1000)
     });
-    if (mandatoryAuthenticator) {
+    if (mandatoryAuthenticator || smsLoginRequired) {
         mfaVerifiedWithCode = Boolean(mfaToken && await accountMfaService.verifyAccountToken(mfaAccount, mfaToken));
         if (!mfaVerifiedWithCode) return authenticatorChallenge();
     }

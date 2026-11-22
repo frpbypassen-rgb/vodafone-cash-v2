@@ -7,6 +7,8 @@ const { normalizeSubmittedOtp } = require('../utils/otp');
 const { models } = require('./businessLoginSecurityContext');
 const { resolveAccountOtpEmail, isValidOtpEmail, isEmailOtpEnabled } = require('../utils/otpDeliveryChannel');
 const email = require('./emailLoginEnrollmentMailer');
+const sms = require('./smsLoginTransport');
+const { verifiedSmsPhone } = require('../utils/smsLoginPhone');
 // Append only: the byte index is embedded in outstanding encrypted Telegram links.
 const modelNames = ['User', 'ClientEmployee', 'AgentEmployee', 'SubAccount'];
 const key = () =>
@@ -57,7 +59,7 @@ const present = (ctx) => {
         pending = actor.telegramOtpEnrollment;
     const waiting = challenge.valid(pending, actor, ctx.sessionId);
     return {
-        selected: ['email', 'telegram'].includes(actor.otpDeliveryChannel) ? actor.otpDeliveryChannel : 'off',
+        selected: ['email', 'telegram', 'sms'].includes(actor.otpDeliveryChannel) ? actor.otpDeliveryChannel : 'off',
         linked: Boolean(actor.telegramLoginVerifiedAt),
         linkedAt: actor.telegramLoginVerifiedAt || null,
         accountLabel: actor.telegramLoginUsername
@@ -195,7 +197,7 @@ const confirm = async (ctx) => {
     const code = typeof ctx.code === 'string' && ctx.code.length <= 64 ? normalizeSubmittedOtp(ctx.code) : '';
     if (!/^\d{6}$/.test(code) || !challenge.matches(pending.codeHash, `tg-bind:${pending.id}:${code}`))
         throw challenge.fail('CODE', 'كود التأكيد غير صحيح.');
-    const selected = ['email', 'telegram'].includes(actor.otpDeliveryChannel)
+    const selected = ['email', 'telegram', 'sms'].includes(actor.otpDeliveryChannel)
         ? actor.otpDeliveryChannel
         : 'telegram';
     const result = await Model.updateOne(guard, {
@@ -231,21 +233,29 @@ const confirm = async (ctx) => {
     return { linked: true, selected };
 };
 const sendCurrent = async (ctx, code, purpose = 'channel') => {
+    if (ctx.actor.otpDeliveryChannel === 'sms') {
+        const phone = verifiedSmsPhone(ctx.actor);
+        if (!phone || !sms.configured()) throw new Error('SMS_LOGIN_UNAVAILABLE');
+        return sms.sendPin(phone);
+    }
     if (ctx.actor.otpDeliveryChannel === 'telegram') {
         if (!telegramReady(ctx.actor)) throw new Error('TELEGRAM_LOGIN_UNAVAILABLE');
-        return transport.sendCode(ctx.actor.telegramLoginChatId, code, purpose);
+        await transport.sendCode(ctx.actor.telegramLoginChatId, code, purpose);
+        return code;
     }
     if (
         ctx.actor.otpDeliveryChannel === 'email' &&
         isEmailOtpEnabled() &&
         email.configured() &&
         isValidOtpEmail(resolveAccountOtpEmail(ctx.actor))
-    )
-        return email.sendCode(resolveAccountOtpEmail(ctx.actor), code, {
+    ) {
+        await email.sendCode(resolveAccountOtpEmail(ctx.actor), code, {
             kind: ctx.kind,
             accountName: ctx.actor.name,
             purpose: 'channel',
         });
+        return code;
+    }
     throw new Error('CURRENT_CHANNEL_UNAVAILABLE');
 };
 const assertTarget = (actor, target) => {
@@ -291,10 +301,8 @@ const requestChannel = async (ctx) => {
     await challenge.password(ctx.actor, ctx.password);
     assertTarget(ctx.actor, ctx.target);
     if (ctx.target === ctx.actor.otpDeliveryChannel) return { completed: true, selected: ctx.target };
-    if (!['email', 'telegram'].includes(ctx.actor.otpDeliveryChannel)) return applyTarget(ctx, ctx.target);
-    const code = challenge.code(),
-        pending = challenge.pending(ctx.actor, ctx.sessionId, { target: ctx.target, delivered: false });
-    pending.hash = challenge.hash(`channel:${pending.id}:${code}`);
+    if (!['email', 'telegram', 'sms'].includes(ctx.actor.otpDeliveryChannel)) return applyTarget(ctx, ctx.target);
+    const pending = challenge.pending(ctx.actor, ctx.sessionId, { target: ctx.target, delivered: false });
     const reserved = await ctx.Model.updateOne(
         {
             ...challenge.guard(ctx.actor),
@@ -310,8 +318,9 @@ const requestChannel = async (ctx) => {
         { $set: { loginChannelAction: pending } }
     );
     if (!reserved.modifiedCount) throw challenge.fail('COOLDOWN', 'انتظر دقيقة أو حدّث الصفحة.', 409);
+    let code;
     try {
-        await sendCurrent(ctx, code);
+        code = await sendCurrent(ctx, challenge.code());
     } catch (_) {
         throw challenge.fail(
             'SEND_FAILED',
@@ -321,7 +330,7 @@ const requestChannel = async (ctx) => {
     }
     const sent = await ctx.Model.updateOne(
         { ...challenge.guard(ctx.actor), 'loginChannelAction.id': pending.id },
-        { $set: { 'loginChannelAction.delivered': true } }
+        { $set: { 'loginChannelAction.delivered': true, 'loginChannelAction.hash': challenge.hash(`channel:${pending.id}:${code}`) } }
     );
     if (!sent.modifiedCount) throw challenge.fail('CHANGED', 'تغيرت إعدادات الأمان. ابدأ من جديد.', 409);
     return { requiresCode: true, source: ctx.actor.otpDeliveryChannel, expiresAt: pending.expiresAt };
@@ -393,6 +402,7 @@ module.exports = {
     confirm,
     requestChannel,
     confirmChannel,
+    sendCurrent,
     sendLoginCode,
     telegramReady,
     emailReady,

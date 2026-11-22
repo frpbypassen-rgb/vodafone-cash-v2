@@ -142,6 +142,7 @@ const accountToFormData = (account, submitted = null, extras = {}) => {
         otpDeliveryChannel: account.otpDeliveryChannel || 'whatsapp',
         emailOtpVerified: Boolean(account.emailOtpVerifiedAt),
         telegramLoginVerified: Boolean(account.telegramLoginVerifiedAt),
+        smsLoginVerified: Boolean(require('../utils/smsLoginPhone').verifiedSmsPhone(account)),
         ownerEmail: extras.companyOwner?.email || '',
         ownerName: extras.companyOwner?.name || '',
         ownerUsername: extras.companyOwner?.webUsername || '',

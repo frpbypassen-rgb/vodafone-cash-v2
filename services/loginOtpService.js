@@ -265,7 +265,7 @@ const issueLoginOtp = async ({ account, accountType, session = {}, attempt = nul
     await clearStoredOtp(portal.Model, account._id);
     const emergencyBypass = getEmergencyClientOtpBypassState();
     const code = delivery?.code || 'WHATSAPP_OTP_FAILED';
-    if (emergencyBypass.active && !account.emailOtpVerifiedAt && account.otpDeliveryChannel !== 'telegram') {
+    if (emergencyBypass.active && !account.emailOtpVerifiedAt && !['telegram', 'sms'].includes(account.otpDeliveryChannel)) {
         return {
             status: 'emergency_bypass',
             portal,

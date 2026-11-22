@@ -1,0 +1,9 @@
+<% const selected = value('otpDeliveryChannel'); %>
+<label class="d-block mt-3">قناة كود الدخول
+    <select class="form-select mt-1" name="loginOtpChannel">
+        <option value="email" <%= !['telegram','sms'].includes(selected) ? 'selected' : '' %>>البريد الإلكتروني</option>
+        <option value="telegram" <%= selected === 'telegram' ? 'selected' : '' %> <%= value('telegramLoginVerified') ? '' : 'disabled' %>>تليجرام المؤكد</option>
+        <option value="sms" <%= selected === 'sms' ? 'selected' : '' %> <%= selected === 'sms' || value('smsLoginVerified') ? '' : 'disabled' %>>الرسائل النصية (SMS)</option>
+    </select>
+</label>
+<p class="small mt-2">البريد: <%= value('emailOtpVerified') ? 'مؤكد' : 'غير مؤكد' %> · تليجرام: <%= value('telegramLoginVerified') ? 'مرتبط ومؤكد' : 'غير مرتبط' %> · رقم SMS: <%= value('smsLoginVerified') ? 'مؤكد' : 'غير مؤكد' %>.</p>

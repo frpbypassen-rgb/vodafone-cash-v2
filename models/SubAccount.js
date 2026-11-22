@@ -19,7 +19,9 @@ const subAccountSchema = new mongoose.Schema({
     phone: { type: String },
     // بريد رمز الدخول. عند وجود بريد صالح يُرسل الرمز عبر البريد.
     email: { type: String, trim: true, lowercase: true, default: '' },
-    otpDeliveryChannel: { type: String, enum: ['whatsapp', 'email', 'telegram'], default: 'whatsapp' },
+    otpDeliveryChannel: { type: String, enum: ['whatsapp', 'email', 'telegram', 'sms'], default: 'whatsapp' },
+    smsOtpVerifiedPhoneHash: { type: String, default: '' },
+    smsOtpEnrollment: { type: Object, select: false },
     webUsername: { type: String, required: true, unique: true },
     webPassword: { type: String, required: true },
     address: { type: String, trim: true, default: '' },

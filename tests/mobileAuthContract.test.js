@@ -223,6 +223,23 @@ describe('🔐 Contract Tests: Auth (Mobile API)', () => {
         expect(scanRawResponseFields(res.body)).toEqual([]);
     });
 
+    test('an SMS-protected customer cannot get a mobile token with a password alone', async () => {
+        User.findOne.mockResolvedValue({
+            _id: 'user-id-123',
+            name: 'Client User',
+            phone: '0910001234',
+            status: 'active',
+            webPassword: '$2b$12$hashed',
+            otpDeliveryChannel: 'sms'
+        });
+        const res = await request(app).post('/login')
+            .send({ username: 'sms.account', password: 'password123' });
+        expect(res.status).toBe(403);
+        expect(res.body.code).toBe('SMS_WEB_VERIFICATION_REQUIRED');
+        expect(res.body.token).toBeUndefined();
+        expect(MobileDeviceSession.create).not.toHaveBeenCalled();
+    });
+
     test('T014 & T015: POST /login should return official client_company context without raw company ids', async () => {
         const mockEmployee = {
             _id: 'company-employee-id',

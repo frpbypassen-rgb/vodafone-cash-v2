@@ -33,7 +33,7 @@
     <a class="otp-primary otp-restart" href="/login?portal=client" data-otp-restart hidden>بدء تسجيل الدخول مجددًا</a>
     <footer>لا تشارك الكود مع أي شخص، بما في ذلك الدعم.</footer>
 </main>
-<script type="application/json" id="businessOtpScreen"><%- JSON.stringify(screen).replace(/</g,'\u003c') %></script>
-<script src="/js/business-login-otp.js?v=1" defer></script>
+<script type="application/json" id="businessOtpScreen"><%- JSON.stringify(screen).replace(/</g,'\\u003c') %></script>
+<script src="/js/business-login-otp.js?v=2" defer></script>
 </body>
 </html>

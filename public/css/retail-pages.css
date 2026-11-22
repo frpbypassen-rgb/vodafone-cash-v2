@@ -1027,6 +1027,12 @@ html[data-theme='night'] #retailPasswordRules .is-valid {
     padding: 0;
     border-radius: 12px;
 }
+.retail-sms-login-panel {
+    grid-column: 1 / -1;
+}
+.retail-sms-login-panel form {
+    max-width: 28rem;
+}
 .retail-verification-channel summary {
     display: grid;
     grid-template-columns: auto minmax(0, 1fr) auto auto;

@@ -6,6 +6,7 @@
         <section class="retail-verification-channels" aria-labelledby="retailVerificationChannels">
             <h2 id="retailVerificationChannels">قنوات رمز الدخول</h2>
             <div class="retail-verification-channel-list">
+                <%- include('retail_sms_login') %>
                 <%- include('../../partials/email_login_security_panel',{retailSecurity:true,portalBasePath:'/client'}) %>
                 <%- include('../../partials/telegram_login_security_panel',{retailSecurity:true,portalBasePath:'/client'}) %>
             </div>

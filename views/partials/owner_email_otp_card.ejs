@@ -18,10 +18,10 @@
             <div class="col-12">
                 <% if (!ownerOtp.missingOwner) { %>
                 <label class="d-flex align-items-center gap-2 fw-bold mb-0">
-                    <input type="checkbox" name="emailOtpEnabled" value="true" data-email-otp-toggle <%= ownerOtp.emailOtpEnabled || ownerOtp.loginOtpChannel === 'telegram' ? 'checked' : '' %>>
+                    <input type="checkbox" name="emailOtpEnabled" value="true" data-email-otp-toggle <%= ownerOtp.emailOtpEnabled || ['telegram','sms'].includes(ownerOtp.loginOtpChannel) ? 'checked' : '' %>>
                     <span>طلب كود التحقق عند تسجيل الدخول</span>
                 </label>
-                <label class="d-block mt-2">قناة كود الدخول<select class="form-select mt-1" name="loginOtpChannel"><option value="email" <%= ownerOtp.loginOtpChannel !== 'telegram' ? 'selected' : '' %>>البريد الإلكتروني</option><option value="telegram" <%= ownerOtp.loginOtpChannel === 'telegram' ? 'selected' : '' %> <%= ownerOtp.telegramVerified ? '' : 'disabled' %>>تليجرام — يلزم ربط مؤكد</option></select></label>
+                <label class="d-block mt-2">قناة كود الدخول<select class="form-select mt-1" name="loginOtpChannel"><option value="email" <%= !['telegram','sms'].includes(ownerOtp.loginOtpChannel) ? 'selected' : '' %>>البريد الإلكتروني</option><option value="telegram" <%= ownerOtp.loginOtpChannel === 'telegram' ? 'selected' : '' %> <%= ownerOtp.telegramVerified ? '' : 'disabled' %>>تليجرام — يلزم ربط مؤكد</option><% if (ownerOtp.type === 'user' && ownerOtp.loginOtpChannel === 'sms') { %><option value="sms" selected>الرسائل النصية (SMS)</option><% } %></select></label>
                 <div class="small text-muted mt-1">تليجرام: <%= ownerOtp.telegramVerified ? 'مرتبط ومؤكد' : 'غير مرتبط' %><% if(ownerOtp.telegramAccount) { %> — <bdi>@<%= ownerOtp.telegramAccount %></bdi><% } %></div>
                 <% } else { %>
                 <label class="d-flex align-items-center gap-2 fw-bold mb-0">
