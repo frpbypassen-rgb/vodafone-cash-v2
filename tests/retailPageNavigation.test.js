@@ -71,9 +71,25 @@ test.each(['profile', 'security', 'notifications', 'appearance', 'documents'])(
         expect(html.match(/aria-label="أقسام الإعدادات"/g) || []).toHaveLength(0);
         expect(html).toContain('retail-settings-back');
         expect(html).not.toContain('client-os-shell');
-        if (activeSection === 'security') expect(html.match(/name="currentPassword"/g) || []).toHaveLength(1);
     }
 );
+test('account security opens with separate links for verification, password and sessions', async () => {
+    const html = await render('client/hub/settings.ejs', { activeSection: 'security' });
+    expect(html).toContain('href="/client/settings?section=security&amp;view=verification"');
+    expect(html).toContain('href="/client/settings?section=security&amp;view=password"');
+    expect(html).toContain('href="/security/sessions"');
+    expect(html).not.toContain('id="retailPasswordForm"');
+    expect(html).not.toContain('data-mfa-panel');
+});
+test('password view renders the existing protected form without verification controls', async () => {
+    const html = await render('client/hub/settings.ejs', { activeSection: 'security', activeSecurityView: 'password' });
+    expect(html).toContain('<title>تغيير كلمة المرور | أهرام باي</title>');
+    expect(html).toContain('action="/client/hub/password"');
+    expect(html).toContain('name="_csrf" value="test"');
+    expect(html.match(/name="currentPassword"/g)).toHaveLength(1);
+    expect(html).toContain('href="/client/settings?section=security"');
+    expect(html).not.toContain('data-mfa-panel');
+});
 test.each(['client/hub/reports.ejs', 'client/support.ejs'])(
     '%s uses the same shell as home',
     async (view) => {
@@ -156,10 +172,14 @@ test('read-only profile cannot render an edit form', async () => {
 });
 
 test.each(['day', 'night'])(
-    'customer security shows all three factors in order in %s mode',
+    'the dedicated verification page shows all three factors in order in %s mode',
     async (clientTheme) => {
-        const html = await render('client/hub/settings.ejs', { activeSection: 'security', clientTheme });
-        expect(html).toContain('id="retailPasswordForm"');
+        const html = await render('client/hub/settings.ejs', {
+            activeSection: 'security', activeSecurityView: 'verification', clientTheme,
+        });
+        expect(html).toContain('<title>التحقق بخطوتين | أهرام باي</title>');
+        expect(html).not.toContain('id="retailPasswordForm"');
+        expect(html).toContain('href="/client/settings?section=security"');
         expect(html).toContain('data-mfa-panel');
         expect(html).toContain('data-email-login');
         expect(html).toContain('data-telegram-login');

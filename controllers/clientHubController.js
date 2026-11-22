@@ -22,9 +22,11 @@ exports.getSettings = async (req, res) => {
     if (!ctx) return res.redirect('/login?portal=client');
     const section = String(req.query.section || (ctx.retailModern ? 'overview' : 'profile')).trim();
     const allowed = ['profile', 'security', 'notifications', 'appearance', 'documents', ...(ctx.retailModern ? ['overview'] : [])];
+    const view = req.query.view;
     return res.render('client/hub/settings', {
         ...ctx,
         activeSection: allowed.includes(section) ? section : 'profile',
+        activeSecurityView: section === 'security' && ['verification', 'password'].includes(view) ? view : '',
         settingsSuccess: req.query.settingsSuccess || '',
         settingsError: req.query.settingsError || ''
     });
@@ -70,7 +72,8 @@ exports.postChangePassword = async (req, res) => {
     const newPassword = String(req.body.newPassword || '');
     const passwordConfirm = String(req.body.passwordConfirm || '');
 
-    const fail = (code) => res.redirect(`/client/settings?section=security&settingsError=${code}`);
+    const passwordPage = '/client/settings?section=security&view=password';
+    const fail = (code) => res.redirect(`${passwordPage}&settingsError=${code}`);
 
     if (!actor || !await bcrypt.compare(currentPassword, actor.webPassword || '')) {
         return fail('current_password');
@@ -92,5 +95,5 @@ exports.postChangePassword = async (req, res) => {
         result: 'ناجح',
         metadata: { selfService: true, portal: 'client_hub' }
     });
-    return res.redirect('/client/settings?section=security&settingsSuccess=password');
+    return res.redirect(passwordPage + '&settingsSuccess=password');
 };

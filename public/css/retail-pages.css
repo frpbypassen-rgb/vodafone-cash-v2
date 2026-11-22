@@ -865,18 +865,55 @@ html[data-theme='night'] .retail-profile-help a {
         padding-bottom: 8px;
     }
 }
-.retail-security-grid {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
-    gap: 22px;
-    align-items: start;
+.retail-settings-security {
+    max-width: 880px;
 }
-.retail-security-grid > * {
+.retail-settings-security .retail-settings-heading {
+    padding: clamp(12px, 3vw, 22px);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    background: color-mix(in srgb, var(--soft) 55%, var(--surface));
+}
+.retail-security-title {
+    display: flex;
+    align-items: center;
+    gap: 12px;
     min-width: 0;
 }
+.retail-security-menu,
+.retail-security-factors {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+}
+.retail-security-menu .retail-settings-card {
+    min-height: 100px;
+    padding: 18px;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+}
+.retail-security-menu .retail-settings-card:hover {
+    border-color: var(--blue);
+}
+.retail-security-menu [data-security-view='sessions'],
+.retail-security-factors > [data-mfa-panel] {
+    grid-column: 1 / -1;
+}
+.retail-security-menu [data-security-view='sessions'] {
+    min-height: 72px;
+}
+.retail-security-menu [data-security-view='sessions'] .retail-settings-icon {
+    width: 36px;
+    height: 36px;
+    font-size: 15px;
+}
 .retail-security-password {
-    position: sticky;
-    top: 20px;
+    width: min(100%, 38rem);
+    margin-inline: auto;
+}
+.retail-password-fields {
+    display: grid;
+    gap: 16px;
 }
 #retailPasswordForm label {
     display: block;
@@ -886,7 +923,6 @@ html[data-theme='night'] .retail-profile-help a {
 }
 .retail-password-input {
     position: relative;
-    margin-bottom: 20px;
 }
 .retail-password-input input {
     padding-inline-end: 52px;
@@ -905,10 +941,24 @@ html[data-theme='night'] .retail-profile-help a {
     color: var(--muted);
 }
 #retailPasswordRules {
-    padding-inline-start: 20px;
+    display: grid;
+    gap: 4px;
+    margin: 16px 0;
+    padding: 10px 12px;
+    border-radius: 9px;
+    background: var(--soft);
+    list-style: none;
     font-size: 12px;
     color: var(--muted);
-    line-height: 2;
+    line-height: 1.7;
+}
+#retailPasswordRules li {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+}
+#retailPasswordRules li:not(.is-valid) i {
+    visibility: hidden;
 }
 #retailPasswordRules .is-valid {
     color: #08734f;
@@ -916,14 +966,12 @@ html[data-theme='night'] .retail-profile-help a {
 html[data-theme='night'] #retailPasswordRules .is-valid {
     color: #86efac;
 }
-.retail-security-factors-heading h2 {
-    font-size: 18px;
-    margin: 0;
-}
-.retail-security-factors-heading p {
-    color: var(--muted);
-    font-size: 12px;
-    margin: 8px 0 16px;
+.retail-security-password .retail-profile-actions {
+    position: static;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    padding-bottom: 0;
 }
 .retail-security-factors .mfa-security-panel {
     --bw-surface: var(--surface);
@@ -931,7 +979,7 @@ html[data-theme='night'] #retailPasswordRules .is-valid {
     --bw-border: var(--border);
     --bw-text: var(--text);
     --bw-muted: var(--muted);
-    margin-top: 14px;
+    margin-top: 0;
 }
 .retail-security-factors .mfa-panel-heading h2 {
     font-size: 15px;
@@ -948,21 +996,36 @@ html[data-theme='night'] #retailPasswordRules .is-valid {
     gap: 8px;
     font-size: 12px;
 }
-.retail-security-sessions {
-    margin-top: 16px;
-}
-@media (max-width: 900px) {
-    .retail-security-grid {
-        grid-template-columns: 1fr;
-        gap: 22px;
-    }
-    .retail-security-password {
-        position: static;
+@media (min-width: 701px) {
+    .retail-security-factors > .mfa-compact > .mfa-actions > .mfa-button {
+        width: auto;
     }
 }
-.retail-security-factors .retail-security-sessions {
-    border: 1px solid var(--border);
-    border-radius: 14px;
+@media (max-width: 700px) {
+    .retail-security-menu,
+    .retail-security-factors {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 10px;
+    }
+    .retail-security-menu .retail-settings-card {
+        min-height: 76px;
+        padding: 12px;
+    }
+    .retail-security-password .retail-profile-actions {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    .retail-security-title .retail-settings-icon {
+        width: 36px;
+        height: 36px;
+        font-size: 15px;
+    }
+    .retail-settings-security .retail-settings-heading {
+        align-items: start;
+    }
+    .retail-settings-security .retail-settings-heading h1 {
+        font-size: 20px;
+    }
 }
 .rs-summary {
     display: flex;

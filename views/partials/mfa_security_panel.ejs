@@ -3,7 +3,7 @@
     <div class="mfa-panel-heading">
         <div>
             <% if (compactMfaPanel) { %>
-            <h2><i class="fa-solid fa-shield-halved" aria-hidden="true"></i> التحقق الثنائي</h2>
+            <h2><i class="fa-solid fa-shield-halved" aria-hidden="true"></i> <%= locals.retailSecurity ? 'تطبيق المصادقة' : 'التحقق الثنائي' %></h2>
             <% } else { %><span class="mfa-kicker"><i class="fa-solid fa-shield-halved"></i> أمان الحساب</span><h2>حماية الحساب الاختيارية</h2><% } %>
         </div>
         <span class="mfa-state" data-mfa-state role="status" aria-live="polite">جارٍ الفحص</span>
