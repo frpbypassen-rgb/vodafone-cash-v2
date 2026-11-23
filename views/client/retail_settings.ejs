@@ -20,7 +20,7 @@ const headingItem = securityView || currentItem;
 -%>
 <!doctype html>
 <html lang="ar" dir="rtl" data-portal="customer" data-theme="<%= clientTheme || 'day' %>">
-<head><%- include('partials/retail_page_head',{retailPage:'settings',retailTitle:isSecurity ? headingItem.title : undefined}) %></head>
+<head><%- include('partials/retail_page_head',{retailPage:'settings',retailTitle:isSecurity || currentSection === 'profile' ? headingItem.title : undefined}) %></head>
 <body class="retail-page retail-settings-page" data-customer-shell>
 <%- include('partials/retail_shell_start',{activeRetailNav:'settings'}) %>
 <section class="retail-settings<%= isSecurity ? ' retail-settings-security' : '' %><%= securityView?.key === 'verification' ? ' retail-settings-verification' : '' %>" aria-labelledby="retailSettingsTitle">

@@ -1,12 +1,103 @@
+<%
+const displayName = String(profile.name || 'عميل').trim();
+const accountDetails = [
+    { label: 'رقم الهاتف', value: profile.phone, icon: 'fa-phone' },
+    { label: 'اسم المستخدم', value: profile.username, icon: 'fa-at' },
+    ...(profile.agentAccountCode ? [{ label: 'رقم الوكالة', value: profile.agentAccountCode, icon: 'fa-building' }] : []),
+    {
+        label: 'تاريخ الانضمام',
+        value: profile.joinedAt ? new Date(profile.joinedAt).toLocaleDateString('ar-LY', {
+            timeZone: 'Africa/Tripoli', year: 'numeric', month: 'long', day: 'numeric'
+        }) : '',
+        icon: 'fa-calendar-days'
+    }
+];
+%>
 <section class="retail-profile" aria-label="بيانات الملف الشخصي">
-<header class="retail-profile-identity"><span class="retail-settings-avatar" aria-hidden="true"><%= String(profile.name || 'ع').trim().charAt(0) %></span><div><strong><%= profile.name %></strong><p>رقم الحساب <bdi><%= profile.accountCode || '—' %></bdi></p></div></header>
-<div class="retail-profile-grid"><section class="retail-profile-panel" aria-labelledby="retailProfileEditTitle"><header><span class="retail-settings-icon"><i class="fa-solid fa-user-pen" aria-hidden="true"></i></span><div><h2 id="retailProfileEditTitle">البيانات الشخصية</h2><p>حدّث اسمك وعنوانك ثم احفظ التغييرات.</p></div></header>
-<% if(profile.canEditProfile) { %><form id="retailProfileForm" method="POST" action="/client/profile?return=settings">
-<input type="hidden" name="_csrf" value="<%= csrfToken || '' %>">
-<label for="retailProfileName">الاسم الكامل <span>مطلوب</span></label><input class="form-control" id="retailProfileName" name="name" type="text" value="<%= profile.name %>" minlength="3" maxlength="100" autocomplete="name" required>
-<label for="retailProfileAddress">العنوان <span>اختياري</span></label><input class="form-control" id="retailProfileAddress" name="address" type="text" value="<%= profile.address === 'غير مسجل' ? '' : profile.address %>" maxlength="200" autocomplete="street-address" placeholder="المدينة والمنطقة">
-<label for="retailProfileEmail">البريد الإلكتروني <span>اختياري</span></label><input class="form-control" id="retailProfileEmail" name="email" type="email" dir="ltr" value="<%= profile.email || '' %>" maxlength="254" autocomplete="email" placeholder="name@example.com"><p class="retail-profile-help">إضافة البريد لا تفعّل تحقق الدخول تلقائيًا؛ أكّده بكود من <a href="/client/settings?section=security">أمان الحساب</a>.</p>
-<div class="retail-profile-actions"><p id="retailProfileSaveStatus" role="status" aria-live="polite">لا توجد تغييرات غير محفوظة.</p><button class="btn btn-primary" type="submit" id="retailProfileSave"><i class="fa-solid fa-floppy-disk" aria-hidden="true"></i> حفظ التغييرات</button></div>
-</form><% } else { %><p>بيانات هذا الحساب للعرض فقط.</p><dl><div><dt>الاسم</dt><dd><%= profile.name %></dd></div><div><dt>العنوان</dt><dd><%= profile.address || '—' %></dd></div></dl><% } %></section>
-<aside class="retail-profile-panel retail-profile-info" aria-labelledby="retailProfileInfoTitle"><header><span class="retail-settings-icon"><i class="fa-solid fa-id-card" aria-hidden="true"></i></span><div><h2 id="retailProfileInfoTitle">معلومات الحساب</h2><p>بيانات الحساب المسجلة لدى الإدارة.</p></div></header><dl>
-<div><dt>رقم الهاتف</dt><dd><bdi><%= profile.phone || '—' %></bdi></dd></div><div><dt>اسم المستخدم</dt><dd><bdi><%= profile.username || '—' %></bdi></dd></div><div><dt>نوع الحساب</dt><dd><%= profile.accountTypeName %></dd></div><% if(profile.agentAccountCode) { %><div><dt>رقم الوكالة</dt><dd><bdi><%= profile.agentAccountCode %></bdi></dd></div><% } %><div><dt>تاريخ الانضمام</dt><dd><%= profile.joinedAt ? new Date(profile.joinedAt).toLocaleDateString('ar-LY',{timeZone:'Africa/Tripoli',year:'numeric',month:'long',day:'numeric'}) : '—' %></dd></div></dl><p class="retail-profile-help"><i class="fa-solid fa-circle-info" aria-hidden="true"></i> لتعديل رقم الهاتف أو اسم المستخدم، تواصل مع <a href="/client/support">الدعم</a>.</p></aside></div></section>
+    <header class="retail-profile-identity">
+        <div class="retail-profile-person">
+            <span class="retail-settings-avatar" aria-hidden="true">
+                <span data-profile-initial><%= displayName.charAt(0) %></span>
+                <% if (profile.hasProfilePhoto) { %>
+                    <img src="/client/profile-photo?v=<%= encodeURIComponent(profile.profilePhotoUpdatedAt || '') %>" alt="">
+                <% } %>
+            </span>
+            <div class="retail-profile-name">
+                <strong><%= displayName %></strong>
+                <p><%= profile.accountTypeName %></p>
+            </div>
+        </div>
+        <div class="retail-profile-account-number">
+            <dl>
+                <dt>رقم الحساب</dt>
+                <dd><bdi><%= profile.accountCode || '—' %></bdi></dd>
+            </dl>
+            <i class="fa-solid fa-hashtag" aria-hidden="true"></i>
+        </div>
+    </header>
+
+    <div class="retail-profile-grid">
+        <section class="retail-profile-panel retail-profile-edit" aria-labelledby="retailProfileEditTitle">
+            <header>
+                <span class="retail-settings-icon"><i class="fa-solid fa-user-pen" aria-hidden="true"></i></span>
+                <h2 id="retailProfileEditTitle">البيانات الشخصية</h2>
+            </header>
+            <% if (profile.canEditProfile) { %>
+                <form id="retailProfileForm" method="POST" action="/client/profile?return=settings">
+                    <input type="hidden" name="_csrf" value="<%= csrfToken || '' %>">
+                    <div class="retail-profile-field">
+                        <label for="retailProfileName">الاسم الكامل <span>مطلوب</span></label>
+                        <input class="form-control" id="retailProfileName" name="name" type="text" value="<%= profile.name %>"
+                            minlength="3" maxlength="100" autocomplete="name" dir="auto" required>
+                    </div>
+                    <div class="retail-profile-field">
+                        <label for="retailProfileAddress">العنوان <span>اختياري</span></label>
+                        <input class="form-control" id="retailProfileAddress" name="address" type="text"
+                            value="<%= profile.address === 'غير مسجل' ? '' : profile.address %>" maxlength="200"
+                            autocomplete="street-address" dir="auto" placeholder="المدينة والمنطقة">
+                    </div>
+                    <div class="retail-profile-field">
+                        <label for="retailProfileEmail">البريد الإلكتروني <span>اختياري</span></label>
+                        <input class="form-control" id="retailProfileEmail" name="email" type="email" dir="ltr"
+                            value="<%= profile.email || '' %>" maxlength="254" autocomplete="email"
+                            aria-describedby="retailProfileEmailHelp" placeholder="name@example.com">
+                        <p class="retail-profile-help" id="retailProfileEmailHelp">
+                            لتفعيل التحقق بالبريد، أكّد عنوانك من <a href="/client/settings?section=security">أمان الحساب</a>.
+                        </p>
+                    </div>
+                    <div class="retail-profile-actions">
+                        <p id="retailProfileSaveStatus" role="status" aria-live="polite">لا توجد تغييرات غير محفوظة.</p>
+                        <button class="btn btn-primary" type="submit" id="retailProfileSave">
+                            <i class="fa-solid fa-floppy-disk" aria-hidden="true"></i> حفظ التغييرات
+                        </button>
+                    </div>
+                </form>
+            <% } else { %>
+                <p class="retail-profile-help">بيانات هذا الحساب للعرض فقط.</p>
+                <dl>
+                    <div><dt>الاسم</dt><dd><%= profile.name %></dd></div>
+                    <div><dt>العنوان</dt><dd><%= profile.address || '—' %></dd></div>
+                </dl>
+            <% } %>
+        </section>
+
+        <aside class="retail-profile-panel retail-profile-info" aria-labelledby="retailProfileInfoTitle">
+            <header>
+                <span class="retail-settings-icon"><i class="fa-solid fa-id-card" aria-hidden="true"></i></span>
+                <h2 id="retailProfileInfoTitle">معلومات الحساب</h2>
+            </header>
+            <dl class="retail-profile-details">
+                <% for (const item of accountDetails) { %>
+                    <div>
+                        <dt><i class="fa-solid <%= item.icon %>" aria-hidden="true"></i><%= item.label %></dt>
+                        <dd><bdi><%= item.value || '—' %></bdi></dd>
+                    </div>
+                <% } %>
+            </dl>
+            <p class="retail-profile-help retail-profile-support">
+                <i class="fa-solid fa-headset" aria-hidden="true"></i>
+                <span>لتعديل رقم الهاتف أو اسم المستخدم، تواصل مع <a href="/client/support">الدعم</a>.</span>
+            </p>
+        </aside>
+    </div>
+</section>

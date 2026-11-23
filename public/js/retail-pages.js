@@ -96,7 +96,11 @@
                 initial[index] = input.value;
             });
             const identity = document.querySelector('.retail-profile-identity strong');
-            if (identity && payload.profile?.name) identity.textContent = payload.profile.name;
+            if (identity && payload.profile?.name) {
+                identity.textContent = payload.profile.name;
+                const initial = document.querySelector('[data-profile-initial]');
+                if (initial) initial.textContent = payload.profile.name.charAt(0);
+            }
             status.textContent = 'تم حفظ التغييرات بنجاح.';
         } catch (error) {
             status.textContent = 'تعذر حفظ التغييرات. بياناتك ما زالت موجودة؛ أعد المحاولة.';

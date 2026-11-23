@@ -691,27 +691,83 @@ html[data-theme='night'] .retail-settings-identity > i {
 }
 .retail-profile-identity {
     display: flex;
-    gap: 16px;
     align-items: center;
-    padding: 20px 24px;
-    margin-bottom: 20px;
-    background: var(--surface);
-    border: 1px solid var(--border);
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 16px 24px;
+    padding: clamp(16px, 3vw, 28px);
+    margin-bottom: 18px;
+    color: #fff;
+    background:
+        radial-gradient(circle at 12% 115%, #639cf540, transparent 56%),
+        linear-gradient(110deg, #153e79, #112745 72%);
+    border: 1px solid #34517a;
     border-radius: 16px;
 }
-.retail-profile-identity strong {
-    font-size: 17px;
+.retail-profile-person,
+.retail-profile-account-number {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    min-width: 0;
+}
+.retail-profile-person {
+    flex: 1 1 160px;
+}
+.retail-profile-identity .retail-settings-avatar {
+    position: relative;
+    overflow: hidden;
+    background: #ffffff1c;
+    border: 1px solid #b8d6ff50;
+    color: #fff;
+}
+.retail-profile-identity .retail-settings-avatar img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+.retail-profile-name {
+    min-width: 0;
+}
+.retail-profile-name strong {
+    font-size: clamp(17px, 2vw, 22px);
     overflow-wrap: anywhere;
 }
-.retail-profile-identity p {
-    margin: 5px 0 0;
+.retail-profile-name p,
+.retail-profile-account-number dt {
+    margin: 2px 0 0;
+    color: #cfddf0;
     font-size: 12px;
-    color: var(--muted);
+    font-weight: 400;
+}
+.retail-profile-account-number {
+    justify-content: space-between;
+    padding: 9px 14px;
+    background: #ffffff14;
+    border: 1px solid #b8d6ff38;
+    border-radius: 12px;
+}
+.retail-profile-account-number dl,
+.retail-profile-account-number dd {
+    margin: 0;
+}
+.retail-profile-account-number dd {
+    font-size: 20px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.04em;
+    overflow-wrap: anywhere;
+}
+.retail-profile-account-number i {
+    color: #cfddf0;
+    font-size: 14px;
 }
 .retail-profile-grid {
     display: grid;
-    grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
-    gap: 20px;
+    grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+    gap: 18px;
     align-items: start;
 }
 .retail-profile-panel {
@@ -752,7 +808,6 @@ html[data-theme='night'] .retail-settings-identity > i {
     color: var(--muted);
 }
 #retailProfileForm input:not([type='hidden']) {
-    margin-bottom: 24px;
     min-height: 48px;
     font-size: 16px;
 }
@@ -831,6 +886,63 @@ html[data-theme='night'] .retail-settings-identity > i {
 html[data-theme='night'] .retail-profile-help a {
     color: #94bdff;
 }
+.retail-profile .retail-profile-panel > header {
+    margin-bottom: 18px;
+}
+.retail-profile .retail-settings-icon {
+    width: 40px;
+    height: 40px;
+    font-size: 16px;
+    border-radius: 10px;
+}
+.retail-profile-field + .retail-profile-field {
+    margin-top: 16px;
+}
+.retail-profile-field .retail-profile-help {
+    margin-top: 8px;
+}
+.retail-profile-edit .retail-profile-actions {
+    margin-top: 18px;
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+}
+.retail-profile-info .retail-profile-details {
+    margin: 0;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--bg);
+}
+.retail-profile-info .retail-profile-details > div {
+    display: grid;
+    grid-template-columns: minmax(0, max-content) minmax(0, 1fr);
+    align-items: baseline;
+    gap: 8px 12px;
+    padding: 13px 14px;
+}
+.retail-profile-info .retail-profile-details > div:last-child {
+    border-bottom: 0;
+}
+.retail-profile-details dt i {
+    margin-inline-end: 8px;
+}
+.retail-profile-details dd {
+    font-variant-numeric: tabular-nums;
+}
+.retail-profile-support {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    padding: 10px 12px;
+    border-radius: 9px;
+    background: var(--soft);
+}
+.retail-profile a:focus-visible,
+.retail-profile button:focus-visible {
+    outline: 2px solid var(--blue);
+    outline-offset: 2px;
+}
 @media (max-width: 800px) {
     .retail-profile-grid {
         grid-template-columns: 1fr;
@@ -839,12 +951,14 @@ html[data-theme='night'] .retail-profile-help a {
 }
 @media (max-width: 700px) {
     .retail-profile-identity {
-        padding: 16px;
-        gap: 12px;
         margin-bottom: 16px;
     }
-    .retail-profile-identity strong {
-        font-size: 14px;
+    .retail-profile-edit .retail-profile-actions {
+        position: static;
+        padding-bottom: 0;
+    }
+    .retail-profile-edit .retail-profile-actions button {
+        width: 100%;
     }
     .retail-profile-panel {
         padding: 18px 16px;
