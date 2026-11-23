@@ -1,4 +1,5 @@
 <section class="mfa-security-panel mfa-compact email-login-panel retail-sms-login-panel" data-sms-login
+    data-base="<%= typeof portalBasePath !== 'undefined' ? portalBasePath : '/client' %>"
     data-csrf="<%= typeof csrfToken !== 'undefined' ? csrfToken : '' %>">
     <details class="retail-verification-channel">
         <%- include('../../partials/retail_verification_channel_summary',{title:'الرسائل النصية (SMS)',icon:'fa-solid fa-comment-sms',stateAttribute:'data-sms-state'}) %>

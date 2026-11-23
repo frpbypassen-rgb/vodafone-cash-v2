@@ -311,14 +311,13 @@ test('switching methods invalidates the previous delivery and preserves the fail
     expect((await login.consume(attempt, totp(setup.secret))).channel).toBe('authenticator');
 });
 
-test('the agent portal retains its existing Authenticator-plus-delivery policy', async () => {
+test('the agent portal offers either Authenticator or an enabled delivery method', async () => {
     parent.otpDeliveryChannel = 'email';
     parent.businessProfile.email = 'agency@example.test';
     await enableAuthenticator(parent);
-    await expect(login.start(loginReq(), parent, 'user', {})).rejects.toMatchObject({ code: 'MFA_REQUIRED' });
     const attempt = loginReq();
-    await login.start(attempt, parent, 'user', { pendingEmailMfaProof: proof.create(parent, 'user') });
-    expect((await login.view(attempt)).methods.map(method => method.key)).toEqual(['email']);
+    await login.start(attempt, parent, 'user', {});
+    expect((await login.view(attempt)).methods.map(method => method.key)).toEqual(['email', 'authenticator']);
 });
 
 test('administrator and customer read/write the same email login state', async () => {

@@ -7,8 +7,8 @@ const transport = require('./smsLoginTransport');
 const retail = require('../utils/retailLoginMethods');
 
 const assertCustomer = (ctx) => {
-    if (ctx.kind !== 'customer' || !ctx.isOwner)
-        throw challenge.fail('NOT_ALLOWED', 'هذه الخدمة متاحة لحساب العميل.', 403);
+    if (!retail.isChoiceContext(ctx))
+        throw challenge.fail('NOT_ALLOWED', 'هذه الخدمة غير متاحة لهذا الحساب.', 403);
 };
 const present = (ctx) => {
     assertCustomer(ctx);

@@ -6,6 +6,9 @@ const { fail, revision } = require('./loginSecurityChallenge');
 const deliveryKeys = ['email', 'telegram', 'sms'];
 const isRetailLogin = (actor, type) => Boolean(actor) &&
     (type === 'sub_client' || (type === 'user' && actor.role !== 'agent'));
+const isChoiceLogin = (actor, type) => Boolean(actor) &&
+    ['user', 'sub_client', 'company', 'agent_staff'].includes(type);
+const isChoiceContext = (ctx) => ['customer', 'company', 'agent'].includes(ctx.kind);
 const deliveryMethods = (actor) => {
     if (Array.isArray(actor.retailLoginMethods))
         return deliveryKeys.filter(key => actor.retailLoginMethods.includes(key));
@@ -47,9 +50,9 @@ const canManage = (actor, proof) => {
         (proof.method !== 'authenticator' || proof.configuredAt === new Date(actor.mfaConfiguredAt || 0).getTime()));
 };
 const requireRecentProof = (ctx) => {
-    if (ctx.kind === 'customer' && !canManage(ctx.actor, ctx.session?.retailLoginProof))
+    if (isChoiceContext(ctx) && !canManage(ctx.actor, ctx.session?.retailLoginProof))
         throw fail('RECENT_LOGIN_REQUIRED', 'سجّل الخروج ثم ادخل بإحدى طرق التحقق المفعّلة قبل تغيير إعدادات الأمان.', 403);
 };
 
-module.exports = { deliveryKeys, isRetailLogin, deliveryMethods, enabledMethods, preferredMethod, enableDelivery,
+module.exports = { deliveryKeys, isRetailLogin, isChoiceLogin, isChoiceContext, deliveryMethods, enabledMethods, preferredMethod, enableDelivery,
     recentProof, canManage, requireRecentProof };

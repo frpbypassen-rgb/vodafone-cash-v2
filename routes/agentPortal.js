@@ -22,6 +22,8 @@ router.get('/login', (_req, res) => res.redirect('/login?portal=client'));
 router.use(requireAgentPortal);
 router.use(require('./agentReportEmail'));
 router.use(require('./agentTelegram'));
+router.use(require('./portal/sms-login'));
+router.use(require('./portal/retail-login-methods'));
 router.get('/', (_req, res) => res.redirect('/agent-portal/dashboard'));
 const pages = {
     '/dashboard': 'overview',

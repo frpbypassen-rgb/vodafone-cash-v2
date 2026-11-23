@@ -18,7 +18,7 @@
         element.hidden = !text;
     };
     const request = async body => {
-        const response = await fetch('/client/api/security/login-methods', {
+        const response = await fetch((panel.dataset.base || '/client') + '/api/security/login-methods', {
             method: body ? 'POST' : 'GET',
             credentials: 'same-origin',
             cache: 'no-store',

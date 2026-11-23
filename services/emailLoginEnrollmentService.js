@@ -32,8 +32,8 @@ const binding = (actor, sessionId) => digest(`${actor._id}:${sessionId}:${actor.
 const targetEmail = ({ actor, profileEmail, isOwner }) =>
     normalizeOtpEmail(isOwner ? profileEmail : actor.email);
 const present = (ctx) => ({
-    enabled: ctx.kind === 'customer' ? retail.deliveryMethods(ctx.actor).includes('email') : ctx.actor.otpDeliveryChannel === 'email',
-    customer: ctx.kind === 'customer',
+    enabled: retail.isChoiceContext(ctx) ? retail.deliveryMethods(ctx.actor).includes('email') : ctx.actor.otpDeliveryChannel === 'email',
+    customer: retail.isChoiceContext(ctx),
     selectedChannel: ctx.actor.otpDeliveryChannel,
     email: maskEmail(resolveAccountOtpEmail(ctx.actor)),
     targetEmail: maskEmail(targetEmail(ctx)),
@@ -146,8 +146,8 @@ const confirm = async (ctx) => {
         emailOtpVerifiedEmail: pending.email,
         emailOtpVerifiedAt: new Date(),
     };
-    if (ctx.kind === 'customer') Object.assign(set, retail.enableDelivery(actor, 'email'));
-    if (ctx.kind === 'customer' || set.otpDeliveryChannel === 'email') set.emailOtpLoginApprovedFor = pending.email;
+    if (retail.isChoiceContext(ctx)) Object.assign(set, retail.enableDelivery(actor, 'email'));
+    if (retail.isChoiceContext(ctx) || set.otpDeliveryChannel === 'email') set.emailOtpLoginApprovedFor = pending.email;
     if (!(ctx.isOwner && ctx.kind === 'agent')) set.email = pending.email;
     const result = await Model.updateOne(guard, {
         $set: set,
@@ -162,7 +162,7 @@ const confirm = async (ctx) => {
         },
     });
     if (!result.modifiedCount) throw fail('CHANGED', 'تغيرت إعدادات الأمان. ابدأ من جديد.', 409);
-    if (ctx.kind === 'customer' && ctx.session) ctx.session.retailLoginProof = retail.recentProof(actor, 'email', 1);
-    return { enabled: ctx.kind === 'customer' || set.otpDeliveryChannel === 'email', verified: true };
+    if (retail.isChoiceContext(ctx) && ctx.session) ctx.session.retailLoginProof = retail.recentProof(actor, 'email', 1);
+    return { enabled: retail.isChoiceContext(ctx) || set.otpDeliveryChannel === 'email', verified: true };
 };
 module.exports = { start, confirm, present, targetEmail };

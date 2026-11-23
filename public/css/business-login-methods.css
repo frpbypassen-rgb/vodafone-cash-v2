@@ -1,0 +1,89 @@
+.business-security-grid {
+    grid-template-columns: minmax(0, 1fr);
+}
+.business-security-grid > form {
+    max-width: 720px;
+}
+.business-login-methods {
+    display: grid;
+    gap: 16px;
+    min-width: 0;
+}
+.business-login-methods .mfa-security-panel {
+    margin: 0;
+}
+.business-login-methods .retail-verification-channels h2 {
+    margin: 0 0 10px;
+    font-size: 15px;
+}
+.business-login-methods .retail-verification-channel-list {
+    display: grid;
+    gap: 10px;
+}
+.business-login-methods .retail-verification-channel {
+    border-radius: 12px;
+}
+.business-login-methods .retail-verification-channel summary {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px;
+    cursor: pointer;
+    list-style: none;
+}
+.business-login-methods .retail-verification-channel summary::-webkit-details-marker {
+    display: none;
+}
+.business-login-methods .retail-verification-channel-icon {
+    display: grid;
+    width: 34px;
+    height: 34px;
+    place-items: center;
+}
+.business-login-methods .retail-verification-channel-title {
+    flex: 1;
+    font-weight: 700;
+}
+.business-login-methods .retail-verification-channel-body {
+    display: grid;
+    gap: 10px;
+    padding: 12px;
+    border-top: 1px solid var(--bw-border, #344765);
+}
+.business-login-methods .retail-verification-channel-body form,
+.business-login-methods .retail-verification-channel-body .bw-field {
+    display: grid;
+    gap: 8px;
+}
+.business-login-methods .retail-verification-channel-body [hidden] {
+    display: none;
+}
+.business-login-methods .retail-login-preferences {
+    display: grid;
+    gap: 8px;
+    padding: 14px;
+    border: 1px solid var(--bw-border, #344765);
+    border-radius: 12px;
+}
+.business-login-methods .retail-login-preferences[hidden],
+.business-login-methods .retail-login-preferences [hidden] {
+    display: none;
+}
+.business-login-methods .retail-login-preferences form > div {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+.business-login-methods .retail-login-preferences select {
+    flex: 1 1 160px;
+    min-height: 44px;
+}
+.business-login-methods :is(input, select, button):focus-visible {
+    outline: 2px solid #60a5fa;
+    outline-offset: 2px;
+}
+@media (min-width: 960px) {
+    .business-login-methods .retail-verification-channel-list {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}

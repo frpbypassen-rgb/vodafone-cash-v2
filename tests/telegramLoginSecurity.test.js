@@ -19,6 +19,7 @@ const mailer = require('../services/emailLoginEnrollmentMailer');
 const login = require('../services/loginOtpService');
 const invalidate = require('../utils/invalidateEmailLoginEnrollment');
 const approval = require('../utils/loginMethodApproval');
+const retail = require('../utils/retailLoginMethods');
 const express = require('express'),
     request = require('supertest');
 let mongo, ctx;
@@ -45,7 +46,7 @@ beforeEach(async () => {
         webPassword: 'test-only-password',
         businessProfile: { email: 'owner@example.test' },
     });
-    ctx = { actor, Model: User, sessionId: 'session-a', kind: 'agent', password: 'test-only-password' };
+    ctx = { actor, Model: User, sessionId: 'session-a', session: {}, kind: 'agent', password: 'test-only-password' };
 });
 const reload = async () => {
     ctx.actor = await ctx.Model.findById(ctx.actor._id).select(
@@ -176,30 +177,18 @@ test('expiry, password change and admin change invalidate pending links', async 
     await ctx.actor.save();
     expect(await receive(next)).toBe(false);
 });
-test('linking Telegram preserves an active email channel; switching requires the old channel code', async () => {
+test('linking Telegram preserves an active email channel and allows choosing either at login', async () => {
     ctx.actor.otpDeliveryChannel = 'email';
     ctx.actor.emailOtpVerifiedAt = new Date();
     ctx.actor.emailOtpVerifiedEmail = 'owner@example.test';
     await ctx.actor.save();
+    ctx.session.retailLoginProof = retail.recentProof(ctx.actor, 'email');
     await link();
     expect(ctx.actor.otpDeliveryChannel).toBe('email');
-    expect(approval.telegramAllowed(ctx.actor)).toBe(false);
-    expect((await service.requestChannel({ ...ctx, target: 'telegram' })).requiresCode).toBe(true);
-    expect(mailer.sendCode).toHaveBeenCalledWith(
-        'owner@example.test',
-        expect.stringMatching(/^\d{6}$/),
-        expect.objectContaining({ purpose: 'channel' })
-    );
-    const code = mailer.sendCode.mock.calls.at(-1)[1];
-    await reload();
-    await expect(service.confirmChannel({ ...ctx, code: 'bad' })).rejects.toMatchObject({ code: 'CODE' });
-    await service.confirmChannel({ ...ctx, code });
-    await reload();
-    expect(ctx.actor.otpDeliveryChannel).toBe('telegram');
+    expect(retail.deliveryMethods(ctx.actor)).toEqual(['email', 'telegram']);
     expect(ctx.actor.telegramLoginApprovedFor).toBe(approval.telegramIdentity(ctx.actor));
-    expect(ctx.actor.emailOtpLoginApprovedFor).toBe('owner@example.test');
     expect(approval.emailAllowed(ctx.actor)).toBe(true);
-    await expect(service.confirmChannel({ ...ctx, code })).rejects.toMatchObject({ code: 'EXPIRED' });
+    await expect(service.requestChannel({ ...ctx, target: 'telegram' })).rejects.toMatchObject({ code: 'METHOD_SETTINGS_MOVED' });
 });
 test('Telegram login codes are sent only to the confirmed current bot and fail closed on outage', async () => {
     await link();
@@ -226,17 +215,17 @@ test('Telegram login codes are sent only to the confirmed current bot and fail c
         else process.env.EMERGENCY_CLIENT_OTP_BYPASS_EXPIRES_AT = expiry;
     }
 });
-test('unverified or unconfigured channel choices and removing the selected link are blocked', async () => {
+test('legacy channel switching is replaced by independent login method management', async () => {
     await expect(service.requestChannel({ ...ctx, target: 'telegram' })).rejects.toMatchObject({
-        code: 'TARGET_NOT_READY',
+        code: 'METHOD_SETTINGS_MOVED',
     });
     await link();
     await expect(service.requestChannel({ ...ctx, target: 'unlink' })).rejects.toMatchObject({
-        code: 'TARGET_NOT_READY',
+        code: 'METHOD_SETTINGS_MOVED',
     });
     transport.configured.mockReturnValue(false);
     await expect(service.requestChannel({ ...ctx, target: 'email' })).rejects.toMatchObject({
-        code: 'TARGET_NOT_READY',
+        code: 'METHOD_SETTINGS_MOVED',
     });
 });
 test('an enrollment code gets five minutes even when the deep link is opened just before expiry', async () => {
@@ -249,29 +238,18 @@ test('an enrollment code gets five minutes even when the deep link is opened jus
     await reload();
     expect(ctx.actor.telegramOtpEnrollment.expiresAt).toBeGreaterThan(Date.now() + 290000);
 });
-test('email verification preserves Telegram selection, and switching back and unlinking require their own current-channel codes', async () => {
+test('email verification adds another method without changing an active Telegram login', async () => {
     await link();
     const emailService = require('../services/emailLoginEnrollmentService');
     const emailCtx = () => ({ ...ctx, isOwner: true, profileEmail: 'owner@example.test' });
     await emailService.start(emailCtx());
     const emailCode = mailer.sendCode.mock.calls.at(-1)[1];
     await reload();
-    expect((await emailService.confirm({ ...emailCtx(), code: emailCode })).enabled).toBe(false);
+    expect((await emailService.confirm({ ...emailCtx(), code: emailCode })).enabled).toBe(true);
     await reload();
     expect(ctx.actor.otpDeliveryChannel).toBe('telegram');
-    await service.requestChannel({ ...ctx, target: 'email' });
-    const telegramCode = transport.sendCode.mock.calls.at(-1)[1];
-    await reload();
-    await service.confirmChannel({ ...ctx, code: telegramCode });
-    await reload();
-    expect(ctx.actor.otpDeliveryChannel).toBe('email');
-    await service.requestChannel({ ...ctx, target: 'unlink' });
-    const removeCode = mailer.sendCode.mock.calls.at(-1)[1];
-    await reload();
-    await service.confirmChannel({ ...ctx, code: removeCode });
-    await reload();
-    expect(ctx.actor.telegramLoginVerifiedAt).toBeNull();
-    expect(ctx.actor.otpDeliveryChannel).toBe('email');
+    expect(retail.deliveryMethods(ctx.actor)).toEqual(['email', 'telegram']);
+    expect(ctx.actor.telegramLoginVerifiedAt).toBeInstanceOf(Date);
 });
 test.each(['agent', 'company'])(
     '%s HTTP flow enforces authentication/CSRF and resolves the actor itself',

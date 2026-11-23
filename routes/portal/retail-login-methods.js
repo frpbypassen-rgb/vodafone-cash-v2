@@ -18,8 +18,8 @@ const state = actor => ({ enabled: retail.enabledMethods(actor), preferred: reta
 const register = (method, handler) => router[method](path, requireClientAuth, ...(method === 'post' ? [limiter] : []), async (req, res) => {
     try {
         const ctx = await context(req);
-        if (ctx.kind !== 'customer' || !ctx.isOwner)
-            throw challenge.fail('NOT_ALLOWED', 'هذه الإعدادات متاحة لحساب العميل.', 403);
+        if (!retail.isChoiceContext(ctx))
+            throw challenge.fail('NOT_ALLOWED', 'هذه الإعدادات غير متاحة لهذا الحساب.', 403);
         return res.json({ success: true, ...await handler(ctx, req) });
     } catch (error) {
         return res.status(error.statusCode || 500).json({

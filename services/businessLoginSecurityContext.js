@@ -51,7 +51,7 @@ const context = async (req) => {
     const Model = models[workspace.actorModel];
     if (!Model) throw Object.assign(new Error('غير متاح لهذا الحساب.'), { statusCode: 403 });
     const actor = await Model.findById(workspace.actor._id).select(
-        '+emailOtpEnrollment +telegramOtpEnrollment +loginChannelAction +telegramLoginChatId +telegramLoginUserId'
+        '+emailOtpEnrollment +telegramOtpEnrollment +smsOtpEnrollment +loginChannelAction +telegramLoginChatId +telegramLoginUserId'
     );
     if (!actor || actor.status !== 'active')
         throw Object.assign(new Error('انتهت الجلسة.'), { statusCode: 401 });
@@ -59,6 +59,7 @@ const context = async (req) => {
         actor,
         Model,
         sessionId: req.sessionID,
+        session: req.session,
         kind: workspace.isCompany ? 'company' : 'agent',
         profileEmail: workspace.entity.businessProfile?.email,
         isOwner:

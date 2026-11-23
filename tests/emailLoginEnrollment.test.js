@@ -42,6 +42,7 @@ beforeEach(async () => {
         actor,
         Model: User,
         sessionId: 'session-a',
+        session: {},
         kind: 'agent',
         isOwner: true,
         profileEmail: actor.businessProfile.email,

@@ -61,8 +61,8 @@ const present = (ctx) => {
     const waiting = challenge.valid(pending, actor, ctx.sessionId);
     return {
         selected: ['email', 'telegram', 'sms'].includes(actor.otpDeliveryChannel) ? actor.otpDeliveryChannel : 'off',
-        customer: ctx.kind === 'customer',
-        enabled: ctx.kind === 'customer' ? retail.deliveryMethods(actor).includes('telegram') : actor.otpDeliveryChannel === 'telegram',
+        customer: retail.isChoiceContext(ctx),
+        enabled: retail.isChoiceContext(ctx) ? retail.deliveryMethods(actor).includes('telegram') : actor.otpDeliveryChannel === 'telegram',
         linked: Boolean(actor.telegramLoginVerifiedAt),
         linkedAt: actor.telegramLoginVerifiedAt || null,
         accountLabel: actor.telegramLoginUsername
@@ -212,9 +212,9 @@ const confirm = async (ctx) => {
             telegramLoginUsername: pending.username || '',
             telegramLoginBotId: pending.botId,
             telegramLoginVerifiedAt: new Date(),
-            ...(ctx.kind === 'customer' ? retail.enableDelivery(actor, 'telegram') : { otpDeliveryChannel: selected }),
+            ...(retail.isChoiceContext(ctx) ? retail.enableDelivery(actor, 'telegram') : { otpDeliveryChannel: selected }),
             telegramLoginApprovedFor:
-                ctx.kind === 'customer' || selected === 'telegram' ||
+                retail.isChoiceContext(ctx) || selected === 'telegram' ||
                 actor.telegramLoginApprovedFor ===
                     approval.telegramIdentity({
                         telegramLoginChatId: pending.chatId,
@@ -235,8 +235,8 @@ const confirm = async (ctx) => {
         },
     });
     if (!result.modifiedCount) throw challenge.fail('CHANGED', 'تغيرت الإعدادات. حدّث الصفحة.', 409);
-    if (ctx.kind === 'customer' && ctx.session) ctx.session.retailLoginProof = retail.recentProof(actor, 'telegram', 1);
-    return { linked: true, selected: ctx.kind === 'customer' ? retail.enableDelivery(actor, 'telegram').otpDeliveryChannel : selected };
+    if (retail.isChoiceContext(ctx) && ctx.session) ctx.session.retailLoginProof = retail.recentProof(actor, 'telegram', 1);
+    return { linked: true, selected: retail.isChoiceContext(ctx) ? retail.enableDelivery(actor, 'telegram').otpDeliveryChannel : selected };
 };
 const sendCurrent = async (ctx, code, purpose = 'channel') => {
     if (ctx.actor.otpDeliveryChannel === 'sms') {
@@ -304,7 +304,7 @@ const applyTarget = async (ctx, target, extraGuard = {}) => {
     return { completed: true, selected: target === 'unlink' ? ctx.actor.otpDeliveryChannel : target };
 };
 const requestChannel = async (ctx) => {
-    if (ctx.kind === 'customer') throw challenge.fail('METHOD_SETTINGS_MOVED', 'استخدم إعدادات طرق التحقق لتغيير الوسيلة المفضّلة.', 409);
+    if (retail.isChoiceContext(ctx)) throw challenge.fail('METHOD_SETTINGS_MOVED', 'استخدم إعدادات طرق التحقق لتغيير الوسيلة المفضّلة.', 409);
     await challenge.password(ctx.actor, ctx.password);
     assertTarget(ctx.actor, ctx.target);
     if (ctx.target === ctx.actor.otpDeliveryChannel) return { completed: true, selected: ctx.target };
@@ -343,7 +343,7 @@ const requestChannel = async (ctx) => {
     return { requiresCode: true, source: ctx.actor.otpDeliveryChannel, expiresAt: pending.expiresAt };
 };
 const confirmChannel = async (ctx) => {
-    if (ctx.kind === 'customer') throw challenge.fail('METHOD_SETTINGS_MOVED', 'استخدم إعدادات طرق التحقق لتغيير الوسيلة المفضّلة.', 409);
+    if (retail.isChoiceContext(ctx)) throw challenge.fail('METHOD_SETTINGS_MOVED', 'استخدم إعدادات طرق التحقق لتغيير الوسيلة المفضّلة.', 409);
     const pending = ctx.actor.loginChannelAction;
     if (!challenge.valid(pending, ctx.actor, ctx.sessionId) || !pending.delivered)
         throw challenge.fail('EXPIRED', 'انتهى طلب تغيير القناة. ابدأ من جديد.', 410);

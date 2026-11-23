@@ -9,10 +9,15 @@ jest.mock('../services/telegramLoginTransport', () => ({
     config: jest.fn(() => ({ botId: '900001', username: 'Ahram_otp_bot' })),
     sendCode: jest.fn().mockResolvedValue({}),
 }));
+jest.mock('../services/smsLoginTransport', () => ({
+    configured: jest.fn(() => true),
+    sendPin: jest.fn().mockResolvedValue('048291'),
+}));
 jest.mock('../services/securityControlService', () => ({
     authorizeLogin: jest.fn().mockResolvedValue({ allowed: true }),
     applySessionSecurity: jest.fn().mockResolvedValue(),
 }));
+jest.mock('../middlewares/jwtAuth', () => ({ JWT_SECRET: 'business-choice-test-only-jwt-secret-32-bytes' }));
 jest.mock('../services/auditService', () => ({ logAction: jest.fn().mockResolvedValue() }));
 jest.mock('../utils/otp', () => ({ ...jest.requireActual('../utils/otp'), generateOtp: jest.fn() }));
 const mongoose = require('mongoose');
@@ -28,10 +33,12 @@ const Challenge = require('../models/BusinessLoginChallenge');
 const service = require('../services/businessLoginChoiceService');
 const email = require('../services/emailOtpMailer'),
     telegram = require('../services/telegramLoginTransport');
-const proof = require('../utils/emailLoginMfaProof'),
-    otp = require('../utils/otp');
+const otp = require('../utils/otp');
 const security = require('../services/securityControlService');
 const approval = require('../utils/loginMethodApproval');
+const retail = require('../utils/retailLoginMethods');
+const smsTransport = require('../services/smsLoginTransport');
+const accountMfa = require('../services/accountMfaService');
 let mongo, actor, req, oldTenant;
 jest.setTimeout(120000);
 const sessionRequest = () => {
@@ -70,6 +77,8 @@ beforeEach(async () => {
     email.sendLoginOtpEmail.mockResolvedValue({ success: true });
     telegram.configured.mockReturnValue(true);
     telegram.sendCode.mockResolvedValue({});
+    smsTransport.configured.mockReturnValue(true);
+    smsTransport.sendPin.mockResolvedValue('048291');
     otp.generateOtp.mockReset().mockReturnValueOnce('123456').mockReturnValue('654321');
     actor = await User.create({
         name: 'وكالة اختبار',
@@ -92,6 +101,15 @@ beforeEach(async () => {
 });
 const allowResend = async (Model = User, id = actor._id) =>
     Model.updateOne({ _id: id }, { $set: { loginOtpLastSentAt: new Date(Date.now() - 61000) } });
+const totp = (secret) => {
+    const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+    const bits = [...secret].map((character) => alphabet.indexOf(character).toString(2).padStart(5, '0')).join('');
+    const key = Buffer.from((bits.match(/.{8}/g) || []).map((byte) => parseInt(byte, 2)));
+    const counter = Buffer.alloc(8);
+    counter.writeBigUInt64BE(BigInt(Math.floor(Date.now() / 30000)));
+    const digest = crypto.createHmac('sha1', key).update(counter).digest();
+    return String((digest.readUInt32BE(digest[19] & 15) & 0x7fffffff) % 1000000).padStart(6, '0');
+};
 test('password completion creates only a private pre-authentication challenge, with no delivery', async () => {
     const screen = await service.view(req);
     expect(screen.methods.map((x) => x.key)).toEqual(['email', 'telegram']);
@@ -212,7 +230,7 @@ test('five wrong codes lock the attempt', async () => {
     await expect(service.consume(req, '123456')).rejects.toMatchObject({ statusCode: 401 });
 });
 test.each(['company', 'agent_staff'])(
-    '%s has its own destination and retains mandatory Authenticator',
+    '%s chooses one enabled method without a mandatory Authenticator precheck',
     async (type) => {
         let Model, parent;
         if (type === 'company') {
@@ -235,19 +253,48 @@ test.each(['company', 'agent_staff'])(
             emailOtpVerifiedAt: new Date(),
             mfaEnabled: true,
             mfaType: 'totp',
+            totpSecretEncrypted: 'test-encrypted-secret',
             mfaConfiguredAt: new Date(),
         });
         const pending = sessionRequest();
-        await expect(service.start(pending, staff, type, {})).rejects.toMatchObject({ code: 'MFA_REQUIRED' });
-        const tokenProof = proof.create(staff, type);
-        await service.start(pending, staff, type, { pendingEmailMfaProof: tokenProof });
-        expect((await service.view(pending)).authenticatorVerified).toBe(true);
+        await service.start(pending, staff, type, {});
+        expect((await service.view(pending)).methods.map((method) => method.key)).toEqual(['email', 'authenticator']);
         await service.send(pending, 'email');
         expect(email.sendLoginOtpEmail).toHaveBeenLastCalledWith(
             expect.objectContaining({ to: 'staff@example.test' })
         );
-        delete pending.session.pendingEmailMfaProof;
-        await expect(service.consume(pending, '123456')).rejects.toMatchObject({ code: 'MFA_REQUIRED' });
+        pending.body.otp = '123456';
+        const res = { redirect: jest.fn(), render: jest.fn(), status: jest.fn().mockReturnThis() };
+        await require('../controllers/clientAuthController').postVerify(pending, res);
+        expect(pending.session).toMatchObject({ isClientLoggedIn: true, accountType: type });
+        expect(res.redirect).toHaveBeenCalled();
+    }
+);
+test.each(['user', 'company', 'agent_staff'])(
+    '%s can complete login with Authenticator alone when email is also enabled',
+    async (type) => {
+        let Model = User, parent = actor;
+        if (type === 'company') {
+            Model = Employee;
+            parent = await Company.create({ name: 'شركة', status: 'active' });
+        } else if (type === 'agent_staff') Model = Staff;
+        const account = await Model.create({
+            name: 'حساب مصادقة', webUsername: `totp-${type}`, webPassword: 'test-password',
+            role: type === 'user' ? 'agent' : type === 'company' ? 'owner' : 'employee',
+            companyId: type === 'company' ? parent._id : undefined,
+            agentId: type === 'agent_staff' ? parent._id : undefined,
+            email: 'totp@example.test', otpDeliveryChannel: 'email', retailLoginMethods: ['email'],
+            emailOtpVerifiedAt: new Date(), emailOtpVerifiedEmail: 'totp@example.test',
+        });
+        const setup = accountMfa.setup(account);
+        await accountMfa.confirmSetup(account, setup.secret, totp(setup.secret), setup.recoveryCodes);
+        const attempt = sessionRequest();
+        await service.start(attempt, account, type, {});
+        expect((await service.view(attempt)).methods.map((method) => method.key)).toEqual(['email', 'authenticator']);
+        await service.send(attempt, 'authenticator');
+        expect((await service.consume(attempt, totp(setup.secret))).authenticatorVerified).toBe(true);
+        expect(email.sendLoginOtpEmail).not.toHaveBeenCalled();
+        expect(telegram.sendCode).not.toHaveBeenCalled();
     }
 );
 test('successful business OTP uses the existing final session and security gates', async () => {
@@ -260,6 +307,93 @@ test('successful business OTP uses the existing final session and security gates
     expect(security.authorizeLogin).toHaveBeenCalledWith(expect.objectContaining({ verifiedLogin: true }));
     expect(res.redirect).toHaveBeenCalled();
 });
+test.each(['user', 'company', 'agent_staff'])(
+    '%s can enable SMS only for its registered Libyan phone and choose it at login',
+    async (type) => {
+        let Model = User, parent, account;
+        if (type === 'company') {
+            Model = Employee;
+            parent = await Company.create({ name: 'شركة SMS', status: 'active' });
+        } else if (type === 'agent_staff') {
+            Model = Staff;
+            parent = actor;
+        }
+        account = await Model.create({
+            name: 'حساب SMS', webUsername: `sms-${type}`, webPassword: 'test-password',
+            role: type === 'user' ? 'agent' : type === 'company' ? 'owner' : 'employee',
+            companyId: type === 'company' ? parent._id : undefined,
+            agentId: type === 'agent_staff' ? parent._id : undefined,
+            phone: '0950001234',
+        });
+        const settingsReq = {
+            sessionID: 'sms-settings-session',
+            session: { isClientLoggedIn: true, clientId: account._id, accountType: type, clientSessionVersion: 0 },
+        };
+        const context = require('../services/businessLoginSecurityContext').context;
+        const enrollment = require('../services/smsLoginEnrollmentService');
+        await expect(enrollment.start({ ...await context(settingsReq), password: 'test-password' }))
+            .rejects.toMatchObject({ code: 'PHONE_INVALID' });
+        expect(smsTransport.sendPin).not.toHaveBeenCalled();
+        await Model.updateOne({ _id: account._id }, { $set: { phone: '0940001234' } });
+        await enrollment.start({ ...await context(settingsReq), password: 'test-password' });
+        expect(smsTransport.sendPin).toHaveBeenCalledWith('218940001234');
+        await enrollment.confirm({ ...await context(settingsReq), code: '048291' });
+        const enabled = await Model.findById(account._id);
+        expect(retail.deliveryMethods(enabled)).toEqual(['sms']);
+        expect(settingsReq.session.retailLoginProof.method).toBe('sms');
+        const attempt = sessionRequest();
+        await service.start(attempt, enabled, type, {});
+        expect((await service.view(attempt)).methods.map((method) => method.key)).toEqual(['sms']);
+        await expect(service.send(attempt, 'email')).rejects.toMatchObject({ code: 'METHOD_UNAVAILABLE' });
+        await service.send(attempt, 'sms');
+        expect((await service.consume(attempt, '048291')).channel).toBe('sms');
+    }
+);
+test.each(['company', 'agent_staff'])(
+    '%s login method settings require an authenticated account, CSRF and password to disable',
+    async (type) => {
+        const Model = type === 'company' ? Employee : Staff;
+        const parent = type === 'company'
+            ? await Company.create({ name: 'شركة', status: 'active' }) : actor;
+        const account = await Model.create({
+            name: 'صاحب حساب', webUsername: `settings-${type}`, webPassword: 'test-password',
+            role: type === 'company' ? 'owner' : 'employee',
+            companyId: type === 'company' ? parent._id : undefined,
+            agentId: type === 'agent_staff' ? parent._id : undefined,
+            email: 'settings@example.test', otpDeliveryChannel: 'email',
+            emailOtpVerifiedEmail: 'settings@example.test', emailOtpVerifiedAt: new Date(),
+            retailLoginMethods: ['email'],
+        });
+        const session = {
+            isClientLoggedIn: true, clientId: account._id, accountType: type,
+            clientSessionVersion: 0, csrfToken: 'settings-csrf',
+            retailLoginProof: retail.recentProof(account, 'email'),
+        };
+        const app = express();
+        app.use(express.json());
+        app.use((incoming, _res, next) => {
+            incoming.sessionID = 'settings-session';
+            incoming.session = incoming.headers['x-anonymous'] ? {} : session;
+            next();
+        });
+        app.use(require('../middlewares/csrfProtection'));
+        app.use('/client', require('../routes/portal/retail-login-methods'));
+        const url = '/client/api/security/login-methods';
+        await request(app).get(url).set('x-anonymous', '1').expect(401);
+        const state = await request(app).get(url).expect(200);
+        expect(state.body.enabled).toEqual(['email']);
+        await request(app).post(url).send({ action: 'disable', method: 'email', password: 'test-password', confirmLast: true }).expect(403);
+        await request(app).post(url).set('x-csrf-token', 'settings-csrf')
+            .send({ action: 'disable', method: 'email', password: 'wrong', confirmLast: true }).expect(403);
+        delete session.retailLoginProof;
+        await request(app).post(url).set('x-csrf-token', 'settings-csrf')
+            .send({ action: 'disable', method: 'email', password: 'test-password', confirmLast: true }).expect(403);
+        session.retailLoginProof = retail.recentProof(account, 'email');
+        await request(app).post(url).set('x-csrf-token', 'settings-csrf')
+            .send({ action: 'disable', method: 'email', password: 'test-password', confirmLast: true }).expect(200);
+        expect(retail.deliveryMethods(await Model.findById(account._id))).toEqual([]);
+    }
+);
 test('HTTP send/change endpoints require a bound attempt and CSRF; no arbitrary account is accepted', async () => {
     const app = express();
     app.use(express.json());

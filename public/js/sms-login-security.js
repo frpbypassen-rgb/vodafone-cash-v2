@@ -40,7 +40,7 @@
         else note('');
     };
     const request = async (action = '', body) => {
-        const response = await fetch('/client/api/security/sms-login' + action, {
+        const response = await fetch((panel.dataset.base || '/client') + '/api/security/sms-login' + action, {
             method: body ? 'POST' : 'GET',
             cache: 'no-store',
             credentials: 'same-origin',

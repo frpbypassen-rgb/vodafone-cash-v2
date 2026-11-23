@@ -56,11 +56,11 @@ const resolveWebMfaContext = async (req) => {
     if (!accountType || !accountId) return null;
     const account = await accountMfaService.loadAccount(accountType, accountId);
     if (!account) return null;
-    if (retailLogin.isRetailLogin(account, session.accountType)) {
+    if (retailLogin.isChoiceLogin(account, session.accountType)) {
         if (account.status !== 'active' || Number(account.sessionVersion || 0) !== Number(session.clientSessionVersion || 0))
             return null;
         const retailContext = await require('../services/businessLoginSecurityContext').context(req);
-        if (retailContext.kind !== 'customer' || String(retailContext.actor._id) !== String(account._id)) return null;
+        if (!retailLogin.isChoiceContext(retailContext) || String(retailContext.actor._id) !== String(account._id)) return null;
     }
     return { account, accountType };
 };
@@ -275,7 +275,7 @@ const completeAccountMfaChallenge = async (req, res) => {
         delete req.session.pendingAccountMfaLogin;
         return renderLogin(res, 'الحساب غير مفعّل حالياً.');
     }
-    if (retailLogin.isRetailLogin(account, pending.accountType)) {
+    if (retailLogin.isChoiceLogin(account, pending.accountType)) {
         delete req.session.pendingAccountMfaLogin;
         return renderLogin(res, 'ابدأ تسجيل الدخول من جديد لاختيار طريقة التحقق.', { submittedUsername: pending.username });
     }
@@ -340,7 +340,7 @@ router.get('/security/mfa/status', requireWebMfaContext, async (req, res) => {
         return res.json({
             success: true,
             ...status,
-            lastRetailMethod: retailLogin.isRetailLogin(account, req.session.accountType) &&
+            lastRetailMethod: retailLogin.isChoiceLogin(account, req.session.accountType) &&
                 retailLogin.enabledMethods(account).length === 1 && status.enabled,
             enrollment: await webMfaEnrollment.resume(req.session, account, accountType),
             trustedDevice,
@@ -355,7 +355,7 @@ router.get('/security/mfa/status', requireWebMfaContext, async (req, res) => {
 router.post('/security/mfa/setup', requireWebMfaContext, async (req, res) => {
     try {
         const { account, accountType } = req.webMfaContext;
-        if (retailLogin.isRetailLogin(account, req.session.accountType))
+        if (retailLogin.isChoiceLogin(account, req.session.accountType))
             retailLogin.requireRecentProof({ actor: account, session: req.session, kind: 'customer' });
         const setup = await webMfaEnrollment.start(req.session, account, accountType);
         return res.json({ success: true, setup });
@@ -367,7 +367,7 @@ router.post('/security/mfa/setup', requireWebMfaContext, async (req, res) => {
 router.post('/security/mfa/confirm', requireWebMfaContext, async (req, res) => {
     try {
         const { account, accountType } = req.webMfaContext;
-        const isRetail = retailLogin.isRetailLogin(account, req.session.accountType);
+        const isRetail = retailLogin.isChoiceLogin(account, req.session.accountType);
         if (isRetail) {
             retailLogin.requireRecentProof({ actor: account, session: req.session, kind: 'customer' });
             account.$where = loginChallenge.guard(account);
@@ -397,7 +397,7 @@ router.post('/security/mfa/recovery/ack', requireWebMfaContext, async (req, res)
 router.post('/security/mfa/disable', requireWebMfaContext, async (req, res) => {
     try {
         const { account, accountType } = req.webMfaContext;
-        const isRetail = retailLogin.isRetailLogin(account, req.session.accountType);
+        const isRetail = retailLogin.isChoiceLogin(account, req.session.accountType);
         if (isRetail && accountMfaService.isEnabled(account)) {
             if (retailLogin.enabledMethods(account).length === 1 && req.body?.confirmLast !== true)
                 return res.status(409).json({ success: false, error: 'أكّد إيقاف آخر وسيلة تحقق أولًا.' });
@@ -858,7 +858,7 @@ const completeClientSession = async (req, account, accountType, res = null, reta
             ? undefined
             : (account.preferences && account.preferences.clientTheme) || undefined
     });
-    if (!retailLogin.isRetailLogin(account, accountType) && (!account.mfaEnabled || account.mfaType !== 'totp')) {
+    if (!retailLogin.isChoiceLogin(account, accountType) && (!account.mfaEnabled || account.mfaType !== 'totp')) {
         req.session.showMfaEnableNotice = true;
     }
     await securityControl.applySessionSecurity(req, principal, 'account', res);
@@ -905,7 +905,7 @@ const loginAsClient = async (req, res, account, accountType, { authenticatorVeri
     }
     if (await requirePasskeyLogin({ req, res, principal, authorization, accountClass: 'account', loginKind: 'client', accountType })) return;
     await completeClientSession(req, account, accountType, res);
-    if (!retailLogin.isRetailLogin(account, accountType) && !accountMfaService.isEnabled(account)) {
+    if (!retailLogin.isChoiceLogin(account, accountType) && !accountMfaService.isEnabled(account)) {
         // Temporary continuity mode: keep mandatory enrollment visible as a
         // notice after entry, while avoiding a failed enrollment redirect from
         // taking the public login service offline.
@@ -937,8 +937,8 @@ const startClientOtp = async (req, res, account, accountType) => {
     req.session.pendingSecurityLocation = securityControl.parseLocation(req) || (verifiedMfa ? req.session.pendingSecurityLocation : null);
     req.session.pendingSecurityUsername = String(req.body.username || account.webUsername || '');
     const businessChoice = require('../services/businessLoginChoiceService');
-    const isRetail = retailLogin.isRetailLogin(account, accountType);
-    if (isRetail || (businessChoice.isBusiness(account, accountType) && ['email', 'telegram', 'sms'].includes(account.otpDeliveryChannel))) {
+    const isRetail = retailLogin.isChoiceLogin(account, accountType);
+    if (isRetail) {
         await businessChoice.start(req, account, accountType, {
             pendingSecurityLocation: req.session.pendingSecurityLocation,
             pendingSecurityUsername: req.session.pendingSecurityUsername,
@@ -1041,12 +1041,11 @@ const startClientOtp = async (req, res, account, accountType) => {
 };
 
 const continueVerifiedPortalLogin = async (req, res, account, accountType) => {
-    if (retailLogin.isRetailLogin(account, accountType)) {
+    if (retailLogin.isChoiceLogin(account, accountType)) {
         return retailLogin.enabledMethods(account).length
             ? startClientOtp(req, res, account, accountType)
             : loginAsClient(req, res, account, accountType);
     }
-    if (require('../services/businessLoginChoiceService').isBusiness(account, accountType) && ['email', 'telegram', 'sms'].includes(account.otpDeliveryChannel)) return startClientOtp(req, res, account, accountType);
     if (account.otpDeliveryChannel === 'telegram' || account.emailOtpVerifiedAt || isLoginOtpRequired()) return startClientOtp(req, res, account, accountType);
     return finishLoginAfterOtpBypass(req, res, account, accountType);
 };
@@ -1253,7 +1252,7 @@ router.post('/security/passkey-login/verify', async (req, res) => {
             const model = ({ user: User, company: ClientEmployee, agent_staff: AgentEmployee, sub_client: SubAccount })[pending.accountType];
             const account = model ? await model.findOne({ _id: pending.principalId, status: 'active' }).lean() : null;
             if (!account) return res.status(403).json({ success: false, error: 'الحساب موقوف أو غير موجود.' });
-            if (retailLogin.isRetailLogin(account, pending.accountType) && retailLogin.enabledMethods(account).length &&
+            if (retailLogin.isChoiceLogin(account, pending.accountType) && retailLogin.enabledMethods(account).length &&
                 !retailLogin.canManage(account, pending.retailLoginProof)) {
                 return res.status(403).json({ success: false, error: 'تغيّرت إعدادات التحقق. سجّل الدخول مجددًا.' });
             }
@@ -1464,12 +1463,12 @@ router.post('/login', loginLimiter, validateLoginInput, async (req, res) => {
             }
 
             if (accountType === 'client_user') {
-                if (!retailLogin.isRetailLogin(account, 'user') && await beginAccountMfaChallenge(req, res, account, 'user')) return;
+                if (!retailLogin.isChoiceLogin(account, 'user') && await beginAccountMfaChallenge(req, res, account, 'user')) return;
                 return continueVerifiedPortalLogin(req, res, account, 'user');
             }
 
             if (accountType === 'client_company') {
-                if (await beginAccountMfaChallenge(req, res, account, 'company')) return;
+                if (!retailLogin.isChoiceLogin(account, 'company') && await beginAccountMfaChallenge(req, res, account, 'company')) return;
                 return continueVerifiedPortalLogin(req, res, account, 'company');
             }
 
@@ -1479,7 +1478,7 @@ router.post('/login', loginLimiter, validateLoginInput, async (req, res) => {
                     await logLoginFailure(req, username, 'SUSPENDED', 'حساب الوكيل الرئيسي غير نشط');
                     return renderLogin(res, 'حساب الوكيل الرئيسي غير نشط.', { submittedUsername: username });
                 }
-                if (await beginAccountMfaChallenge(req, res, account, 'agent_staff')) return;
+                if (!retailLogin.isChoiceLogin(account, 'agent_staff') && await beginAccountMfaChallenge(req, res, account, 'agent_staff')) return;
                 return continueVerifiedPortalLogin(req, res, account, 'agent_staff');
             }
         }
