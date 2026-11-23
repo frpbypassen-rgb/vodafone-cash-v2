@@ -316,6 +316,14 @@ const renderMerchantAccount = async (req, res, account, kind) => {
     });
 };
 
+const renderAccountantAccount = async (req, res, account, kind) => {
+    const { transactions } = await loadAdminAccountHistory(
+        { Transaction },
+        { kind, account, tenant: adminAccountScope(req), limit: 50 }
+    );
+    return res.render('accountant_account_detail', { account, kind, transactions });
+};
+
 router.get('/clients', requireAuth, async (req, res) => {
     try {
         const directory = await loadAdminAccountDirectory(
@@ -337,6 +345,9 @@ router.get('/clients', requireAuth, async (req, res) => {
 router.get('/user/:id', requireAuth, async (req, res) => {
     const user = await User.findOne(adminAccountFindQuery(req, { _id: req.params.id }));
     if (!user) return res.redirect(`/clients?section=${req.query.section === 'agents' ? 'agents' : 'users'}&deleteError=notfound`);
+    if (req.session.adminRole === 'accountant') {
+        return renderAccountantAccount(req, res, user, user.role === 'agent' ? 'agent' : 'user');
+    }
     if (user.role === 'agent') return renderMerchantAccount(req, res, user, 'agent');
     const kind = 'user';
     const { transactions } = await loadAdminAccountHistory(
@@ -362,6 +373,7 @@ router.get('/user/:id', requireAuth, async (req, res) => {
 router.get('/company/:id', requireAuth, async (req, res) => {
     const company = await ClientCompany.findOne(adminAccountFindQuery(req, { _id: req.params.id }));
     if (!company) return res.redirect('/clients?section=companies&deleteError=notfound');
+    if (req.session.adminRole === 'accountant') return renderAccountantAccount(req, res, company, 'company');
     return renderMerchantAccount(req, res, company, 'company');
 });
 

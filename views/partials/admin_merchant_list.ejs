@@ -27,11 +27,11 @@ const icon = companyList ? 'fa-building' : directList ? 'fa-user' : 'fa-user-tie
         <footer class="am-card-footer">
             <a class="am-card-open" href="<%= url %>">عرض الحساب <i class="fa-solid fa-arrow-left" aria-hidden="true"></i></a>
             <% if(isMaster) { %><a class="am-card-finance" href="<%= url %><%= directList ? '#account-balance' : '?tab=finance#balance' %>">إيداع / خصم</a><% } %>
-            <details class="am-actions"><summary aria-label="إجراءات <%= account.name %>">⋮</summary><div>
+            <% if (typeof role === 'undefined' || role !== 'accountant') { %><details class="am-actions"><summary aria-label="إجراءات <%= account.name %>">⋮</summary><div>
                 <a href="<%= url %><%= directList ? '' : '?tab=ledger' %>">السجل المالي</a>
                 <% if(!directList) { %><a href="<%= url %>?tab=staff">الموظفون</a><% } %>
                 <% if(isMaster) { %><a href="/admin/accounts/<%= type %>/<%= account._id %>/edit">تعديل البيانات</a><% if(!directList) { %><a href="<%= url %>?tab=settings">إعدادات البوابة</a><a href="<%= url %>/sandbox-api-guide.pdf">تحميل ملف اختبار API</a><% } %><% } %>
-            </div></details>
+            </div></details><% } %>
         </footer>
     </article>
     <% }); %>

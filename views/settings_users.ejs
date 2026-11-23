@@ -36,20 +36,24 @@
             <div class="alert alert-danger fw-bold rounded-4 shadow-sm"><i class="fa-solid fa-triangle-exclamation me-1"></i> هذا البريد الإلكتروني مستخدم في حساب آخر.</div>
         <% } else if (settingsQuery.error === 'missing') { %>
             <div class="alert alert-danger fw-bold rounded-4 shadow-sm"><i class="fa-solid fa-triangle-exclamation me-1"></i> أكمل بيانات الحساب قبل الحفظ.</div>
+        <% } else if (settingsQuery.error === 'username') { %>
+            <div class="alert alert-danger fw-bold rounded-4 shadow-sm"><i class="fa-solid fa-triangle-exclamation me-1"></i> اسم الدخول يجب أن يتكون من 4 إلى 80 حرفًا إنجليزيًا أو رقمًا أو نقطة أو شرطة.</div>
+        <% } else if (settingsQuery.error === 'weak_password') { %>
+            <div class="alert alert-danger fw-bold rounded-4 shadow-sm"><i class="fa-solid fa-triangle-exclamation me-1"></i> كلمة المرور يجب أن تكون 12 محرفًا على الأقل، وتحتوي حرفًا كبيرًا وصغيرًا ورقمًا ورمزًا.</div>
         <% } else if (settingsQuery.error) { %>
             <div class="alert alert-danger fw-bold rounded-4 shadow-sm"><i class="fa-solid fa-triangle-exclamation me-1"></i> تعذر حفظ حساب الإدارة. حاول مرة أخرى.</div>
         <% } %>
 
         <div class="row">
-            <!-- نموذج إضافة مدير جديد -->
+            <!-- نموذج إضافة مستخدم إدارة -->
             <div class="col-md-4">
                 <div class="data-card shadow-sm border-0 border-top border-primary border-4">
-                    <h5 class="fw-bold text-primary mb-3"><i class="fa-solid fa-user-plus me-2"></i> إضافة مدير جديد</h5>
-                    <p class="text-muted small mb-4">قم بإنشاء حساب لمدير جديد لكي يتمكن من الدخول إلى لوحة التحكم وإدارة الطلبات.</p>
+                    <h5 class="fw-bold text-primary mb-3"><i class="fa-solid fa-user-plus me-2"></i> إضافة مستخدم إدارة</h5>
+                    <p class="text-muted small mb-4">اختر «محاسب» لمنحه عرض الحسابات والمنفذين فقط، أو «مدير بصلاحيات» لتحديد مهامه الإدارية.</p>
                     
                     <form action="/settings/users/add" method="POST">
                         <div class="mb-3">
-                            <label class="form-label fw-bold small">اسم المدير (للعرض)</label>
+                            <label class="form-label fw-bold small">اسم المستخدم (للعرض)</label>
                             <input type="text" name="name" class="form-control bg-light border-0" placeholder="مثال: المهندس أحمد" required>
                         </div>
                         <div class="mb-3">
@@ -71,16 +75,16 @@
                             <label class="form-label fw-bold small">كلمة المرور (Password)</label>
                             <div class="input-group">
                                 <span class="input-group-text bg-white border-0"><i class="fa-solid fa-lock text-muted"></i></span>
-                                <input type="text" name="webPassword" class="form-control bg-light border-0" placeholder="12345678" required style="direction: ltr; text-align: left;">
+                                <input type="password" name="webPassword" class="form-control bg-light border-0" placeholder="12 محرفًا على الأقل" minlength="12" autocomplete="new-password" required style="direction: ltr; text-align: left;">
                             </div>
                         </div>
                         <div class="mb-4">
                             <label class="form-label fw-bold small">الدور</label>
                             <select name="role" class="form-select bg-light border-0">
                                 <option value="admin">مدير بصلاحيات</option>
-                                <option value="accountant">محاسب — تقارير وحسابات للعرض فقط</option>
+                                <option value="accountant">محاسب — الحسابات والمنفذون للعرض فقط</option>
                             </select>
-                            <small class="text-muted d-block mt-2">حساب المحاسب يراجع التقارير والسجل المركزي دون إنشاء أو تعديل أو حذف.</small>
+                            <small class="text-muted d-block mt-2">حساب المحاسب يعرض دليل الحسابات والمنفذين وتفاصيلهما فقط، دون إنشاء أو تعديل أو حذف.</small>
                         </div>
                         <button type="submit" class="btn btn-primary w-100 fw-bold shadow-sm py-2">
                             <i class="fa-solid fa-plus me-1"></i> إنشاء الحساب

@@ -20,6 +20,7 @@ const {
     permissionsForRole
 } = require('../config/adminRoles');
 const { parseAdminLoginEmail } = require('../utils/adminLoginEmail');
+const { isStrongAdminPassword } = require('../utils/adminPasswordPolicy');
 
 const PERMISSIONS = ADMIN_PERMISSIONS;
 
@@ -384,7 +385,7 @@ router.post('/admins', requireSecurityManager, requireRecentPasskey, async (req,
         if (!/^[a-z0-9._-]{4,80}(?:@ahram\.com)?$/.test(username)) {
             return res.status(422).json({ success: false, error: 'اسم المستخدم غير صالح.' });
         }
-        if (password.length < 12 || !/[a-z]/.test(password) || !/[A-Z]/.test(password) || !/\d/.test(password) || !/[^\w]/.test(password)) {
+        if (!isStrongAdminPassword(password)) {
             return res.status(422).json({ success: false, error: 'كلمة المرور يجب أن تكون 12 محرفاً وتحتوي على حرف كبير وصغير ورقم ورمز.' });
         }
         const loginEmail = parseAdminLoginEmail(req.body.email);

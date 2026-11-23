@@ -42,6 +42,14 @@ test('restricted viewers and archived cards cannot expose editable service or ar
     expect(archived).not.toContain('#settlementForm');
 });
 
+test('accountant API cards link to details without provider test or edit actions', async () => {
+    const html = await render({ isApiBot: true, apiProviderKey: 'kenan' }, { isMaster: false, role: 'accountant' });
+    expect(html).toContain('href="/executor/demo"');
+    expect(html).not.toContain('testApiExecutor');
+    expect(html).not.toContain('اختبار تنفيذ تحويل آمن');
+    expect(html).not.toContain('am-actions');
+});
+
 test('executor names and providers remain escaped in card content and filter attributes', async () => {
     const html = await render({ name: '<img src=x onerror=alert(1)>', isApiBot: true, apiProviderKey: '"><script>alert(1)</script>' });
     expect(html).not.toContain('<img src=x');

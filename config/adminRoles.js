@@ -22,50 +22,24 @@ const ADMIN_PERMISSIONS = Object.freeze([
 ]);
 
 const ACCOUNTANT_PERMISSIONS = Object.freeze([
-    'dashboard.read',
-    'transactions.read',
     'accounts.read',
-    'executors.read',
-    'reports.read'
+    'executors.read'
 ]);
 
 const ACCOUNTANT_ALLOWED_HREFS = Object.freeze([
-    '/',
-    '/financial-movements',
-    '/transactions/live',
-    '/transactions',
-    '/transactions/operations',
-    '/transactions/movements',
-    '/transactions/search',
-    '/transactions/deposits',
-    '/reports',
-    '/telegram-monitor',
-    '/audit-log',
-    '/clients'
+    '/clients',
+    '/executors'
 ]);
 
-const ACCOUNTANT_BLOCKED_PATHS = [
-    /^\/settings(?:\/|$)/,
-    /^\/admin\/security(?:\/|$)/,
-    /^\/admin\/accounts(?:\/|$)/,
-    /^\/broadcast(?:\/|$)/,
-    /^\/registration-requests(?:\/|$)/,
-    /^\/support(?:\/|$)/,
-    /^\/complaints(?:\/|$)/,
-    /^\/whatsapp-monitor(?:\/|$)/,
-    /^\/admin\/webhooks(?:\/|$)/,
-    /^\/sub-account(?:\/|$)/,
-    /^\/employees(?:\/|$)/,
-    /^\/executors(?:\/|$)/,
-    /^\/executor(?:\/|$)/
-];
-
-const ACCOUNTANT_WRITE_ALLOWLIST = [
-    /^\/api\/admin-operation-alerts\/(?:subscribe|unsubscribe|test|acknowledge\/[a-f0-9]{24})\/?$/,
-    /^\/logout\/?$/
-];
-
-const SAFE_HTTP_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
+const ACCOUNTANT_READ_PATHS = Object.freeze([
+    /^\/clients\/?$/,
+    /^\/(?:user|company|executor)\/[^/]+\/?$/,
+    /^\/executors\/?$/
+]);
+const ACCOUNTANT_ENROLL_PATHS = Object.freeze({
+    GET: Object.freeze(['/admin/accountant-enroll', '/admin/accountant-enroll/options']),
+    POST: Object.freeze(['/admin/accountant-enroll/verify'])
+});
 
 const normalizeAdminRole = (value) => {
     const role = String(value || '').trim().toLowerCase();
@@ -92,10 +66,11 @@ const permissionsForRole = (role, requested = []) => {
 
 const accountantPathAllowed = (method, path) => {
     const normalizedPath = String(path || '').split('?')[0];
-    if (ACCOUNTANT_WRITE_ALLOWLIST.some((pattern) => pattern.test(normalizedPath))) return true;
-    if (ACCOUNTANT_BLOCKED_PATHS.some((pattern) => pattern.test(normalizedPath))) return false;
-    if (!SAFE_HTTP_METHODS.has(String(method || 'GET').toUpperCase())) return false;
-    return true;
+    const verb = String(method || '').toUpperCase();
+    if (/^\/logout\/?$/.test(normalizedPath)) return verb === 'GET' || verb === 'POST';
+    if (ACCOUNTANT_ENROLL_PATHS[verb]?.includes(normalizedPath)) return true;
+    return (verb === 'GET' || verb === 'HEAD')
+        && ACCOUNTANT_READ_PATHS.some((pattern) => pattern.test(normalizedPath));
 };
 
 const adminHrefVisible = (role, href) => {
@@ -104,17 +79,25 @@ const adminHrefVisible = (role, href) => {
     return ACCOUNTANT_ALLOWED_HREFS.includes(path);
 };
 
+const canSubscribeAdminChannel = (session, permission) => {
+    if (!session?.isLoggedIn || isAccountantRole(session.adminRole)) return false;
+    if (session.adminRole === 'master') return true;
+    const permissions = new Set(session.adminPermissions || []);
+    return permissions.has('*') || permissions.has(permission);
+};
+
 module.exports = {
     ADMIN_ROLES,
     ADMIN_PERMISSIONS,
     ACCOUNTANT_PERMISSIONS,
     ACCOUNTANT_ALLOWED_HREFS,
-    ACCOUNTANT_BLOCKED_PATHS,
+    ACCOUNTANT_READ_PATHS,
     normalizeAdminRole,
     isAccountantRole,
     permissionsForRole,
     sanitizeRequestedPermissions,
     accountantPathAllowed,
     adminHrefVisible,
+    canSubscribeAdminChannel,
     allowedPermissionValues
 };

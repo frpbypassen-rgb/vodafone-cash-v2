@@ -1,6 +1,8 @@
+<% if (typeof role === 'undefined' || role !== 'accountant') { %>
 <link rel="stylesheet" href="/css/admin-operation-alerts.css?v=20261024-1">
 <script src="/admin-alerts/dedupe.js?v=20261024-1" defer></script>
 <script src="/js/admin-operation-alerts.js?v=20261024-1" defer></script>
+<% } %>
 <script>
     // تفعيل الوضع المحفوظ فوراً لمنع الوميض الأبيض عند تحديث الصفحة
     (function() {
@@ -675,8 +677,9 @@
 <div class="sidebar-overlay no-print" id="sidebarOverlay" data-sidebar-close onclick="toggleSidebar()"></div>
 
 <div class="top-nav-admin-mobile no-print">
-    <a class="am-header-brand" href="/"><span class="am-mark">PP</span><span>الأهرام للدفع<small>POWER PAY AL-AHRAM</small></span></a>
+    <a class="am-header-brand" href="<%= typeof role !== 'undefined' && role === 'accountant' ? '/clients' : '/' %>"><span class="am-mark">PP</span><span>الأهرام للدفع<small>POWER PAY AL-AHRAM</small></span></a>
     <div class="d-flex align-items-center gap-2">
+        <% if (typeof role === 'undefined' || role !== 'accountant') { %>
         <form action="/transactions/search" method="get" class="am-header-search"><input name="q" aria-label="البحث في العمليات" placeholder="البحث في العمليات والحسابات"><button type="submit" aria-label="بحث"><i class="fa-solid fa-magnifying-glass"></i></button></form>
         <div class="dropdown">
             <button class="btn-theme-mobile position-relative" type="button" id="notifDropdownMobile" data-bs-toggle="dropdown" style="background: transparent; border: none; padding: 0;">
@@ -693,6 +696,7 @@
                 </div>
             </ul>
         </div>
+        <% } %>
         <button class="btn-theme-mobile" onclick="toggleGlobalTheme()" title="تغيير المظهر" aria-label="تغيير المظهر">
             <i id="mobileTopThemeIcon" class="fa-solid fa-moon"></i>
         </button>
@@ -706,10 +710,11 @@
 <% const canSeeAdminHref = (href) => typeof adminHrefVisible !== 'function' || adminHrefVisible(href); %>
 <%- include('admin_modern_nav', { canSeeAdminHref }) %>
 <div class="bottom-nav-admin-mobile no-print" aria-label="التنقل السريع">
-<a href="/" class="bottom-nav-item"><i class="fa-solid fa-chart-pie"></i><span>الرئيسية</span></a>
-<a href="/transactions/operations" class="bottom-nav-item position-relative"><i class="fa-solid fa-list-check"></i><span id="mobileTransactionsBadge" class="badge bg-danger position-absolute" style="display:none;top:4px;right:15%">0</span><span>العمليات</span></a>
+<% if (canSeeAdminHref('/')) { %><a href="/" class="bottom-nav-item"><i class="fa-solid fa-chart-pie"></i><span>الرئيسية</span></a><% } %>
+<% if (canSeeAdminHref('/transactions/operations')) { %><a href="/transactions/operations" class="bottom-nav-item position-relative"><i class="fa-solid fa-list-check"></i><span id="mobileTransactionsBadge" class="badge bg-danger position-absolute" style="display:none;top:4px;right:15%">0</span><span>العمليات</span></a><% } %>
 <% if (canSeeAdminHref('/financial-movements')) { %><a href="/financial-movements" class="bottom-nav-item"><i class="fa-solid fa-chart-line"></i><span>المالية</span></a><% } %>
 <a href="/clients" class="bottom-nav-item"><i class="fa-solid fa-users"></i><span>الحسابات</span></a>
+<% if (typeof role !== 'undefined' && role === 'accountant') { %><a href="/executors" class="bottom-nav-item"><i class="fa-solid fa-robot"></i><span>المنفذون</span></a><% } %>
 <button type="button" class="bottom-nav-item position-relative" data-sidebar-toggle onclick="toggleSidebar()" aria-label="كل أقسام الإدارة" aria-controls="sidebarMenu" aria-expanded="false"><i class="fa-solid fa-bars"></i><span>الكل</span><span id="mobileMenuBadge" style="display:none"></span><span id="mobileComplaintsBadge" class="badge bg-warning position-absolute" style="display:none;top:4px;right:15%">0</span></button>
 </div>
 
@@ -733,6 +738,7 @@
     </div>
     
     <div class="sidebar-menu mt-2">
+        <% if (canSeeAdminHref('/')) { %>
         <div class="sidebar-menu-group">
         <div class="menu-category-header">الرصد والمتابعة</div>
 
@@ -820,9 +826,10 @@
             <i class="fa-solid fa-angle-left menu-chevron"></i>
         </a>
         </div>
+        <% } %>
 
         <div class="sidebar-menu-group">
-        <div class="menu-category-header">إدارة الحسابات</div>
+        <div class="menu-category-header"><%= typeof role !== 'undefined' && role === 'accountant' ? 'الحسابات والتنفيذ' : 'إدارة الحسابات' %></div>
 
         <a href="/clients" class="<%= typeof activePage !== 'undefined' && activePage === 'clients' ? 'active' : '' %>">
             <span class="menu-link-content">
@@ -837,6 +844,8 @@
             </span>
             <i class="fa-solid fa-angle-left menu-chevron"></i>
         </a>
+        <% } %>
+        <% if (canSeeAdminHref('/employees')) { %>
         <a href="/employees" class="<%= typeof activePage !== 'undefined' && activePage === 'employees' ? 'active' : '' %>">
             <span class="menu-link-content">
                 <i class="fa-solid fa-id-badge"></i> <span class="menu-link-text">إدارة الموظفين</span>
@@ -953,6 +962,7 @@
 
 <script>
     window.__csrfToken = <%- JSON.stringify(csrfToken || '').replace(/</g, '\\u003c') %>;
+    const accountantReadOnly = <%- JSON.stringify(typeof role !== 'undefined' && role === 'accountant') %>;
     (() => {
         const nativeFetch = window.fetch.bind(window);
         const safeMethods = new Set(['GET', 'HEAD', 'OPTIONS']);
@@ -1032,7 +1042,7 @@
     let sidebarNotificationsRequestInFlight = false;
 
     async function updateSidebarStats() {
-        if (document.hidden || sidebarStatsRequestInFlight) return;
+        if (accountantReadOnly || document.hidden || sidebarStatsRequestInFlight) return;
         sidebarStatsRequestInFlight = true;
         try {
             const res = await fetch('/api/sidebar-stats');
@@ -1109,7 +1119,7 @@
     }
 
     async function fetchNotifications() {
-        if (document.hidden || sidebarNotificationsRequestInFlight) return;
+        if (accountantReadOnly || document.hidden || sidebarNotificationsRequestInFlight) return;
         sidebarNotificationsRequestInFlight = true;
         try {
             const res = await fetch('/api/notifications/unread'); const data = await res.json();
@@ -1162,17 +1172,18 @@
 
         const savedTheme = localStorage.getItem('ahram_theme') || 'light';
         updateSidebarThemeIcon(savedTheme);
-        updateSidebarStats();
-        setInterval(updateSidebarStats, 30000);
-        
-        fetchNotifications();
-        setInterval(fetchNotifications, 15000);
-        document.addEventListener('visibilitychange', () => {
-            if (!document.hidden) {
-                updateSidebarStats();
-                fetchNotifications();
-            }
-        });
+        if (!accountantReadOnly) {
+            updateSidebarStats();
+            setInterval(updateSidebarStats, 30000);
+            fetchNotifications();
+            setInterval(fetchNotifications, 15000);
+            document.addEventListener('visibilitychange', () => {
+                if (!document.hidden) {
+                    updateSidebarStats();
+                    fetchNotifications();
+                }
+            });
+        }
         
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.register('/sw.js').catch(err => console.log('SW registration failed:', err));

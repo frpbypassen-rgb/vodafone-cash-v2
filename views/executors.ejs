@@ -104,10 +104,10 @@
     <div class="container-fluid am-directory-cards" data-executor-directory>
         <div class="admin-nav mb-4">
             <h1 class="fw-bold m-0 text-dark"><i class="fa-solid fa-network-wired text-primary me-2"></i> منفذو وبوتات التنفيذ</h1>
-            <button type="button" class="btn btn-primary fw-bold shadow-sm px-4" data-bs-toggle="modal" data-bs-target="#createExecutorModal"><i class="fa-solid fa-user-plus me-1"></i> إضافة منفذ يدوياً</button>
+            <% if (typeof role === 'undefined' || role !== 'accountant') { %><button type="button" class="btn btn-primary fw-bold shadow-sm px-4" data-bs-toggle="modal" data-bs-target="#createExecutorModal"><i class="fa-solid fa-user-plus me-1"></i> إضافة منفذ يدوياً</button><% } else { %><span class="badge bg-info-subtle text-info-emphasis border border-info-subtle px-3 py-2">للعرض فقط</span><% } %>
         </div>
 
-        <details class="am-executor-access"><summary><i class="fa-solid fa-link" aria-hidden="true"></i> روابط التسجيل والدخول</summary><div class="executor-access-bar" aria-label="روابط المنفذين">
+        <% if (typeof role === 'undefined' || role !== 'accountant') { %><details class="am-executor-access"><summary><i class="fa-solid fa-link" aria-hidden="true"></i> روابط التسجيل والدخول</summary><div class="executor-access-bar" aria-label="روابط المنفذين">
             <div>
                 <div class="executor-link-label"><i class="fa-solid fa-user-pen me-1"></i> رابط تقديم طلب منفذ جديد</div>
                 <div class="input-group">
@@ -125,7 +125,7 @@
                 </div>
             </div>
         </div>
-        </details>
+        </details><% } %>
 
         <% if (typeof query !== 'undefined' && query.created) { %>
             <div class="alert alert-success fw-bold rounded-4 border-0 shadow-sm">
@@ -211,6 +211,7 @@
     </div>
 </div>
 
+<% if (typeof role === 'undefined' || role !== 'accountant') { %>
 <div class="modal fade" id="createExecutorModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-centered">
         <div class="modal-content border-0 shadow-lg" style="background: var(--card-bg); color: var(--text-main); border-radius: 18px;">
@@ -350,6 +351,7 @@
         </div>
     </div>
 </div>
+<% } %>
 
 <script>
     function toggleSidebar() { 

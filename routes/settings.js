@@ -15,6 +15,7 @@ const { pickAllowed } = require('../middlewares/sanitize');
 const { hashPassword } = require('../services/passwordService');
 const { logAction } = require('../services/auditService');
 const { normalizeAdminRole, permissionsForRole } = require('../config/adminRoles');
+const { isStrongAdminPassword } = require('../utils/adminPasswordPolicy');
 const { parseAdminLoginEmail } = require('../utils/adminLoginEmail');
 const {
     SERVICE_RATE_ADMIN_FIELDS,
@@ -430,6 +431,8 @@ router.post('/users/add', requireMaster, async (req, res) => {
     try {
         const { name, webUsername, webPassword } = req.body;
         if (!name || !webUsername || !webPassword) return res.redirect('/settings/users?error=missing');
+        if (!/^[a-z0-9._-]{4,80}(?:@ahram\.com)?$/.test(String(webUsername).trim().toLowerCase())) return res.redirect('/settings/users?error=username');
+        if (!isStrongAdminPassword(webPassword)) return res.redirect('/settings/users?error=weak_password');
         const loginEmail = parseAdminLoginEmail(req.body.email);
         if (!loginEmail.ok) return res.redirect(`/settings/users?error=${loginEmail.code === 'required' ? 'email_required' : 'email'}`);
         const role = normalizeAdminRole(req.body.role === 'master' ? 'admin' : req.body.role);
@@ -437,7 +440,7 @@ router.post('/users/add', requireMaster, async (req, res) => {
         const admin = await Admin.create({
             name: name.trim(),
             webUsername: webUsername.trim().toLowerCase(),
-            webPassword: webPassword.trim(),
+            webPassword,
             email: loginEmail.email,
             otpDeliveryChannel: loginEmail.otpDeliveryChannel,
             role,

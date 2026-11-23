@@ -1,0 +1,56 @@
+<%
+const money = value => Number(value || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const dateLabel = value => value ? new Date(value).toLocaleString('ar-LY', { timeZone: 'Africa/Tripoli' }) : '—';
+const providerLabel = bot.apiProviderKey === 'kenan' ? 'كنان' : bot.apiProviderKey === 'zayn_external_aggregator' ? 'Zayn Speed' : bot.apiProviderKey || '—';
+%>
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title><%= bot.name %> | منفذو التنفيذ</title>
+    <%- include('partials/admin_modern_head') %>
+    <style>
+        .readonly-page{max-width:1200px;margin:auto;padding:24px 16px 60px;color:var(--text-main)}
+        .readonly-back{display:inline-flex;margin-bottom:16px;text-decoration:none;font-weight:700;color:#60a5fa}
+        .readonly-head,.readonly-card{background:var(--card-bg);border:1px solid var(--border-glass);border-radius:16px;padding:20px}
+        .readonly-head{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:16px}
+        .readonly-head h1{font-size:1.5rem;margin:6px 0}
+        .readonly-note{color:var(--text-muted);font-size:.9rem}
+        .readonly-badge{display:inline-block;background:rgba(59,130,246,.13);color:#60a5fa;padding:5px 10px;border-radius:999px;font-weight:700}
+        .readonly-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:20px}
+        .readonly-grid dt{color:var(--text-muted);font-size:.85rem;margin-bottom:8px}
+        .readonly-grid dd{font-size:1.1rem;font-weight:800;margin:0;overflow-wrap:anywhere}
+        .readonly-table-wrap{overflow-x:auto}.readonly-table{width:100%;border-collapse:collapse;min-width:650px}
+        .readonly-table th,.readonly-table td{text-align:right;padding:12px;border-bottom:1px solid var(--border-glass)}
+        .readonly-table th{color:var(--text-muted);font-size:.85rem}.readonly-table bdi{white-space:nowrap}
+        .readonly-pages{display:flex;justify-content:space-between;align-items:center;margin-top:16px;gap:12px}
+        .readonly-pages a{color:#60a5fa;font-weight:700;text-decoration:none}
+        @media(max-width:780px){.readonly-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.readonly-head{display:block}}
+        @media(max-width:420px){.readonly-grid{grid-template-columns:1fr 1fr}.readonly-page{padding-inline:10px}.readonly-card,.readonly-head{padding:15px}}
+    </style>
+</head>
+<body>
+<%- include('partials/sidebar', { activePage: 'executors' }) %>
+<main class="main-content readonly-page" id="am-main">
+    <a class="readonly-back" href="/executors">← العودة إلى منفذي التنفيذ</a>
+    <header class="readonly-head">
+        <div><span class="readonly-badge"><%= bot.isApiBot ? 'منفذ API' : bot.isManagerBot ? 'منفذ إداري' : 'منفذ يدوي' %> · للعرض فقط</span><h1><%= bot.name %></h1><p class="readonly-note">الرصيد وحالة التنفيذ من البيانات المسجلة؛ فتح الصفحة لا يرسل طلبًا للمزود.</p></div>
+        <span class="readonly-badge"><%= bot.status === 'active' ? 'نشط' : bot.status === 'archived' ? 'مؤرشف' : 'متوقف' %></span>
+    </header>
+    <dl class="readonly-grid">
+        <div class="readonly-card"><dt><%= bot.isApiBot ? 'آخر رصيد محفوظ لدى المزود' : 'الرصيد المسجل' %></dt><dd><bdi><%= bot.isApiBot && bot.lastApiServiceCredit == null ? '—' : money(bot.isApiBot ? bot.lastApiServiceCredit : bot.balance) %> EGP</bdi></dd></div>
+        <div class="readonly-card"><dt>المزود أو نوع المنفذ</dt><dd><%= bot.isApiBot ? providerLabel : bot.isManagerBot ? 'إداري' : 'يدوي' %></dd></div>
+        <div class="readonly-card"><dt>آخر تحديث مسجل</dt><dd><%= dateLabel(bot.lastApiBalanceCheckAt || bot.updatedAt) %></dd></div>
+    </dl>
+    <section class="readonly-card" aria-labelledby="readonly-history-title">
+        <h2 id="readonly-history-title">آخر العمليات</h2>
+        <div class="readonly-table-wrap"><table class="readonly-table"><thead><tr><th>العملية</th><th>الحالة</th><th>المبلغ</th><th>الخدمة</th><th>التاريخ</th></tr></thead><tbody>
+        <% if (!history.rows.length) { %><tr><td colspan="5">لا توجد عمليات مسجلة.</td></tr><% } %>
+        <% history.rows.forEach(tx => { %><tr><td><bdi><%= tx.customId || String(tx._id) %></bdi></td><td><%= tx.status || '—' %></td><td><bdi><%= money(tx.amount) %> EGP</bdi></td><td><%= tx.service || tx.canonicalServiceKey || tx.transferType || '—' %></td><td><bdi><%= dateLabel(tx.at || tx.createdAt) %></bdi></td></tr><% }) %>
+        </tbody></table></div>
+        <% if (history.totalPages > 1) { %><nav class="readonly-pages" aria-label="صفحات العمليات"><span>صفحة <%= history.page %> من <%= history.totalPages %></span><span><% if (history.page > 1) { %><a href="/executor/<%= bot._id %>?tab=operations&page=<%= history.page - 1 %>">السابق</a><% } %> <% if (history.page < history.totalPages) { %><a href="/executor/<%= bot._id %>?tab=operations&page=<%= history.page + 1 %>">التالي</a><% } %></span></nav><% } %>
+    </section>
+</main>
+</body>
+</html>

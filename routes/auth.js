@@ -785,7 +785,9 @@ const loginAsAdmin = async (req, res, adminData = null, { authenticatorVerified 
     return saveAndRedirect(
         req,
         res,
-        isPasskeyRequired() && adminData?.mustEnrollSecurity ? '/admin/security?enroll=1' : '/'
+        isPasskeyRequired() && adminData?.mustEnrollSecurity
+            ? adminData.role === 'accountant' ? '/admin/accountant-enroll' : '/admin/security?enroll=1'
+            : '/'
     );
 };
 

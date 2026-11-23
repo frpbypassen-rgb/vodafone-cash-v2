@@ -135,9 +135,10 @@ const refreshLiveApiBalance = async (bot) => {
 
 router.get('/executors', requireAuth, async (req, res) => {
     try {
+        const accountScope = req.session.adminRole === 'accountant' ? adminAccountScope(req) : {};
         const [groups, archivedGroups] = await Promise.all([
-            ExecutorGroup.find({ status: { $ne: 'archived' } }).sort({ createdAt: -1 }).lean(),
-            ExecutorGroup.find({ status: 'archived' }).sort({ archivedAt: -1 }).lean()
+            ExecutorGroup.find({ ...accountScope, status: { $ne: 'archived' } }).sort({ createdAt: -1 }).lean(),
+            ExecutorGroup.find({ ...accountScope, status: 'archived' }).sort({ archivedAt: -1 }).lean()
         ]);
         const { bots: groupsWithStats, archivedBots: archivedGroupsWithStats } = await loadExecutorDirectory({
             groups, archivedGroups, Transaction, Employee, ExecutorBalancePool
@@ -416,8 +417,17 @@ router.post('/executor/:id/archive', requireAuth, requireMaster, async (req, res
 
 router.get('/executor/:id', requireAuth, async (req, res) => {
     try {
-        const bot = await ExecutorGroup.findById(req.params.id).populate('parentGroupId parentBotId');
+        const accountant = req.session.adminRole === 'accountant';
+        const bot = accountant
+            ? await ExecutorGroup.findOne({ _id: req.params.id, ...adminAccountScope(req) })
+                .select('name status isApiBot isManagerBot balance lastApiServiceCredit lastApiBalanceCheckAt updatedAt apiProviderKey serviceKey')
+            : await ExecutorGroup.findById(req.params.id).populate('parentGroupId parentBotId');
         if (!bot) return res.redirect('/executors');
+
+        if (accountant) {
+            const history = await loadExecutorHistory(Transaction, bot, { ...req.query, tab: 'operations' });
+            return res.render('accountant_executor_detail', { bot, history });
+        }
 
         if (bot.status === 'archived') {
             const page = Math.max(1, Number.parseInt(req.query.page, 10) || 1);

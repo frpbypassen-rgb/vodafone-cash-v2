@@ -157,7 +157,7 @@ describe('admin operational alerts: isolated financial reads and durable notific
         process.env.TENANT_MODE = 'multi';
         expect((await request(app(session, id())).post(path).set('x-csrf-token', 'test-csrf').send({})).status).toBe(404);
         expect((await request(app(session)).post(path).set('x-csrf-token', 'test-csrf').send({})).status).toBe(200);
-        expect(accountantPathAllowed('POST', path)).toBe(true);
+        expect(accountantPathAllowed('POST', path)).toBe(false);
         expect(accountantPathAllowed('POST', '/transaction/123/cancel')).toBe(false);
     });
 });

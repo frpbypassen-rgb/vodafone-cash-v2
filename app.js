@@ -5,6 +5,7 @@ const { assertProductionSecurityEnv, isPasswordOnlyLoginMode } = require('./conf
 assertProductionSecurityEnv();
 const { SYSTEM_TIME_ZONE } = require('./config/systemTime');
 const { getAllowedOrigins, getMobileAllowedOrigins } = require('./config/corsOrigins');
+const { adminHrefVisible, canSubscribeAdminChannel } = require('./config/adminRoles');
 require('ts-node').register({
     transpileOnly: true,
     compilerOptions: { module: 'CommonJS' }
@@ -160,9 +161,7 @@ systemMonitor.attachSocketServer(io);
 io.on('connection', (socket) => {
     socket.on('support:subscribe', (ack) => {
         const sessionData = socket.request?.session;
-        const permissions = new Set(sessionData?.adminPermissions || []);
-        const allowed = Boolean(sessionData?.isLoggedIn)
-            && (sessionData.adminRole === 'master' || permissions.has('*') || permissions.has('support.read'));
+        const allowed = canSubscribeAdminChannel(sessionData, 'support.read');
         if (allowed) socket.join('admin:support');
         if (typeof ack === 'function') ack({ success: allowed });
     });
@@ -404,9 +403,7 @@ io.use((socket, next) => sessionMiddleware(socket.request, {
 io.on('connection', (socket) => {
     socket.on('transactions:subscribe', (ack) => {
         const sessionData = socket.request?.session;
-        const permissions = new Set(sessionData?.adminPermissions || []);
-        const allowed = Boolean(sessionData?.isLoggedIn)
-            && (sessionData.adminRole === 'master' || permissions.has('*') || permissions.has('transactions.read'));
+        const allowed = canSubscribeAdminChannel(sessionData, 'transactions.read');
         if (allowed) socket.join('admin:transactions');
         if (typeof ack === 'function') ack({ success: allowed });
     });
@@ -435,15 +432,12 @@ app.use(tenantResolver);
 const {
     enforceSecuritySession,
     enforceEmergencyLockdown,
+    enforceAccountantScope,
     enforceAdminPermissions
 } = require('./middlewares/securityControl');
 app.use(enforceSecuritySession);
 app.use(enforceEmergencyLockdown);
 
-// Raw files must not bypass tenant routing, session expiry or device checks.
-app.use('/uploads', createRawUploadsRouter({ uploadDir: path.join(__dirname, 'uploads') }));
-
-const { adminHrefVisible } = require('./config/adminRoles');
 const { EGYPTIAN_BANKS, bankLabelForTransaction } = require('./utils/egyptianBanks');
 app.use((req, res, next) => {
     res.locals.egyptianBanks = EGYPTIAN_BANKS;
@@ -455,6 +449,11 @@ app.use((req, res, next) => {
     res.locals.adminHrefVisible = (href) => adminHrefVisible(req.session?.adminRole, href);
     next();
 });
+app.use(enforceAccountantScope);
+app.use('/admin/accountant-enroll', require('./routes/accountantPasskeyEnrollment'));
+
+// Raw files must not bypass tenant routing, session expiry, device checks or role scope.
+app.use('/uploads', createRawUploadsRouter({ uploadDir: path.join(__dirname, 'uploads') }));
 
 const { syncBotBalance } = require('./services/balanceService');
 

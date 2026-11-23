@@ -131,23 +131,29 @@ describe('admin sidebar navigation', () => {
         expect(html).toMatch(/مديري لوحة التحكم/);
     });
 
-    test('accountant sidebar keeps review pages and hides mutation settings', () => {
+    test('accountant sidebar only shows account and executor directories', () => {
         const html = renderSidebar({
             activePage: 'dashboard',
             role: 'accountant',
             adminHrefVisible: (href) => adminHrefVisible('accountant', href)
         });
         const hrefs = new Set(extractHrefs(html));
-        expect(hrefs.has('/reports')).toBe(true);
-        expect(hrefs.has('/financial-movements')).toBe(true);
+        expect(hrefs.has('/reports')).toBe(false);
+        expect(hrefs.has('/financial-movements')).toBe(false);
         expect(hrefs.has('/clients')).toBe(true);
-        expect(hrefs.has('/transactions/live')).toBe(true);
-        expect(hrefs.has('/telegram-monitor')).toBe(true);
+        expect(hrefs.has('/executors')).toBe(true);
+        expect(hrefs.has('/')).toBe(false);
+        expect(hrefs.has('/transactions/live')).toBe(false);
+        expect(hrefs.has('/telegram-monitor')).toBe(false);
         expect(hrefs.has('/settings')).toBe(false);
         expect(hrefs.has('/settings/users')).toBe(false);
         expect(hrefs.has('/broadcast')).toBe(false);
         expect(hrefs.has('/admin/security')).toBe(false);
-        expect(html).toMatch(/التقارير/);
+        expect(hrefs.has('/employees')).toBe(false);
+        expect(hrefs.has('/registration-requests')).toBe(false);
+        expect(html).toMatch(/الحسابات والتنفيذ/);
+        expect(html).not.toContain('action="/transactions/search"');
+        expect(html).not.toContain('admin-operation-alerts.js');
     });
 
     test('removed monitor dashboard and pulse view files', () => {

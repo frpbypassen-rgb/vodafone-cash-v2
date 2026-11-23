@@ -88,7 +88,9 @@ const enforceSecuritySession = async (req, res, next) => {
         }
 
         if (isPasskeyRequired() && currentAdmin?.mustEnrollSecurity) {
-            const enrollmentPath = req.path.startsWith('/admin/security');
+            const enrollmentPath = req.session.adminRole === 'accountant'
+                ? req.path.startsWith('/admin/accountant-enroll')
+                : req.path.startsWith('/admin/security');
             if (!enrollmentPath && req.path !== '/logout') {
                 if (wantsJson(req)) {
                     return res.status(428).json({
@@ -97,7 +99,9 @@ const enforceSecuritySession = async (req, res, next) => {
                         error: 'يجب تسجيل بصمة الجهاز الإداري قبل استخدام لوحة الإدارة.'
                     });
                 }
-                return res.redirect('/admin/security?enroll=1');
+                return res.redirect(req.session.adminRole === 'accountant'
+                    ? '/admin/accountant-enroll'
+                    : '/admin/security?enroll=1');
             }
         }
 
@@ -258,11 +262,23 @@ const denyAdminPermission = (req, res, required) => {
     return res.status(403).render('access_denied', { requiredPermission: required });
 };
 
+// This runs before any portal or admin router. A stored permission list from an
+// older accountant session cannot grant access to a route mounted ahead of the
+// general admin permission middleware.
+const enforceAccountantScope = (req, res, next) => {
+    if (!req.session?.isLoggedIn || !isAccountantRole(req.session.adminRole)) return next();
+    if ((req.method === 'GET' || req.method === 'HEAD') && req.path === '/') {
+        return res.redirect('/clients');
+    }
+    if (accountantPathAllowed(req.method, req.originalUrl || req.path)) return next();
+    return denyAdminPermission(req, res, 'accounts.read');
+};
+
 const enforceAdminPermissions = async (req, res, next) => {
     try {
         if (!req.session?.isLoggedIn || req.session.adminRole === 'master') return next();
         if (isAccountantRole(req.session.adminRole) && !accountantPathAllowed(req.method, req.originalUrl || req.path)) {
-            return denyAdminPermission(req, res, 'reports.read');
+            return denyAdminPermission(req, res, 'accounts.read');
         }
         // Permissions are a security boundary, not an optional presentation
         // preference. Historical state rows may contain `false`; they must not
@@ -282,6 +298,7 @@ const enforceAdminPermissions = async (req, res, next) => {
 module.exports = {
     enforceSecuritySession,
     enforceEmergencyLockdown,
+    enforceAccountantScope,
     enforceAdminPermissions,
     protectedMutation,
     permissionRules,

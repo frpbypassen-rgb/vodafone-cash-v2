@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>تأمين حساب المحاسب</title>
+    <style>
+        :root{font-family:system-ui,sans-serif;color-scheme:light dark}
+        body{margin:0;min-height:100vh;display:grid;place-items:center;background:#0f172a;color:#f8fafc}
+        main{width:min(440px,calc(100vw - 32px));padding:28px;border-radius:20px;background:#1e293b;box-shadow:0 18px 60px #02061780}
+        h1{font-size:1.5rem;margin:0 0 12px}p{color:#cbd5e1;line-height:1.7}
+        button,a{font:inherit}button{width:100%;border:0;border-radius:12px;padding:13px;background:#2563eb;color:white;font-weight:700;cursor:pointer}
+        button:disabled{opacity:.55;cursor:wait}a{display:inline-block;margin-top:16px;color:#93c5fd}
+        #message{min-height:1.5em;color:#fca5a5}
+    </style>
+</head>
+<body>
+    <main>
+        <h1>تأمين حساب المحاسب</h1>
+        <p>سجّل مفتاح مرور لهذا الجهاز مرة واحدة لتتمكن من عرض دليل الحسابات والمنفذين.</p>
+        <button type="button" id="enroll">تسجيل مفتاح المرور</button>
+        <p id="message" role="status" aria-live="polite"></p>
+        <a href="/logout">تسجيل الخروج</a>
+    </main>
+    <script>
+        const csrfToken = <%- JSON.stringify(csrfToken).replace(/</g, '\\u003c') %>;
+        const button = document.getElementById('enroll');
+        const message = document.getElementById('message');
+        const fromBase64Url = value => Uint8Array.from(atob(value.replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(value.length / 4) * 4, '=')), char => char.charCodeAt(0));
+        const toBase64Url = value => btoa(String.fromCharCode(...new Uint8Array(value))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+        async function readJson(url, options = {}) {
+            const response = await fetch(url, { credentials: 'same-origin', ...options, headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken, ...(options.headers || {}) } });
+            const data = await response.json();
+            if (!response.ok || !data.success) throw new Error(data.error || 'تعذر تسجيل مفتاح المرور.');
+            return data;
+        }
+        button.addEventListener('click', async () => {
+            if (!window.PublicKeyCredential || !navigator.credentials?.create) {
+                message.textContent = 'هذا المتصفح لا يدعم مفاتيح المرور. افتح الحساب في متصفح يدعمها.';
+                return;
+            }
+            button.disabled = true;
+            message.textContent = '';
+            try {
+                const data = await readJson('/admin/accountant-enroll/options');
+                const options = data.options;
+                options.challenge = fromBase64Url(options.challenge);
+                options.user.id = fromBase64Url(options.user.id);
+                options.excludeCredentials = (options.excludeCredentials || []).map(item => ({ ...item, id: fromBase64Url(item.id) }));
+                const credential = await navigator.credentials.create({ publicKey: options });
+                const response = {
+                    id: credential.id,
+                    rawId: toBase64Url(credential.rawId),
+                    type: credential.type,
+                    authenticatorAttachment: credential.authenticatorAttachment,
+                    response: {
+                        clientDataJSON: toBase64Url(credential.response.clientDataJSON),
+                        attestationObject: toBase64Url(credential.response.attestationObject),
+                        transports: credential.response.getTransports?.() || []
+                    },
+                    clientExtensionResults: credential.getClientExtensionResults()
+                };
+                const result = await readJson('/admin/accountant-enroll/verify', { method: 'POST', body: JSON.stringify({ response }) });
+                window.location.assign(result.next);
+            } catch (error) {
+                message.textContent = error.message || 'تعذر تسجيل مفتاح المرور.';
+                button.disabled = false;
+            }
+        });
+    </script>
+</body>
+</html>
