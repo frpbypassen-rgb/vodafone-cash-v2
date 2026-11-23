@@ -1,5 +1,5 @@
 <% const compactMfaPanel = locals.retailSecurity || typeof workspace !== 'undefined' && (workspace.isCompany || workspace.isAgent); %>
-<section class="mfa-security-panel<%= compactMfaPanel ? ' mfa-compact' : '' %>" data-mfa-panel data-mfa-csrf="<%= typeof csrfToken !== 'undefined' ? csrfToken : '' %>">
+<section class="mfa-security-panel<%= compactMfaPanel ? ' mfa-compact' : '' %>" data-mfa-panel <%= locals.retailSecurity ? 'data-retail-optional-mfa' : '' %> data-mfa-csrf="<%= typeof csrfToken !== 'undefined' ? csrfToken : '' %>">
     <div class="mfa-panel-heading">
         <div>
             <% if (compactMfaPanel) { %>
@@ -155,4 +155,4 @@
     }
 </style>
 
-<script src="/js/mfa-enrollment.js?v=20261027-steps" defer></script>
+<script src="/js/mfa-enrollment.js?v=20261123-optional" defer></script>

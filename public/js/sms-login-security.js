@@ -17,7 +17,7 @@
     const render = () => {
         const badge = find('[data-sms-state]');
         const active = state.verified && state.selected;
-        const pending = state.stage === 'sms' || state.stage === 'current';
+        const pending = state.stage === 'sms';
         badge.textContent = state.selected && !state.verified ? 'يحتاج تأكيد الرقم'
             : !state.eligible || !state.configured ? 'غير متاح'
             : active ? 'مفعّل للدخول'
@@ -27,20 +27,16 @@
         find('[data-sms-phone]').textContent = state.phone ? 'رقم الحساب: \u2066' + state.phone + '\u2069' : '';
         passwordForm.hidden = !state.eligible || !state.configured || state.selected || pending;
         codeForm.hidden = !pending || !state.configured;
-        find('[data-sms-code-label]').textContent = state.stage === 'current'
-            ? 'الرمز من قناة الدخول الحالية' : 'الرمز الوارد في رسالة SMS';
         if (state.selected && !state.verified)
             note('تغير الرقم المرتبط بالتحقق. تواصل مع الدعم لتحديث طريقة الدخول.');
         else if (!state.eligible)
             note('يلزم رقم مسجّل يبدأ بـ091 أو 092 أو 093 أو 094 ويتبعه سبعة أرقام.');
         else if (!state.configured)
             note('إرسال رسائل SMS غير متاح حاليًا.');
-        else if (state.stage === 'current')
-            note('أدخل رمز قناة الدخول الحالية للمتابعة إلى تأكيد رقم الهاتف.');
-        else if (state.stage === 'sms')
+        else if (pending)
             note('أدخل الرمز المرسل إلى رقم حسابك. صالح لمدة خمس دقائق.');
         else if (active)
-            note('أصبحت الرسائل النصية طريقة استلام رمز تسجيل الدخول.');
+            note('الرسائل النصية جاهزة لاختيارها عند تسجيل الدخول.');
         else note('');
     };
     const request = async (action = '', body) => {

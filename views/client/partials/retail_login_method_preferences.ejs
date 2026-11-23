@@ -1,0 +1,24 @@
+<section class="retail-login-preferences" data-retail-preferences hidden>
+    <form data-retail-preference-form>
+        <label for="retailPreferredMethod">طريقة التحقق المفضّلة</label>
+        <div>
+            <select id="retailPreferredMethod" name="method"><option value="">بدون تفضيل</option></select>
+            <button class="button" type="submit">حفظ</button>
+        </div>
+    </form>
+    <p data-retail-method-status role="status" hidden></p>
+</section>
+<dialog class="retail-logout-dialog retail-factor-dialog" data-retail-disable-dialog aria-labelledby="retailDisableMethodTitle">
+    <h2 id="retailDisableMethodTitle" data-retail-disable-title>إيقاف طريقة التحقق</h2>
+    <p data-retail-disable-warning hidden>هذه آخر وسيلة تحقق مفعّلة. سيصبح الدخول التالي بكلمة المرور فقط وفق ضوابط البوابة.</p>
+    <form data-retail-disable-form>
+        <label class="bw-field">كلمة المرور الحالية
+            <input type="password" name="password" autocomplete="current-password" maxlength="128" required>
+        </label>
+        <p data-retail-disable-error role="alert" hidden></p>
+        <div>
+            <button type="button" data-retail-disable-cancel>رجوع</button>
+            <button class="button" type="submit">تأكيد الإيقاف</button>
+        </div>
+    </form>
+</dialog>

@@ -47,7 +47,7 @@
             ? 'بريد الدخول: ' + state.email
             : 'بريد التفعيل: ' + (state.targetEmail || 'غير مسجل');
         find('[data-email-profile]').hidden = state.hasEmail || !state.isOwner;
-        passwordForm.hidden = !state.hasEmail || !state.canSend || (state.verified && !state.canChangeEmail);
+        passwordForm.hidden = !state.hasEmail || !state.canSend || (state.verified && !state.canChangeEmail && (!state.customer || state.enabled));
         codeForm.hidden = true;
         if (!state.canSend) message('إرسال البريد غير متاح حاليًا. تواصل مع الإدارة.');
         else if (!state.hasEmail)
@@ -63,8 +63,8 @@
                     : state.enabled && state.canChangeEmail
                       ? 'تغير بريد بيانات الحساب. أكّد كلمة المرور والبريد الجديد هنا لتغيير بريد الدخول بأمان.'
                       : state.enabled
-                        ? 'سيُطلب الكود عند كل تسجيل دخول. الحالة متزامنة مع الإدارة.'
-                        : state.verified
+                        ? state.customer ? 'البريد جاهز لاختياره عند تسجيل الدخول.' : 'سيُطلب الكود عند كل تسجيل دخول. الحالة متزامنة مع الإدارة.'
+                        : state.verified && !state.customer
                           ? 'البريد مؤكّد. يمكنك اختياره من قائمة قناة كود الدخول أدناه.'
                           : 'أكّد كلمة مرورك ثم أدخل الكود المرسل لتفعيل الحماية.'
             );

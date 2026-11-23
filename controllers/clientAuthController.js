@@ -357,7 +357,7 @@ exports.postVerify = async (req, res) => {
 
         const account = businessResult ? businessResult.account : await AccountModel.findById(accountId).lean();
         const authenticatorVerified = businessResult ? businessResult.authenticatorVerified : Boolean(account && require('../utils/emailLoginMfaProof').valid(req.session.pendingEmailMfaProof, account, accountType));
-        if (account?.mfaEnabled && account.mfaType === 'totp' && !authenticatorVerified) {
+        if (account?.mfaEnabled && account.mfaType === 'totp' && !authenticatorVerified && !businessResult?.retailLoginProof) {
             delete req.session.tempClientId;
             delete req.session.tempAccountType;
             delete req.session.otpChallengeId;
@@ -440,6 +440,7 @@ exports.postVerify = async (req, res) => {
                 ...principal,
                 loginKind: 'client',
                 accountType,
+                ...(businessResult?.retailLoginProof ? { retailLoginProof: businessResult.retailLoginProof } : {}),
                 username: req.session.pendingSecurityUsername || '',
                 createdAt: Date.now()
             };
@@ -457,6 +458,7 @@ exports.postVerify = async (req, res) => {
             clientName: principal.principalName,
             pendingSecurityLocation: pendingLocation,
             clientSessionVersion: Number(account.sessionVersion || 0),
+            ...(businessResult?.retailLoginProof ? { retailLoginProof: businessResult.retailLoginProof } : {}),
             companyTheme: accountType === 'company'
                 ? (account.preferences && account.preferences.companyTheme) || account.uiTheme || undefined
                 : undefined,

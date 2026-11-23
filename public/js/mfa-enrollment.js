@@ -86,6 +86,7 @@
     };
     const render = (data) => {
         const enabled = data.enabled === true;
+        const optional = panel.hasAttribute('data-retail-optional-mfa');
         const settingUp = !enabled && data.enrollment?.stage === 'setup';
         const recovering = enabled && data.enrollment?.stage === 'recovery';
         panel.dataset.mfaProgress = String(settingUp || recovering);
@@ -95,9 +96,10 @@
         state.classList.toggle('warn', !enabled);
         const oldStatus = find('[data-mfa-enabled]');
         if (oldStatus) oldStatus.textContent = enabled ? 'مفعّل' : 'غير مفعّل';
-        find('[data-mfa-login-rule]').textContent = enabled
-            ? 'كلمة المرور + رمز تحقق'
-            : 'بدون رمز Authenticator';
+        panel.dataset.mfaLastMethod = String(data.lastRetailMethod === true);
+        find('[data-mfa-login-rule]').textContent = optional
+            ? enabled ? 'متاح للاختيار' : 'غير مفعّل'
+            : enabled ? 'كلمة المرور + رمز تحقق' : 'بدون رمز Authenticator';
         find('[data-mfa-start]').hidden = enabled || settingUp;
         find('[data-mfa-disable]').hidden = !enabled || recovering;
         const manage = find('[data-mfa-manage]');
@@ -225,6 +227,8 @@
             clearRecovery();
             await refresh();
             message('اكتمل إعداد الحماية.');
+            if (panel.hasAttribute('data-retail-optional-mfa'))
+                document.dispatchEvent(new Event('login-security-changed'));
         })
     );
     find('[data-mfa-manage]')?.addEventListener('click', () => {
@@ -234,12 +238,16 @@
     });
     find('[data-mfa-disable]').addEventListener('click', () => {
         if (busy) return;
+        const last = panel.dataset.mfaLastMethod === 'true';
+        if (last && !window.confirm('هذه آخر وسيلة تحقق مفعّلة. هل تؤكد إيقافها والدخول بكلمة المرور فقط؟')) return;
         const token = window.prompt('أدخل رمز التطبيق أو أحد رموز الاسترداد لإيقاف الحماية:')?.trim();
         if (token)
             act(async () => {
-                await request('/disable', { token });
+                await request('/disable', { token, confirmLast: last });
                 await refresh();
                 message('تم إيقاف الحماية.');
+                if (panel.hasAttribute('data-retail-optional-mfa'))
+                    document.dispatchEvent(new Event('login-security-changed'));
             });
     });
     panel.querySelectorAll('[data-mfa-method]').forEach((item) =>
@@ -261,5 +269,9 @@
         clearSetup();
         clearRecovery();
     });
+    if (panel.hasAttribute('data-retail-optional-mfa'))
+        document.addEventListener('login-security-changed', () => {
+            if (!busy) refresh().catch(error => message(error.message, true));
+        });
     refresh().catch((error) => message(error.message, true));
 })();

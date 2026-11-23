@@ -291,6 +291,13 @@ const setLoginOtpDelivery = (type, account, payload) => {
     const email = emailOtpEnabled
         ? requireOtpEmail(payload.email, 'email')
         : optionalOtpEmail(payload.email, 'email');
+    const isRetail = ['user', 'subaccount'].includes(type);
+    if (isRetail) {
+        const { deliveryMethods } = require('../utils/retailLoginMethods');
+        account.retailLoginMethods = channel === 'whatsapp' ? [] : [...new Set([...deliveryMethods(account), channel])];
+        if (channel === 'whatsapp' && account.retailPreferredLoginMethod !== 'authenticator')
+            account.retailPreferredLoginMethod = undefined;
+    }
     account.otpDeliveryChannel = channel;
     if (['user', 'subaccount'].includes(type)) {
         account.smsOtpEnrollment = undefined;

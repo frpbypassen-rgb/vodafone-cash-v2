@@ -8,6 +8,7 @@ const {
     isEmailOtpEnabled,
 } = require('../utils/otpDeliveryChannel');
 const mailer = require('./emailLoginEnrollmentMailer');
+const retail = require('../utils/retailLoginMethods');
 const { normalizeSubmittedOtp } = require('../utils/otp');
 const fail = (code, message, statusCode = 400) => Object.assign(new Error(message), { code, statusCode });
 const digest = (value) =>
@@ -31,7 +32,8 @@ const binding = (actor, sessionId) => digest(`${actor._id}:${sessionId}:${actor.
 const targetEmail = ({ actor, profileEmail, isOwner }) =>
     normalizeOtpEmail(isOwner ? profileEmail : actor.email);
 const present = (ctx) => ({
-    enabled: ctx.actor.otpDeliveryChannel === 'email',
+    enabled: ctx.kind === 'customer' ? retail.deliveryMethods(ctx.actor).includes('email') : ctx.actor.otpDeliveryChannel === 'email',
+    customer: ctx.kind === 'customer',
     selectedChannel: ctx.actor.otpDeliveryChannel,
     email: maskEmail(resolveAccountOtpEmail(ctx.actor)),
     targetEmail: maskEmail(targetEmail(ctx)),
@@ -53,6 +55,7 @@ const start = async (ctx) => {
         !(await bcrypt.compare(password, actor.webPassword || ''))
     )
         throw fail('PASSWORD', 'كلمة المرور الحالية غير صحيحة.', 403);
+    retail.requireRecentProof(ctx);
     const email = targetEmail(ctx);
     if (!isValidOtpEmail(email))
         throw fail('PROFILE_EMAIL_REQUIRED', 'أضف بريدًا صالحًا إلى بيانات الحساب أولًا.');
@@ -107,6 +110,7 @@ const start = async (ctx) => {
 };
 const confirm = async (ctx) => {
     const { actor, Model, sessionId } = ctx;
+    retail.requireRecentProof(ctx);
     if (!isEmailOtpEnabled() || !mailer.configured())
         throw fail('SMTP_UNAVAILABLE', 'إرسال البريد غير متاح حاليًا. تواصل مع الإدارة.', 503);
     const pending = actor.emailOtpEnrollment;
@@ -142,7 +146,8 @@ const confirm = async (ctx) => {
         emailOtpVerifiedEmail: pending.email,
         emailOtpVerifiedAt: new Date(),
     };
-    if (set.otpDeliveryChannel === 'email') set.emailOtpLoginApprovedFor = pending.email;
+    if (ctx.kind === 'customer') Object.assign(set, retail.enableDelivery(actor, 'email'));
+    if (ctx.kind === 'customer' || set.otpDeliveryChannel === 'email') set.emailOtpLoginApprovedFor = pending.email;
     if (!(ctx.isOwner && ctx.kind === 'agent')) set.email = pending.email;
     const result = await Model.updateOne(guard, {
         $set: set,
@@ -157,6 +162,7 @@ const confirm = async (ctx) => {
         },
     });
     if (!result.modifiedCount) throw fail('CHANGED', 'تغيرت إعدادات الأمان. ابدأ من جديد.', 409);
-    return { enabled: set.otpDeliveryChannel === 'email', verified: true };
+    if (ctx.kind === 'customer' && ctx.session) ctx.session.retailLoginProof = retail.recentProof(actor, 'email', 1);
+    return { enabled: ctx.kind === 'customer' || set.otpDeliveryChannel === 'email', verified: true };
 };
 module.exports = { start, confirm, present, targetEmail };

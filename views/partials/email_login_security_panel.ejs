@@ -6,7 +6,9 @@
     <% } else { %>
     <div class="mfa-panel-heading"><h2><i class="fa-solid fa-envelope-circle-check" aria-hidden="true"></i> التحقق عبر البريد الإلكتروني</h2><span class="mfa-state" data-email-state>جارٍ الفحص</span></div>
     <% } %>
-    <p class="mfa-description">أكّد بريدك لاستخدامه قناةً لكود الدخول. يبقى Authenticator مطلوبًا إذا كان مفعّلًا.</p>
+    <p class="mfa-description"><%= locals.retailSecurity
+        ? 'أكّد بريدك لتختاره عند تسجيل الدخول.'
+        : 'أكّد بريدك لاستخدامه قناةً لكود الدخول. يبقى Authenticator مطلوبًا إذا كان مفعّلًا.' %></p>
     <p class="mfa-login-summary" data-email-address></p>
     <p class="mfa-message" data-email-message role="status" aria-live="polite" hidden></p>
     <a class="mfa-button" data-email-profile href="<%= locals.retailSecurity ? '/client/settings?section=profile' : portalBasePath+'/settings#identity' %>" hidden>إضافة البريد من بيانات <%= locals.retailSecurity ? 'الحساب' : workspace.isCompany ? 'الشركة' : 'الوكيل' %></a>
@@ -19,9 +21,10 @@
         <div class="mfa-actions"><button type="submit" class="mfa-button primary">تأكيد وتفعيل</button><button type="button" class="mfa-button" data-email-restart>إرسال كود جديد</button></div>
     </form>
     <% if (locals.retailSecurity) { %>
+        <button type="button" class="mfa-button" data-retail-disable-method="email" hidden>إيقاف التحقق بالبريد</button>
         </div>
     </details>
     <% } %>
 </section>
 <link rel="stylesheet" href="/css/email-login-security.css?v=1">
-<script src="/js/email-login-security.js?v=1" defer></script>
+<script src="/js/email-login-security.js?v=2" defer></script>

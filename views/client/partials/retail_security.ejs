@@ -1,7 +1,8 @@
 <% if (securityView?.key === 'password') { %>
     <%- include('retail_security_password') %>
 <% } else if (securityView?.key === 'verification') { %>
-    <div class="retail-security-factors">
+    <div class="retail-security-factors" data-retail-login-methods
+        data-csrf="<%= typeof csrfToken !== 'undefined' ? csrfToken : '' %>">
         <%- include('../../partials/mfa_security_panel',{retailSecurity:true}) %>
         <section class="retail-verification-channels" aria-labelledby="retailVerificationChannels">
             <h2 id="retailVerificationChannels">قنوات رمز الدخول</h2>
@@ -11,7 +12,9 @@
                 <%- include('../../partials/telegram_login_security_panel',{retailSecurity:true,portalBasePath:'/client'}) %>
             </div>
         </section>
+        <%- include('retail_login_method_preferences') %>
     </div>
+    <script src="/js/retail-login-methods.js?v=1" defer></script>
 <% } else { %>
     <nav class="retail-security-menu" aria-label="خيارات أمان الحساب">
         <% for (const item of securityItems) { %>

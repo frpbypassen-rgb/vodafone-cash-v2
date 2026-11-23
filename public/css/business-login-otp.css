@@ -234,6 +234,20 @@ button:disabled {
 .otp-digits:focus-within input {
     border-color: var(--blue);
 }
+.otp-recovery {
+    display: block;
+    width: 100%;
+    min-height: 44px;
+    margin-block: 8px 12px;
+    padding: 8px 12px;
+    border: 1px solid currentColor;
+    border-radius: 8px;
+    color: inherit;
+    background: transparent;
+    text-align: center;
+    font: inherit;
+    letter-spacing: .1em;
+}
 [data-otp-confirm] {
     margin-top: 18px;
 }

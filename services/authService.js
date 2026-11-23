@@ -371,7 +371,8 @@ const login = async (username, password, req) => {
         };
     }
     const hasAuthenticator = accountMfaService.isEnabled(mfaAccount);
-    const smsLoginRequired = ['client_user', 'sub_client'].includes(accountType) && account.otpDeliveryChannel === 'sms';
+    const smsLoginRequired = ['client_user', 'sub_client'].includes(accountType)
+        && require('../utils/retailLoginMethods').deliveryMethods(account).includes('sms');
     // The mobile client can complete Authenticator, while the SMS screen is in the web portal.
     if (smsLoginRequired && !hasAuthenticator) {
         return {

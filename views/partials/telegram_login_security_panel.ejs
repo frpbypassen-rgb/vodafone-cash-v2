@@ -1,12 +1,12 @@
 <section class="mfa-security-panel mfa-compact email-login-panel" data-telegram-login data-base="<%= portalBasePath %>" data-csrf="<%= typeof csrfToken !== 'undefined' ? csrfToken : '' %>">
     <% if (locals.retailSecurity) { %>
     <details class="retail-verification-channel">
-        <%- include('retail_verification_channel_summary',{title:'تليجرام وقناة الدخول',icon:'fa-brands fa-telegram',stateAttribute:'data-tg-state'}) %>
+        <%- include('retail_verification_channel_summary',{title:'تليجرام',icon:'fa-brands fa-telegram',stateAttribute:'data-tg-state'}) %>
         <div class="retail-verification-channel-body">
     <% } else { %>
     <div class="mfa-panel-heading"><h2><i class="fa-brands fa-telegram" aria-hidden="true"></i> التحقق عبر تليجرام</h2><span class="mfa-state" data-tg-state>جارٍ الفحص</span></div>
     <% } %>
-    <p class="mfa-description">ربط حساب تليجرام واحد ببوت الأكواد <bdi>@Ahram_otp_bot</bdi>. لا يبدأ استقبال أكواد الدخول قبل تأكيد الربط واختيار القناة.</p>
+    <p class="mfa-description">اربط حسابك ببوت الأكواد <bdi>@Ahram_otp_bot</bdi>. <%= locals.retailSecurity ? 'بعد تأكيد الربط يمكنك اختيار تليجرام عند الدخول.' : 'لا يبدأ استقبال أكواد الدخول قبل تأكيد الربط واختيار القناة.' %></p>
     <p class="mfa-login-summary" data-tg-account></p>
     <p class="mfa-message" role="status" aria-live="polite" data-tg-message hidden></p>
     <form data-tg-password hidden>
@@ -30,9 +30,10 @@
         <button class="mfa-button primary" type="submit">تأكيد تغيير القناة</button>
     </form>
     <% if (locals.retailSecurity) { %>
+        <button type="button" class="mfa-button" data-retail-disable-method="telegram" hidden>إيقاف التحقق بتليجرام</button>
         </div>
     </details>
     <% } %>
 </section>
 <link rel="stylesheet" href="/css/telegram-login-security.css?v=1">
-<script src="/js/telegram-login-security.js?v=3" defer></script>
+<script src="/js/telegram-login-security.js?v=4" defer></script>

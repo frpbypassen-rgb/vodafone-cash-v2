@@ -19,7 +19,8 @@
         digits = [...panel.querySelectorAll('[data-otp-digit]')];
     let screen = JSON.parse(document.getElementById('businessOtpScreen').textContent),
         selected,
-        busy = false;
+        busy = false,
+        useRecovery = false;
     const normalize = (value) =>
         String(value)
             .replace(/[٠-٩]/g, (char) => String(char.charCodeAt(0) - 1632))
@@ -34,7 +35,9 @@
     const remaining = (value) =>
         value ? Math.max(0, Math.ceil((new Date(value).getTime() - Date.now()) / 1000)) : 0;
     const syncCode = () => {
-        find('[data-otp-value]').value = digits.map((input) => normalize(input.value)).join('');
+        find('[data-otp-value]').value = useRecovery
+            ? find('[data-otp-recovery]').value.trim()
+            : digits.map((input) => normalize(input.value)).join('');
         tick();
     };
     const clearCode = () => {
@@ -51,20 +54,24 @@
         }
         const cooldown = remaining(screen.resendAt),
             expires = remaining(screen.expiresAt);
-        find('[data-otp-send]').disabled = busy || !selected || cooldown > 0 || screen.stage === 'blocked';
-        find('[data-otp-send-note]').textContent = cooldown ? `يمكن الإرسال بعد ${cooldown} ثانية` : '';
+        const canSendCode = selected && selected !== 'authenticator';
+        find('[data-otp-send]').textContent = selected === 'authenticator' ? 'متابعة إلى رمز التطبيق' : 'إرسال الكود';
+        find('[data-otp-send]').disabled = busy || !selected || (canSendCode && cooldown > 0) || screen.stage === 'blocked';
+        find('[data-otp-send-note]').textContent = canSendCode && cooldown ? `يمكن الإرسال بعد ${cooldown} ثانية` : '';
         find('[data-otp-resend]').disabled = busy || cooldown > 0;
         find('[data-otp-resend]').textContent = cooldown
             ? `إعادة الإرسال بعد ${cooldown} ثانية`
             : 'إعادة الإرسال';
         find('[data-otp-change]').disabled = busy;
         find('[data-otp-confirm]').disabled =
-            busy || screen.stage !== 'sent' || !expires || find('[data-otp-value]').value.length !== 6;
+            busy || screen.stage !== 'sent' || !expires || (useRecovery
+                ? !/^[a-f0-9]{5}-?[a-f0-9]{5}$/i.test(find('[data-otp-recovery]').value.trim())
+                : find('[data-otp-value]').value.length !== 6);
         find('[data-otp-expiry]').textContent =
             screen.stage === 'sent'
                 ? expires
                     ? `صلاحية الكود ${Math.floor(expires / 60)}:${String(expires % 60).padStart(2, '0')}`
-                    : 'انتهت صلاحية الكود. اطلب كودًا جديدًا.'
+                    : 'انتهت مهلة التحقق. اختر الطريقة مجددًا.'
                 : '';
     };
     const render = () => {
@@ -84,17 +91,19 @@
             ? 'انتهت محاولة الدخول'
             : screen.stage === 'sent'
               ? 'أدخل رمز التحقق'
-              : 'اختر طريقة استلام الكود';
+              : 'اختر طريقة التحقق';
         find('[data-otp-description]').textContent = blocked
             ? 'ابدأ تسجيل الدخول من جديد لإكمال التحقق بأمان.'
             : chosen && screen.stage === 'sent'
-              ? 'أرسلنا الكود إلى \u2066' + chosen.destination + '\u2069'
+              ? chosen.key === 'authenticator' ? 'أدخل الرمز الظاهر في تطبيق المصادقة.' : 'أرسلنا الكود إلى \u2066' + chosen.destination + '\u2069'
               : screen.methods.some((item) => item.available)
-                ? 'سيُرسل الكود إلى الطريقة التي تختارها فقط.'
-                : 'لا توجد طريقة إرسال متاحة حاليًا. تواصل مع الإدارة.';
+                ? 'أكمل الدخول بإحدى الطرق المتاحة.'
+                : 'لا توجد طريقة تحقق متاحة حاليًا. تواصل مع الإدارة.';
         const list = find('[data-otp-methods]');
         list.replaceChildren();
-        for (const method of screen.methods) {
+        const orderedMethods = [...screen.methods].sort((a, b) =>
+            Number(b.key === screen.preferred) - Number(a.key === screen.preferred));
+        for (const method of orderedMethods) {
             const button = document.createElement('button');
             button.type = 'button';
             button.className = 'otp-method';
@@ -116,6 +125,14 @@
             list.append(button);
         }
         const open = find('[data-otp-open-telegram]');
+        const usingApp = screen.stage === 'sent' && screen.selected === 'authenticator';
+        useRecovery = false;
+        find('[data-otp-use-recovery]').hidden = !usingApp;
+        find('[data-otp-use-recovery]').textContent = 'استخدام رمز استرداد';
+        find('[data-otp-recovery-field]').hidden = true;
+        find('[data-otp-recovery]').value = '';
+        find('[data-otp-digits]').hidden = false;
+        find('[data-otp-resend]').hidden = usingApp;
         open.hidden = screen.stage !== 'sent' || screen.selected !== 'telegram';
         if (screen.telegramUrl) {
             try {
@@ -161,7 +178,8 @@
         try {
             await request(action);
             note(
-                action === 'send'
+                action === 'send' && screen.selected === 'authenticator' ? ''
+                    : action === 'send'
                     ? 'تم إرسال الكود إلى الطريقة المختارة.'
                     : 'تم إلغاء الكود السابق. اختر طريقة الاستلام.',
                 true
@@ -177,6 +195,18 @@
     find('[data-otp-send]').addEventListener('click', () => run('send'));
     find('[data-otp-resend]').addEventListener('click', () => run('send'));
     find('[data-otp-change]').addEventListener('click', () => run('change'));
+    find('[data-otp-use-recovery]').addEventListener('click', () => {
+        useRecovery = !useRecovery;
+        clearCode();
+        const input = find('[data-otp-recovery]');
+        input.value = '';
+        find('[data-otp-recovery-field]').hidden = !useRecovery;
+        find('[data-otp-digits]').hidden = useRecovery;
+        find('[data-otp-use-recovery]').textContent = useRecovery ? 'استخدام رمز التطبيق' : 'استخدام رمز استرداد';
+        (useRecovery ? input : digits[0]).focus();
+        tick();
+    });
+    find('[data-otp-recovery]').addEventListener('input', tick);
     const fill = (value, index = 0) => {
         const text = normalize(value);
         for (let i = index; i < digits.length && i - index < text.length; i++)

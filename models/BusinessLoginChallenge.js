@@ -9,7 +9,7 @@ const schema = new mongoose.Schema(
         fingerprint: { type: String, required: true, select: false },
         state: { type: String, enum: ['choose', 'sending', 'sent', 'used', 'locked'], default: 'choose' },
         generation: { type: Number, default: 0 },
-        channel: { type: String, enum: ['email', 'telegram', 'sms'] },
+        channel: { type: String, enum: ['email', 'telegram', 'sms', 'authenticator'] },
         codeHash: { type: String, select: false },
         codeExpiresAt: Date,
         resendAt: Date,

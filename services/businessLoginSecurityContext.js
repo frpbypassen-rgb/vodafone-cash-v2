@@ -15,7 +15,8 @@ const context = async (req) => {
         const actor = await Model.findById(req.session.clientId).select(
             '+emailOtpEnrollment +telegramOtpEnrollment +smsOtpEnrollment +loginChannelAction +telegramLoginChatId +telegramLoginUserId'
         );
-        if (!actor || actor.status !== 'active')
+        if (!actor || actor.status !== 'active' ||
+            Number(actor.sessionVersion || 0) !== Number(req.session.clientSessionVersion || 0))
             throw Object.assign(new Error('انتهت الجلسة.'), { statusCode: 401 });
         const multi = require('../middlewares/tenantResolver').tenantMode() === 'multi';
         if (multi && (!req.tenant?._id || String(actor.tenantId || '') !== String(req.tenant._id)))
@@ -36,6 +37,7 @@ const context = async (req) => {
                 actor,
                 Model,
                 sessionId: req.sessionID,
+                session: req.session,
                 kind: 'customer',
                 isOwner: true,
                 profileEmail:

@@ -20,6 +20,7 @@ const { hash, guard, fail } = require('../utils/loginSecurityChallenge');
 const { generateOtp, hashOtp, verifyOtp } = require('../utils/otp');
 const { tenantMode } = require('../middlewares/tenantResolver');
 const approval = require('../utils/loginMethodApproval');
+const retail = require('../utils/retailLoginMethods');
 const registry = {
     user: User,
     company: CompanyEmployee,
@@ -28,7 +29,7 @@ const registry = {
 };
 const isBusiness = (actor, type) =>
     ['company', 'agent_staff', 'sub_client'].includes(type) || (type === 'user' && Boolean(actor));
-const fingerprint = (actor) =>
+const fingerprint = (actor, type) =>
     hash(
         JSON.stringify([
             String(actor._id),
@@ -52,6 +53,7 @@ const fingerprint = (actor) =>
             String(actor.masterId || ''),
             actor.masterType || '',
             ...(actor.smsOtpVerifiedPhoneHash ? [actor.smsOtpVerifiedPhoneHash, normalizeSmsLoginPhone(actor.phone)] : []),
+            ...(retail.isRetailLogin(actor, type) ? [actor.role, retail.enabledMethods(actor), actor.totpSecretEncrypted || ''] : []),
         ])
     );
 const sessionBinding = (req) => hash('business-otp:' + req.sessionID);
@@ -59,44 +61,50 @@ const maskEmail = (email) => {
     const [local, host] = email.split('@');
     return host ? local.slice(0, 2) + '***@' + host : '';
 };
-const methods = (actor) => {
+const methods = (actor, type) => {
     const result = [],
         email = resolveAccountOtpEmail(actor);
-    if (approval.emailAllowed(actor) && isValidOtpEmail(email))
+    const isRetail = retail.isRetailLogin(actor, type);
+    const active = retail.enabledMethods(actor);
+    if (isRetail ? active.includes('email') : approval.emailAllowed(actor) && isValidOtpEmail(email))
         result.push({
             key: 'email',
             title: 'البريد الإلكتروني',
             destination: maskEmail(email),
-            available: isEmailOtpEnabled() && getMissingSmtpSettings(getSmtpConfig()).length === 0,
+            available: isValidOtpEmail(email) && isEmailOtpEnabled() && getMissingSmtpSettings(getSmtpConfig()).length === 0,
         });
-    if (actor.telegramLoginVerifiedAt && actor.telegramLoginChatId && approval.telegramAllowed(actor))
+    if (isRetail ? active.includes('telegram') : actor.telegramLoginVerifiedAt && actor.telegramLoginChatId && approval.telegramAllowed(actor))
         result.push({
             key: 'telegram',
             title: 'تليجرام',
             destination: actor.telegramLoginUsername
                 ? '@' + actor.telegramLoginUsername.slice(0, 2) + '***'
                 : 'حساب تليجرام المؤكد',
-            available: telegram.configured() && actor.telegramLoginBotId === telegram.config().botId,
+            available: Boolean(actor.telegramLoginVerifiedAt && actor.telegramLoginChatId &&
+                telegram.configured() && actor.telegramLoginBotId === telegram.config().botId),
         });
     const phone = actor.role !== 'agent' && verifiedSmsPhone(actor);
-    if (phone)
+    if (isRetail ? active.includes('sms') : phone)
         result.push({
             key: 'sms',
             title: 'رسالة نصية (SMS)',
             destination: maskSmsPhone(phone),
-            available: sms.configured(),
+            available: Boolean(phone && sms.configured()),
         });
+    if (isRetail && active.includes('authenticator'))
+        result.push({ key: 'authenticator', title: 'تطبيق المصادقة', destination: 'الرمز من التطبيق', available: Boolean(actor.totpSecretEncrypted) });
     return result;
 };
 const loadActor = async (req, type, id) => {
     const Model = registry[type];
     if (!Model) throw fail('SESSION_EXPIRED', 'انتهت محاولة الدخول. أدخل كلمة المرور من جديد.', 401);
-    const actor = await Model.findById(id).select('+telegramLoginChatId +loginOtpLastSentAt').lean();
+    const actor = await Model.findById(id).select('+telegramLoginChatId +loginOtpLastSentAt +totpSecretEncrypted').lean();
+    const isRetail = retail.isRetailLogin(actor, type);
     if (
         !actor ||
         actor.status !== 'active' ||
         !isBusiness(actor, type) ||
-        !isLoginOtpEnabledForAccount(actor)
+        !(isRetail ? retail.enabledMethods(actor).length : isLoginOtpEnabledForAccount(actor))
     )
         throw fail('ACCOUNT_CHANGED', 'تغيرت حالة الحساب. سجل الدخول من جديد.', 401);
     if (
@@ -133,12 +141,13 @@ const loadActor = async (req, type, id) => {
             throw fail('ACCOUNT_CHANGED', 'الحساب الرئيسي غير متاح.', 401);
     }
     if (
+        !isRetail &&
         actor.mfaEnabled &&
         actor.mfaType === 'totp' &&
         !proof.valid(req.session.pendingEmailMfaProof, actor, type)
     )
         throw fail('MFA_REQUIRED', 'أكمل التحقق من Authenticator بتسجيل الدخول مجددًا.', 401);
-    return { actor, Model };
+    return { actor, Model, isRetail };
 };
 const start = async (req, actor, type, values) => {
     await establishAuthenticatedSession(req, {
@@ -148,7 +157,7 @@ const start = async (req, actor, type, values) => {
     });
     const current = await loadActor(req, type, actor._id);
     const expires =
-        current.actor.mfaEnabled && current.actor.mfaType === 'totp'
+        !current.isRetail && current.actor.mfaEnabled && current.actor.mfaType === 'totp'
             ? Math.min(Date.now() + 600000, req.session.pendingEmailMfaProof.expiresAt)
             : Date.now() + 600000;
     const record = await Challenge.create({
@@ -156,7 +165,7 @@ const start = async (req, actor, type, values) => {
         actorModel: current.Model.modelName,
         accountType: type,
         binding: sessionBinding(req),
-        fingerprint: fingerprint(current.actor),
+        fingerprint: fingerprint(current.actor, type),
         expiresAt: new Date(expires),
     });
     req.session.businessOtpChallengeId = String(record._id);
@@ -178,34 +187,44 @@ const load = async (req) => {
     )
         throw fail('SESSION_EXPIRED', 'انتهت محاولة الدخول. أدخل كلمة المرور من جديد.', 401);
     const current = await loadActor(req, record.accountType, record.actorId);
-    if (fingerprint(current.actor) !== record.fingerprint)
+    if (fingerprint(current.actor, record.accountType) !== record.fingerprint)
         throw fail('ACCOUNT_CHANGED', 'تغيرت إعدادات الأمان. سجل الدخول من جديد.', 401);
     return { ...current, record };
 };
-const present = ({ actor, record }) => ({
-    methods: methods(actor),
+const present = ({ actor, record, isRetail }) => ({
+    methods: methods(actor, record.accountType),
     selected: record.channel || null,
-    preferred: actor.otpDeliveryChannel,
+    preferred: isRetail ? retail.preferredMethod(actor) : actor.otpDeliveryChannel,
     stage: record.state,
     expiresAt: record.codeExpiresAt || null,
     sessionExpiresAt: record.expiresAt,
     resendAt: actor.loginOtpLastSentAt
         ? new Date(new Date(actor.loginOtpLastSentAt).getTime() + 60000)
         : null,
-    authenticatorVerified: Boolean(actor.mfaEnabled && actor.mfaType === 'totp'),
+    authenticatorVerified: !isRetail && Boolean(actor.mfaEnabled && actor.mfaType === 'totp'),
     telegramUrl: `https://t.me/${telegram.config().username}`,
 });
 const view = async (req) => present(await load(req));
 const send = async (req, channel) => {
     const ctx = await load(req),
         { actor, Model, record } = ctx;
-    if (!methods(actor).some((method) => method.key === channel && method.available))
+    if (!methods(actor, record.accountType).some((method) => method.key === channel && method.available))
         throw fail('METHOD_UNAVAILABLE', 'هذه الطريقة غير مفعلة أو الإرسال غير متاح حاليًا.');
     if (record.expiresAt.getTime() - Date.now() < 60000)
         throw fail('SESSION_EXPIRED', 'انتهت مهلة إرسال كود جديد. سجل الدخول مجددًا.', 401);
     const now = new Date(),
         expiresAt = new Date(Math.min(now.getTime() + 300000, record.expiresAt.getTime())),
         expiresMinutes = Math.ceil((expiresAt.getTime() - now.getTime()) / 60000);
+    if (channel === 'authenticator') {
+        const result = await Challenge.updateOne(
+            { _id: record._id, binding: sessionBinding(req), generation: record.generation,
+                state: { $in: ['choose', 'sent'] }, expiresAt: { $gt: now } },
+            { $set: { state: 'sent', channel, codeExpiresAt: expiresAt },
+                $unset: { codeHash: 1 }, $inc: { generation: 1 } }
+        );
+        if (!result.modifiedCount) throw fail('CHANGED', 'تغيرت محاولة الدخول. حدّث الصفحة.', 409);
+        return view(req);
+    }
     const reserved = await Model.updateOne(
         {
             ...guard(actor),
@@ -239,7 +258,7 @@ const send = async (req, channel) => {
                 state: 'sending',
                 channel,
                 codeExpiresAt: expiresAt,
-                attempts: 0,
+                ...(!ctx.isRetail ? { attempts: 0 } : {}),
                 resendAt: new Date(now.getTime() + 60000),
             },
             $inc: { generation: 1 },
@@ -249,7 +268,7 @@ const send = async (req, channel) => {
     if (!claimed.modifiedCount) throw fail('CHANGED', 'تغيرت محاولة الدخول. حدّث الصفحة.', 409);
     try {
         const fresh = await loadActor(req, record.accountType, actor._id);
-        if (fingerprint(fresh.actor) !== record.fingerprint) throw new Error('CHANGED');
+        if (fingerprint(fresh.actor, record.accountType) !== record.fingerprint) throw new Error('CHANGED');
         if (channel === 'sms') {
             code = await sms.sendPin(verifiedSmsPhone(fresh.actor));
             success = true;
@@ -305,7 +324,7 @@ const send = async (req, channel) => {
     return view(req);
 };
 const change = async (req) => {
-    const { record } = await load(req);
+    const { record, isRetail } = await load(req);
     const result = await Challenge.updateOne(
         {
             _id: record._id,
@@ -314,7 +333,7 @@ const change = async (req) => {
             state: { $in: ['choose', 'sending', 'sent'] },
         },
         {
-            $set: { state: 'choose', attempts: 0 },
+            $set: { state: 'choose', ...(!isRetail ? { attempts: 0 } : {}) },
             $unset: { channel: 1, codeHash: 1, codeExpiresAt: 1 },
             $inc: { generation: 1 },
         }
@@ -342,11 +361,11 @@ const consume = async (req, code) => {
         .select('+codeHash')
         .lean();
     if (!attempted) throw fail('ATTEMPTS', 'انتهت محاولات التحقق. سجل الدخول مجددًا.', 401);
-    if (
-        typeof code !== 'string' ||
-        code.length > 64 ||
-        !verifyOtp(code, attempted.codeHash, 'business-login:' + record._id + ':' + record.generation)
-    ) {
+    const valid = record.channel === 'authenticator'
+        ? await require('./accountMfaService').consumePortalLoginToken(ctx.Model, ctx.actor, code)
+        : typeof code === 'string' && code.length <= 64 &&
+            verifyOtp(code, attempted.codeHash, 'business-login:' + record._id + ':' + record.generation);
+    if (!valid) {
         if (attempted.attempts >= 5)
             await Challenge.updateOne(
                 { _id: record._id, generation: record.generation, state: 'sent' },
@@ -362,7 +381,7 @@ const consume = async (req, code) => {
             binding: sessionBinding(req),
             state: 'sent',
             generation: record.generation,
-            codeHash: attempted.codeHash,
+            ...(record.channel === 'authenticator' ? { channel: record.channel } : { codeHash: attempted.codeHash }),
             codeExpiresAt: { $gt: new Date() },
         },
         { $set: { state: 'used' }, $unset: { codeHash: 1 } }
@@ -373,7 +392,8 @@ const consume = async (req, code) => {
         account: fresh.actor,
         accountType: record.accountType,
         channel: record.channel,
-        authenticatorVerified: Boolean(fresh.actor.mfaEnabled && fresh.actor.mfaType === 'totp'),
+        authenticatorVerified: record.channel === 'authenticator' || (!fresh.isRetail && Boolean(fresh.actor.mfaEnabled && fresh.actor.mfaType === 'totp')),
+        retailLoginProof: fresh.isRetail ? retail.recentProof(fresh.actor, record.channel) : null,
     };
 };
 module.exports = { isBusiness, start, view, send, change, consume };

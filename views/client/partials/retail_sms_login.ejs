@@ -11,13 +11,14 @@
                 <button type="submit" class="mfa-button primary">متابعة التفعيل</button>
             </form>
             <form data-sms-code hidden>
-                <label class="bw-field"><span data-sms-code-label>رمز التحقق</span><input type="text" name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" dir="ltr" required></label>
+                <label class="bw-field"><span>الرمز الوارد في رسالة SMS</span><input type="text" name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" dir="ltr" required></label>
                 <div class="mfa-actions">
                     <button type="submit" class="mfa-button primary">تأكيد الرمز</button>
                     <button type="button" class="mfa-button" data-sms-restart>طلب رمز جديد</button>
                 </div>
             </form>
+            <button type="button" class="mfa-button" data-retail-disable-method="sms" hidden>إيقاف SMS</button>
         </div>
     </details>
 </section>
-<script src="/js/sms-login-security.js?v=1" defer></script>
+<script src="/js/sms-login-security.js?v=2" defer></script>

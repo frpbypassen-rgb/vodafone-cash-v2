@@ -188,6 +188,11 @@ test.each(['day', 'night'])(
         expect(html).toContain('<h2 id="retailVerificationChannels">قنوات رمز الدخول</h2>');
         expect(html.match(/<details class="retail-verification-channel">/g)).toHaveLength(3);
         expect(html).toMatch(/<summary>[^]*?data-sms-state role="status"[^]*?<\/summary>/);
+        expect(html).toContain('data-retail-optional-mfa');
+        expect(html).toContain('data-retail-preference-form');
+        expect(html).toContain('data-retail-disable-method="sms"');
+        expect(html).toContain('data-retail-disable-method="email"');
+        expect(html).toContain('data-retail-disable-method="telegram"');
         expect(html).not.toMatch(/<input[^>]+name="phone"/);
         expect(html).toMatch(/<summary>[^]*?data-email-state role="status"[^]*?<\/summary>/);
         expect(html).toMatch(/<summary>[^]*?data-tg-state role="status"[^]*?<\/summary>/);

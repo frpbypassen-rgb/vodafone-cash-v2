@@ -1033,6 +1033,40 @@ html[data-theme='night'] #retailPasswordRules .is-valid {
 .retail-sms-login-panel form {
     max-width: 28rem;
 }
+.retail-login-preferences {
+    padding: 12px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--surface);
+}
+.retail-login-preferences label {
+    display: block;
+    margin-block-end: 6px;
+    font-weight: 700;
+}
+.retail-login-preferences form > div {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+.retail-login-preferences select {
+    flex: 1 1 160px;
+    border-radius: 8px;
+    padding-inline: 8px;
+}
+.retail-login-preferences p, .retail-factor-dialog p {
+    margin-block: 8px 0;
+}
+.retail-factor-dialog input {
+    box-sizing: border-box;
+    width: 100%;
+    margin-block: 6px 12px;
+    padding: 8px 10px;
+    border-radius: 8px;
+}
+.retail-verification-channel-body [data-retail-disable-method] {
+    margin-block-start: 8px;
+}
 .retail-verification-channel summary {
     display: grid;
     grid-template-columns: auto minmax(0, 1fr) auto auto;

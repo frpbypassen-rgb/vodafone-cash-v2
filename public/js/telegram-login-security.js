@@ -50,11 +50,11 @@
         const previousSelected = state?.selected;
         state = await request();
         find('[data-tg-state]').textContent = state.linked
-            ? 'مرتبط ومؤكد'
+            ? state.customer ? state.enabled ? 'مفعّل للدخول' : 'مرتبط' : 'مرتبط ومؤكد'
             : state.stage
               ? 'بانتظار التأكيد'
               : 'غير مرتبط';
-        find('[data-tg-state]').classList.toggle('ready', state.linked);
+        find('[data-tg-state]').classList.toggle('ready', state.customer ? state.enabled : state.linked);
         find('[data-tg-account]').textContent = state.accountLabel
             ? 'الحساب: \u2066' + state.accountLabel + '\u2069'
             : '';
@@ -62,13 +62,13 @@
             ? 'تغيير حساب تليجرام المرتبط'
             : 'متابعة ربط تليجرام';
         const waiting = ['waiting', 'sending', 'delivered'].includes(state.stage);
-        linkForm.hidden = !state.configured || waiting || (state.linked && state.selected === 'telegram');
+        linkForm.hidden = !state.configured || waiting || (state.linked && (state.customer ? state.enabled : state.selected === 'telegram'));
         codeForm.hidden = state.stage !== 'delivered';
         find('[data-tg-restart]').hidden = !state.stage;
         find('[data-tg-open]').hidden = !linkUrl || !['waiting', 'sending'].includes(state.stage);
         channelForm.elements.target.querySelector('[value=email]').disabled = !state.emailReady;
         channelForm.elements.target.querySelector('[value=telegram]').disabled = !state.telegramReady;
-        channelForm.hidden = !state.emailReady && !state.telegramReady;
+        channelForm.hidden = state.customer || (!state.emailReady && !state.telegramReady);
         if (previousSelected !== state.selected || !channelForm.elements.password.value)
             channelForm.elements.target.value =
                 state.selected === 'email' && state.emailReady
@@ -88,7 +88,11 @@
         else if (waiting) message('افتح تليجرام واضغط «ابدأ»، ثم ارجع لكتابة كود تأكيد الربط.');
         else
             message(
-                state.linked && state.selected === 'telegram'
+                state.customer && state.enabled
+                    ? 'تليجرام جاهز لاختياره عند تسجيل الدخول.'
+                    : state.customer
+                        ? 'أكّد كلمة المرور للمتابعة إلى ربط تليجرام وتفعيله.'
+                    : state.linked && state.selected === 'telegram'
                     ? 'تليجرام هو قناة كود الدخول الحالية. سيصلك الكود عند كل تسجيل دخول.'
                     : state.linked
                       ? 'الربط مؤكّد. لاستقبال أكواد الدخول عبره اختر تليجرام أدناه.'

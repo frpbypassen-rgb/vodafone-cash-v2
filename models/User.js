@@ -35,6 +35,8 @@ const userSchema = new mongoose.Schema({
     otpDeliveryChannel: { type: String, enum: ['whatsapp', 'email', 'telegram', 'sms'], default: 'whatsapp' },
     smsOtpVerifiedPhoneHash: { type: String, default: '' },
     smsOtpEnrollment: { type: Object, select: false },
+    retailLoginMethods: { type: [String], default: undefined },
+    retailPreferredLoginMethod: { type: String },
     verificationDocuments: [{
         ...require('./schemas/documentReviewFields'),
         kind: { type: String, enum: ['identity', 'tax_card', 'business_license', 'profile_photo'], required: true },

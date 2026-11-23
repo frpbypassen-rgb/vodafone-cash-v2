@@ -9,6 +9,7 @@ const { resolveAccountOtpEmail, isValidOtpEmail, isEmailOtpEnabled } = require('
 const email = require('./emailLoginEnrollmentMailer');
 const sms = require('./smsLoginTransport');
 const { verifiedSmsPhone } = require('../utils/smsLoginPhone');
+const retail = require('../utils/retailLoginMethods');
 // Append only: the byte index is embedded in outstanding encrypted Telegram links.
 const modelNames = ['User', 'ClientEmployee', 'AgentEmployee', 'SubAccount'];
 const key = () =>
@@ -60,6 +61,8 @@ const present = (ctx) => {
     const waiting = challenge.valid(pending, actor, ctx.sessionId);
     return {
         selected: ['email', 'telegram', 'sms'].includes(actor.otpDeliveryChannel) ? actor.otpDeliveryChannel : 'off',
+        customer: ctx.kind === 'customer',
+        enabled: ctx.kind === 'customer' ? retail.deliveryMethods(actor).includes('telegram') : actor.otpDeliveryChannel === 'telegram',
         linked: Boolean(actor.telegramLoginVerifiedAt),
         linkedAt: actor.telegramLoginVerifiedAt || null,
         accountLabel: actor.telegramLoginUsername
@@ -77,6 +80,7 @@ const present = (ctx) => {
 const start = async (ctx) => {
     const { actor, Model } = ctx;
     await challenge.password(actor, ctx.password);
+    retail.requireRecentProof(ctx);
     if (!transport.configured())
         throw challenge.fail('NOT_CONFIGURED', 'بوت أكواد الدخول غير مهيأ حاليًا. تواصل مع الإدارة.', 503);
     if (actor.telegramLoginVerifiedAt && actor.otpDeliveryChannel === 'telegram')
@@ -173,6 +177,7 @@ const handleStart = async ({ token, chatId, userId, username }) => {
     return Boolean(sent.modifiedCount);
 };
 const confirm = async (ctx) => {
+    retail.requireRecentProof(ctx);
     const { actor, Model } = ctx,
         pending = actor.telegramOtpEnrollment;
     if (
@@ -207,9 +212,9 @@ const confirm = async (ctx) => {
             telegramLoginUsername: pending.username || '',
             telegramLoginBotId: pending.botId,
             telegramLoginVerifiedAt: new Date(),
-            otpDeliveryChannel: selected,
+            ...(ctx.kind === 'customer' ? retail.enableDelivery(actor, 'telegram') : { otpDeliveryChannel: selected }),
             telegramLoginApprovedFor:
-                selected === 'telegram' ||
+                ctx.kind === 'customer' || selected === 'telegram' ||
                 actor.telegramLoginApprovedFor ===
                     approval.telegramIdentity({
                         telegramLoginChatId: pending.chatId,
@@ -230,7 +235,8 @@ const confirm = async (ctx) => {
         },
     });
     if (!result.modifiedCount) throw challenge.fail('CHANGED', 'تغيرت الإعدادات. حدّث الصفحة.', 409);
-    return { linked: true, selected };
+    if (ctx.kind === 'customer' && ctx.session) ctx.session.retailLoginProof = retail.recentProof(actor, 'telegram', 1);
+    return { linked: true, selected: ctx.kind === 'customer' ? retail.enableDelivery(actor, 'telegram').otpDeliveryChannel : selected };
 };
 const sendCurrent = async (ctx, code, purpose = 'channel') => {
     if (ctx.actor.otpDeliveryChannel === 'sms') {
@@ -298,6 +304,7 @@ const applyTarget = async (ctx, target, extraGuard = {}) => {
     return { completed: true, selected: target === 'unlink' ? ctx.actor.otpDeliveryChannel : target };
 };
 const requestChannel = async (ctx) => {
+    if (ctx.kind === 'customer') throw challenge.fail('METHOD_SETTINGS_MOVED', 'استخدم إعدادات طرق التحقق لتغيير الوسيلة المفضّلة.', 409);
     await challenge.password(ctx.actor, ctx.password);
     assertTarget(ctx.actor, ctx.target);
     if (ctx.target === ctx.actor.otpDeliveryChannel) return { completed: true, selected: ctx.target };
@@ -336,6 +343,7 @@ const requestChannel = async (ctx) => {
     return { requiresCode: true, source: ctx.actor.otpDeliveryChannel, expiresAt: pending.expiresAt };
 };
 const confirmChannel = async (ctx) => {
+    if (ctx.kind === 'customer') throw challenge.fail('METHOD_SETTINGS_MOVED', 'استخدم إعدادات طرق التحقق لتغيير الوسيلة المفضّلة.', 409);
     const pending = ctx.actor.loginChannelAction;
     if (!challenge.valid(pending, ctx.actor, ctx.sessionId) || !pending.delivered)
         throw challenge.fail('EXPIRED', 'انتهى طلب تغيير القناة. ابدأ من جديد.', 410);

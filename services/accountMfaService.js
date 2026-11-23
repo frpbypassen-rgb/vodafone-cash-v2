@@ -228,6 +228,37 @@ const verifyAccountToken = (account, token) => {
     return account.save().then(() => true);
 };
 
+const consumePortalLoginToken = async (Model, account, submitted) => {
+    if (!isEnabled(account) || typeof submitted !== 'string' || submitted.length > 64) return false;
+    const code = submitted.trim();
+    const base = {
+        _id: account._id,
+        status: 'active',
+        mfaEnabled: true,
+        mfaType: 'totp',
+        totpSecretEncrypted: account.totpSecretEncrypted
+    };
+    if (/^[a-f0-9]{5}-?[a-f0-9]{5}$/i.test(code)) {
+        const hash = recoveryHash(code);
+        const result = await Model.updateOne(
+            { ...base, mfaRecoveryCodeHashes: hash }, { $pull: { mfaRecoveryCodeHashes: hash } }
+        );
+        return result.modifiedCount === 1;
+    }
+    if (!/^\d{6}$/.test(code)) return false;
+    const current = Math.floor(Date.now() / 30000);
+    const secret = decrypt(account.totpSecretEncrypted);
+    const step = [current, current - 1, current + 1].find(candidate =>
+        crypto.timingSafeEqual(Buffer.from(hotp(secret, candidate)), Buffer.from(code))
+    );
+    if (step === undefined) return false;
+    const result = await Model.updateOne(
+        { ...base, $or: [{ mfaLastUsedStep: null }, { mfaLastUsedStep: { $lt: step } }] },
+        { $set: { mfaLastUsedStep: step } }
+    );
+    return result.modifiedCount === 1;
+};
+
 const deviceIdFor = (req) => String(req?.headers?.['x-device-id'] || '').trim().slice(0, 200) || hash(`${req?.headers?.['user-agent'] || ''}|${req?.ip || ''}`);
 
 const trustChannel = ({ sessionId, req } = {}) => {
@@ -292,6 +323,7 @@ module.exports = {
     confirmSetup,
     disable,
     verifyAccountToken,
+    consumePortalLoginToken,
     isEnabled,
     status,
     deviceIdFor,

@@ -22,6 +22,8 @@ const subAccountSchema = new mongoose.Schema({
     otpDeliveryChannel: { type: String, enum: ['whatsapp', 'email', 'telegram', 'sms'], default: 'whatsapp' },
     smsOtpVerifiedPhoneHash: { type: String, default: '' },
     smsOtpEnrollment: { type: Object, select: false },
+    retailLoginMethods: { type: [String], default: undefined },
+    retailPreferredLoginMethod: { type: String },
     webUsername: { type: String, required: true, unique: true },
     webPassword: { type: String, required: true },
     address: { type: String, trim: true, default: '' },
