@@ -12,8 +12,13 @@
     const sync = () => {
         const length = next.value.length >= 8,
             match = Boolean(confirm.value && next.value === confirm.value);
-        document.querySelector('[data-password-length]').classList.toggle('is-valid', length);
-        document.querySelector('[data-password-match]').classList.toggle('is-valid', match);
+        const lengthRule = form.querySelector('[data-password-length]');
+        const matchRule = form.querySelector('[data-password-match]');
+        lengthRule.classList.toggle('is-valid', length);
+        matchRule.classList.toggle('is-valid', match);
+        lengthRule.querySelector('[data-rule-text]').textContent = length ? 'الطول مناسب' : '8 أحرف على الأقل';
+        matchRule.querySelector('[data-rule-text]').textContent = match ? 'كلمتا المرور متطابقتان'
+            : confirm.value ? 'كلمتا المرور غير متطابقتين' : 'تطابق كلمة المرور وتأكيدها';
         confirm.setCustomValidity(confirm.value && !match ? 'تأكيد كلمة المرور غير مطابق.' : '');
         save.disabled = !(current.value && length && match);
         status.textContent = dirty() ? 'لديك تغييرات غير محفوظة.' : 'أكمل الحقول لتحديث كلمة المرور.';
@@ -26,6 +31,9 @@
                 show = input.type === 'password';
             input.type = show ? 'text' : 'password';
             button.setAttribute('aria-pressed', String(show));
+            const icon = button.querySelector('i');
+            icon.classList.toggle('fa-eye', !show);
+            icon.classList.toggle('fa-eye-slash', show);
             button.setAttribute(
                 'aria-label',
                 (show ? 'إخفاء ' : 'إظهار ') + form.querySelector('label[for="' + input.id + '"]').textContent

@@ -23,7 +23,7 @@ const headingItem = securityView || currentItem;
 <head><%- include('partials/retail_page_head',{retailPage:'settings',retailTitle:isSecurity || currentSection === 'profile' ? headingItem.title : undefined}) %></head>
 <body class="retail-page retail-settings-page" data-customer-shell>
 <%- include('partials/retail_shell_start',{activeRetailNav:'settings'}) %>
-<section class="retail-settings<%= isSecurity ? ' retail-settings-security' : '' %><%= securityView?.key === 'verification' ? ' retail-settings-verification' : '' %>" aria-labelledby="retailSettingsTitle">
+<section class="retail-settings<%= isSecurity ? ' retail-settings-security' : '' %><%= securityView?.key === 'verification' ? ' retail-settings-verification' : '' %><%= securityView?.key === 'password' ? ' retail-settings-password' : '' %>" aria-labelledby="retailSettingsTitle">
 <header class="retail-settings-heading">
     <div class="<%= isSecurity ? 'retail-security-title' : '' %>">
         <% if (isSecurity) { %><span class="retail-settings-icon"><i class="fa-solid <%= headingItem.icon %>" aria-hidden="true"></i></span><% } %>

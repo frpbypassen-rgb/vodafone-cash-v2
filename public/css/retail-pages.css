@@ -1100,55 +1100,123 @@ html[data-theme='night'] .retail-profile-help a {
     height: 36px;
     font-size: 15px;
 }
+.retail-settings-password {
+    max-width: 760px;
+}
+.retail-settings-password .retail-settings-heading {
+    margin-bottom: 14px;
+    padding: clamp(16px, 3vw, 24px);
+    color: #fff;
+    border-color: #30547b;
+    background: radial-gradient(ellipse at 2% 110%, #3568a5, transparent 68%), #142e50;
+}
+.retail-settings-password .retail-settings-heading p {
+    color: #d9e5f4;
+}
+.retail-settings-password .retail-security-title .retail-settings-icon {
+    color: #fff;
+    background: #ffffff18;
+    border: 1px solid #ffffff45;
+}
+.retail-settings-password .retail-settings-back {
+    flex: none;
+    min-height: 44px;
+    color: #fff;
+    background: #ffffff12;
+    border-color: #ffffff55;
+}
+.retail-settings-password .retail-settings-back:hover,
+.retail-settings-password .retail-settings-back:focus-visible {
+    background: #ffffff28;
+    outline-color: #fff;
+}
 .retail-security-password {
-    width: min(100%, 38rem);
-    margin-inline: auto;
+    padding: clamp(16px, 3vw, 28px);
 }
 .retail-password-fields {
     display: grid;
-    gap: 16px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 20px 16px;
+}
+.retail-password-current {
+    grid-column: 1 / -1;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--border);
 }
 #retailPasswordForm label {
     display: block;
+    margin-bottom: 7px;
     font-weight: 600;
-    font-size: 13px;
-    margin-bottom: 8px;
+    font-size: 14px;
 }
 .retail-password-input {
-    position: relative;
+    display: flex;
+    align-items: center;
+    min-width: 0;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--bg);
 }
-.retail-password-input input {
-    padding-inline-end: 52px;
+.retail-password-input:focus-within {
+    border-color: var(--blue);
+    outline: 2px solid var(--blue);
+    outline-offset: 1px;
+}
+.retail-password-input .form-control,
+.retail-password-input .form-control:focus {
+    flex: 1;
+    min-width: 0;
     min-height: 48px;
+    padding: 8px 12px;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+    outline: none;
     font-size: 16px;
+    color: var(--text);
 }
 .retail-password-input button {
-    position: absolute;
-    inset-inline-end: 3px;
-    top: 3px;
-    min-height: 42px;
+    flex: none;
     width: 44px;
+    min-height: 44px;
     padding: 0;
+    margin-inline-end: 2px;
     border: 0;
     background: transparent;
     color: var(--muted);
 }
-#retailPasswordRules {
-    display: grid;
-    gap: 4px;
-    margin: 16px 0;
-    padding: 10px 12px;
-    border-radius: 9px;
+.retail-password-input button:is(:hover, :focus-visible, [aria-pressed='true']) {
     background: var(--soft);
+    color: var(--text);
+}
+.retail-password-input button:focus-visible,
+#retailPasswordSave:focus-visible {
+    outline: 2px solid var(--blue);
+    outline-offset: -3px;
+}
+#retailPasswordRules {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 20px;
     list-style: none;
-    font-size: 12px;
+    margin: 12px 0 20px;
+    padding: 0;
     color: var(--muted);
-    line-height: 1.7;
+    font-size: 12px;
 }
 #retailPasswordRules li {
     display: flex;
-    align-items: baseline;
-    gap: 8px;
+    align-items: center;
+    gap: 6px;
+}
+.retail-password-check {
+    width: 14px;
+    height: 14px;
+    display: grid;
+    place-items: center;
+    border: 1px solid currentColor;
+    border-radius: 50%;
+    font-size: 9px;
 }
 #retailPasswordRules li:not(.is-valid) i {
     visibility: hidden;
@@ -1165,6 +1233,29 @@ html[data-theme='night'] #retailPasswordRules .is-valid {
     align-items: center;
     justify-content: space-between;
     padding-bottom: 0;
+}
+#retailPasswordSave {
+    padding-inline: 20px;
+}
+@media (max-width: 600px) {
+    .retail-password-fields {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 14px;
+    }
+    .retail-password-current {
+        padding-bottom: 14px;
+    }
+}
+@media (max-width: 480px) {
+    .retail-settings-password .retail-settings-heading {
+        flex-direction: column-reverse;
+        gap: 8px;
+    }
+    .retail-settings-password .retail-settings-back {
+        padding-inline: 0;
+        background: transparent;
+        border-color: transparent;
+    }
 }
 .retail-settings-verification {
     max-width: 780px;
