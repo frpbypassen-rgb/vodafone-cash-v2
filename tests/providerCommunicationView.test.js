@@ -126,9 +126,14 @@ test('the live API room displays a compact log even before raw notes exist and t
     const html = await ejs.renderFile(view, {providerCommunicationView, bot:{_id:'e1',name:'Test',apiProviderKey:'kenan'},
         transactions:[tx, {...tx,_id:'t2',status:'completed',notes:'--- سجل الـ API ---\nPRIVATE-WIRE',apiResultData:{}}],
         role:'admin', csrfToken:'fixture', adminName:'Test', query:{}, isMaster:false, managerBots:[], balanceAudits:[], providerReturns:[],
+        apiSearchTerm:'28592', depositHistory:[{customId:'DEP-1',amount:100,status:'deposit',createdAt:at}],
+        otherExecutorMatches:[{customId:'ATT-2611-28592',amount:970,status:'completed',vodafoneNumber:'0912345678',executorGroupId:{_id:'other',name:'منفذ آخر'}}],
         stats:{successCount:1,failedCount:0,balanceAlertCount:0,providerReturnCount:0}});
     expect(html.match(/data-provider-communication=/g)).toHaveLength(2);
     expect(html).toContain('0000014');
+    expect(html).toContain('id="apiOperationSearch"');
+    expect(html).toContain('سجل الإيداعات السابقة');
+    expect(html).toContain('فتح حساب منفذ آخر');
     expect(html).not.toMatch(/PRIVATE-WIRE|نجاح \(200 OK\)|خطأ استجابة/);
 });
 

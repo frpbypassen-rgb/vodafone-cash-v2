@@ -4,7 +4,7 @@ const router = express.Router();
 const { emitSupportTicketUpdate } = require('../services/supportRealtimeService');
 const ExecutorGroup = require('../models/ExecutorGroup');
 const Transaction = require('../models/Transaction');
-const { loadExecutorHistory } = require('../services/adminExecutorDetailService');
+const { normalizeExecutorDetailQuery, loadExecutorHistory, loadOtherExecutorMatches } = require('../services/adminExecutorDetailService');
 const Employee = require('../models/Employee');
 const Notification = require('../models/Notification');
 const ApiBalanceAudit = require('../models/ApiBalanceAudit');
@@ -421,7 +421,7 @@ router.get('/executor/:id', requireAuth, async (req, res) => {
         const bot = accountant
             ? await ExecutorGroup.findOne({ _id: req.params.id, ...adminAccountScope(req) })
                 .select('name status isApiBot isManagerBot balance lastApiServiceCredit lastApiBalanceCheckAt updatedAt apiProviderKey serviceKey')
-            : await ExecutorGroup.findById(req.params.id).populate('parentGroupId parentBotId');
+            : await ExecutorGroup.findOne({ _id: req.params.id, ...adminAccountScope(req) }).populate('parentGroupId parentBotId');
         if (!bot) return res.redirect('/executors');
 
         if (accountant) {
@@ -490,10 +490,19 @@ router.get('/executor/:id', requireAuth, async (req, res) => {
         const managerBots = await ExecutorGroup.find({ isManagerBot: true, status: 'active', _id: { $ne: bot._id } });
 
         if (bot.isApiBot) {
-            const [balanceAudits, providerReturns, profitReport] = await Promise.all([
+            const apiSearchFilters = normalizeExecutorDetailQuery({ tab: 'operations', q: req.query.q });
+            const apiSearchTerm = apiSearchFilters.q;
+            const apiSearchFilter = apiSearchTerm ? { $and: [queryFilter, {
+                status: { $nin: ['deposit', 'deduction', 'deposit_pending'] },
+                $or: ['customId', 'vodafoneNumber', 'accountNumber', 'canonicalRecipient', 'serviceDetails.clientPhone'].map(field => ({ [field]: new RegExp(escapeRegex(apiSearchTerm), 'i') }))
+            }] } : null;
+            const [balanceAudits, providerReturns, profitReport, depositHistory, visibleTransactions, otherExecutorMatches] = await Promise.all([
                 ApiBalanceAudit.find({ executorGroupId: bot._id }).sort({ createdAt: -1 }).limit(100).lean(),
                 ApiProviderReturn.find({ executorGroupId: bot._id }).sort({ firstDetectedAt: -1 }).limit(100).lean(),
-                getApiProfitCommissionReport(bot)
+                getApiProfitCommissionReport(bot),
+                Transaction.find({ executorGroupId: bot._id, status: { $in: ['deposit', 'deposit_pending'] } }).sort({ createdAt: -1 }).limit(30).lean(),
+                apiSearchFilter ? Transaction.find(apiSearchFilter).sort({ updatedAt: -1 }).limit(100) : Promise.resolve(transactions.filter(tx => !['deposit', 'deduction', 'deposit_pending'].includes(tx.status))),
+                loadOtherExecutorMatches(Transaction, bot, apiSearchFilters, adminAccountScope(req))
             ]);
             const stats = {
                 successCount: transactions.filter(t => t.status === 'completed').length,
@@ -506,6 +515,10 @@ router.get('/executor/:id', requireAuth, async (req, res) => {
                 apiProviderPreset: getApiProviderPreset(bot.apiProviderKey),
                 kenanAutoFollowupEnabled: isKenanFollowupEnabled(),
                 transactions,
+                visibleTransactions,
+                depositHistory,
+                otherExecutorMatches,
+                apiSearchTerm,
                 balanceAudits,
                 providerReturns,
                 profitReport,
@@ -548,9 +561,11 @@ router.get('/executor/:id', requireAuth, async (req, res) => {
             loadExecutorHistory(Transaction, bot, req.query),
             Transaction.aggregate([{$match:queryFilter},{$group:{_id:'$status',count:{$sum:1}}}])
         ]);
+        const otherExecutorMatches = await loadOtherExecutorMatches(Transaction, bot, history.filters, adminAccountScope(req));
         res.render('executor_details', {
             history,
             detailCounts,
+            otherExecutorMatches,
             bot,
             transactions,
             managerBots,

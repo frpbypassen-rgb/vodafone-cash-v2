@@ -117,7 +117,7 @@
 
 <div class="main-content am-executor-detail"><div class="am-executor-wrap" data-executor-detail data-tab="<%= history.filters.tab %>">
 <%
-const detailLabels = {ledger:'السجل المالي',operations:'العمليات',staff:'الموظفون',settings:'الإعدادات'};
+const detailLabels = {deposits:'الإيداعات',operations:'العمليات',ledger:'كشف الحساب',staff:'الفريق',settings:'الإعدادات'};
 const detailUrl = (tab, changes = {}) => {
  const params = new URLSearchParams({tab});
  if(tab === history.filters.tab) for(const key of ['q','status','service','from','to','period']) if(history.filters[key]) params.set(key,history.filters[key]);

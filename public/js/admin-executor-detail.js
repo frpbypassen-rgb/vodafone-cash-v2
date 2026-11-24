@@ -5,7 +5,7 @@
     root.querySelector('[data-executor-detail-tab]')?.addEventListener('change', event => window.location.assign(event.target.value));
     const openAnchor = () => {
         const hash = location.hash;
-        const tab = hash === '#settlementForm' ? 'ledger' : hash === '#executor-status' ? 'settings' : null;
+        const tab = hash === '#settlementForm' ? 'deposits' : hash === '#executor-status' ? 'settings' : null;
         if (!tab) return;
         if (root.dataset.tab !== tab) {
             const url = new URL(location.href);
@@ -14,7 +14,7 @@
             return;
         }
         const panel = root.querySelector('[data-settlement-panel]');
-        if (tab === 'ledger' && panel) panel.open = true;
+        if (tab === 'deposits' && panel && panel.tagName === 'DETAILS') panel.open = true;
         document.querySelector(hash)?.scrollIntoView({block:'center'});
     };
     window.addEventListener('hashchange', openAnchor);

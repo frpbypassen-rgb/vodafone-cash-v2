@@ -40,11 +40,20 @@
         .table-actions { display: flex; justify-content: center; gap: 7px; flex-wrap: wrap; }
         .audit-alerts { max-width: 320px; white-space: normal; text-align: right; font-size: .8rem; line-height: 1.55; }
         .sync-state { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: 8px; background: #0f172a; border: 1px solid #334155; color: #cbd5e1; font-size: .78rem; }
+        .api-account-nav { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; margin-bottom: 20px; }
+        .api-account-nav a { min-height: 54px; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 10px; border: 1px solid #365173; border-radius: 10px; background: #1e293b; color: #e2e8f0; font-weight: 800; text-decoration: none; text-align: center; }
+        .api-account-nav a:hover, .api-account-nav a:focus-visible { border-color: #60a5fa; background: #253c5c; color: white; }
+        .api-other-result { border: 1px solid #365b82; border-radius: 10px; background: #172d46; padding: 14px; margin: 10px 16px; }
+        .api-other-result dl { display: flex; gap: 10px 24px; flex-wrap: wrap; margin: 8px 0; }
+        .api-other-result dt { color: #94a3b8; font-size: .75rem; }
+        .api-other-result dd { margin: 0; font-weight: 800; }
         @media (max-width: 767px) {
             .main-content { padding: 12px; }
             .api-card-header { align-items: flex-start !important; gap: 10px; flex-direction: column; }
             .api-card-header .btn { width: 100%; }
             .table-actions { min-width: 170px; }
+            .api-account-nav { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+            .api-account-nav a:last-child { grid-column: 1 / -1; }
         }
         
         /* 🟢 تنسيق زر الـ API */
@@ -67,6 +76,10 @@
 
 <div class="main-content">
     <div class="container-fluid py-2" dir="rtl">
+        <% const apiDisplayedTransactions = typeof visibleTransactions !== 'undefined' ? visibleTransactions : transactions.filter(tx => !['deposit', 'deduction', 'deposit_pending'].includes(tx.status));
+           const apiDepositRows = typeof depositHistory !== 'undefined' ? depositHistory : [];
+           const apiOtherRows = typeof otherExecutorMatches !== 'undefined' ? otherExecutorMatches : [];
+           const apiQuery = typeof apiSearchTerm !== 'undefined' ? apiSearchTerm : ''; %>
         <% if (typeof query !== 'undefined' && query.settlementError) { %>
             <div class="alert alert-danger" role="alert"><%= query.settlementError === 'RECEIPT_REQUIRED' ? 'لم يُسجّل الإيداع: أرفق صورة إيصال الدفع ثم أرسل الطلب للمراجعة.' : 'تعذر تسجيل التسوية؛ تحقق من الجلسة وأعد المحاولة.' %></div>
         <% } %>
@@ -86,6 +99,14 @@
                 <a href="/executors" class="btn btn-outline-light rounded-pill px-4"><i class="fa-solid fa-arrow-right me-2"></i> عودة لإدارة التنفيذ</a>
             </div>
         </div>
+
+        <nav class="api-account-nav" aria-label="أقسام حساب منفذ API">
+            <a href="#api-deposits"><i class="fa-solid fa-wallet" aria-hidden="true"></i> الإيداع والسجل</a>
+            <a href="#api-operations"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i> العمليات والبحث</a>
+            <a href="#api-connection"><i class="fa-solid fa-link" aria-hidden="true"></i> الاتصال</a>
+            <a href="#balance-reconciliation"><i class="fa-solid fa-scale-balanced" aria-hidden="true"></i> مطابقة الرصيد</a>
+            <a href="#provider-returns"><i class="fa-solid fa-arrow-rotate-left" aria-hidden="true"></i> المرتجعات</a>
+        </nav>
 
         <% if (typeof query !== 'undefined' && query.profileUpdated === '1') { %>
             <div class="alert alert-success fw-bold"><i class="fa-solid fa-circle-check me-2"></i> تم تحديث بيانات المنفذ بنجاح.</div>
@@ -152,7 +173,7 @@
             <%- include('partials/api_profit_commission', { bot, profitReport, isMaster, query }) %>
         <% } %>
 
-        <div class="row g-4 mb-4">
+        <div class="row g-4 mb-4" id="api-connection">
             <div class="col-lg-6">
                 <div class="api-card h-100">
                     <div class="api-card-header text-info d-flex justify-content-between align-items-center">
@@ -271,7 +292,7 @@
                 </div>
             </div>
 
-            <div class="col-lg-6">
+            <div class="col-lg-6" id="api-deposits">
                 <div class="api-card h-100">
                     <div class="api-card-header text-warning d-flex justify-content-between align-items-center">
                         <span><i class="fa-solid fa-coins me-2"></i> إدارة العهدة الرقمية</span>
@@ -297,6 +318,16 @@
                                 <i class="fa-solid fa-bolt me-2"></i> إرسال طلب الإيداع / تنفيذ الخصم
                             </button>
                         </form>
+                        <div class="border-top border-secondary mt-4 pt-3">
+                            <h2 class="h6 fw-bold">سجل الإيداعات السابقة <small class="text-muted">آخر 30 طلبًا</small></h2>
+                            <% if (!apiDepositRows.length) { %><p class="section-note mb-0">لا توجد إيداعات مسجلة لهذا المنفذ.</p><% } %>
+                            <% apiDepositRows.forEach(item => { %>
+                            <div class="d-flex justify-content-between gap-2 border-bottom border-secondary py-2 small">
+                                <span><bdi dir="ltr"><%= item.customId %></bdi><small class="d-block text-muted"><%= new Date(item.createdAt).toLocaleString('ar-LY', { timeZone: 'Africa/Tripoli' }) %></small></span>
+                                <span class="text-end"><strong dir="ltr"><%= Number(item.amount || 0).toFixed(2) %> EGP</strong><small class="d-block <%= item.status === 'deposit' ? 'text-success' : 'text-warning' %>"><%= item.status === 'deposit' ? 'معتمد' : 'قيد المراجعة' %></small></span>
+                            </div>
+                            <% }); %>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -448,11 +479,37 @@
             </div>
         </div>
 
-        <div class="api-card">
+        <div class="api-card" id="api-operations">
             <div class="api-card-header text-primary d-flex justify-content-between align-items-center">
                 <span><i class="fa-solid fa-terminal me-2"></i> سجل التخاطب مع السيرفر (API Logs)</span>
-                <span class="badge bg-primary rounded-pill">أحدث 100 حركة</span>
+                <span class="badge bg-primary rounded-pill"><%= apiQuery ? 'نتائج البحث' : 'أحدث العمليات' %></span>
             </div>
+            <form method="get" action="/executor/<%= bot._id %>" role="search" class="p-3 d-flex gap-2 flex-wrap" aria-label="البحث في عمليات المنفذين">
+                <label class="visually-hidden" for="apiOperationSearch">رقم العملية أو رقم الهاتف</label>
+                <input id="apiOperationSearch" type="search" name="q" value="<%= apiQuery %>" class="form-control flex-grow-1" style="width:min(100%,280px)" placeholder="رقم العملية أو رقم الهاتف">
+                <button class="btn btn-primary" type="submit">بحث شامل</button>
+                <% if (apiQuery) { %><a class="btn btn-outline-light" href="/executor/<%= bot._id %>#api-operations">مسح</a><% } %>
+            </form>
+            <% if (apiQuery && apiQuery.length < 4) { %><p class="section-note px-3">للبحث لدى المنفذين الآخرين، أدخل 4 رموز على الأقل.</p><% } %>
+            <% if (apiOtherRows.length) { %>
+            <section aria-label="عمليات لدى منفذين آخرين">
+                <h2 class="h6 px-3 fw-bold">مطابقات لدى منفذين آخرين</h2>
+                <% apiOtherRows.forEach(item => {
+                    const owner = item.executorGroupId;
+                    const ownerName = owner?.name || item.executorGroupName || 'منفذ آخر';
+                %>
+                <article class="api-other-result">
+                    <div class="d-flex justify-content-between gap-2"><strong dir="ltr"><%= item.customId %></strong><span><%= item.status === 'completed' ? 'مكتملة' : item.status %></span></div>
+                    <dl>
+                        <div><dt>المنفذ</dt><dd><%= ownerName %></dd></div>
+                        <div><dt>الهاتف / الحساب</dt><dd dir="ltr"><%= item.vodafoneNumber || item.accountNumber || item.serviceDetails?.clientPhone || item.canonicalRecipient || '—' %></dd></div>
+                        <div><dt>القيمة</dt><dd dir="ltr"><%= Number(item.amount || 0).toFixed(2) %> EGP</dd></div>
+                    </dl>
+                    <% if (owner?._id) { %><a class="btn btn-sm btn-outline-info" href="/executor/<%= owner._id %>?tab=operations&amp;q=<%= encodeURIComponent(item.customId) %>">فتح حساب <%= ownerName %></a><% } %>
+                </article>
+                <% }); %>
+            </section>
+            <% } %>
             <div class="card-body p-0">
                 <div class="table-responsive">
                     <table class="table table-hover table-dark-custom text-center mb-0">
@@ -467,10 +524,10 @@
                             </tr>
                         </thead>
                         <tbody>
-                            <% if(transactions.length === 0) { %>
+                            <% if(apiDisplayedTransactions.length === 0) { %>
                                 <tr><td colspan="6" class="py-5 text-muted">لا يوجد سجل عمليات حتى الآن.</td></tr>
                             <% } %>
-                            <% transactions.forEach(tx => {
+                            <% apiDisplayedTransactions.forEach(tx => {
                                 const communication = providerCommunicationView(tx);
                             %>
                                 <tr>

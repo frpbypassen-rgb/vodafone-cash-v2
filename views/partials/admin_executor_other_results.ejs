@@ -1,0 +1,29 @@
+<% if (history.filters.q && history.filters.q.trim().replace(/^#/, '').length < 4) { %>
+<p class="am-detail-search-hint" role="status">للبحث لدى جميع المنفذين، أدخل 4 رموز على الأقل من رقم العملية أو الهاتف.</p>
+<% } %>
+<% if (otherExecutorMatches.length) { %>
+<aside class="am-other-executors" aria-labelledby="amOtherExecutorsTitle">
+    <header>
+        <div><span class="am-other-eyebrow">نتائج البحث العام</span><h3 id="amOtherExecutorsTitle">عمليات لدى منفذين آخرين</h3></div>
+        <span><%= otherExecutorMatches.length %> نتيجة</span>
+    </header>
+    <div class="am-other-list">
+        <% otherExecutorMatches.forEach(tx => {
+            const owner = tx.executorGroupId;
+            const ownerId = owner && owner._id;
+            const ownerName = (owner && owner.name) || tx.executorGroupName || 'منفذ آخر';
+        %>
+        <article class="am-other-result">
+            <div class="am-other-result-top"><strong><bdi><%= tx.customId || tx._id %></bdi></strong><span><%= detailStatuses[tx.status] || tx.status %></span></div>
+            <dl>
+                <div><dt>المنفذ</dt><dd><%= ownerName %></dd></div>
+                <div><dt>رقم الهاتف / الحساب</dt><dd><bdi dir="ltr"><%= tx.vodafoneNumber || tx.accountNumber || tx.serviceDetails?.clientPhone || tx.canonicalRecipient || '—' %></bdi></dd></div>
+                <div><dt>القيمة</dt><dd><bdi dir="ltr"><%= detailMoney(tx.amount) %> ج.م</bdi></dd></div>
+                <div><dt>التاريخ</dt><dd><%= new Date(tx.completedAt || tx.createdAt).toLocaleString('ar-LY', { timeZone: 'Africa/Tripoli' }) %></dd></div>
+            </dl>
+            <% if (ownerId) { %><a class="am-button" href="/executor/<%= encodeURIComponent(String(ownerId)) %>?tab=operations&amp;q=<%= encodeURIComponent(tx.customId || String(tx._id)) %>">فتح العملية في حساب <%= ownerName %></a><% } %>
+        </article>
+        <% }); %>
+    </div>
+</aside>
+<% } %>
