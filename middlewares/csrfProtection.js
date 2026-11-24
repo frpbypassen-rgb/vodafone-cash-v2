@@ -105,7 +105,14 @@ const isDeferredAdminAccountEditCsrf = (req) => (
 const injectTokenIntoHtml = (html, token) => {
     if (!token || typeof html !== 'string' || !html.includes('<form')) return html;
     const hiddenInput = `<input type="hidden" name="_csrf" value="${escapeHtml(token)}">`;
-    return html.replace(/(<form\b(?=[^>]*method=["']?post["']?)[^>]*>)(?![\s\S]*?<input[^>]+name=["']_csrf["'])/gi, `$1${hiddenInput}`);
+    // Inspect each form independently. A token in a later form must not
+    // suppress injection into an earlier POST form on the same page.
+    return html.replace(/<form\b[^>]*>[\s\S]*?<\/form>/gi, (form) => {
+        const opening = form.match(/^<form\b[^>]*>/i)?.[0];
+        if (!opening || !/\bmethod\s*=\s*(?:"post"|'post'|post\b)/i.test(opening)) return form;
+        if (/<input\b[^>]*\bname\s*=\s*(?:"_csrf"|'_csrf'|_csrf\b)[^>]*>/i.test(form)) return form;
+        return `${opening}${hiddenInput}${form.slice(opening.length)}`;
+    });
 };
 
 const csrfProtection = (req, res, next) => {
