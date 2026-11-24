@@ -1,6 +1,6 @@
 <%
 const detailSections = [
-    {key:'deposits', icon:'fa-wallet', hint:'إيداع وسجل'},
+    {key:'deposits', icon:'fa-wallet', hint:isMaster ? 'إيداع وسجل' : 'سجل الإيداعات'},
     {key:'operations', icon:'fa-arrow-right-arrow-left', hint:'بحث ومتابعة'},
     {key:'ledger', icon:'fa-receipt', hint:'حركة الرصيد'},
     {key:'staff', icon:'fa-users', hint:'حسابات الفريق'},
@@ -15,3 +15,4 @@ const detailSections = [
     </a>
     <% }); %>
 </nav>
+<p class="am-detail-tabs-hint">اسحب لعرض بقية الأقسام <i class="fa-solid fa-arrow-left" aria-hidden="true"></i></p>
