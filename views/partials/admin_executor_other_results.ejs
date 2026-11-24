@@ -5,7 +5,7 @@
 <aside class="am-other-executors" aria-labelledby="amOtherExecutorsTitle">
     <header>
         <div><span class="am-other-eyebrow">نتائج البحث العام</span><h3 id="amOtherExecutorsTitle">عمليات لدى منفذين آخرين</h3></div>
-        <span><%= otherExecutorMatches.length %> نتيجة</span>
+        <span><%= otherExecutorMatches.length === 8 ? 'أحدث 8 نتائج' : otherExecutorMatches.length + ' نتيجة' %></span>
     </header>
     <div class="am-other-list">
         <% otherExecutorMatches.forEach(tx => {
@@ -25,5 +25,6 @@
         </article>
         <% }); %>
     </div>
+    <a class="am-other-all-link" href="/transactions/operations?search=<%= encodeURIComponent(history.filters.q) %>">عرض كل النتائج في صفحة العمليات</a>
 </aside>
 <% } %>

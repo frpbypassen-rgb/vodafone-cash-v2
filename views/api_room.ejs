@@ -493,7 +493,7 @@
             <% if (apiQuery && apiQuery.length < 4) { %><p class="section-note px-3">للبحث لدى المنفذين الآخرين، أدخل 4 رموز على الأقل.</p><% } %>
             <% if (apiOtherRows.length) { %>
             <section aria-label="عمليات لدى منفذين آخرين">
-                <h2 class="h6 px-3 fw-bold">مطابقات لدى منفذين آخرين</h2>
+                <h2 class="h6 px-3 fw-bold">مطابقات لدى منفذين آخرين <small class="text-muted"><%= apiOtherRows.length === 8 ? 'أحدث 8 نتائج' : apiOtherRows.length + ' نتيجة' %></small></h2>
                 <% apiOtherRows.forEach(item => {
                     const owner = item.executorGroupId;
                     const ownerName = owner?.name || item.executorGroupName || 'منفذ آخر';
@@ -508,6 +508,7 @@
                     <% if (owner?._id) { %><a class="btn btn-sm btn-outline-info" href="/executor/<%= owner._id %>?tab=operations&amp;q=<%= encodeURIComponent(item.customId) %>">فتح حساب <%= ownerName %></a><% } %>
                 </article>
                 <% }); %>
+                <a class="btn btn-link text-info px-3 mb-2" href="/transactions/operations?search=<%= encodeURIComponent(apiQuery) %>">عرض كل النتائج في صفحة العمليات</a>
             </section>
             <% } %>
             <div class="card-body p-0">

@@ -266,7 +266,7 @@ describe('central ledger page layout', () => {
         expect(companies.indexOf('شركة النور')).toBeLessThan(companies.indexOf('شركة الأمل'));
         const executors = html.slice(html.indexOf('class="ow-executors"'),html.indexOf('</section>',html.indexOf('class="ow-executors"')));
         expect(html).toMatch(/class="ow-companies"[\s\S]*?class="ow-workspace-side"[\s\S]*?class="ow-breakdown"[\s\S]*?class="ow-executors"/);
-        expect(executors).toContain('/transactions/operations?executorId=e1');expect(executors).toContain('href="/executor/e2"');
+        expect(executors).toContain('href="/executor/e1"');expect(executors).toContain('href="/executor/e2"');
         for(const amount of ['2,500.50','128,450.75','0.00','320.50']) expect(executors).toContain(amount);
         expect(executors).toContain('رصيد الكاش');expect(executors).toContain('رصيد البنك');
         expect(executors).toContain('<dt>المنفذة اليوم</dt><dd><bdi dir="ltr">4</bdi></dd>');

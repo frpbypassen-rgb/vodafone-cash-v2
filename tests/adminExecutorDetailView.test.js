@@ -28,5 +28,6 @@ test('operations search shows another executor in a distinct result card', async
     expect(html).toContain('منفذ الشرق');
     expect(html).toContain('ATT-2611-28592');
     expect(html).toContain('href="/executor/other?tab=operations&amp;q=ATT-2611-28592"');
+    expect(html).toContain('href="/transactions/operations?search=28592"');
     expect(html).toContain('0912345678');
 });

@@ -378,6 +378,8 @@ const renderTransactions = async (req, res, operationsWorkspace = false) => {
                     { customId: { $regex: safeSearch, $options: 'i' } },
                     { vodafoneNumber: { $regex: safeSearch, $options: 'i' } },
                     { accountNumber: { $regex: safeSearch, $options: 'i' } },
+                    { canonicalRecipient: { $regex: safeSearch, $options: 'i' } },
+                    { 'serviceDetails.clientPhone': { $regex: safeSearch, $options: 'i' } },
                     { companyName: { $regex: safeSearch, $options: 'i' } },
                     { employeeName: { $regex: safeSearch, $options: 'i' } }
                 ]
