@@ -1,4 +1,4 @@
-<a class="ow-account ow-executor" href="<%= active ? '/transactions/operations?executorId=' + encodeURIComponent(executor.id) + '&fromDate=&toDate=' : '/executor/' + encodeURIComponent(executor.id) %>">
+<a class="ow-account ow-executor" href="/executor/<%= encodeURIComponent(executor.id) %>">
     <h3 class="ow-account-heading"><bdi><%= executor.name %></bdi><i class="fa-solid fa-chevron-left" aria-hidden="true"></i></h3>
     <dl class="ow-account-facts">
         <div class="ow-account-balance">

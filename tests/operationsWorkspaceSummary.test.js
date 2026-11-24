@@ -45,6 +45,7 @@ test('renders visible summary cards with account balances, deposits and links', 
     expect(html).toMatch(/class="ow-daily-channel ow-daily-channel-bank"[^]*?البنكي اليوم[^]*?350 <small>EGP/);
     expect(html).not.toContain('1000 <small>EGP');
     expect(html).toMatch(/href="\/company\/c"[\s\S]*?ow-negative[\s\S]*?-123456789[\s\S]*?إيداع اليوم[\s\S]*?24 <small>LYD<\/small>/);
-    expect(html).toMatch(/href="\/transactions\/operations\?executorId=busy&amp;fromDate=&amp;toDate="[\s\S]*?رصيد البنك[\s\S]*?ow-negative[\s\S]*?-5 <small>EGP<\/small>[\s\S]*?150 <small>EGP<\/small>/);
+    expect(html).toMatch(/href="\/executor\/busy"[\s\S]*?رصيد البنك[\s\S]*?ow-negative[\s\S]*?-5 <small>EGP<\/small>[\s\S]*?150 <small>EGP<\/small>/);
     expect(html).toMatch(/href="\/executor\/idle"[\s\S]*?غير متاح/);
+    expect(html).not.toContain('href="/transactions/operations?executorId=');
 });

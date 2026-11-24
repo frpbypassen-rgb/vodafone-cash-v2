@@ -82,7 +82,7 @@ const periodCounts = [
                 <h2 id="owExecutorsTitle" class="ow-panel-title"><i class="ow-card-icon fa-solid fa-user-gear" aria-hidden="true"></i> المنفذون <bdi><%= formatCount(opsExecutors.length) %></bdi></h2>
                 <div class="ow-cards">
                     <% for (const executor of orderedExecutors) { %>
-                    <%- include('operations_executor_account', { executor, formatMoney, formatCount, active: executor.activityCount > 0 }) %>
+                    <%- include('operations_executor_account', { executor, formatMoney, formatCount }) %>
                     <% } %>
                     <% if (!orderedExecutors.length) { %><p class="ow-panel-empty">لا يوجد منفذون للعرض.</p><% } %>
                 </div>
