@@ -535,7 +535,7 @@ router.get('/executor/:id', requireAuth, async (req, res) => {
             const members = await Employee.find({
                 groupId: bot._id,
                 $or: [{ archivedAt: null }, { archivedAt: { $exists: false } }]
-            }).select('name phone role status webUsername executionPolicyOverride').sort({ role: 1, name: 1 }).lean();
+            }).select('name phone role status webUsername executionPolicyOverride simpleTaskViewEnabled').sort({ role: 1, name: 1 }).lean();
             teamEmployees = members.map((member) => ({
                 ...member,
                 executionPolicy: toPublicExecutionPolicy(readExecutorManualPolicy(bot, member))
@@ -1019,6 +1019,42 @@ router.post('/executor/:id/manual-policy', requireAuth, requireMaster, async (re
         return res.redirect(`/executor/${bot._id}?manualPolicyUpdated=1`);
     } catch (_) {
         return res.redirect(`/executor/${req.params.id}?manualPolicyError=UPDATE_FAILED`);
+    }
+});
+
+router.post('/executor/:id/employees/:employeeId/simple-view', requireAuth, requireMaster, async (req, res) => {
+    try {
+        const bot = await ExecutorGroup.findById(req.params.id);
+        if (!bot || bot.status === 'archived' || bot.isApiBot || bot.isApiGroup || bot.isManagerBot) {
+            return res.status(404).send('منفذ يدوي غير متاح.');
+        }
+        const employee = await Employee.findOne({
+            _id: req.params.employeeId,
+            groupId: bot._id,
+            role: { $in: ['operator', 'external'] },
+            archivedAt: null
+        });
+        if (!employee) return res.status(404).send('حساب منفذ غير متاح.');
+        const enabled = req.body?.enabled === 'true';
+        const previous = Boolean(employee.simpleTaskViewEnabled);
+        employee.simpleTaskViewEnabled = enabled;
+        await employee.save();
+        clearExecutorAuthCache();
+        await logAction({
+            action: 'EXECUTOR_SIMPLE_VIEW_UPDATED',
+            req,
+            performedById: req.session.adminId,
+            performedByModel: 'Admin',
+            performedByName: req.session.adminName || 'الإدارة',
+            targetId: employee._id,
+            targetModel: 'Employee',
+            oldData: { simpleTaskViewEnabled: previous },
+            newData: { simpleTaskViewEnabled: enabled },
+            metadata: { executorName: bot.name }
+        }).catch(() => {});
+        return res.redirect(`/executor/${bot._id}?tab=staff&simpleViewUpdated=1`);
+    } catch (_) {
+        return res.redirect(`/executor/${req.params.id}?tab=staff&simpleViewError=UPDATE_FAILED`);
     }
 });
 

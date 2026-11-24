@@ -6,6 +6,7 @@ const {
 } = require('../../../services/executorTaskRoutingService');
 const mobileWebParityService = require('../../../services/mobileWebParityService');
 const { readExecutorManualPolicy, toPublicExecutionPolicy } = require('../../../utils/executorManualPolicy');
+const { isSimpleExecutor } = require('../../../utils/executorSimpleView');
 const {
     loadPortalLiveTasks,
     getLinkedExecutorServices,
@@ -37,7 +38,7 @@ exports.getDashboard = async (req, res) => {
     const workingBalance =
         emp?.role === 'external' ? await workingBalanceForEmployee(emp).catch(() => null) : null;
     const executorServices = await getLinkedExecutorServices(emp).catch(() => []);
-    res.render('executor/dashboard', {
+    res.render(isSimpleExecutor(emp) ? 'executor/dashboard-simple' : 'executor/dashboard', {
         emp,
         showMfaNotice,
         activeTaskId: req.activeTaskId || null,

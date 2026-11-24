@@ -95,6 +95,23 @@ describe('executor dashboard error containment', () => {
         executorEmployee: { _id: 'employee-1', groupId: { _id: 'group-1' } }
     });
 
+    test('renders the opt-in single screen for a manual operator and keeps the standard screen as default', async () => {
+        Transaction.findOne.mockResolvedValue(null);
+        const req = request();
+        req.executorEmployee = {
+            _id: 'employee-1', role: 'operator', status: 'active',
+            groupId: { _id: 'group-1', status: 'active', isApiBot: false },
+            simpleTaskViewEnabled: true
+        };
+        const res = response();
+        await controller.getDashboard(req, res);
+        expect(res.render).toHaveBeenCalledWith('executor/dashboard-simple', expect.objectContaining({ emp: req.executorEmployee }));
+        req.executorEmployee.simpleTaskViewEnabled = false;
+        res.render.mockClear();
+        await controller.getDashboard(req, res);
+        expect(res.render).toHaveBeenCalledWith('executor/dashboard', expect.any(Object));
+    });
+
     test.each([
         ['getDepositRequests', 'listDepositRequests'],
         ['postDepositRequest', 'createDepositRequest'],

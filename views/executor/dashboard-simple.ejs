@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta http-equiv="Cache-Control" content="no-store">
+    <title>عمليات التنفيذ | الأهرام</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/css/executor/simple-dashboard.css">
+    <script>window.executorCsrfToken = <%- JSON.stringify(typeof csrfToken !== 'undefined' ? csrfToken : '').replace(/</g, '\\u003c') %>;</script>
+    <script src="/js/executor-api.js" defer></script>
+    <script src="/js/executor/simple-dashboard.js" defer></script>
+</head>
+<body>
+    <main class="simple-shell">
+        <header class="simple-header">
+            <div class="simple-brand"><span class="simple-mark" aria-hidden="true">أ</span><div><strong>غرفة التنفيذ</strong><small>الأهرام · <%= emp.groupId?.name || 'حساب منفذ' %></small></div></div>
+            <a class="simple-logout" href="/executor-portal/logout">خروج</a>
+        </header>
+
+        <section class="simple-day" aria-labelledby="simpleDayTitle">
+            <div class="simple-day-heading"><div><span class="simple-eyebrow">ملخص العمل</span><h1 id="simpleDayTitle">عمل اليوم</h1></div><span id="simpleConnection" class="simple-connection" role="status">جار الاتصال</span></div>
+            <div class="simple-day-stats">
+                <div><span>العمليات المكتملة</span><strong id="simpleCompletedCount">—</strong></div>
+                <div><span>إجمالي القيمة</span><strong id="simpleCompletedAmount">—</strong></div>
+            </div>
+        </section>
+
+        <section class="simple-operations" aria-labelledby="simpleOperationsTitle">
+            <div class="simple-section-heading"><div><span class="simple-eyebrow">تحديث مباشر</span><h2 id="simpleOperationsTitle">العمليات الواردة</h2></div><span id="simpleTaskCount" class="simple-count">0</span></div>
+            <p id="simpleMessage" class="simple-message" role="status" hidden></p>
+            <div id="simpleTasks" class="simple-tasks" aria-live="polite" aria-busy="true"><p class="simple-empty">جار تحميل العمليات…</p></div>
+        </section>
+    </main>
+
+    <dialog id="simpleCompleteDialog" class="simple-dialog" aria-labelledby="simpleCompleteTitle">
+        <div class="simple-dialog-head"><div><span class="simple-eyebrow">توثيق التنفيذ</span><h2 id="simpleCompleteTitle">إنجاح العملية</h2></div><button type="button" class="simple-close" data-close-dialog aria-label="إغلاق">×</button></div>
+        <p id="simpleCompleteTask" class="simple-dialog-task"></p>
+        <label class="simple-field" for="simpleExecutionNumber">رقم المنفذ <small>من 3 إلى 11 رقمًا</small></label>
+        <input id="simpleExecutionNumber" type="text" inputmode="numeric" pattern="[0-9]{3,11}" minlength="3" maxlength="11" autocomplete="off" dir="ltr" placeholder="مثال: 2258">
+        <span class="simple-or">أو</span>
+        <label class="simple-photo-button" for="simpleProofInput">اختيار صورة من الاستوديو</label>
+        <input id="simpleProofInput" type="file" accept="image/*" aria-describedby="simpleProofHint">
+        <small id="simpleProofHint" class="simple-help">أرفق صورة التنفيذ أو أدخل رقم المنفذ. للتحويل البنكي، الصورة مطلوبة.</small>
+        <p id="simpleProofName" class="simple-file-name" role="status">لم تُختر صورة</p>
+        <div class="simple-dialog-actions"><button type="button" class="simple-secondary" data-close-dialog>تراجع</button><button type="button" class="simple-primary" id="simpleConfirmComplete">تأكيد النجاح</button></div>
+    </dialog>
+
+    <dialog id="simpleCancelDialog" class="simple-dialog" aria-labelledby="simpleCancelTitle">
+        <div class="simple-dialog-head"><div><span class="simple-eyebrow">مراجعة العملية</span><h2 id="simpleCancelTitle">إلغاء العملية</h2></div><button type="button" class="simple-close" data-close-dialog aria-label="إغلاق">×</button></div>
+        <p id="simpleCancelTask" class="simple-dialog-task"></p>
+        <label class="simple-field" for="simpleCancelReason">سبب الإلغاء</label>
+        <select id="simpleCancelReason" required><option value="">اختر السبب</option><option value="لا توجد محفظة">لا توجد محفظة</option><option value="محفظة ليميت">محفظة ليميت</option><option value="الرقم غير صحيح">الرقم غير صحيح</option><option value="الخدمة متوقفة حاليا">الخدمة متوقفة حاليًا</option><option value="other">سبب آخر</option></select>
+        <textarea id="simpleOtherReason" rows="3" maxlength="300" placeholder="اكتب السبب" hidden></textarea>
+        <div class="simple-dialog-actions"><button type="button" class="simple-secondary" data-close-dialog>تراجع</button><button type="button" class="simple-danger" id="simpleConfirmCancel">تأكيد الإلغاء</button></div>
+    </dialog>
+</body>
+</html>

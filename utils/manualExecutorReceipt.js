@@ -57,13 +57,17 @@ class ManualExecutionNumberError extends Error {
 
 const digitsOnly = (value) => String(value || '').replace(/[^0-9]/g, '');
 
-const maskManualExecutionNumber = (value) => {
+const maskManualExecutionNumber = (value, { allowSimpleRange = false } = {}) => {
     const digits = digitsOnly(value);
     if (!digits) return '';
 
     if (/^01\d{9}$/.test(digits)) return `${digits.slice(0, 3)}****${digits.slice(-4)}`;
     if (/^\d{3}$/.test(digits)) return `01******${digits}`;
     if (/^\d{4}$/.test(digits)) return `01*****${digits}`;
+    if (allowSimpleRange && /^\d{5,11}$/.test(digits)) {
+        const prefixLength = digits.length === 11 ? 3 : 0;
+        return `${digits.slice(0, prefixLength)}${'*'.repeat(digits.length - prefixLength - 4)}${digits.slice(-4)}`;
+    }
 
     throw new ManualExecutionNumberError(
         'INVALID_EXECUTION_NUMBER',

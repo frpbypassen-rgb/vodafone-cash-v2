@@ -16,13 +16,15 @@ test('fresh lean authentication preserves the services, pool and tenant required
     const employeeId = new mongoose.Types.ObjectId();
     const poolId = new mongoose.Types.ObjectId();
     const tenantId = new mongoose.Types.ObjectId();
-    await ExecutorGroup.collection.insertOne({ _id: groupId, name: 'Bank executor', status: 'active', serviceKey: 'bank_account', serviceKeys: ['bank_account','postal'], serviceBalances: { bank_account: 500, postal: 100 }, apiToken: 'must-not-leak' });
-    await Employee.collection.insertOne({ _id: employeeId, name: 'External', status: 'active', role: 'external', groupId, balancePoolId: poolId, tenantId, webPassword: 'must-not-leak' });
+    await ExecutorGroup.collection.insertOne({ _id: groupId, name: 'Bank executor', status: 'active', isApiBot: false, isManagerBot: false, serviceKey: 'bank_account', serviceKeys: ['bank_account','postal'], serviceBalances: { bank_account: 500, postal: 100 }, apiToken: 'must-not-leak' });
+    await Employee.collection.insertOne({ _id: employeeId, name: 'External', status: 'active', role: 'external', groupId, balancePoolId: poolId, tenantId, simpleTaskViewEnabled: true, webPassword: 'must-not-leak' });
     clearExecutorAuthCache();
     const employee = await loadExecutorEmployee(employeeId, { fresh: true, lean: true });
     expect(String(employee.balancePoolId)).toBe(String(poolId));
     expect(String(employee.tenantId)).toBe(String(tenantId));
     expect(employee.groupId).toMatchObject({ serviceKey: 'bank_account', serviceKeys: ['bank_account','postal'], serviceBalances: { bank_account: 500, postal: 100 } });
+    expect(employee.simpleTaskViewEnabled).toBe(true);
+    expect(employee.groupId.isApiBot).toBe(false);
     expect(employee.webPassword).toBeUndefined();
     expect(employee.groupId.apiToken).toBeUndefined();
 });

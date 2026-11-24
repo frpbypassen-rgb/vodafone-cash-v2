@@ -201,6 +201,49 @@ describe('executor ledger rollback and reconciliation on local Mongo', () => {
         expect((await Employee.findById(employee._id)).balance).toBe(200);
     });
 
+    test('simple executor completes once with a 5-digit number', async () => {
+        await fund();
+        const task = await Transaction.create({ customId: 'LOCAL-SIMPLE-NUMBER', status: 'accepted',
+            amount: 100, executorGroupId: group._id, operatorId: String(employee._id) });
+        employee.simpleTaskViewEnabled = true;
+        await employee.save();
+        jest.spyOn(fs, 'existsSync').mockReturnValue(true);
+        jest.spyOn(fs, 'writeFileSync').mockImplementation(() => {});
+        const executor = await Employee.findById(employee._id).populate('groupId');
+        await completeExecutorTask({ transactionId: task._id, executorId: employee._id, executor,
+            body: { executionNumber: '12345' } });
+        const stored = await Transaction.findById(task._id);
+        expect(stored.status).toBe('completed');
+        expect((await Transaction.findById(task._id).select('+executorExecutionNumber')).executorExecutionNumber).toBe('12345');
+        expect(stored.executorSenderEntries).toHaveLength(1);
+        expect(stored.executorProofImages).toHaveLength(0);
+        expect(await total()).toBe(900);
+        await expect(completeExecutorTask({ transactionId: task._id, executorId: employee._id, executor,
+            body: { executionNumber: '12345' } })).rejects.toThrow(/غير متاحة|مسبق/);
+    });
+
+    test('simple executor accepts one real image without a number and rejects empty proof', async () => {
+        await fund();
+        const task = await Transaction.create({ customId: 'LOCAL-SIMPLE-IMAGE', status: 'accepted',
+            amount: 100, executorGroupId: group._id, operatorId: String(employee._id) });
+        employee.simpleTaskViewEnabled = true;
+        await employee.save();
+        const executor = await Employee.findById(employee._id).populate('groupId');
+        await expect(completeExecutorTask({ transactionId: task._id, executorId: employee._id, executor,
+            body: {} })).rejects.toThrow(/صورة التنفيذ|رقم المنفذ/);
+        expect((await Transaction.findById(task._id)).status).toBe('accepted');
+        const imageBase64 = `data:image/png;base64,${fs.readFileSync(require('path').join(__dirname, '..', 'public', 'images', 'instapay_logo.png')).toString('base64')}`;
+        jest.spyOn(fs, 'existsSync').mockReturnValue(true);
+        jest.spyOn(fs, 'writeFileSync').mockImplementation(() => {});
+        await completeExecutorTask({ transactionId: task._id, executorId: employee._id, executor,
+            body: { imageBase64 } });
+        const stored = await Transaction.findById(task._id);
+        expect(stored.status).toBe('completed');
+        expect((await Transaction.findById(task._id).select('+executorExecutionNumber')).executorExecutionNumber).toBeUndefined();
+        expect(stored.executorProofImages).toHaveLength(1);
+        expect(await total()).toBe(900);
+    });
+
     test('company completed-today aggregation matches actual ObjectId groups only', async () => {
         const now = new Date();
         await Transaction.create({ customId: 'LOCAL-TODAY', status: 'completed', amount: 125,

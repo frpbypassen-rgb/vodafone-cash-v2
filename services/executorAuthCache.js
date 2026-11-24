@@ -8,11 +8,14 @@ const MAX_CACHE_ENTRIES = 2000;
 const EMPLOYEE_FIELDS = [
     'name', 'phone', 'role', 'status', 'groupId', 'webUsername', 'telegramId',
     'canViewAllReports', 'balance', 'balancePoolId', 'tenantId',
-    'executionPolicyOverride', 'sessionVersion', 'ussdNetwork', 'ussdWalletPinSetAt'
+    'executionPolicyOverride', 'simpleTaskViewEnabled', 'sessionVersion', 'ussdNetwork', 'ussdWalletPinSetAt'
 ].join(' ');
 const GROUP_FIELDS = [
     'name',
     'status',
+    'isApiBot',
+    'isApiGroup',
+    'isManagerBot',
     'balance',
     'serviceKey',
     'serviceKeys',

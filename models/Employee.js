@@ -12,6 +12,8 @@ const employeeSchema = new mongoose.Schema({
     groupId: { type: mongoose.Schema.Types.ObjectId, ref: 'ExecutorGroup', required: true },
     webUsername: { type: String, unique: true, required: true },
     webPassword: { type: String, required: true },
+    // Admin opt-in for the one-screen manual task portal.
+    simpleTaskViewEnabled: { type: Boolean, default: false },
     mfaEnabled: { type: Boolean, default: false },
     mfaType: { type: String, enum: ['none', 'totp'], default: 'none' },
     totpSecretEncrypted: { type: String, select: false },

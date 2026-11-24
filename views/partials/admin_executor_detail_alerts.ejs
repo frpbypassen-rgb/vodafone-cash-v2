@@ -11,6 +11,12 @@
         <% if (typeof query !== 'undefined' && query.employeePolicyUpdated === '1') { %>
             <div class="alert alert-success fw-bold shadow-sm"><i class="fa-solid fa-circle-check me-2"></i> تم تحديث صلاحيات المنفذ بنجاح.</div>
         <% } %>
+        <% if (typeof query !== 'undefined' && query.simpleViewUpdated === '1') { %>
+            <div class="alert alert-success fw-bold shadow-sm"><i class="fa-solid fa-circle-check me-2"></i> تم تحديث واجهة المنفذ بنجاح.</div>
+        <% } %>
+        <% if (typeof query !== 'undefined' && query.simpleViewError) { %>
+            <div class="alert alert-danger fw-bold shadow-sm"><i class="fa-solid fa-triangle-exclamation me-2"></i> تعذر تحديث واجهة المنفذ. تحقق من الحساب والصلاحيات.</div>
+        <% } %>
         <% if (typeof query !== 'undefined' && query.employeePolicyError) { %>
             <div class="alert alert-danger fw-bold shadow-sm"><i class="fa-solid fa-triangle-exclamation me-2"></i> تعذر حفظ صلاحيات المنفذ. التعديل متاح للإدارة فقط ولا يشمل حساب المدير.</div>
         <% } %>

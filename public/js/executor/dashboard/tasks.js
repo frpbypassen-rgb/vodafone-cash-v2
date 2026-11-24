@@ -118,6 +118,10 @@ async function refreshTasks() {
         const res = await executorApiFetch(liveTasksUrl);
         const data = await readExecutorApiResponse(res);
         if (requestId !== liveTasksRequestId) return;
+        if (data.simpleTaskViewEnabled === true) {
+            window.location.replace('/executor-portal/dashboard');
+            return;
+        }
         hideTaskBoardStatus();
         const nextPollSeconds = Number(data.pollIntervalSeconds);
         if (Number.isFinite(nextPollSeconds) && nextPollSeconds >= 5 && nextPollSeconds <= 30) {

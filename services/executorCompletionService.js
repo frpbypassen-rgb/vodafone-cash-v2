@@ -12,6 +12,7 @@ const { reserveManualExecutorReceiptReference } = require('./manualExecutorRecei
 const { ExecutorSenderEntriesError, normalizeExecutorSenderEntries } = require('../utils/executorSenderEntries');
 const { preparePersistedSenderEntries } = require('../utils/splitPartProofs');
 const { readExecutorManualPolicy } = require('../utils/executorManualPolicy');
+const { isSimpleExecutor, parseSimpleCompletionInput } = require('../utils/executorSimpleView');
 const {
     BankTransferExecutionError,
     BANK_TRANSFER_PROOF_NOTE,
@@ -64,7 +65,17 @@ const completeExecutorTask = async ({ transactionId, executorId, executor, body 
             }
         }
 
-        const requestedSenderEntries = bankTransfer
+        const simpleView = isSimpleExecutor(emp);
+        const proofs = getProofImages(bankTransfer ? { imagesBase64: bankProofPayloads } : body);
+        let simpleExecutionNumber = null;
+        if (simpleView && !bankTransfer) {
+            try {
+                simpleExecutionNumber = parseSimpleCompletionInput({ body, proofCount: proofs.length });
+            } catch (error) {
+                throw new ExecutorTransactionError(error.message, 400);
+            }
+        }
+        const requestedSenderEntries = bankTransfer || simpleView
             ? null
             : (Array.isArray(body.senderEntries)
                 ? body.senderEntries.map((entry) => ({
@@ -76,13 +87,15 @@ const completeExecutorTask = async ({ transactionId, executorId, executor, body 
         let senderEntries = [];
         if (!bankTransfer) {
             try {
-                senderEntries = normalizeExecutorSenderEntries({
-                    requestedSenderEntries,
-                    senderPhone: body.executionNumber ?? body.senderPhone,
-                    operationAmount: tx.amount,
-                    group: emp.groupId,
-                    policy: manualPolicy
-                });
+                senderEntries = simpleView
+                    ? (simpleExecutionNumber ? [{ phone: simpleExecutionNumber, amount: Number(tx.amount), proofImage: null }] : [])
+                    : normalizeExecutorSenderEntries({
+                        requestedSenderEntries,
+                        senderPhone: body.executionNumber ?? body.senderPhone,
+                        operationAmount: tx.amount,
+                        group: emp.groupId,
+                        policy: manualPolicy
+                    });
             } catch (error) {
                 if (error instanceof ExecutorSenderEntriesError) {
                     throw new ExecutorTransactionError(error.message, error.statusCode);
@@ -93,16 +106,19 @@ const completeExecutorTask = async ({ transactionId, executorId, executor, body 
 
         const executionNumber = bankTransfer
             ? ''
-            : String(
+            : (simpleView ? simpleExecutionNumber : String(
                 body.executionNumber
                 ?? body.senderPhone
                 ?? senderEntries[0]?.phone
                 ?? ''
-            ).trim();
+            ).trim());
         let maskedExecutionNumber = '';
         if (!bankTransfer) {
             try {
-                maskedExecutionNumber = maskManualExecutionNumber(executionNumber || senderEntries[0]?.phone || '');
+                const numberToMask = executionNumber || senderEntries[0]?.phone || '';
+                maskedExecutionNumber = simpleView
+                    ? maskManualExecutionNumber(numberToMask, { allowSimpleRange: true })
+                    : maskManualExecutionNumber(numberToMask);
             } catch (error) {
                 if (error instanceof ManualExecutionNumberError) {
                     throw new ExecutorTransactionError(error.message);
@@ -111,8 +127,7 @@ const completeExecutorTask = async ({ transactionId, executorId, executor, body 
             }
         }
 
-        const proofs = getProofImages(bankTransfer ? { imagesBase64: bankProofPayloads } : body);
-        if (!bankTransfer && manualPolicy.proofRequired && proofs.length === 0 && senderEntries.every((entry) => !entry.proofImage)) {
+        if (!bankTransfer && !simpleView && manualPolicy.proofRequired && proofs.length === 0 && senderEntries.every((entry) => !entry.proofImage)) {
             throw new ExecutorTransactionError('إرفاق صورة الإثبات إجباري لهذا المنفذ.');
         }
 
@@ -211,7 +226,7 @@ const completeExecutorTask = async ({ transactionId, executorId, executor, body 
                 proofCount: tx.proofImages.length,
                 executorProofCount: executorProofImages.length,
                 proofSource,
-                proofRequired: manualPolicy.proofRequired,
+                proofRequired: bankTransfer || (!simpleView && manualPolicy.proofRequired),
                 senderEntryCount: bankTransfer ? 0 : persistedSenderEntries.length,
                 manualExecutorReceiptReference: bankTransfer || splitCompletion ? null : executorReceipt.reference,
                 executorExecutionNumberMasked: bankTransfer ? null : (maskedExecutionNumber || null)

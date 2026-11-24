@@ -53,6 +53,15 @@
                                 <button type="submit" class="btn btn-primary fw-bold"><i class="fa-solid fa-floppy-disk me-1"></i> حفظ صلاحيات المنفذ</button>
                             </div>
                         </form>
+                        <% if (member.role === 'operator' || member.role === 'external') { %>
+                            <form action="/executor/<%= bot._id %>/employees/<%= member._id %>/simple-view" method="POST" class="mt-3 pt-3 border-top">
+                                <p class="small text-muted mb-2">واجهة عمليات واحدة تعرض ملخص اليوم والمهام وأزرار النسخ والإنهاء. يظهر رقم المستفيد كاملًا بعد الاستلام. يكفي رقم تنفيذ أو صورة، مع بقاء الصورة إجبارية للتحويل البنكي.</p>
+                                <button type="submit" name="enabled" value="<%= member.simpleTaskViewEnabled ? 'false' : 'true' %>" class="btn btn-sm <%= member.simpleTaskViewEnabled ? 'btn-outline-secondary' : 'btn-outline-primary' %> fw-bold">
+                                    <%= member.simpleTaskViewEnabled ? 'العودة للواجهة الحالية' : 'تفعيل الواجهة المبسطة' %>
+                                </button>
+                                <% if (member.simpleTaskViewEnabled) { %><span class="badge bg-success ms-2">مفعّلة</span><% } %>
+                            </form>
+                        <% } %>
                     </div>
                 </div>
             <% }); %>
