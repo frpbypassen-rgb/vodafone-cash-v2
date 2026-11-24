@@ -50,6 +50,13 @@ test('accountant API cards link to details without provider test or edit actions
     expect(html).not.toContain('am-actions');
 });
 
+test('non-master administrators see account links without provider mutation controls', async () => {
+    const html = await render({ isApiBot: true, apiProviderKey: 'kenan' }, { isMaster: false, role: 'admin' });
+    expect(html).toContain('href="/executor/demo"');
+    expect(html).not.toContain('testApiExecutor');
+    expect(html).not.toContain('اختبار تنفيذ تحويل آمن');
+});
+
 test('executor names and providers remain escaped in card content and filter attributes', async () => {
     const html = await render({ name: '<img src=x onerror=alert(1)>', isApiBot: true, apiProviderKey: '"><script>alert(1)</script>' });
     expect(html).not.toContain('<img src=x');

@@ -26,6 +26,17 @@ describe('accountant read-only detail screens', () => {
         expect(html).not.toContain('روابط التسجيل والدخول');
     });
 
+    test('non-master administrator directory does not offer the master-only creation form', async () => {
+        const html = await render('executors.ejs', {
+            role: 'admin', bots: [], archivedBots: [], isMaster: false, query: {},
+            executorRegistrationUrl: 'https://example.test/executor-portal/register',
+            executorLoginUrl: 'https://example.test/login',
+            executorServiceOptions: [], apiProviderPresets: []
+        });
+        expect(html).not.toContain('id="createExecutorModal"');
+        expect(html).not.toContain('data-bs-target="#createExecutorModal"');
+    });
+
     test('account directory keeps navigation and search without financial actions', async () => {
         const html = await render('clients.ejs', {
             users: [], companies: [], agents: [], subAccounts: [],

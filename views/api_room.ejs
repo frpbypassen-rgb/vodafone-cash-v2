@@ -238,9 +238,9 @@
                                         <% } %>
                                     </small>
                                 </div>
-                                <button type="button" class="btn btn-info fw-bold px-4" data-api-bot-id="<%= bot._id %>" onclick="testApiExecutor(this)">
+                                <% if (isMaster) { %><button type="button" class="btn btn-info fw-bold px-4" data-api-bot-id="<%= bot._id %>" onclick="testApiExecutor(this)">
                                     <i class="fa-solid fa-plug-circle-check me-1"></i> اختبار الرصيد
-                                </button>
+                                </button><% } %>
                             </div>
                         </div>
 
@@ -257,9 +257,9 @@
                                         <% } %>
                                     </small>
                                 </div>
-                                <button type="button" class="btn btn-success fw-bold px-4" data-api-bot-id="<%= bot._id %>" onclick="testApiTransferPreflight(this)">
+                                <% if (isMaster) { %><button type="button" class="btn btn-success fw-bold px-4" data-api-bot-id="<%= bot._id %>" onclick="testApiTransferPreflight(this)">
                                     <i class="fa-solid fa-vial me-1"></i> اختبار التنفيذ الآمن
-                                </button>
+                                </button><% } %>
                             </div>
                         </div>
                         

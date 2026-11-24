@@ -792,7 +792,7 @@ router.post('/executor/:id/provider-return/:returnId/cancel', requireAuth, requi
     }
 });
 
-router.post('/executor/:id/test-api', requireAuth, async (req, res) => {
+router.post('/executor/:id/test-api', requireAuth, requireMaster, async (req, res) => {
     try {
         const bot = await ExecutorGroup.findById(req.params.id);
         if (!bot || !bot.isApiBot) {
@@ -822,7 +822,7 @@ router.post('/executor/:id/test-api', requireAuth, async (req, res) => {
     }
 });
 
-router.post('/executor/:id/test-transfer', requireAuth, async (req, res) => {
+router.post('/executor/:id/test-transfer', requireAuth, requireMaster, async (req, res) => {
     try {
         const bot = await ExecutorGroup.findById(req.params.id);
         if (!bot || !bot.isApiBot) {

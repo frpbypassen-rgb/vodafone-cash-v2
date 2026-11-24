@@ -2,7 +2,7 @@
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>حسابات التنفيذ | الأهرام</title>
     
     <script>
@@ -91,7 +91,7 @@
 <%- include('partials/admin_modern_head') %>
 <link rel="stylesheet" href="/css/admin-merchants.css?v=20261027-cards">
 <link rel="stylesheet" href="/css/admin-directory-cards.css?v=20261027-cards">
-<link rel="stylesheet" href="/css/admin-executor-cards.css?v=20261027">
+<link rel="stylesheet" href="/css/admin-executor-cards.css?v=20261125">
 </head>
 <body class="am-merchant-body">
 
@@ -103,11 +103,20 @@
 <div class="main-content am-executor-directory">
     <div class="container-fluid am-directory-cards" data-executor-directory>
         <div class="admin-nav mb-4">
-            <h1 class="fw-bold m-0 text-dark"><i class="fa-solid fa-network-wired text-primary me-2"></i> منفذو وبوتات التنفيذ</h1>
-            <% if (typeof role === 'undefined' || role !== 'accountant') { %><button type="button" class="btn btn-primary fw-bold shadow-sm px-4" data-bs-toggle="modal" data-bs-target="#createExecutorModal"><i class="fa-solid fa-user-plus me-1"></i> إضافة منفذ يدوياً</button><% } else { %><span class="badge bg-info-subtle text-info-emphasis border border-info-subtle px-3 py-2">للعرض فقط</span><% } %>
+            <div class="am-executor-intro"><span class="am-executor-eyebrow">إدارة التنفيذ</span><h1 class="fw-bold m-0"><i class="fa-solid fa-network-wired" aria-hidden="true"></i> منفذو وبوتات التنفيذ</h1><p>حالة الحسابات وأرصدتها المحفوظة وروابط الوصول إليها في مكان واحد.</p></div>
+            <% if (isMaster) { %><button type="button" class="btn btn-primary fw-bold shadow-sm px-4" data-bs-toggle="modal" data-bs-target="#createExecutorModal"><i class="fa-solid fa-user-plus me-1"></i> إضافة منفذ</button><% } else { %><span class="am-executor-readonly"><i class="fa-solid fa-eye" aria-hidden="true"></i> للعرض فقط</span><% } %>
         </div>
 
-        <% if (typeof role === 'undefined' || role !== 'accountant') { %><details class="am-executor-access"><summary><i class="fa-solid fa-link" aria-hidden="true"></i> روابط التسجيل والدخول</summary><div class="executor-access-bar" aria-label="روابط المنفذين">
+        <% const currentActiveCount = bots.filter(bot => bot.status === 'active').length; %>
+        <% const currentApiCount = bots.filter(bot => bot.isApiBot).length; %>
+        <div class="am-executor-overview" aria-label="ملخص حسابات التنفيذ">
+            <div class="am-executor-overview-item"><span class="am-overview-icon is-all"><i class="fa-solid fa-users-gear" aria-hidden="true"></i></span><div><span>الحسابات الحالية</span><strong><bdi><%= bots.length %></bdi></strong></div></div>
+            <div class="am-executor-overview-item"><span class="am-overview-icon is-live"><i class="fa-solid fa-circle-check" aria-hidden="true"></i></span><div><span>حسابات نشطة</span><strong><bdi><%= currentActiveCount %></bdi></strong></div></div>
+            <div class="am-executor-overview-item"><span class="am-overview-icon is-api"><i class="fa-solid fa-plug" aria-hidden="true"></i></span><div><span>منفذو API</span><strong><bdi><%= currentApiCount %></bdi></strong></div></div>
+            <div class="am-executor-overview-item"><span class="am-overview-icon is-paused"><i class="fa-solid fa-circle-pause" aria-hidden="true"></i></span><div><span>متوقفون</span><strong><bdi><%= bots.length - currentActiveCount %></bdi></strong></div></div>
+        </div>
+
+        <% if (isMaster) { %><details class="am-executor-access"><summary><i class="fa-solid fa-link" aria-hidden="true"></i> روابط التسجيل والدخول</summary><div class="executor-access-bar" aria-label="روابط المنفذين">
             <div>
                 <div class="executor-link-label"><i class="fa-solid fa-user-pen me-1"></i> رابط تقديم طلب منفذ جديد</div>
                 <div class="input-group">
@@ -177,20 +186,21 @@
         <% } %>
 
         <% const showArchiveTab = typeof query !== 'undefined' && query.tab === 'archive'; %>
-        <div class="executor-tabs" role="tablist" aria-label="أقسام حسابات المنفذين">
+        <div class="am-executor-toolbar"><div class="executor-tabs" role="tablist" aria-label="أقسام حسابات المنفذين">
             <button class="executor-tab <%= showArchiveTab ? '' : 'active' %>" id="current-executors-tab" data-bs-toggle="tab" data-bs-target="#current-executors-pane" type="button" role="tab" aria-controls="current-executors-pane" aria-selected="<%= showArchiveTab ? 'false' : 'true' %>">
                 <i class="fa-solid fa-signal"></i> المنفذون الحاليون <span class="tab-count"><%= bots.length %></span>
             </button>
             <button class="executor-tab <%= showArchiveTab ? 'active' : '' %>" id="archived-executors-tab" data-bs-toggle="tab" data-bs-target="#archived-executors-pane" type="button" role="tab" aria-controls="archived-executors-pane" aria-selected="<%= showArchiveTab ? 'true' : 'false' %>">
                 <i class="fa-solid fa-box-archive"></i> الأرشيف <span class="tab-count"><%= archivedBots.length %></span>
             </button>
-        </div>
+        </div><p class="am-executor-toolbar-note">اختر حسابًا لعرض العمليات والتسويات والإعدادات.</p></div>
 
 
         <div class="am-executor-filters" role="search" aria-label="البحث في منفذي التنفيذ">
-            <label class="am-executor-search"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><input type="search" data-executor-search aria-label="البحث باسم المنفذ أو الخدمة" placeholder="ابحث باسم المنفذ أو الخدمة…"></label>
+            <label class="am-executor-search"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><input type="search" data-executor-search aria-label="البحث باسم المنفذ أو الخدمة أو رقم الحساب" placeholder="ابحث بالاسم أو الخدمة أو رقم الحساب…"></label>
             <select data-executor-status aria-label="حالة المنفذ"><option value="all">كل الحالات</option><option value="active">نشط</option><option value="stopped">متوقف</option></select>
             <select data-executor-kind aria-label="نوع المنفذ"><option value="all">كل الأنواع</option><option value="manual">يدوي</option><option value="api">API</option><option value="manager">إداري</option></select>
+            <button type="button" class="am-executor-reset" data-executor-reset hidden><i class="fa-solid fa-rotate-left" aria-hidden="true"></i> مسح</button>
         </div>
         <p class="am-executor-result" role="status" aria-live="polite" data-executor-result></p>
         <div class="tab-content pb-5">
@@ -211,7 +221,7 @@
     </div>
 </div>
 
-<% if (typeof role === 'undefined' || role !== 'accountant') { %>
+<% if (isMaster) { %>
 <div class="modal fade" id="createExecutorModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-centered">
         <div class="modal-content border-0 shadow-lg" style="background: var(--card-bg); color: var(--text-main); border-radius: 18px;">
@@ -386,8 +396,8 @@
         } catch (_) {
             input.focus();
             input.select();
-            document.execCommand('copy');
-            Swal.fire({ icon: 'success', title: successMessage, timer: 1300, showConfirmButton: false });
+            const copied = document.execCommand('copy');
+            Swal.fire({ icon: copied ? 'success' : 'error', title: copied ? successMessage : 'تعذر النسخ؛ انسخ الرابط من الحقل مباشرة', timer: 1800, showConfirmButton: false });
         }
     }
 
@@ -462,7 +472,7 @@
                     <div style="direction:rtl;text-align:right;line-height:1.9">
                         <div><b>رصيد الخدمة:</b> <span dir="ltr">${Number(data.serviceCredit || 0).toFixed(2)}</span></div>
                         <div><b>الرصيد النقدي:</b> <span dir="ltr">${Number(data.cashCredit || 0).toFixed(2)}</span></div>
-                        <div><b>المتاح:</b> <span dir="ltr">${Number(data.availableBalance || data.balance || 0).toFixed(2)}</span></div>
+                        <div><b>المتاح:</b> <span dir="ltr">${Number(data.availableBalance ?? data.balance ?? 0).toFixed(2)}</span></div>
                     </div>
                 `,
                 confirmButtonText: 'تمام'
@@ -564,7 +574,7 @@
     });
 </script>
 <script src="/js/admin-account-directory.js?v=20261027-cards"></script>
-<script src="/js/admin-executor-directory.js?v=20261027"></script>
+<script src="/js/admin-executor-directory.js?v=20261125"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

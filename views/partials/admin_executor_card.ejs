@@ -5,7 +5,7 @@ const colorFor = value => Number(value) > 0 ? 'am-positive' : Number(value) < 0 
 const formatBalance = value => Number(value || 0).toLocaleString('en-US', {minimumFractionDigits:2,maximumFractionDigits:2});
 const providerBalance = bot.liveApiServiceCredit !== null && bot.liveApiServiceCredit !== undefined;
 %>
-<article class="am-account-card am-executor-card" role="listitem" data-executor-card data-kind="<%= kind %>" data-status="<%= archived ? 'archived' : bot.status %>" data-search="<%= [bot.name, bot.serviceLabel, kindLabel, bot.apiProviderKey || ''].join(' ') %>">
+<article class="am-account-card am-executor-card am-executor-card--<%= kind %>" role="listitem" data-executor-card data-kind="<%= kind %>" data-status="<%= archived ? 'archived' : bot.status %>" data-search="<%= [bot.name, bot._id, bot.serviceLabel, kindLabel, bot.apiProviderKey || ''].join(' ') %>">
     <header class="am-card-heading">
         <span class="am-card-avatar"><i class="fa-solid <%= kind === 'api' ? 'fa-plug' : kind === 'manager' ? 'fa-building' : 'fa-robot' %>" aria-hidden="true"></i></span>
         <div class="am-card-identity"><h2><a href="/executor/<%= bot._id %>"><%= bot.name %></a></h2><span><%= kindLabel %></span></div>
@@ -30,11 +30,11 @@ const providerBalance = bot.liveApiServiceCredit !== null && bot.liveApiServiceC
     </dl>
     <% if(!archived && kind === 'api' && bot.liveApiBalanceError) { %><p class="am-executor-warning"><%= bot.liveApiBalanceError %></p><% } %>
     <% if(archived) { %><p class="am-executor-note"><%= bot.archiveReason || 'لم تسجل ملاحظة للأرشفة.' %> · <%= bot.archivedBy || 'الإدارة' %></p><% } %>
-    <% if(!archived && isMaster && !bot.isManagerBot) { %><details class="am-executor-services"><summary>إدارة خدمات المنفذ</summary><div><%- include('admin_executor_services') %></div></details><% } %>
+    <% if(!archived && isMaster && !bot.isManagerBot) { %><details class="am-executor-services"><summary><i class="fa-solid fa-sliders" aria-hidden="true"></i> إدارة الخدمات</summary><div><%- include('admin_executor_services') %></div></details><% } %>
     <footer class="am-card-footer">
         <a class="am-card-open" href="/executor/<%= bot._id %>"><%= archived ? 'عرض العمليات المحفوظة' : 'عرض الحساب' %> <i class="fa-solid fa-arrow-left" aria-hidden="true"></i></a>
         <% if(!archived && isMaster) { %><a class="am-card-finance" href="/executor/<%= bot._id %>#settlementForm">إيداع / خصم</a><% } %>
-        <% if(!archived && (typeof role === 'undefined' || role !== 'accountant')) { %><details class="am-actions"><summary aria-label="إجراءات <%= bot.name %>">⋮</summary><div>
+        <% if(!archived && isMaster) { %><details class="am-actions"><summary aria-label="إجراءات <%= bot.name %>">⋮</summary><div>
             <% if(kind === 'api') { %><button type="button" data-api-bot-id="<%= bot._id %>" onclick="testApiExecutor(this)">فحص الاتصال والرصيد</button><a href="/executor/<%= bot._id %>#connection-test">اختبار تنفيذ تحويل آمن</a><% } %>
             <% if(isMaster) { %><a href="/admin/accounts/executor/<%= bot._id %>/edit">تعديل بيانات المنفذ</a><button class="am-executor-archive" type="button" data-executor-id="<%= bot._id %>" data-executor-name="<%= bot.name %>" data-executor-status="<%= bot.status %>" onclick="archiveExecutor(this)"><%= bot.status === 'active' ? 'الأرشفة تتطلب إيقاف المنفذ' : 'نقل إلى الأرشيف' %></button><% } %>
             <a href="/executor/<%= bot._id %>">التفاصيل والسجل المالي</a>
