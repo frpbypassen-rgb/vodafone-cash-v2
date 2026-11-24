@@ -18,6 +18,13 @@ test('deposits section separates the settlement form from previous deposit recor
     const html = await render('deposits', {history:{filters:{tab:'deposits',q:'',status:'',service:'',from:'',to:'',period:'',error:''},rows:[],total:0,page:1,totalPages:1}});
     expect(html).toContain('id="settlementForm"');
     expect(html).toContain('سجل الإيداعات');
+    expect(html).toContain('name="amount"');
+    expect(html).toContain('name="notes"');
+    expect(html).toContain('id="settlementReceipts"');
+    expect(html).toContain('name="receipts"');
+    expect(html).toContain('id="settlementFlowHint"');
+    expect(html).toContain('data-settlement-submit-label');
+    expect(html).toContain('name="_csrf"');
 });
 
 test('read-only administrators can see deposits without a settlement form', async () => {
@@ -56,6 +63,18 @@ test('ledger keeps search filters, signed movement and before/after balances in 
     expect(html).toContain('750.00');
     expect(html).toContain('حساب تجريبي');
     expect(html).toContain('<details class="am-detail-record');
+});
+
+test('operation summary shows beneficiary number before expanding', async () => {
+    const html = await render('operations', {
+        history: {
+            filters: { tab: 'operations', q: '', status: '', service: '', from: '', to: '', period: '', error: '' },
+            rows: [{ _id: 'op', customId: 'DEMO-OP', status: 'completed', service: 'vodafone', at: new Date('2026-11-25T09:00:00Z'), amount: 150, vodafoneNumber: '0911234567' }],
+            total: 1, page: 1, totalPages: 1
+        }
+    });
+    expect(html).toContain('class="am-detail-record-recipient"');
+    expect(html).toContain('0911234567');
 });
 
 test('non-master header shows search without a deposit action', async () => {

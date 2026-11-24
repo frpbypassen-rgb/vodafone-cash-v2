@@ -1,38 +1,28 @@
-<div class="col-12">
-                            <div class="settlement-card shadow-sm">
-                                <div class="settlement-head"><span class="settlement-icon"><i class="fa-solid fa-building-columns"></i></span><div><h6>إيداع أو خصم الرصيد</h6><p>الإيداع الموجب يرسل للمراجعة مع الإيصالات؛ الخصم السالب ينفذ مباشرة.</p></div></div>
-                                <form id="settlementForm" action="/executor/<%= bot._id %>/settle" method="POST" enctype="multipart/form-data" class="row g-2 align-items-center">
-                                    <% const settleServices = Array.isArray(enabledServiceKeys) && enabledServiceKeys.length ? enabledServiceKeys : [bot.serviceKey || 'vodafone']; %>
-                                    <% if (settleServices.length > 1) { %>
-                                    <div class="col-12">
-                                        <label class="form-label fw-bold small mb-1">الخدمة الممولة</label>
-                                        <select name="fundingServiceKey" class="form-select fw-bold">
-                                            <% settleServices.forEach((key) => { %>
-                                                <% const opt = (typeof executorServiceOptions !== 'undefined' ? executorServiceOptions : []).find((item) => item.key === key); %>
-                                                <option value="<%= key %>"><%= opt ? opt.label : key %></option>
-                                            <% }); %>
-                                        </select>
-                                        <small class="text-muted">الإيداع أو الخصم يُقيَّد على رصيد هذه الخدمة فقط.</small>
-                                    </div>
-                                    <% } %>
-                                    <div class="col-md-4">
-                                        <div class="input-group shadow-sm">
-                                            <input type="number" step="any" name="amount" class="form-control mono-num fw-bold text-center unified-height border-0" placeholder="المبلغ..." aria-label="المبلغ بالجنيه المصري" required>
-                                            <span class="input-group-text border-0 fw-bold px-2" style="background: #fcd34d; color:#000;">EGP</span>
-                                        </div>
-                                    </div>
-                                    <div class="col-md-5">
-                                        <div class="input-group shadow-sm">
-                                            <span class="input-group-text border-0 bg-light text-muted px-2"><i class="fa-solid fa-pen"></i></span>
-                                            <input type="text" name="notes" aria-label="ملاحظة التسوية" class="form-control fw-bold unified-height border-0" placeholder="ملاحظة للتسوية...">
-                                        </div>
-                                    </div>
-                                    <div class="col-md-4">
-                                        <label class="receipt-drop mb-0"><i class="fa-solid fa-images"></i><span><strong id="receiptLabel">إرفاق الإيصالات</strong><small>مطلوب للإيداع: حتى 5 صور، 5MB للصورة</small></span><input id="settlementReceipts" type="file" accept="image/jpeg,image/png,image/webp" multiple></label>
-                                    </div>
-                                    <div class="col-md-3">
-                                        <button id="settlementSubmit" type="submit" class="settlement-submit w-100"><i class="fa-solid fa-paper-plane me-1"></i> إرسال للمراجعة</button>
-                                    </div>
-                                </form>
-                            </div>
-                        </div>
+<div class="am-settlement-workspace">
+    <div class="am-settlement-head">
+        <span class="am-settlement-icon"><i class="fa-solid fa-wallet" aria-hidden="true"></i></span>
+        <div><h3 id="amDepositTitle">حركة رصيد جديدة</h3><p>المبلغ الموجب يرسل طلب إيداع للمراجعة. المبلغ السالب يسجل خصمًا مباشرًا.</p></div>
+    </div>
+    <form id="settlementForm" action="/executor/<%= bot._id %>/settle" method="POST" enctype="multipart/form-data" class="am-settlement-form">
+        <input type="hidden" name="_csrf" value="<%= typeof csrfToken !== 'undefined' ? csrfToken : '' %>">
+        <% const settleServices = Array.isArray(enabledServiceKeys) && enabledServiceKeys.length ? enabledServiceKeys : [bot.serviceKey || 'vodafone']; %>
+        <% if (settleServices.length > 1) { %>
+        <div class="am-settlement-field am-settlement-wide"><label for="settlementFundingService">الخدمة الممولة</label>
+            <select id="settlementFundingService" name="fundingServiceKey" class="form-select fw-bold">
+                <% settleServices.forEach(key => { const option = (executorServiceOptions || []).find(item => item.key === key); %>
+                <option value="<%= key %>"><%= option ? option.label : key %></option>
+                <% }); %>
+            </select>
+            <small>تُقيَّد الحركة على رصيد هذه الخدمة فقط.</small>
+        </div>
+        <% } %>
+        <div class="am-settlement-field"><label for="settlementAmount">المبلغ بالجنيه المصري</label>
+            <div class="am-settlement-amount"><input id="settlementAmount" type="number" step="any" name="amount" class="form-control mono-num" placeholder="مثال: 1000 أو -100" required><span>ج.م</span></div>
+        </div>
+        <div class="am-settlement-field"><label for="settlementNotes">ملاحظة الحركة</label>
+            <input id="settlementNotes" type="text" name="notes" class="form-control" placeholder="سبب الإيداع أو الخصم">
+        </div>
+        <label class="am-settlement-upload"><input id="settlementReceipts" name="receipts" type="file" accept="image/jpeg,image/png,image/webp" multiple><i class="fa-regular fa-images" aria-hidden="true"></i><span><strong id="receiptLabel">إرفاق الإيصالات</strong><small id="settlementReceiptHint">مطلوبة للإيداع فقط · حتى 5 صور، 5MB للصورة</small></span></label>
+        <div class="am-settlement-submit-area"><p id="settlementFlowHint" role="status">أدخل مبلغًا موجبًا للإيداع أو سالبًا للخصم.</p><button id="settlementSubmit" type="submit" class="am-button primary"><i class="fa-solid fa-arrow-left" aria-hidden="true"></i> <span data-settlement-submit-label>متابعة الحركة</span></button></div>
+    </form>
+</div>

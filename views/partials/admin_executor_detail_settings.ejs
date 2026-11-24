@@ -1,4 +1,5 @@
-<div id="executor-status" class="switch-container mt-2">
+<header class="am-settings-page-head"><span class="am-detail-section-kicker">إدارة الحساب</span><h2>الإعدادات والصلاحيات</h2><p>حالة استقبال الطلبات وخدمات التنفيذ وسياسات الموظفين في أقسام واضحة.</p></header>
+<div id="executor-status" class="switch-container am-setting-status">
                         <div>
                             <h2 class="fw-bold m-0 mb-1 small" style="color: var(--text-main);">حالة استقبال الطلبات</h2>
                             <small id="statusText" class="<%= bot.status === 'active' ? 'text-success' : 'text-danger' %> fw-bold" style="font-size: 0.7rem;">
@@ -9,13 +10,13 @@
                             <button type="button" aria-label="تغيير حالة استقبال الطلبات" id="cyberSwitch" class="cyber-switch <%= bot.status === 'active' ? 'active' : '' %>" onclick="confirmToggle()"></button>
                         </form>
                     </div>
-                <div class="glass-card h-100 border-start border-4" style="border-left-color: #f59e0b;">
+                <div class="glass-card am-settings-shell">
                     <div class="d-flex align-items-center mb-3 pb-2 border-bottom" style="border-color: var(--glass-border) !important;">
                         <i class="fa-solid fa-gears text-warning fs-4 me-2"></i>
-                        <h2 class="fw-bold m-0" style="color: var(--text-main);">إعدادات المنفذ</h2>
+                        <h3 class="fw-bold m-0" style="color: var(--text-main);">تفاصيل التشغيل</h3>
                     </div>
 
-                    <div class="row g-3">
+                    <div class="row g-3 am-settings-grid">
                         <% if (!bot.isApiBot && typeof isMaster !== 'undefined' && isMaster) { %>
                             <div class="col-12">
                                 <details class="am-setting-section info-box border-0 m-0 shadow-sm control-card-3d d-block" style="background: rgba(59, 130, 246, 0.06); border-right: 4px solid #3b82f6 !important;">

@@ -133,7 +133,7 @@ const detailView = {detailLabels,detailUrl,detailMoney,detailColor,detailStatuse
 <%- include('partials/admin_executor_detail_alerts', detailView) %>
 <%- include('partials/admin_executor_detail_summary', detailView) %>
 <%- include('partials/admin_executor_detail_nav', detailView) %>
-<% if(history.filters.tab === 'settings') { %><section class="am-detail-panel"><%- include('partials/admin_executor_detail_settings', detailView) %></section>
+<% if(history.filters.tab === 'settings') { %><section class="am-detail-panel am-settings-page"><%- include('partials/admin_executor_detail_settings', detailView) %></section>
 <% } else if(history.filters.tab === 'staff') { %><%- include('partials/admin_executor_detail_staff', detailView) %>
 <% } else { %><%- include('partials/admin_executor_detail_history', detailView) %><% } %>
 </div></div>
@@ -148,6 +148,30 @@ const detailView = {detailLabels,detailUrl,detailMoney,detailColor,detailStatuse
         const receiptInput = document.getElementById('settlementReceipts');
         const receiptLabel = document.getElementById('receiptLabel');
         const submitButton = document.getElementById('settlementSubmit');
+        const submitLabel = submitButton.querySelector('[data-settlement-submit-label]');
+        const flowHint = document.getElementById('settlementFlowHint');
+        const receiptHint = document.getElementById('settlementReceiptHint');
+        const updateSettlementFlow = () => {
+            const amount = Number(amountInput.value);
+            if (!amountInput.value || amount === 0) {
+                submitLabel.textContent = 'متابعة الحركة';
+                flowHint.textContent = 'أدخل مبلغًا موجبًا للإيداع أو سالبًا للخصم.';
+            } else if (amount > 0) {
+                submitLabel.textContent = 'إرسال الإيداع للمراجعة';
+                flowHint.textContent = 'سيُطلب إرفاق إيصال، ويُضاف الرصيد بعد اعتماد الإيداع.';
+            } else {
+                submitLabel.textContent = 'تسجيل الخصم';
+                flowHint.textContent = 'سيُسجل الخصم مباشرة من رصيد الخدمة المختارة.';
+            }
+            if (amount < 0 && receiptInput.files.length) {
+                receiptInput.value = '';
+                receiptLabel.textContent = 'إرفاق الإيصالات';
+            }
+            receiptInput.disabled = amount < 0;
+            receiptHint.textContent = amount > 0 ? 'مطلوبة للإيداع · حتى 5 صور، 5MB للصورة' : amount < 0 ? 'الإيصالات للإيداع فقط؛ لا تُحفظ مع الخصم المباشر.' : 'مطلوبة للإيداع فقط · حتى 5 صور، 5MB للصورة';
+        };
+        amountInput.addEventListener('input', updateSettlementFlow);
+        updateSettlementFlow();
         receiptInput.addEventListener('change', () => { receiptLabel.textContent = receiptInput.files.length ? `${receiptInput.files.length} إيصال جاهز للإرسال` : 'إرفاق الإيصالات'; });
         const toDataUrl = (file) => new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(reader.result); reader.onerror = reject; reader.readAsDataURL(file); });
         settlementForm.addEventListener('submit', async (event) => {

@@ -215,3 +215,88 @@
  .am-executor-detail .am-detail-record dl { grid-template-columns: minmax(0,1fr); }
 }
 @media(prefers-reduced-motion:reduce) { .am-executor-detail .am-detail-record-expand i { transition: none; } }
+
+/* Deposits: the form follows the accounting action, with one clear next step. */
+.am-executor-detail .am-settlement-panel { border-color: color-mix(in srgb, var(--border-glass) 70%, #5d95ec); }
+.am-settlement-head { display: flex; align-items: center; gap: 11px; margin-bottom: 17px; }
+.am-settlement-icon { flex: none; display: grid; place-items: center; width: 40px; height: 40px; border-radius: 11px; background: color-mix(in srgb, var(--card-bg) 75%, #588ee9); color: #3d79df; }
+.am-settlement-head h3 { margin: 0 0 3px; color: var(--text-main); font-size: 17px; font-weight: 800; }
+.am-settlement-head p { margin: 0; color: var(--text-muted); font-size: 12px; line-height: 1.6; }
+.am-settlement-form { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 13px; }
+.am-settlement-field { display: block; min-width: 0; color: var(--text-main); font-size: 12px; font-weight: 700; }
+.am-settlement-field :is(input,select) { min-height: 46px; margin-top: 7px; background: var(--input-bg); }
+.am-settlement-field small { display: block; margin-top: 5px; color: var(--text-muted); font-size: 11px; font-weight: 400; }
+.am-settlement-wide { grid-column: 1/-1; }
+.am-settlement-amount { display: flex; align-items: center; margin-top: 7px; border: 1px solid var(--border-glass); border-radius: 9px; background: var(--input-bg); overflow: hidden; }
+.am-settlement-amount input { flex: 1; min-width: 0; margin: 0; border: 0; background: transparent; text-align: start; }
+.am-settlement-amount > span { flex: none; padding: 0 12px; color: var(--text-muted); font-size: 12px; }
+.am-settlement-upload { display: flex; align-items: center; gap: 12px; position: relative; min-height: 70px; padding: 12px 14px; border: 1px dashed #648fe0; border-radius: 10px; background: color-mix(in srgb, var(--card-bg) 94%, #5b8de5); cursor: pointer; }
+.am-settlement-upload > i { color: #4d82df; font-size: 21px; }
+.am-settlement-upload span { display: grid; gap: 2px; }
+.am-settlement-upload strong { color: var(--text-main); font-size: 12px; }
+.am-settlement-upload small { color: var(--text-muted); font-size: 11px; }
+.am-settlement-upload input { position: absolute; inset: 0; width: 100%; opacity: 0; cursor: pointer; }
+.am-settlement-upload:has(input:disabled) { opacity: .6; cursor: not-allowed; }
+.am-settlement-upload input:disabled { cursor: not-allowed; }
+.am-settlement-upload:focus-within { outline: 3px solid #528cf0; outline-offset: 2px; }
+.am-settlement-submit-area { display: flex; align-items: center; justify-content: space-between; gap: 14px; min-width: 0; }
+.am-settlement-submit-area p { margin: 0; color: var(--text-muted); font-size: 11px; line-height: 1.5; }
+.am-settlement-submit-area button { flex: none; min-height: 46px; white-space: nowrap; }
+.am-detail-record-recipient { display: inline-flex; align-items: center; gap: 6px; font-size: 12px !important; color: var(--text-main) !important; }
+.am-detail-record-recipient i { color: #5e93e5; }
+
+/* Team: names and account state stay visible; advanced controls remain collapsed. */
+.am-team-panel .am-detail-section-head { margin-bottom: 15px; }
+.am-executor-detail .am-detail-team { gap: 10px; }
+.am-executor-detail .am-team-member { display: flex; align-items: center; gap: 12px; padding: 14px; border: 1px solid var(--border-glass); border-radius: 11px; background: var(--input-bg); }
+.am-team-avatar { flex: none; display: grid; place-items: center; width: 42px; height: 42px; border-radius: 11px; color: #2764ca; background: color-mix(in srgb, var(--card-bg) 68%, #6e9aea); font-size: 19px; font-weight: 800; }
+.am-team-identity { min-width: 0; flex: 1; }
+.am-team-identity h3 { margin: 0 0 3px; color: var(--text-main); font-size: 14px; }
+.am-team-identity p { margin: 0 0 3px; }
+.am-team-actions { display: flex; align-items: flex-end; flex-direction: column; gap: 10px; flex: none; }
+.am-team-actions .am-button { min-height: 34px; display: inline-flex; align-items: center; padding: 5px 10px; font-size: 11px; }
+.am-team-status { padding: 5px 8px; border-radius: 7px; background: color-mix(in srgb, var(--card-bg) 78%, #e45b69); color: #b84155; font-size: 10px; font-weight: 800; }
+.am-team-status.is-active { background: color-mix(in srgb, var(--card-bg) 80%, #28b790); color: #078566; }
+[data-theme="dark"] .am-team-status { color: #ffabb4; }
+[data-theme="dark"] .am-team-status.is-active { color: #7be4bf; }
+.am-executor-detail .am-team-extra { padding: 0; overflow: hidden; }
+.am-executor-detail .am-team-extra > summary { display: flex; justify-content: space-between; align-items: center; gap: 12px; min-height: 60px; padding: 14px 17px; font-size: 13px; }
+.am-team-extra > summary span { display: inline-flex; align-items: center; gap: 9px; }
+.am-team-extra > summary i { color: #5d92e6; }
+.am-team-extra > summary small { color: var(--text-muted); font-size: 11px; }
+.am-team-extra[open] > summary { border-bottom: 1px solid var(--border-glass); }
+.am-team-extra > :not(summary) { margin: 14px; }
+.am-team-extra > .info-box { text-align: start !important; background: var(--input-bg) !important; border: 1px solid var(--border-glass) !important; }
+
+/* Settings: separate the live state from grouped configuration forms. */
+.am-settings-page-head { margin-bottom: 16px; }
+.am-settings-page-head h2 { margin: 0 0 4px; color: var(--text-main); font-size: 19px; }
+.am-settings-page-head p { margin: 0; color: var(--text-muted); font-size: 12px; }
+.am-executor-detail .am-setting-status { margin: 0 0 18px; padding: 15px; border-radius: 11px; background: var(--input-bg); }
+.am-setting-status h2 { font-size: 14px !important; }
+.am-executor-detail .am-settings-shell { padding: 0; border: 0; background: transparent; overflow: visible; }
+.am-executor-detail .am-settings-shell::before { display: none; }
+.am-settings-shell > .d-flex { margin-bottom: 12px !important; padding-bottom: 9px !important; }
+.am-settings-shell h3 { font-size: 15px; }
+.am-settings-grid { display: grid !important; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px; margin: 0; }
+.am-settings-grid > .col-12 { width: auto; padding: 0; }
+.am-settings-grid > .col-12:first-child, .am-settings-grid > .col-12:last-child { grid-column: 1/-1; }
+.am-executor-detail .am-setting-section { height: 100%; padding: 14px !important; border: 1px solid var(--border-glass) !important; border-inline-start: 3px solid #6c9ef1 !important; border-radius: 10px !important; background: var(--input-bg) !important; box-shadow: none !important; }
+.am-executor-detail .am-setting-section:hover { transform: none; box-shadow: none !important; }
+.am-executor-detail .am-setting-section > summary { display: flex; align-items: center; gap: 6px; padding: 2px 0 !important; margin: 0 !important; min-height: 28px; color: var(--text-main) !important; font-size: 13px; list-style: none !important; }
+.am-executor-detail .am-setting-section > summary::-webkit-details-marker { display: none; }
+.am-executor-detail .am-setting-section > summary::after { content: '⌄'; flex: none; margin-inline-start: auto; color: #6b9aed; font-size: 18px; line-height: 1; transition: transform .2s ease; }
+.am-executor-detail .am-setting-section[open] > summary::after { transform: rotate(180deg); }
+.am-executor-detail .am-setting-section[open] > summary { margin-bottom: 12px !important; border-bottom: 1px solid var(--border-glass); padding-bottom: 12px !important; }
+.am-executor-detail .am-setting-section .form-check { margin-block: 5px; }
+.am-executor-detail .am-setting-section :is(input,select) { min-height: 38px; }
+@media(max-width:767px) {
+ .am-settlement-form { grid-template-columns: minmax(0,1fr); }
+ .am-settlement-wide { grid-column: auto; }
+ .am-settlement-submit-area { align-items: stretch; flex-direction: column; }
+ .am-settlement-submit-area button { justify-content: center; }
+ .am-team-actions { gap: 6px; }
+ .am-team-extra > summary small { display: none; }
+ .am-settings-grid { grid-template-columns: minmax(0,1fr); }
+ .am-settings-grid > .col-12:first-child, .am-settings-grid > .col-12:last-child { grid-column: auto; }
+}

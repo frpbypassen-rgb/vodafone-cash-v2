@@ -15,7 +15,7 @@ const root = path.join(__dirname, '..');
 const rows = Array.from({ length: 8 }, (_, index) => ({
     _id: `row-${index + 1}`, customId: `DEMO-LEDGER-${index + 1}`, status: index % 3 ? 'completed' : 'deposit',
     service: 'vodafone', at: new Date(Date.UTC(2026, 10, 25, 10 - index, 30)),
-    movement: index % 3 ? -(150 + index * 10) : 600 + index * 10,
+    amount: 150 + index * 10, movement: index % 3 ? -(150 + index * 10) : 600 + index * 10,
     balanceBefore: 2000 - index * 100, balanceAfter: 1850 - index * 100,
     accountName: 'حساب تجريبي', vodafoneNumber: '0910000000', notes: 'معاينة فقط'
 }));
@@ -41,7 +41,11 @@ async function run() {
             role: 'master', isMaster: true, adminName: 'اختبار الواجهة', csrfToken: 'fixture-only', query: {},
             history: { filters, rows: visible, total: visible.length, page: 1, totalPages: 1 },
             detailCounts: [{ _id: 'completed', count: 65 }, { _id: 'processing', count: 28 }],
-            companyBalances: { totalBalance: -62850, multiService: false }, externalEmployees: [], otherExecutorMatches: [],
+            companyBalances: { totalBalance: -62850, multiService: false }, externalEmployees: [], externalPools: [], otherExecutorMatches: [],
+            teamEmployees: [
+                { _id: 'fixture-member-1', name: 'مها تجريبية', role: 'operator', status: 'active', phone: '0910000001' },
+                { _id: 'fixture-member-2', name: 'سالم تجريبي', role: 'accountant', status: 'inactive', phone: '0910000002' }
+            ], managerBots: [],
             executorServiceOptions: [{ key: 'vodafone', label: 'محافظ كاش', shortLabel: 'كاش' }], enabledServiceKeys: ['vodafone'],
             adminHrefVisible: href => adminHrefVisible('master', href)
         });
@@ -65,6 +69,14 @@ async function run() {
     const browser = await (await loadPuppeteer()).launch({ headless: true, args: ['--no-sandbox'] });
     try {
         const page = await browser.newPage();
+        await page.evaluateOnNewDocument(() => {
+            document.addEventListener('DOMContentLoaded', () => {
+                if (window.innerWidth <= 390) {
+                    document.documentElement.setAttribute('data-theme', 'dark');
+                    document.documentElement.setAttribute('data-bs-theme', 'dark');
+                }
+            }, { once: true });
+        });
         const errors = [];
         page.on('pageerror', error => errors.push(error.message));
         await page.setRequestInterception(true);
@@ -92,20 +104,42 @@ async function run() {
             assert.equal(await page.$eval('.am-detail-tabs [aria-current]', element => element.textContent.trim().includes('كشف الحساب')), true);
             assert.equal(await page.$$eval('.am-detail-tabs a', elements => elements.length), 5);
             assert.equal(await page.$eval('.am-detail-heading-actions a[href*="tab=operations"]', element => element.getAttribute('href')), '/executor/fixture-executor?tab=operations');
-            if (width === 390) await page.evaluate(() => {
-                document.documentElement.setAttribute('data-theme', 'dark');
-                document.documentElement.setAttribute('data-bs-theme', 'dark');
-            });
             const overflow = await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1);
             assert.equal(overflow, false, `${width}px layout overflows horizontally`);
             const screenshot = path.join(os.tmpdir(), `ahram-executor-detail-${width}.png`);
             await page.screenshot({ path: screenshot, fullPage: true });
             await page.goto(base + 'executor/fixture-executor?tab=operations', { waitUntil: 'domcontentloaded' });
             assert.equal(await page.$$eval('.am-detail-record', elements => elements.length), 5);
+            assert.match(await page.$eval('.am-detail-record-recipient', element => element.textContent), /0910000000/);
+            assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1), false, `${width}px operations layout overflows horizontally`);
+            if (width !== 1140) await page.screenshot({ path: path.join(os.tmpdir(), `ahram-executor-operations-${width}.png`), fullPage: true });
             await page.goto(base + 'executor/fixture-executor?tab=deposits', { waitUntil: 'domcontentloaded' });
             assert.equal(await page.$$eval('.am-detail-record', elements => elements.length), 3);
             assert.equal(await page.$eval('#settlementForm', element => element.action.endsWith('/executor/fixture-executor/settle')), true);
-            process.stdout.write(JSON.stringify({ width, theme: width === 390 ? 'dark' : 'light', rows: 8, search: 'pass', details: 'pass', overflow, screenshot }) + '\n');
+            assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1), false, `${width}px deposits layout overflows horizontally`);
+            if (width !== 1140) await page.screenshot({ path: path.join(os.tmpdir(), `ahram-executor-deposits-${width}.png`), fullPage: true });
+            await page.type('#settlementForm [name="amount"]', '100');
+            assert.match(await page.$eval('[data-settlement-submit-label]', element => element.textContent), /إرسال الإيداع للمراجعة/);
+            assert.equal(await page.$eval('#settlementReceipts', element => element.disabled), false);
+            await page.$eval('#settlementForm [name="amount"]', element => { element.value = '-100'; element.dispatchEvent(new Event('input', { bubbles: true })); });
+            assert.match(await page.$eval('[data-settlement-submit-label]', element => element.textContent), /تسجيل الخصم/);
+            assert.match(await page.$eval('#settlementFlowHint', element => element.textContent), /مباشر/);
+            assert.equal(await page.$eval('#settlementReceipts', element => element.disabled), true);
+            await page.goto(base + 'executor/fixture-executor?tab=staff', { waitUntil: 'domcontentloaded' });
+            assert.equal(await page.$$eval('.am-team-member', elements => elements.length), 2);
+            assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1), false, `${width}px staff layout overflows horizontally`);
+            if (width !== 1140) await page.screenshot({ path: path.join(os.tmpdir(), `ahram-executor-staff-${width}.png`), fullPage: true });
+            await page.click('.am-team-extra summary');
+            assert.equal(await page.$eval('.am-team-extra', element => element.open), true);
+            await page.goto(base + 'executor/fixture-executor?tab=settings', { waitUntil: 'domcontentloaded' });
+            assert.equal(await page.$eval('#toggleForm', element => element.getAttribute('action')), '/executor/fixture-executor/toggle-status');
+            assert.equal(await page.$$eval('.am-setting-section', elements => elements.length), 4);
+            if (width !== 1140) await page.screenshot({ path: path.join(os.tmpdir(), `ahram-executor-settings-${width}.png`), fullPage: true });
+            await page.click('.am-setting-section summary');
+            assert.equal(await page.$eval('.am-setting-section', element => element.open), true);
+            const allTabsOverflow = await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1);
+            assert.equal(allTabsOverflow, false, `${width}px settings layout overflows horizontally`);
+            process.stdout.write(JSON.stringify({ width, theme: width === 390 ? 'dark' : 'light', rows: 8, search: 'pass', details: 'pass', depositModes: 'pass', staff: 'pass', settings: 'pass', overflow: allTabsOverflow, screenshot }) + '\n');
         }
         assert.deepEqual(errors, [], `Browser errors: ${errors.join('; ')}`);
     } finally {
