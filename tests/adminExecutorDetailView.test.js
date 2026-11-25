@@ -22,9 +22,27 @@ test('deposits section separates the settlement form from previous deposit recor
     expect(html).toContain('name="notes"');
     expect(html).toContain('id="settlementReceipts"');
     expect(html).toContain('name="receipts"');
+    expect(html).toContain('اختياري للإيداع');
+    expect(html).toContain('مبلغ موجب · يضاف بعد الاعتماد');
+    expect(html).not.toMatch(/id="settlementReceipts"[^>]*\brequired\b/);
     expect(html).toContain('id="settlementFlowHint"');
     expect(html).toContain('data-settlement-submit-label');
     expect(html).toContain('name="_csrf"');
+});
+
+test('deposit history identifies requests with and without attached receipts', async () => {
+    const html = await render('deposits', {
+        history: {
+            filters: {tab:'deposits',q:'',status:'',service:'',from:'',to:'',period:'',error:''},
+            rows: [
+                {_id:'without', customId:'DEPREQ-NO-RECEIPT', status:'deposit_pending', amount:100, at:new Date('2026-11-25T09:00:00Z'), service:'vodafone', proofImages:[]},
+                {_id:'with', customId:'DEPREQ-WITH-RECEIPT', status:'deposit', amount:75, at:new Date('2026-11-25T08:00:00Z'), service:'vodafone', proofImages:['proofs/demo.png']}
+            ], total:2, page:1, totalPages:1
+        }
+    });
+    expect(html).toContain('إيصال الإيداع');
+    expect(html).toContain('غير مرفق');
+    expect(html).toContain('مرفق');
 });
 
 test('read-only administrators can see deposits without a settlement form', async () => {

@@ -50,8 +50,16 @@ async function run() {
             adminHrefVisible: href => adminHrefVisible('master', href)
         });
     };
+    const submittedDeposits = [];
     const server = http.createServer(async (req, res) => {
         const url = new URL(req.url, 'http://localhost');
+        if (url.pathname === '/executor/fixture-executor/settle' && req.method === 'POST') {
+            let body = '';
+            for await (const chunk of req) body += chunk;
+            submittedDeposits.push(JSON.parse(body));
+            res.writeHead(201, { 'content-type': 'application/json' });
+            return res.end(JSON.stringify({ success: true, request: { customId: 'DEPREQ-FIXTURE' } }));
+        }
         if (url.pathname === '/executor/fixture-executor') {
             try {
                 const html = await render(url.searchParams);
@@ -84,6 +92,7 @@ async function run() {
             if (request.url().startsWith(`http://127.0.0.1:${server.address().port}/`)) return request.continue();
             if (request.url() === bootstrapUrls.css) return request.respond({ status: 200, contentType: 'text/css', body: bootstrapAssets.css });
             if (request.url() === bootstrapUrls.js) return request.respond({ status: 200, contentType: 'text/javascript', body: bootstrapAssets.js });
+            if (request.url().startsWith('https://cdn.jsdelivr.net/npm/sweetalert2')) return request.respond({ status: 200, contentType: 'text/javascript', body: 'window.Swal={fire:async()=>({})};' });
             return request.respond({ status: 200, contentType: request.url().endsWith('.css') ? 'text/css' : 'text/javascript', body: '' });
         });
         const base = `http://127.0.0.1:${server.address().port}/`;
@@ -121,6 +130,13 @@ async function run() {
             await page.type('#settlementForm [name="amount"]', '100');
             assert.match(await page.$eval('[data-settlement-submit-label]', element => element.textContent), /إرسال الإيداع للمراجعة/);
             assert.equal(await page.$eval('#settlementReceipts', element => element.disabled), false);
+            assert.equal(await page.$eval('#settlementReceipts', element => element.required), false);
+            await Promise.all([
+                page.waitForResponse(response => response.url().endsWith('/executor/fixture-executor/settle') && response.status() === 201),
+                page.click('#settlementSubmit')
+            ]);
+            assert.deepEqual(submittedDeposits.at(-1).receiptsBase64, []);
+            await page.goto(base + 'executor/fixture-executor?tab=deposits', { waitUntil: 'domcontentloaded' });
             await page.$eval('#settlementForm [name="amount"]', element => { element.value = '-100'; element.dispatchEvent(new Event('input', { bubbles: true })); });
             assert.match(await page.$eval('[data-settlement-submit-label]', element => element.textContent), /تسجيل الخصم/);
             assert.match(await page.$eval('#settlementFlowHint', element => element.textContent), /مباشر/);
@@ -139,7 +155,7 @@ async function run() {
             assert.equal(await page.$eval('.am-setting-section', element => element.open), true);
             const allTabsOverflow = await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1);
             assert.equal(allTabsOverflow, false, `${width}px settings layout overflows horizontally`);
-            process.stdout.write(JSON.stringify({ width, theme: width === 390 ? 'dark' : 'light', rows: 8, search: 'pass', details: 'pass', depositModes: 'pass', staff: 'pass', settings: 'pass', overflow: allTabsOverflow, screenshot }) + '\n');
+            process.stdout.write(JSON.stringify({ width, theme: width === 390 ? 'dark' : 'light', rows: 8, search: 'pass', details: 'pass', depositModes: 'pass', depositWithoutReceipt: 'pass', staff: 'pass', settings: 'pass', overflow: allTabsOverflow, screenshot }) + '\n');
         }
         assert.deepEqual(errors, [], `Browser errors: ${errors.join('; ')}`);
     } finally {

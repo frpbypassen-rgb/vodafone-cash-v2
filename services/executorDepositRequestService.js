@@ -52,9 +52,12 @@ function parseReceipt(value) {
     }
 }
 
-async function saveReceipts(receipts, reference) {
+async function saveReceipts(receipts, reference, { required = true } = {}) {
     const items = Array.isArray(receipts) ? receipts.filter(Boolean) : [];
-    if (!items.length) throw failure('أرفق إيصال إيداع واحدًا على الأقل.');
+    if (!items.length) {
+        if (required) throw failure('أرفق إيصال إيداع واحدًا على الأقل.');
+        return [];
+    }
     if (items.length > MAX_RECEIPTS) throw failure(`يمكن إرفاق ${MAX_RECEIPTS} إيصالات كحد أقصى.`);
     const destination = path.join(process.cwd(), 'uploads', 'proofs');
     const parsed = items.map(parseReceipt);
@@ -128,7 +131,7 @@ async function createDepositRequest({ employee, group: requestedGroup, submitted
         throw failure('تعذر تحديد المدير الذي سجّل طلب الإيداع.', 401);
     }
     const customId = `DEPREQ-${Date.now().toString().slice(-8)}-${crypto.randomBytes(2).toString('hex').toUpperCase()}`;
-    const receiptImages = await saveReceipts(receipts, customId);
+    const receiptImages = await saveReceipts(receipts, customId, { required: !submittedFromAdmin });
     const createdAt = new Date();
     const transactionId = new mongoose.Types.ObjectId();
     const ticketId = new mongoose.Types.ObjectId();

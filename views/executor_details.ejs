@@ -158,28 +158,27 @@ const detailView = {detailLabels,detailUrl,detailMoney,detailColor,detailStatuse
                 flowHint.textContent = 'أدخل مبلغًا موجبًا للإيداع أو سالبًا للخصم.';
             } else if (amount > 0) {
                 submitLabel.textContent = 'إرسال الإيداع للمراجعة';
-                flowHint.textContent = 'سيُطلب إرفاق إيصال، ويُضاف الرصيد بعد اعتماد الإيداع.';
+                flowHint.textContent = 'يُضاف الرصيد بعد اعتماد الطلب. يمكنك إرفاق إيصال إن توفر.';
             } else {
                 submitLabel.textContent = 'تسجيل الخصم';
                 flowHint.textContent = 'سيُسجل الخصم مباشرة من رصيد الخدمة المختارة.';
             }
             if (amount < 0 && receiptInput.files.length) {
                 receiptInput.value = '';
-                receiptLabel.textContent = 'إرفاق الإيصالات';
+                receiptLabel.textContent = 'إضافة إيصال';
             }
             receiptInput.disabled = amount < 0;
-            receiptHint.textContent = amount > 0 ? 'مطلوبة للإيداع · حتى 5 صور، 5MB للصورة' : amount < 0 ? 'الإيصالات للإيداع فقط؛ لا تُحفظ مع الخصم المباشر.' : 'مطلوبة للإيداع فقط · حتى 5 صور، 5MB للصورة';
+            receiptHint.textContent = amount < 0 ? 'الإيصالات للإيداع فقط؛ لا تُحفظ مع الخصم المباشر.' : 'اختياري للإيداع · حتى 5 صور، 5MB للصورة';
         };
         amountInput.addEventListener('input', updateSettlementFlow);
         updateSettlementFlow();
-        receiptInput.addEventListener('change', () => { receiptLabel.textContent = receiptInput.files.length ? `${receiptInput.files.length} إيصال جاهز للإرسال` : 'إرفاق الإيصالات'; });
+        receiptInput.addEventListener('change', () => { receiptLabel.textContent = receiptInput.files.length ? `${receiptInput.files.length} إيصال جاهز للإرسال` : 'إضافة إيصال'; });
         const toDataUrl = (file) => new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(reader.result); reader.onerror = reject; reader.readAsDataURL(file); });
         settlementForm.addEventListener('submit', async (event) => {
             const amount = Number(amountInput.value);
             if (!(amount > 0)) return;
             event.preventDefault();
             const files = [...receiptInput.files];
-            if (!files.length) return Swal.fire('الإيصال مطلوب', 'أرفق إيصال إيداع واحدًا على الأقل.', 'warning');
             if (files.length > 5 || files.some((file) => file.size > 5 * 1024 * 1024)) return Swal.fire('حجم الإيصالات غير صالح', 'الحد الأقصى 5 صور، وبحجم 5MB لكل صورة.', 'warning');
             submitButton.disabled = true;
             try {

@@ -877,9 +877,6 @@ router.post('/executor/:id/settle', requireAuth, requireMaster, adminDepositUplo
             const receipts = Array.isArray(req.files) && req.files.length
                 ? req.files.map((file) => `data:${file.mimetype};base64,${file.buffer.toString('base64')}`)
                 : (Array.isArray(req.body?.receiptsBase64) ? req.body.receiptsBase64 : []);
-            if (!receipts.length) {
-                return res.redirect(`/executor/${bot._id}?settlementError=RECEIPT_REQUIRED`);
-            }
             const actor = requireAdminActor(req);
             const targetBot = await ExecutorGroup.findById(targetBotId);
             const request = await createDepositRequest({

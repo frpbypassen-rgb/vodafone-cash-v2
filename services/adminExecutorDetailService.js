@@ -36,7 +36,7 @@ function buildExecutorHistoryPipeline(bot, filters) {
         ...['bank_account','sefa_niger','bankak_sudan'].map(key=>({case:{$eq:[field,key]},then:key}))
     ],default:null}});
     const pipeline = [{$match:ledger ? {$and:[owner,{status:{$in:['completed','deposit','deduction']},transferType:{$ne:'external_balance'}}]} : deposits ? {$and:[owner,{status:{$in:['deposit','deposit_pending']}}]} : {$and:[owner,{status:{$nin:['deposit','deduction','deposit_pending']}}]}},
-        {$project:{customId:1,amount:1,status:1,transferType:1,canonicalServiceKey:1,canonicalRecipient:1,'serviceDetails.clientPhone':1,createdAt:1,updatedAt:1,completedAt:1,vodafoneNumber:1,accountNumber:1,accountName:1,employeeName:1,executorName:1,notes:1}},
+        {$project:{customId:1,amount:1,status:1,transferType:1,canonicalServiceKey:1,canonicalRecipient:1,'serviceDetails.clientPhone':1,createdAt:1,updatedAt:1,completedAt:1,vodafoneNumber:1,accountNumber:1,accountName:1,employeeName:1,executorName:1,notes:1,proofImage:1,proofImages:1}},
         {$set:{service:{$ifNull:[normalizeKey('$canonicalServiceKey'),{$ifNull:[normalizeKey('$transferType'),primary]}]},
             at:ledger ? {$ifNull:['$completedAt',{$ifNull:['$updatedAt','$createdAt']}]} : '$createdAt',
             movement:{$cond:[{$eq:['$status','deposit']},'$amount',{$multiply:[-1,{$abs:'$amount'}]}]}}}];

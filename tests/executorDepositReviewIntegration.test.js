@@ -33,12 +33,14 @@ const app = express();
 app.use(express.json());
 app.use('/api/mobile', mobileApi);
 const adminApp = express();
+const fixtureAdminId = new mongoose.Types.ObjectId();
 adminApp.use(express.json());
 adminApp.use((req, _res, next) => {
-    req.session = { isLoggedIn: true, adminRole: 'master', adminId: 'audit-admin', adminName: 'Audit admin' };
+    req.session = { isLoggedIn: true, adminRole: 'master', adminId: String(fixtureAdminId), adminName: 'Audit admin', csrfToken: 'deposit-test-csrf' };
     next();
 });
 adminApp.use(require('../routes/adminTransactions'));
+adminApp.use(require('../routes/executors'));
 
 jest.setTimeout(45000);
 let replica;
@@ -47,6 +49,35 @@ beforeAll(async () => {
     replica = await MongoMemoryReplSet.create({ replSet: { count: 1, storageEngine: 'wiredTiger' } });
     await mongoose.connect(replica.getUri());
     await Promise.all([Transaction.init(), SupportTicket.init(), PushNotificationOutbox.init(), Notification.init()]);
+});
+
+test('admin can submit a deposit without a receipt and manager can approve it once', async () => {
+    const group = await ExecutorGroup.create({ name: 'Optional admin receipt group' });
+    const manager = await Employee.create({
+        groupId: group._id, role: 'manager', name: 'Receipt review manager',
+        webUsername: 'optional-admin-receipt-manager', webPassword: '$2b$04$fixture', status: 'active'
+    });
+    const response = await request(adminApp).post(`/executor/${group._id}/settle`)
+        .set('X-Requested-With', 'XMLHttpRequest')
+        .set('X-CSRF-Token', 'deposit-test-csrf')
+        .send({ amount: 125, notes: 'Deposit without attachment' });
+    expect(response.body.error).toBeUndefined();
+    expect(response.body).toMatchObject({ success: true });
+    expect(response.status).toBe(201);
+    const created = response.body.request;
+    const transaction = await Transaction.findById(created.id).lean();
+    const ticket = await SupportTicket.findById(transaction.depositRequest.supportTicketId).lean();
+    expect(created.receiptCount).toBe(0);
+    expect(transaction.status).toBe('deposit_pending');
+    expect(transaction.proofImages).toEqual([]);
+    expect(ticket.metadata.depositRequest.receiptCount).toBe(0);
+    expect(ticket.messages.filter((message) => message.messageType === 'image')).toEqual([]);
+    expect((await ExecutorGroup.findById(group._id)).balance).toBe(0);
+    const reviewed = await deposits.reviewAdminDepositRequest({ employee: manager, requestId: created.id, approved: true });
+    expect(reviewed.transaction.status).toBe('deposit');
+    expect((await ExecutorGroup.findById(group._id)).balance).toBe(125);
+    await deposits.reviewAdminDepositRequest({ employee: manager, requestId: created.id, approved: true });
+    expect((await ExecutorGroup.findById(group._id)).balance).toBe(125);
 });
 
 test('admin web review updates the same ticket and atomic state used by executor managers', async () => {

@@ -1,7 +1,11 @@
 <div class="am-settlement-workspace">
     <div class="am-settlement-head">
         <span class="am-settlement-icon"><i class="fa-solid fa-wallet" aria-hidden="true"></i></span>
-        <div><h3 id="amDepositTitle">حركة رصيد جديدة</h3><p>المبلغ الموجب يرسل طلب إيداع للمراجعة. المبلغ السالب يسجل خصمًا مباشرًا.</p></div>
+        <div><h3 id="amDepositTitle">حركة رصيد جديدة</h3><p>أدخل القيمة وحدد الخدمة. يظهر أثر الحركة قبل الإرسال.</p></div>
+    </div>
+    <div class="am-settlement-paths" aria-label="طريقة تسجيل الحركة">
+        <div><span class="am-settlement-path-icon is-deposit"><i class="fa-solid fa-arrow-down" aria-hidden="true"></i></span><span><strong>إيداع</strong><small>مبلغ موجب · يضاف بعد الاعتماد</small></span></div>
+        <div><span class="am-settlement-path-icon is-deduction"><i class="fa-solid fa-arrow-up" aria-hidden="true"></i></span><span><strong>خصم</strong><small>مبلغ سالب · يسجل مباشرة</small></span></div>
     </div>
     <form id="settlementForm" action="/executor/<%= bot._id %>/settle" method="POST" enctype="multipart/form-data" class="am-settlement-form">
         <input type="hidden" name="_csrf" value="<%= typeof csrfToken !== 'undefined' ? csrfToken : '' %>">
@@ -17,12 +21,12 @@
         </div>
         <% } %>
         <div class="am-settlement-field"><label for="settlementAmount">المبلغ بالجنيه المصري</label>
-            <div class="am-settlement-amount"><input id="settlementAmount" type="number" step="any" name="amount" class="form-control mono-num" placeholder="مثال: 1000 أو -100" required><span>ج.م</span></div>
+            <div class="am-settlement-amount"><input id="settlementAmount" type="number" step="any" name="amount" class="form-control mono-num" placeholder="مثال: 1000 أو -100" aria-describedby="settlementFlowHint" required><span>ج.م</span></div>
         </div>
         <div class="am-settlement-field"><label for="settlementNotes">ملاحظة الحركة</label>
             <input id="settlementNotes" type="text" name="notes" class="form-control" placeholder="سبب الإيداع أو الخصم">
         </div>
-        <label class="am-settlement-upload"><input id="settlementReceipts" name="receipts" type="file" accept="image/jpeg,image/png,image/webp" multiple><i class="fa-regular fa-images" aria-hidden="true"></i><span><strong id="receiptLabel">إرفاق الإيصالات</strong><small id="settlementReceiptHint">مطلوبة للإيداع فقط · حتى 5 صور، 5MB للصورة</small></span></label>
+        <label class="am-settlement-upload"><input id="settlementReceipts" name="receipts" type="file" accept="image/jpeg,image/png,image/webp" aria-describedby="settlementReceiptHint" multiple><i class="fa-regular fa-images" aria-hidden="true"></i><span><strong id="receiptLabel">إضافة إيصال</strong><small id="settlementReceiptHint">اختياري للإيداع · حتى 5 صور، 5MB للصورة</small></span><em>اختياري</em></label>
         <div class="am-settlement-submit-area"><p id="settlementFlowHint" role="status">أدخل مبلغًا موجبًا للإيداع أو سالبًا للخصم.</p><button id="settlementSubmit" type="submit" class="am-button primary"><i class="fa-solid fa-arrow-left" aria-hidden="true"></i> <span data-settlement-submit-label>متابعة الحركة</span></button></div>
     </form>
 </div>

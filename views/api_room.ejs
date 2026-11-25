@@ -81,7 +81,7 @@
            const apiOtherRows = typeof otherExecutorMatches !== 'undefined' ? otherExecutorMatches : [];
            const apiQuery = typeof apiSearchTerm !== 'undefined' ? apiSearchTerm : ''; %>
         <% if (typeof query !== 'undefined' && query.settlementError) { %>
-            <div class="alert alert-danger" role="alert"><%= query.settlementError === 'RECEIPT_REQUIRED' ? 'لم يُسجّل الإيداع: أرفق صورة إيصال الدفع ثم أرسل الطلب للمراجعة.' : 'تعذر تسجيل التسوية؛ تحقق من الجلسة وأعد المحاولة.' %></div>
+            <div class="alert alert-danger" role="alert">تعذر تسجيل التسوية؛ تحقق من الجلسة وأعد المحاولة.</div>
         <% } %>
         <% if (typeof query !== 'undefined' && query.depositRequest) { %>
             <div class="alert alert-info" role="status">أُرسل طلب الإيداع <%= query.depositRequest %> للدعم. تُزاد العهدة بعد اعتماده.</div>
@@ -303,10 +303,10 @@
                             <div class="mb-3">
                                 <label class="form-label text-muted small">إيداع / خصم المبلغ (EGP)</label>
                                 <input type="number" step="0.01" name="amount" class="form-control form-control-lg text-center fw-bold fs-3" placeholder="0.00" required>
-                                <div class="form-text text-info mt-2"><i class="fa-solid fa-circle-info"></i> المبلغ الموجب ينشئ طلب إيداع يحتاج إيصالًا واعتماد الدعم قبل زيادة العهدة. المبلغ السالب يخصم من الرصيد.</div>
+                                <div class="form-text text-info mt-2"><i class="fa-solid fa-circle-info"></i> المبلغ الموجب ينشئ طلب إيداع يُضاف بعد اعتماده. المبلغ السالب يخصم من الرصيد مباشرة.</div>
                             </div>
                             <div class="mb-3">
-                                <label for="apiFundingReceipts" class="form-label">إيصالات الإيداع (مطلوبة للمبلغ الموجب)</label>
+                                <label for="apiFundingReceipts" class="form-label">إيصالات الإيداع <span class="badge rounded-pill text-bg-secondary">اختيارية</span></label>
                                 <input id="apiFundingReceipts" type="file" name="receipts" accept="image/jpeg,image/png,image/webp" multiple class="form-control">
                                 <div class="form-text">حتى 5 صور، بحد أقصى 5 ميجابايت للصورة.</div>
                             </div>
