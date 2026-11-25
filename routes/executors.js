@@ -579,8 +579,9 @@ router.get('/executor/:id', requireAuth, async (req, res) => {
             isMaster: req.session.adminRole === 'master',
             query: req.query
         });
-    } catch {
-        res.redirect('/executors');
+    } catch (error) {
+        console.error('[executor/detail] failed:', error.stack || error.message);
+        res.status(500).send('تعذر عرض ملف المنفذ حاليًا. يرجى تحديث الصفحة أو التواصل مع الدعم.');
     }
 });
 
