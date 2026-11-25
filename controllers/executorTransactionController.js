@@ -10,6 +10,7 @@ const { executeExecutorProviderTask } = require('../services/executorProviderExe
 const { notifyExecutorCancellation } = require('../services/executorCancellationNotificationService');
 const { ExecutorTransactionError, logExecutorFailure } = require('../services/executorTransactionError');
 const { MAX_PROOF_IMAGES } = require('../services/executorProofStorageService');
+const { nextDepositRequestId } = require('../services/depositRequestIdService');
 
 const objectIdString = (value) => String(value?._id || value || '');
 
@@ -81,7 +82,7 @@ exports.postRequestDeposit = async (req, res) => {
             costLYD: 0,
             vodafoneNumber: 'طلب إيداع',
             status: 'deposit_pending',
-            customId: 'DEPREQ-' + Date.now().toString().slice(-6),
+            customId: await nextDepositRequestId(),
             companyName: 'طلب إيداع من منفذ',
             employeeName: emp.name,
             executorName: emp.name

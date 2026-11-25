@@ -1,6 +1,5 @@
 'use strict';
 
-const crypto = require('crypto');
 const mongoose = require('mongoose');
 const Admin = require('../models/Admin');
 const Notification = require('../models/Notification');
@@ -14,6 +13,7 @@ const {
     financialTransactionsUnavailableError,
 } = require('./walletService');
 const { createClientNotifications, notifyBalanceAdjustment } = require('./clientNotificationService');
+const { nextDepositRequestId } = require('./depositRequestIdService');
 
 const failure = (message, status = 400) => Object.assign(new Error(message), { status });
 const objectId = (value) => String(value?._id || value || '');
@@ -84,7 +84,7 @@ async function createClientDepositRequest({ client, amount, note }) {
         .slice(0, 1000);
     if (cleanNote.length < 3) throw failure('اكتب ملاحظة توضح تفاصيل الإيداع (مرجع التحويل أو البنك).', 400);
 
-    const customId = `CLDEP-${Date.now().toString().slice(-8)}-${crypto.randomBytes(2).toString('hex').toUpperCase()}`;
+    let customId;
     const createdAt = new Date();
 
     const tx = await runDepositTransaction(async (session) => {
@@ -108,6 +108,7 @@ async function createClientDepositRequest({ client, amount, note }) {
                 `لديك طلب إيداع قيد المراجعة (${pending.customId}). انتظر قرار الإدارة قبل إرسال طلب جديد.`,
                 409
             );
+        customId = await nextDepositRequestId(session);
         const [created] = await Transaction.create(
             [
                 {

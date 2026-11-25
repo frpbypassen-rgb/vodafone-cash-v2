@@ -100,7 +100,7 @@ async function main() {
             Origin: BASE,
             Referer: `${BASE}/client/deposits`
         },
-        body: JSON.stringify({ amount: 250, note: 'تحويل بنكي تجريبي CLDEP-TEST' })
+        body: JSON.stringify({ amount: 250, note: 'تحويل بنكي تجريبي DQ-TEST' })
     });
     log.push({ step: 'create-deposit', status: create.response.status, body: create.json });
 
@@ -110,8 +110,11 @@ async function main() {
 
     log.push({ step: 'admin-login', ...(await login(adminJar, ADMIN)) });
 
-    const tickets = await fetchJson(`${BASE}/api/support/tickets?status=active&category=deposit&search=CLDEP`, { jar: adminJar });
-    let clientTicket = (tickets.json.tickets || []).find((t) => String(t.lastMessagePreview || '').includes('CLDEP') || String(t.category || '') === 'deposit');
+    const requestReference = create.json.request?.customId || pendingRequest?.customId;
+    const tickets = await fetchJson(`${BASE}/api/support/tickets?status=active&category=deposit&search=${encodeURIComponent(requestReference || 'DQ-')}`, { jar: adminJar });
+    let clientTicket = (tickets.json.tickets || []).find((t) =>
+        String(t.lastMessagePreview || '').includes(requestReference || 'DQ-')
+    );
     if (!clientTicket && create.json.request?.customId) {
         const byRef = await fetchJson(`${BASE}/api/support/tickets?search=${encodeURIComponent(create.json.request.customId)}`, { jar: adminJar });
         clientTicket = (byRef.json.tickets || [])[0];

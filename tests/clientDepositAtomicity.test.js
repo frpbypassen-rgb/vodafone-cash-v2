@@ -123,7 +123,9 @@ test('legacy deposits use their owned ticket and simultaneous submissions create
     expect(results.filter(result => result.status === 'fulfilled')).toHaveLength(1);
     expect(await Transaction.countDocuments({ status: 'deposit_pending' })).toBe(1);
     expect(await SupportTicket.countDocuments()).toBe(1);
-    expect((await Transaction.findOne()).tenantId).toEqual(owner.tenantId);
+    const request = await Transaction.findOne();
+    expect(request.tenantId).toEqual(owner.tenantId);
+    expect(request.customId).toMatch(/^DQ-\d{4}-\d{4,}$/);
 });
 test('wallet tenant context cannot credit an account belonging to another tenant', async () => {
     const { owner, other } = await fixture();

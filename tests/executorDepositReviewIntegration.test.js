@@ -21,8 +21,11 @@ const ExecutorGroup = require('../models/ExecutorGroup');
 const Notification = require('../models/Notification');
 const PushNotificationOutbox = require('../models/PushNotificationOutbox');
 const Transaction = require('../models/Transaction');
+const Counter = require('../models/Counter');
 const SupportTicket = require('../models/SupportTicket');
 const deposits = require('../services/executorDepositRequestService');
+const { nextDepositRequestId } = require('../services/depositRequestIdService');
+const transactionRepository = require('../repositories/transactionRepository');
 const MobilePushDevice = require('../models/MobilePushDevice');
 const MobileNotificationInbox = require('../models/MobileNotificationInbox');
 const { processOutboxItem } = require('../services/executorPushNotificationService');
@@ -51,6 +54,18 @@ beforeAll(async () => {
     await Promise.all([Transaction.init(), SupportTicket.init(), PushNotificationOutbox.init(), Notification.init()]);
 });
 
+test('deposit IDs share the ATT sequence and remain unique under concurrent allocation', async () => {
+    const before = (await Counter.findOne({ name: 'transaction' }))?.value || 0;
+    const references = await Promise.all(Array.from({ length: 8 }, () => nextDepositRequestId()));
+    expect(new Set(references).size).toBe(references.length);
+    expect(references.map((reference) => Number(reference.split('-')[2])).sort((a, b) => a - b))
+        .toEqual(Array.from({ length: 8 }, (_, index) => before + index + 1));
+    const operation = await transactionRepository.create({ amount: 1, status: 'pending' });
+    expect(operation.customId).toMatch(/^ATT-\d{4}-\d{4,}$/);
+    expect(Number(operation.customId.split('-')[2])).toBe(before + 9);
+    expect((await Counter.findOne({ name: 'transaction' })).value).toBe(before + 9);
+});
+
 test('admin can submit a deposit without a receipt and manager can approve it once', async () => {
     const group = await ExecutorGroup.create({ name: 'Optional admin receipt group' });
     const manager = await Employee.create({
@@ -65,7 +80,9 @@ test('admin can submit a deposit without a receipt and manager can approve it on
     expect(response.body).toMatchObject({ success: true });
     expect(response.status).toBe(201);
     const created = response.body.request;
+    expect(created.customId).toMatch(/^DQ-\d{4}-\d{4,}$/);
     const transaction = await Transaction.findById(created.id).lean();
+    expect(transaction.customId).toBe(created.customId);
     const ticket = await SupportTicket.findById(transaction.depositRequest.supportTicketId).lean();
     expect(created.receiptCount).toBe(0);
     expect(transaction.status).toBe('deposit_pending');

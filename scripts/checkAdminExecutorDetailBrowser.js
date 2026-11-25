@@ -58,7 +58,7 @@ async function run() {
             for await (const chunk of req) body += chunk;
             submittedDeposits.push(JSON.parse(body));
             res.writeHead(201, { 'content-type': 'application/json' });
-            return res.end(JSON.stringify({ success: true, request: { customId: 'DEPREQ-FIXTURE' } }));
+            return res.end(JSON.stringify({ success: true, request: { customId: 'DQ-2611-0001' } }));
         }
         if (url.pathname === '/executor/fixture-executor') {
             try {

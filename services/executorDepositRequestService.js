@@ -18,6 +18,7 @@ const { getExecutorPrimaryServiceKey } = require('../utils/executorServiceCatalo
 const { fundingFieldsForService } = require('../utils/executorServiceLedger');
 const { parseExecutorImageDataUrl } = require('../utils/executorImageValidation');
 const { queueExecutorDepositRequest } = require('./executorPushNotificationService');
+const { nextDepositRequestId } = require('./depositRequestIdService');
 
 const MAX_RECEIPTS = 5;
 const MAX_RECEIPT_BYTES = 5 * 1024 * 1024;
@@ -130,7 +131,7 @@ async function createDepositRequest({ employee, group: requestedGroup, submitted
     if (submittedFromAdmin && (!String(submitter.id || '').trim() || !String(submitter.name || '').trim())) {
         throw failure('تعذر تحديد المدير الذي سجّل طلب الإيداع.', 401);
     }
-    const customId = `DEPREQ-${Date.now().toString().slice(-8)}-${crypto.randomBytes(2).toString('hex').toUpperCase()}`;
+    const customId = await nextDepositRequestId();
     const receiptImages = await saveReceipts(receipts, customId, { required: !submittedFromAdmin });
     const createdAt = new Date();
     const transactionId = new mongoose.Types.ObjectId();

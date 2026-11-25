@@ -492,6 +492,28 @@ describe('📱 Spec 014: Mobile Web Parity Bridge Tests', () => {
     describe('Executor mobile bridge hardening', () => {
         const idempotencyKey = '550e8400-e29b-41d4-a716-446655440000';
 
+        test('mobile executor deposit returns a DQ reference from the transaction sequence', async () => {
+            testUserPayload = { userId: 'deposit-executor', accountType: 'executor' };
+            Employee.findById.mockReturnValue({ populate: jest.fn().mockResolvedValue({
+                _id: 'deposit-executor', name: 'Test executor', role: 'operator',
+                groupId: { _id: 'deposit-group', name: 'Test group' }
+            }) });
+            Transaction.findOne.mockResolvedValue(null);
+
+            const response = await request(app)
+                .post('/api/mobile/executor/request-deposit')
+                .set('Idempotency-Key', idempotencyKey)
+                .send({ amount: 50 });
+
+            expect(response.status).toBe(200);
+            expect(response.body).toMatchObject({ success: true, txId: expect.stringMatching(/^DQ-\d{4}-0101$/) });
+            expect(require('../models/Counter').findOneAndUpdate).toHaveBeenCalledWith(
+                { name: 'transaction' },
+                { $inc: { value: 1 } },
+                expect.objectContaining({ upsert: true, returnDocument: 'after' })
+            );
+        });
+
         test('ZaynPay execution rejects tasks outside executor group before calling provider', async () => {
             testUserPayload = { userId: 'zayn-id', accountType: 'executor' };
             const emp = {

@@ -16,8 +16,8 @@ const SubAccount = require('../models/SubAccount');
 const AgentEmployee = require('../models/AgentEmployee');
 const SupportTicket = require('../models/SupportTicket');
 const Admin = require('../models/Admin');
-const Counter = require('../models/Counter');
 const MobilePushDevice = require('../models/MobilePushDevice');
+const { nextDepositRequestId } = require('./depositRequestIdService');
 
 const { executeBalanceTransfer } = require('./balanceTransferService');
 const { resolveAccountByCode, normalizeAccountCode } = require('./accountCodeService');
@@ -185,17 +185,6 @@ const assertExecutorTaskRole = (emp) => {
     if (!emp) throw new Error('UNAUTHORIZED');
     if (emp.role === 'accountant') throw new Error('FORBIDDEN');
     return emp;
-};
-
-const nextDepositRequestId = async (session) => {
-    const counter = await Counter.findOneAndUpdate(
-        { name: 'deposit_request' },
-        { $inc: { value: 1 } },
-        { upsert: true, returnDocument: 'after', ...(session ? { session } : {}) }
-    );
-    const yy = new Date().getFullYear().toString().slice(-2);
-    const mm = String(new Date().getMonth() + 1).padStart(2, '0');
-    return `DEPREQ-${yy}${mm}-${String(counter.value).padStart(4, '0')}`;
 };
 
 const updateBalanceWithCreditLimit = async ({ Model, id, diff, session }) => {
