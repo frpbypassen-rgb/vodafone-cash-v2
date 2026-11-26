@@ -139,9 +139,9 @@
                     </div>
                     <% if (!isExecutor) { %>
                         <div class="field">
-                            <label for="phone"><%= accountType === 'agent' ? 'رقم التواصل' : 'رقم الهاتف' %> <% if (['user', 'agent'].includes(accountType)) { %><span class="required">*</span><% } %></label>
+                            <label for="phone"><%= accountType === 'agent' ? 'الرقم الأساسي للوكيل' : 'رقم الهاتف' %> <% if (['user', 'agent'].includes(accountType)) { %><span class="required">*</span><% } %></label>
                             <input id="phone" name="phone" class="form-control mono" value="<%= value('phone') %>" maxlength="24" inputmode="tel" <%= ['user', 'agent'].includes(accountType) ? 'required' : '' %>>
-                            <% if (accountType === 'agent') { %><small class="text-muted">يمكن مشاركة رقم التواصل بين الحسابات. رقم الدخول ورمز SMS ما زالا مرتبطين بالرقم الأصلي <bdi><%= account.phone || 'غير مسجل' %></bdi>؛ استخدم اسم المستخدم الفريد للدخول.</small><% } %>
+                            <% if (accountType === 'agent') { %><small class="text-muted">يصبح هذا الرقم رقم التواصل والدخول ووجهة SMS الأساسية. إذا كان مشتركًا بين حسابات، استخدم اسم المستخدم الفريد للدخول.</small><% } %>
                         </div>
                     <% } %>
                     <div class="field">

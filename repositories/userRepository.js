@@ -18,7 +18,11 @@ const getPhoneCandidates = (phone) => {
     const digits = raw.replace(/\D/g, '');
     const candidates = [raw, digits];
 
-    if (digits.startsWith('218') && digits.length === 12) candidates.push(`0${digits.slice(3)}`);
+    const libyanMobile = /^(?:0|218|00218)(9[1-4]\d{7})$/.exec(digits);
+    if (libyanMobile) candidates.push(
+        `0${libyanMobile[1]}`, `218${libyanMobile[1]}`,
+        `+218${libyanMobile[1]}`, `00218${libyanMobile[1]}`
+    );
     if (digits.startsWith('20') && digits.length === 12) candidates.push(`0${digits.slice(2)}`);
     if (digits.startsWith('00218')) candidates.push(`0${digits.slice(5)}`);
     if (digits.startsWith('0020')) candidates.push(`0${digits.slice(4)}`);
@@ -42,6 +46,20 @@ const credentialLookup = (username) => {
             ...phoneClauses
         ]
     };
+};
+
+const isPhoneIdentifier = (value) => /^(?:\+|00)?\d{9,14}$/.test(String(value || '').trim());
+const userCredentialLookup = (username) => {
+    const lookup = credentialLookup(username);
+    const phones = getPhoneCandidates(username);
+    return { $or: [
+        ...lookup.$or.filter((clause) => clause.webUsername),
+        { $and: [
+            { phone: { $in: phones } },
+            { $or: [{ role: { $ne: 'agent' } }, { contactPhone: { $in: [null, ''] } }] }
+        ] },
+        { role: 'agent', contactPhone: { $in: phones } }
+    ] };
 };
 
 const allowsLegacyTenantlessRecords = () => (
@@ -78,6 +96,21 @@ const findByIdWithTenant = (Model, userId, tenantId) => {
  */
 const findByCredentials = async (username, password, tenantId) => {
     const searchPass = password.trim();
+
+    // A shared primary number must never select whichever account happens to
+    // be returned first. Require the account's unique username instead.
+    if (isPhoneIdentifier(username)) {
+        const phoneLookup = { phone: { $in: getPhoneCandidates(username) } };
+        const phoneMatches = await User.find(applyTenantScope({ $or: userCredentialLookup(username).$or.slice(1) }, tenantId))
+            .select('_id role contactPhone').limit(2);
+        if (phoneMatches.length > 1) return { error: 'PHONE_SHARED_USE_USERNAME' };
+        if (phoneMatches.length) {
+            const SubAccount = require('../models/SubAccount');
+            const otherMatches = await Promise.all([Employee, ClientEmployee, AgentEmployee, SubAccount]
+                .map((Model) => Model.exists(applyTenantScope(phoneLookup, tenantId))));
+            if (otherMatches.some(Boolean)) return { error: 'PHONE_SHARED_USE_USERNAME' };
+        }
+    }
 
     // 1. فحص المنفذ (Employee) — قد يتكرر webUsername بين مجموعات مختلفة
     const execQuery = applyTenantScope(credentialLookup(username), tenantId);
@@ -140,7 +173,7 @@ const findByCredentials = async (username, password, tenantId) => {
     }
 
     // 4. فحص العميل الفردي (User)
-    const userQuery = applyTenantScope(credentialLookup(username), tenantId);
+    const userQuery = applyTenantScope(userCredentialLookup(username), tenantId);
     const userDoc = await User.findOne(userQuery);
 
     if (userDoc) {

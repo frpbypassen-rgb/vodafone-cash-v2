@@ -297,6 +297,29 @@ test.each(['user', 'company', 'agent_staff'])(
         expect(telegram.sendCode).not.toHaveBeenCalled();
     }
 );
+test('agent SMS enrollment and login use the new primary phone, not its legacy transaction phone', async () => {
+    const account = await User.create({
+        name: 'وكيل اختبار', webUsername: 'agent-primary-sms', webPassword: 'test-password',
+        role: 'agent', phone: '0910000001', contactPhone: '0940001234'
+    });
+    const settingsReq = {
+        sessionID: 'agent-primary-sms-session',
+        session: { isClientLoggedIn: true, clientId: account._id, accountType: 'user', clientSessionVersion: 0 },
+    };
+    const enrollment = require('../services/smsLoginEnrollmentService');
+    const context = require('../services/businessLoginSecurityContext').context;
+    expect(enrollment.present(await context(settingsReq)).phone).toContain('094');
+    await enrollment.start({ ...await context(settingsReq), password: 'test-password' });
+    expect(smsTransport.sendPin).toHaveBeenCalledWith('218940001234');
+    expect(smsTransport.sendPin).not.toHaveBeenCalledWith('218910000001');
+    await enrollment.confirm({ ...await context(settingsReq), code: '048291' });
+    const enabled = await User.findById(account._id);
+    expect(require('../utils/smsLoginPhone').verifiedSmsPhone(enabled)).toBe('218940001234');
+    const attempt = sessionRequest();
+    await service.start(attempt, enabled, 'user', {});
+    await service.send(attempt, 'sms');
+    expect(smsTransport.sendPin).toHaveBeenLastCalledWith('218940001234');
+});
 test('successful business OTP uses the existing final session and security gates', async () => {
     await service.send(req, 'email');
     req.body.otp = '123456';

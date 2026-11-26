@@ -1,7 +1,7 @@
 'use strict';
 const challenge = require('../utils/loginSecurityChallenge');
 const approval = require('../utils/loginMethodApproval');
-const { normalizeSmsLoginPhone, maskSmsPhone, phoneProof, verifiedSmsPhone } = require('../utils/smsLoginPhone');
+const { smsPhoneForAccount, maskSmsPhone, phoneProof, verifiedSmsPhone } = require('../utils/smsLoginPhone');
 const { normalizeSubmittedOtp } = require('../utils/otp');
 const transport = require('./smsLoginTransport');
 const retail = require('../utils/retailLoginMethods');
@@ -12,7 +12,7 @@ const assertCustomer = (ctx) => {
 };
 const present = (ctx) => {
     assertCustomer(ctx);
-    const phone = normalizeSmsLoginPhone(ctx.actor.phone);
+    const phone = smsPhoneForAccount(ctx.actor);
     const pending = ctx.actor.smsOtpEnrollment;
     const stage = challenge.valid(pending, ctx.actor, ctx.sessionId) && pending.phoneHash === phoneProof(phone)
         && pending.attempts < 5 && pending.stage === 'sms' ? pending.stage : null;
@@ -28,6 +28,7 @@ const present = (ctx) => {
 const guardFor = (actor) => ({
     ...challenge.guard(actor),
     phone: actor.phone,
+    ...(actor.role === 'agent' ? { contactPhone: actor.contactPhone || { $in: [null, ''] } } : {}),
     sessionVersion: actor.sessionVersion || { $in: [null, 0] },
 });
 const pendingGuard = (item) => ({
@@ -55,7 +56,7 @@ const start = async (ctx) => {
     const { actor, Model } = ctx;
     await challenge.password(actor, ctx.password);
     retail.requireRecentProof(ctx);
-    const phone = normalizeSmsLoginPhone(actor.phone);
+    const phone = smsPhoneForAccount(actor);
     if (!phone)
         throw challenge.fail('PHONE_INVALID', 'يلزم رقم هاتف ليبي مسجّل يبدأ بـ091 أو 092 أو 093 أو 094.');
     if (!transport.configured())
@@ -86,7 +87,7 @@ const confirm = async (ctx) => {
     const { actor, Model } = ctx;
     retail.requireRecentProof(ctx);
     const item = actor.smsOtpEnrollment;
-    const phone = normalizeSmsLoginPhone(actor.phone);
+    const phone = smsPhoneForAccount(actor);
     if (!challenge.valid(item, actor, ctx.sessionId) || !phone || item.phoneHash !== phoneProof(phone)
         || item.stage !== 'sms')
         throw challenge.fail('EXPIRED', 'انتهت صلاحية الرمز. اطلب رمزًا جديدًا.', 410);

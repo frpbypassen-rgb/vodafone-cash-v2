@@ -208,8 +208,9 @@ describe('admin account management service', () => {
     });
 
     test('agent may share a contact number without changing the unique login and transaction phone', async () => {
+        const { phoneProof, normalizeSmsLoginPhone } = require('../utils/smsLoginPhone');
         const account = makeAccount({
-            role: 'agent', sessionVersion: 2, smsOtpVerifiedPhoneHash: 'existing-phone-proof',
+            role: 'agent', sessionVersion: 2, smsOtpVerifiedPhoneHash: phoneProof(normalizeSmsLoginPhone('0911111111')),
             schema: { path: (field) => ['sessionVersion', 'smsOtpVerifiedPhoneHash'].includes(field) }
         });
         User.findById.mockResolvedValue(account);
@@ -224,8 +225,39 @@ describe('admin account management service', () => {
         expect(account.contactPhone).toBe('0922222222');
         expect(account.phone).toBe('0911111111');
         expect(account.sessionVersion).toBe(3);
-        expect(account.smsOtpVerifiedPhoneHash).toBe('existing-phone-proof');
+        expect(account.smsOtpVerifiedPhoneHash).toBe(phoneProof(normalizeSmsLoginPhone('0922222222')));
         expect(result.newData.phone).toBe('0922222222');
+    });
+
+    test('saving an agent with a previously changed primary phone rebinds legacy SMS proof', async () => {
+        const { phoneProof, normalizeSmsLoginPhone } = require('../utils/smsLoginPhone');
+        const account = makeAccount({
+            role: 'agent', contactPhone: '0922222222', sessionVersion: 2,
+            smsOtpVerifiedPhoneHash: phoneProof(normalizeSmsLoginPhone('0911111111')),
+            schema: { path: (field) => ['sessionVersion', 'smsOtpVerifiedPhoneHash'].includes(field) }
+        });
+        User.findById.mockResolvedValue(account);
+        ClientCompany.findOne.mockReturnValue(queryResult({ _id: IDS.owner }));
+        await updateEditableAccount({
+            type: 'agent', id: IDS.account,
+            payload: userPayload({ phone: '0922222222', accountCode: '123456' })
+        });
+        expect(account.smsOtpVerifiedPhoneHash).toBe(phoneProof(normalizeSmsLoginPhone('0922222222')));
+        expect(account.sessionVersion).toBe(3);
+    });
+
+    test('an SMS-enabled agent cannot be changed to a phone that cannot receive an OTP', async () => {
+        const { phoneProof, normalizeSmsLoginPhone } = require('../utils/smsLoginPhone');
+        const account = makeAccount({
+            role: 'agent', smsOtpVerifiedPhoneHash: phoneProof(normalizeSmsLoginPhone('0911111111')),
+            schema: { path: (field) => ['sessionVersion', 'smsOtpVerifiedPhoneHash'].includes(field) }
+        });
+        User.findById.mockResolvedValue(account);
+        await expect(updateEditableAccount({
+            type: 'agent', id: IDS.account,
+            payload: userPayload({ phone: '0952222222', accountCode: '123456' })
+        })).rejects.toMatchObject({ code: 'SMS_LOGIN_PHONE_INVALID', field: 'phone' });
+        expect(account.save).not.toHaveBeenCalled();
     });
 
     test('direct client phone remains unique when another account uses it', async () => {

@@ -333,6 +333,17 @@ const login = async (username, password, req) => {
         };
     }
 
+    if (result.error === 'PHONE_SHARED_USE_USERNAME') {
+        await logAction({
+            action: 'LOGIN_FAILED', req, performedByName: username,
+            metadata: { reason: 'PHONE_SHARED_USE_USERNAME' },
+            success: false, errorCode: 'PHONE_SHARED_USE_USERNAME'
+        });
+        return {
+            success: false, statusCode: 409, code: 'PHONE_SHARED_USE_USERNAME',
+            message: 'هذا الرقم مرتبط بأكثر من حساب. استخدم اسم المستخدم الفريد للدخول.'
+        };
+    }
     if (result.error === 'ACCOUNT_BANNED') {
         await logAction({
             action: 'LOGIN_FAILED',

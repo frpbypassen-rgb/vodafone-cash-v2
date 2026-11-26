@@ -1428,6 +1428,10 @@ router.post('/login', loginLimiter, validateLoginInput, async (req, res) => {
             authResult = await findByCredentials(username, password, null);
         }
 
+        if (authResult?.error === 'PHONE_SHARED_USE_USERNAME') {
+            await logLoginFailure(req, username, 'PHONE_SHARED_USE_USERNAME', 'رقم هاتف مشترك');
+            return renderLogin(res, 'هذا الرقم مرتبط بأكثر من حساب. استخدم اسم المستخدم الفريد للدخول.', { submittedUsername: username });
+        }
         if (authResult?.error === 'ACCOUNT_BANNED') {
             await logLoginFailure(req, username, 'SUSPENDED', 'الحساب غير مفعّل حالياً');
             if (authResult.accountType === 'executor') {

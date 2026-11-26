@@ -96,10 +96,11 @@ const renderEditor = (accountType, overrides = {}) => ejs.renderFile(EDIT_VIEW, 
 describe('owner email OTP admin screens', () => {
     test('agent editor labels a shared contact number and keeps username distinct', async () => {
         const html = await renderEditor('agent', { phone: '0922222222', webUsername: 'agent.unique' });
-        expect(html).toContain('رقم التواصل');
+        expect(html).toContain('رقم التواصل والدخول ووجهة SMS الأساسية');
         expect(html).toContain('name="phone"');
         expect(html).toContain('value="0922222222"');
-        expect(html).toContain('يمكن مشاركة رقم التواصل بين الحسابات');
+        expect(html).toContain('الرقم الأساسي للوكيل');
+        expect(html).not.toContain('رقم الدخول ورمز SMS ما زالا مرتبطين بالرقم الأصلي');
         expect(html).toContain('value="agent.unique"');
     });
     test.each(['user', 'agent', 'company'])('%s edit screen shows the owner email and email OTP control', async (accountType) => {

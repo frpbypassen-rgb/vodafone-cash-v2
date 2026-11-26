@@ -88,6 +88,7 @@ const ERROR_MESSAGES = Object.freeze({
     NAME_REQUIRED: 'الاسم مطلوب ويجب ألا يقل عن حرفين.',
     PHONE_REQUIRED: 'رقم الهاتف مطلوب لهذا النوع من الحسابات.',
     PHONE_INVALID: 'رقم الهاتف غير صالح. استخدم الأرقام وعلامة + فقط.',
+    SMS_LOGIN_PHONE_INVALID: 'رقم التحقق SMS الجديد يجب أن يبدأ بـ091 أو 092 أو 093 أو 094.',
     PHONE_TAKEN: 'رقم الهاتف مستخدم في حساب آخر.',
     USERNAME_REQUIRED: 'اسم المستخدم مطلوب.',
     USERNAME_INVALID: 'اسم المستخدم غير صالح أو يحتوي على مسافات.',
@@ -264,7 +265,7 @@ const optionalOtpEmail = (value, field) => {
 
 // Login OTP is an explicit per-account opt-in controlled by administration.
 const adminOtpChannel = (type, account, payload) => {
-    const allowSms = ['user', 'subaccount'].includes(type);
+    const allowSms = ['user', 'agent', 'subaccount'].includes(type);
     if (allowSms && account.otpDeliveryChannel === 'sms' && payload.loginOtpChannel === undefined
         && !hasOwn(payload, 'emailOtpEnabled')) return 'sms';
     const selected = payload.loginOtpChannel !== undefined && hasOwn(payload, 'loginOtpChannel')
@@ -291,7 +292,7 @@ const setLoginOtpDelivery = (type, account, payload) => {
     const email = emailOtpEnabled
         ? requireOtpEmail(payload.email, 'email')
         : optionalOtpEmail(payload.email, 'email');
-    const isRetail = ['user', 'subaccount'].includes(type);
+    const isRetail = ['user', 'agent', 'subaccount'].includes(type);
     if (isRetail) {
         const { deliveryMethods } = require('../utils/retailLoginMethods');
         account.retailLoginMethods = channel === 'whatsapp' ? [] : [...new Set([...deliveryMethods(account), channel])];
@@ -299,7 +300,7 @@ const setLoginOtpDelivery = (type, account, payload) => {
             account.retailPreferredLoginMethod = undefined;
     }
     account.otpDeliveryChannel = channel;
-    if (['user', 'subaccount'].includes(type)) {
+    if (['user', 'agent', 'subaccount'].includes(type)) {
         account.smsOtpEnrollment = undefined;
         if (channel === 'whatsapp') account.smsOtpVerifiedPhoneHash = '';
     }
@@ -392,6 +393,7 @@ const setLoginIdentity = async ({ definition, account, payload, requirePhone = f
     const currentPhone = isAgent ? (account.contactPhone || account.phone) : account.phone;
     const phoneChanged = !sameText(currentPhone, phone);
     const usernameChanged = !sameText(account.webUsername, webUsername);
+    let smsDestinationRebound = false;
 
     if (phoneChanged && !isAgent) {
         await assertIdentityAvailable({
@@ -410,10 +412,25 @@ const setLoginIdentity = async ({ definition, account, payload, requirePhone = f
         });
     }
 
-    // Shared agent contact changes must not invalidate the verified login phone.
-    if (phoneChanged && !isAgent && account.schema?.path('smsOtpVerifiedPhoneHash')) {
-        const { normalizeSmsLoginPhone } = require('../utils/smsLoginPhone');
-        if (normalizeSmsLoginPhone(account.phone) !== normalizeSmsLoginPhone(phone)) account.smsOtpVerifiedPhoneHash = '';
+    if ((phoneChanged || isAgent) && account.schema?.path('smsOtpVerifiedPhoneHash')) {
+        const { normalizeSmsLoginPhone, phoneProof } = require('../utils/smsLoginPhone');
+        const previous = normalizeSmsLoginPhone(currentPhone);
+        const next = normalizeSmsLoginPhone(phone);
+        const legacyAgentPhone = isAgent ? normalizeSmsLoginPhone(account.phone) : '';
+        if (previous !== next || (isAgent && legacyAgentPhone !== next
+            && account.smsOtpVerifiedPhoneHash === phoneProof(legacyAgentPhone))) {
+            if (isAgent && (account.smsOtpVerifiedPhoneHash === phoneProof(previous)
+                || account.smsOtpVerifiedPhoneHash === phoneProof(legacyAgentPhone))) {
+                if (!next) throw new AdminAccountManagementError('SMS_LOGIN_PHONE_INVALID', 'phone');
+                // An administrator changes the registered destination; the next login still
+                // requires a fresh code delivered to that destination.
+                account.smsOtpVerifiedPhoneHash = phoneProof(next);
+                smsDestinationRebound = true;
+            } else {
+                account.smsOtpVerifiedPhoneHash = '';
+            }
+            account.smsOtpEnrollment = undefined;
+        }
     }
     if (isAgent) account.contactPhone = phone;
     else account.phone = phone || undefined;
@@ -432,7 +449,7 @@ const setLoginIdentity = async ({ definition, account, payload, requirePhone = f
         account.lastOtpDate = undefined;
         passwordChanged = true;
     }
-    if ((phoneChanged || usernameChanged || passwordChanged) && account.schema?.path('sessionVersion')) {
+    if ((phoneChanged || usernameChanged || passwordChanged || smsDestinationRebound) && account.schema?.path('sessionVersion')) {
         account.sessionVersion = Number(account.sessionVersion || 0) + 1;
     }
     return passwordChanged;

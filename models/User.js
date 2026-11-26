@@ -6,8 +6,8 @@ const userSchema = new mongoose.Schema({
     name: { type: String },
     ...require('./schemas/merchantIntegrationFields'),
     phone: { type: String, unique: true, sparse: true },
-    // Shared contact number for agents. `phone` remains the unique login and
-    // legacy transaction identity; never use contactPhone for ownership.
+    // For agents, contactPhone is the primary login/SMS number and may be shared.
+    // `phone` remains a unique, stable legacy transaction identity only.
     contactPhone: { type: String, trim: true },
     balance: { type: Number, default: 0 },
     tier: { type: Number, default: 3 },
@@ -90,6 +90,7 @@ userSchema.pre('save', async function() {
 // Duplicate index on phone removed (unique already enforced)
 // webUsername لديه unique بالفعل في الشيما
 userSchema.index({ status: 1 });                        // فلتر الحسابات النشيطة
+userSchema.index({ role: 1, contactPhone: 1 });          // بحث رقم الوكيل الأساسي
 userSchema.index({ tenantId: 1 });
 userSchema.index({ companyId: 1, corporateRole: 1 });
 

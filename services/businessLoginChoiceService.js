@@ -12,7 +12,7 @@ const {
 const { getSmtpConfig, getMissingSmtpSettings, sendLoginOtpEmail } = require('./emailOtpMailer');
 const telegram = require('./telegramLoginTransport');
 const sms = require('./smsLoginTransport');
-const { normalizeSmsLoginPhone, verifiedSmsPhone, maskSmsPhone } = require('../utils/smsLoginPhone');
+const { smsPhoneForAccount, verifiedSmsPhone, maskSmsPhone } = require('../utils/smsLoginPhone');
 const { establishAuthenticatedSession } = require('../utils/sessionSecurity');
 const { hash, guard, fail } = require('../utils/loginSecurityChallenge');
 const { generateOtp, hashOtp, verifyOtp } = require('../utils/otp');
@@ -50,7 +50,7 @@ const fingerprint = (actor, type) =>
             String(actor.companyId || actor.agentId || ''),
             String(actor.masterId || ''),
             actor.masterType || '',
-            ...(actor.smsOtpVerifiedPhoneHash ? [actor.smsOtpVerifiedPhoneHash, normalizeSmsLoginPhone(actor.phone)] : []),
+            ...(actor.smsOtpVerifiedPhoneHash ? [actor.smsOtpVerifiedPhoneHash, smsPhoneForAccount(actor)] : []),
             ...(retail.isChoiceLogin(actor, type) ? [actor.role, retail.enabledMethods(actor), actor.totpSecretEncrypted || ''] : []),
         ])
     );
