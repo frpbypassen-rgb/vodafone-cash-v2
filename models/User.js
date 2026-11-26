@@ -6,6 +6,9 @@ const userSchema = new mongoose.Schema({
     name: { type: String },
     ...require('./schemas/merchantIntegrationFields'),
     phone: { type: String, unique: true, sparse: true },
+    // Shared contact number for agents. `phone` remains the unique login and
+    // legacy transaction identity; never use contactPhone for ownership.
+    contactPhone: { type: String, trim: true },
     balance: { type: Number, default: 0 },
     tier: { type: Number, default: 3 },
     status: { type: String, default: 'active' }, 

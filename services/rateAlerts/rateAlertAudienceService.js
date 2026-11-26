@@ -143,7 +143,7 @@ const buildAudienceEntry = ({
         .map((row) => ({
             id: row._id,
             name: row.name || row.webUsername || row.phone || 'عميل الأهرام',
-            phone: row.phone,
+            phone: row.role === 'agent' ? (row.contactPhone || row.phone) : row.phone,
             model: row === account ? model : (model === 'ClientCompany' ? 'ClientEmployee' : 'AgentEmployee'),
             payload
         }));
@@ -167,7 +167,7 @@ const buildRateAlertAudience = async ({
     campaignReference = ''
 }) => {
     const [users, companies, subAccounts, clientEmployees, agentEmployees] = await Promise.all([
-        User.find({ status: 'active' }).select('_id name phone webUsername role tier').lean(),
+        User.find({ status: 'active' }).select('_id name phone contactPhone webUsername role tier').lean(),
         ClientCompany.find({ status: 'active' }).select('_id name phone tier rateMode rateOffsets exchangeRate').lean(),
         SubAccount.find({ status: 'active' }).select('_id name phone webUsername masterType masterId customMargin marginPiasters serviceMarginPiasters pricingVersion').lean(),
         ClientEmployee.find({ status: 'active' }).select('_id name phone webUsername companyId').lean(),

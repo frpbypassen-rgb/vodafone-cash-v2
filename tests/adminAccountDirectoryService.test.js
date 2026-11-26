@@ -82,6 +82,14 @@ describe('Admin account directory service', () => {
         expect(models.SubAccount.find).not.toHaveBeenCalled();
     });
 
+    test('agent directory searches and selects shared contact numbers', async () => {
+        const models = createModels({ users: [] });
+        await loadAdminAccountDirectory(models, { section: 'agents', search: '0922222222' });
+        const filter = models.User.find.mock.calls[0][0];
+        expect(filter.$or).toEqual(expect.arrayContaining([{ contactPhone: /0922222222/i }]));
+        expect(models.User.find.mock.results[0].value.select).toHaveBeenCalledWith(expect.stringContaining('contactPhone'));
+    });
+
     test('keeps companies in the companies section regardless of their sub-accounts', async () => {
         const company = { _id: 'company-1', name: 'شركة تجريبية', balance: 100 };
         const models = createModels({ companies: [company] });
@@ -140,7 +148,8 @@ describe('Admin account directory service', () => {
         expect(normalizeSearch(`  ${'x'.repeat(140)}  `)).toHaveLength(120);
 
         const filter = buildSectionFilter('agents', '011.*');
-        expect(filter.$or).toHaveLength(5);
+        expect(filter.$or).toHaveLength(6);
+        expect(filter.$or).toEqual(expect.arrayContaining([{ contactPhone: /011\.\*/i }]));
         expect(filter.$or[0].name.test('011.*')).toBe(true);
         expect(filter.$or[0].name.test('011999')).toBe(false);
         expect(DEFAULT_PAGE_SIZE).toBe(24);

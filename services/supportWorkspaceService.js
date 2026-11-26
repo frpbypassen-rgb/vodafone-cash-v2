@@ -307,7 +307,7 @@ const accountSummary = (account, type, parent = null) => account ? {
     id: toId(account._id),
     type,
     name: account.name || '',
-    phone: account.phone || '',
+    phone: account.role === 'agent' ? (account.contactPhone || account.phone || '') : (account.phone || ''),
     username: account.webUsername || '',
     accountCode: account.accountCode || '',
     status: account.status || '',

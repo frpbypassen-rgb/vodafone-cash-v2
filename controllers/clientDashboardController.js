@@ -234,7 +234,7 @@ exports.getDashboard = async (req, res) => {
             ? await buildClientProfile(req, account, isSubAccount)
             : {
                 name: account.name,
-                phone: account.phone || 'غير مسجل',
+                phone: account.role === 'agent' ? (account.contactPhone || account.phone || 'غير مسجل') : (account.phone || 'غير مسجل'),
                 username: account.webUsername,
                 accountCode,
                 agentAccountCode: '',
@@ -285,7 +285,7 @@ exports.getDashboard = async (req, res) => {
         }
         res.render(isWalletHubUser ? 'client/retail_dashboard' : 'client/dashboard', {
             retailHome,
-            user: { name: account.name, phone: account.phone || account.webUsername, balance, role: account.role || 'user', accountType: req.session.accountType, accountCode, canViewBalance, canRequestDeposit },
+            user: { name: account.name, phone: account.role === 'agent' ? (account.contactPhone || account.phone || account.webUsername) : (account.phone || account.webUsername), balance, role: account.role || 'user', accountType: req.session.accountType, accountCode, canViewBalance, canRequestDeposit },
             isSubAccount, isMaster: !isSubAccount, masterTotalProfit, transactions: sanitizedTransactions, transactionsTruncated, recentTransactions, todayStats, walletHub: isWalletHubUser, currentRate, serviceRates, totals, targetDate, dateLabel, showMonth, search, query: req.query, storeCatalog,
             isSystemOpen,
             profile,

@@ -11,7 +11,7 @@ const icon = companyList ? 'fa-building' : directList ? 'fa-user' : 'fa-user-tie
     <% if (!rows.length) { %>
     <div class="am-directory-empty" role="status"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><h2>لا توجد حسابات مطابقة</h2><p>جرّب تغيير البحث أو حالة الحساب.</p><a class="am-button" href="/clients?section=<%= activeSection %>" data-directory-nav>عرض جميع الحسابات</a></div>
     <% } %>
-    <% rows.forEach(account => { const balance = Number(account.balance || 0); const url = path + account._id; const code = account.accountCode || account.agentCode; %>
+    <% rows.forEach(account => { const balance = Number(account.balance || 0); const url = path + account._id; const code = account.accountCode || account.agentCode; const contactPhone = type === 'agent' ? (account.contactPhone || account.phone) : account.phone; %>
     <article class="am-account-card is-<%= type %>" role="listitem" aria-label="<%= label %>: <%= account.name %>">
         <header class="am-card-heading">
             <span class="am-card-avatar"><i class="fa-solid <%= icon %>" aria-hidden="true"></i></span>
@@ -21,7 +21,7 @@ const icon = companyList ? 'fa-building' : directList ? 'fa-user' : 'fa-user-tie
         <div class="am-card-balance"><span>الرصيد المتاح</span><strong class="<%= balance > 0 ? 'am-positive' : balance < 0 ? 'am-negative' : '' %>"><bdi><%= balance.toLocaleString('en-US', {minimumFractionDigits:3, maximumFractionDigits:3}) %></bdi> <small>د.ل</small></strong></div>
         <dl class="am-card-info">
             <div><dt>رقم الحساب</dt><dd><bdi><%= code || '—' %></bdi><% if(code) { %><button class="am-copy-code" type="button" data-copy-code="<%= code %>" aria-label="نسخ رقم حساب <%= account.name %>"><i class="fa-regular fa-copy" aria-hidden="true"></i></button><% } %></dd></div>
-            <div><dt>الهاتف</dt><dd><% if(account.phone && /^\+?\d+$/.test(account.phone)) { %><a href="tel:<%= account.phone %>"><bdi><%= account.phone %></bdi></a><% } else { %>—<% } %></dd></div>
+            <div><dt>الهاتف</dt><dd><% if(contactPhone && /^\+?\d+$/.test(contactPhone)) { %><a href="tel:<%= contactPhone %>"><bdi><%= contactPhone %></bdi></a><% } else { %>—<% } %></dd></div>
             <div><dt>المدينة</dt><dd><%= account.businessProfile && account.businessProfile.city || '—' %></dd></div>
         </dl>
         <footer class="am-card-footer">

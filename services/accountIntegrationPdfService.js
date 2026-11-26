@@ -93,7 +93,7 @@ const buildIntegrationDocumentData = ({
             name: account.name || 'جهة غير مسماة',
             typeLabel: accountLabel(accountType),
             accountCode: reference,
-            phone: account.phone || 'غير مسجل',
+            phone: account.role === 'agent' ? (account.contactPhone || account.phone || 'غير مسجل') : (account.phone || 'غير مسجل'),
             contactName: profile.contactName || account.name || 'غير مسجل',
             email: profile.email || 'غير مسجل',
             city: profile.city || 'غير مسجل',

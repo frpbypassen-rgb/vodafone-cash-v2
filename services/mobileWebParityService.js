@@ -406,7 +406,7 @@ async function getClientReports({ userId, accountType, dateType, dateValue, date
 
     const entityInfo = {
         name: account.name || '---',
-        phone: account.phone || '---',
+        phone: account.role === 'agent' ? (account.contactPhone || account.phone || '---') : (account.phone || '---'),
         username: account.webUsername || '---',
         joinDate: account.createdAt,
         status: statusLabel

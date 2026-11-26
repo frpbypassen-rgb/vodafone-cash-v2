@@ -184,7 +184,7 @@ const resolveReceiptRecipient = async (transaction) => {
     if (userId) {
         const user = await safelyFind(() => User.findOne({ $or: [{ phone: userId }, { webUsername: userId }] }));
         if (user?.phone) {
-            return { phone: user.phone, name: user.name || transaction.employeeName || '', model: 'User', id: user._id, source: 'account' };
+            return { phone: user.role === 'agent' ? (user.contactPhone || user.phone) : user.phone, name: user.name || transaction.employeeName || '', model: 'User', id: user._id, source: 'account' };
         }
 
         const employee = await safelyFind(() => AgentEmployee.findOne({ $or: [{ phone: userId }, { webUsername: userId }] }));

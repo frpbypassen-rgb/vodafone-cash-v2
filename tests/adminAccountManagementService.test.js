@@ -207,6 +207,39 @@ describe('admin account management service', () => {
         expect(account.save).not.toHaveBeenCalled();
     });
 
+    test('agent may share a contact number without changing the unique login and transaction phone', async () => {
+        const account = makeAccount({
+            role: 'agent', sessionVersion: 2, smsOtpVerifiedPhoneHash: 'existing-phone-proof',
+            schema: { path: (field) => ['sessionVersion', 'smsOtpVerifiedPhoneHash'].includes(field) }
+        });
+        User.findById.mockResolvedValue(account);
+        ClientCompany.findOne.mockReturnValue(queryResult({ _id: IDS.owner }));
+
+        const result = await updateEditableAccount({
+            type: 'agent', id: IDS.account,
+            payload: userPayload({ phone: '0922222222', accountCode: '123456' })
+        });
+
+        expect(account.save).toHaveBeenCalledTimes(1);
+        expect(account.contactPhone).toBe('0922222222');
+        expect(account.phone).toBe('0911111111');
+        expect(account.sessionVersion).toBe(3);
+        expect(account.smsOtpVerifiedPhoneHash).toBe('existing-phone-proof');
+        expect(result.newData.phone).toBe('0922222222');
+    });
+
+    test('direct client phone remains unique when another account uses it', async () => {
+        const account = makeAccount();
+        User.findById.mockResolvedValue(account);
+        ClientCompany.findOne.mockReturnValue(queryResult({ _id: IDS.owner }));
+
+        await expect(updateEditableAccount({
+            type: 'user', id: IDS.account,
+            payload: userPayload({ phone: '0922222222' })
+        })).rejects.toMatchObject({ code: 'PHONE_TAKEN', field: 'phone' });
+        expect(account.save).not.toHaveBeenCalled();
+    });
+
     test('updates a company employee association, role, and permissions', async () => {
         const account = makeAccount({
             companyId: IDS.account,

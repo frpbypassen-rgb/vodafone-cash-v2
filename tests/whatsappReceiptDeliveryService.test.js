@@ -85,6 +85,25 @@ describe('WhatsApp receipt delivery', () => {
         expect(WhatsAppDelivery.mock.instances[0].messageId).toBe('wamid.receipt.1');
     });
 
+    test('keeps the agent transaction identity but sends its receipt to the shared contact number', async () => {
+        const transaction = {
+            _id: 'tx-agent-contact', customId: 'ATT-AGENT-1', status: 'completed',
+            userId: '0910000001', transferType: 'vodafone', amount: 100,
+            proofImage: 'proofs/agent.jpg'
+        };
+        Transaction.findById.mockResolvedValue(transaction);
+        User.findOne.mockResolvedValue({
+            _id: 'agent-1', role: 'agent', name: 'وكيل',
+            phone: '0910000001', contactPhone: '0940000000'
+        });
+        WhatsAppDelivery.findOne.mockResolvedValue(null);
+
+        await sendCompletedTransactionReceipt(transaction);
+
+        expect(User.findOne).toHaveBeenCalledWith({ $or: [{ phone: '0910000001' }, { webUsername: '0910000001' }] });
+        expect(normalizeWhatsAppPhone).toHaveBeenCalledWith('0940000000');
+    });
+
     test.each(['telegram', 'both'])('Telegram receipts in %s mode do not depend on WhatChimp configuration', async (mode) => {
         const telegram = require('../services/telegramService');
         telegram.telegramConfigured.mockReturnValue(true);

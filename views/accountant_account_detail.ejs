@@ -39,7 +39,7 @@ const dateLabel = value => value ? new Date(value).toLocaleString('ar-LY', { tim
     <dl class="readonly-grid">
         <div class="readonly-card"><dt>الرصيد المسجل</dt><dd><bdi><%= money(account.balance) %> LYD</bdi></dd></div>
         <div class="readonly-card"><dt>رقم الحساب</dt><dd><bdi><%= account.accountCode || account.agentCode || '—' %></bdi></dd></div>
-        <div class="readonly-card"><dt>رقم الهاتف</dt><dd><bdi><%= account.phone || '—' %></bdi></dd></div>
+        <div class="readonly-card"><dt>رقم الهاتف</dt><dd><bdi><%= account.role === 'agent' ? (account.contactPhone || account.phone || '—') : (account.phone || '—') %></bdi></dd></div>
         <div class="readonly-card"><dt>نوع الحساب</dt><dd><%= accountType %></dd></div>
     </dl>
     <section class="readonly-card" aria-labelledby="readonly-history-title">

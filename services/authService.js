@@ -728,7 +728,7 @@ const login = async (username, password, req) => {
             masterName: companyName,
             accountCode: subClientAccountCode || account.accountCode || '',
             username: account.webUsername || '',
-            phone: account.phone || '',
+            phone: account.role === 'agent' ? (account.contactPhone || account.phone || '') : (account.phone || ''),
             address: accountAddress,
             joinedAt: account.createdAt || null,
             profilePhotoUpdatedAt: account.profilePhotoUpdatedAt || null,

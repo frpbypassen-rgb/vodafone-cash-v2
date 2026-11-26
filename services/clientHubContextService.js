@@ -52,7 +52,7 @@ async function buildClientProfile(req, account, isSubAccount) {
 
     return {
         name: account.name,
-        phone: account.phone || 'غير مسجل',
+        phone: account.role === 'agent' ? (account.contactPhone || account.phone || 'غير مسجل') : (account.phone || 'غير مسجل'),
         email: isSubAccount ? account.contactEmail || account.email || '' : account.businessProfile?.email || account.email || '',
         username: account.webUsername,
         accountCode: account.accountCode || '',
@@ -102,7 +102,7 @@ async function buildHubRenderContext(req) {
         account,
         user: {
             name: account.name,
-            phone: account.phone || account.webUsername,
+            phone: account.role === 'agent' ? (account.contactPhone || account.phone || account.webUsername) : (account.phone || account.webUsername),
             balance: Number(account.balance || 0),
             role: account.role || 'user',
             accountType,

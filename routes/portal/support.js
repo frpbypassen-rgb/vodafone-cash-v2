@@ -41,7 +41,7 @@ router.get('/api/support/messages', requireClientAuth, async (req, res) => {
                 entityId: account._id,
                 telegramId: account.phone || account.webUsername,
                 name: account.name || 'مستخدم البوابة',
-                phone: account.phone || 'غير مسجل',
+                phone: account.role === 'agent' ? (account.contactPhone || account.phone || 'غير مسجل') : (account.phone || 'غير مسجل'),
                 messages: [],
             });
             await ticket.save();
@@ -127,7 +127,7 @@ router.post('/api/support/messages', requireClientAuth, async (req, res) => {
                 entityId: account._id,
                 telegramId: account.phone || account.webUsername,
                 name: account.name || 'مستخدم البوابة',
-                phone: account.phone || 'غير مسجل',
+                phone: account.role === 'agent' ? (account.contactPhone || account.phone || 'غير مسجل') : (account.phone || 'غير مسجل'),
                 messages: [],
             });
         }

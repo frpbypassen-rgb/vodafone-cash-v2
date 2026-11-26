@@ -1773,7 +1773,7 @@ const resolveCustomerProfileAccount = async (req) => {
 const customerProfilePayload = (account) => ({
     name: account.name || '',
     username: account.webUsername || '',
-    phone: account.phone || '',
+    phone: account.role === 'agent' ? (account.contactPhone || account.phone || '') : (account.phone || ''),
     address: account.address
         || (account.businessProfile && (account.businessProfile.address || account.businessProfile.city))
         || '',

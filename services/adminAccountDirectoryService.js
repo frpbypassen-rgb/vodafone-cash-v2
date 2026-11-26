@@ -33,7 +33,7 @@ const buildSectionFilter = (section, search = '') => {
     const searchableFields = {
         users: ['name', 'phone', 'webUsername', 'accountCode'],
         companies: ['name', 'phone', 'accountCode'],
-        agents: ['name', 'phone', 'webUsername', 'accountCode', 'agentCode']
+        agents: ['name', 'phone', 'contactPhone', 'webUsername', 'accountCode', 'agentCode']
     };
 
     filter.$or = searchableFields[activeSection].map((field) => ({ [field]: term }));
@@ -47,7 +47,7 @@ const modelForSection = ({ User, ClientCompany }, section) => {
 
 const fieldsForSection = (section) => {
     if (section === 'companies') return 'name phone tier balance accountCode status businessProfile.city createdAt';
-    return 'name phone tier balance accountCode agentCode webUsername role status businessProfile.city createdAt';
+    return 'name phone contactPhone tier balance accountCode agentCode webUsername role status businessProfile.city createdAt';
 };
 
 const loadAdminAccountDirectory = async ({ User, ClientCompany }, query = {}, scope = {}) => {

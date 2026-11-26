@@ -114,7 +114,7 @@ const accountToFormData = (account, submitted = null, extras = {}) => {
     const base = {
         profileRevision: account.profileRevision || 0,
         name: account.name || '',
-        phone: account.phone || '',
+        phone: account.role === 'agent' ? (account.contactPhone || account.phone || '') : (account.phone || ''),
         webUsername: account.webUsername || '',
         status: account.status || '',
         role: account.role || '',

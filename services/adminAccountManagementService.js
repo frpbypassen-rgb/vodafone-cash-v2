@@ -388,10 +388,12 @@ const applyUploadedDocuments = (account, uploads = {}) => {
 const setLoginIdentity = async ({ definition, account, payload, requirePhone = false }) => {
     const phone = normalizePhone(payload.phone, requirePhone);
     const webUsername = normalizeUsername(payload.webUsername);
-    const phoneChanged = !sameText(account.phone, phone);
+    const isAgent = definition.type === 'agent';
+    const currentPhone = isAgent ? (account.contactPhone || account.phone) : account.phone;
+    const phoneChanged = !sameText(currentPhone, phone);
     const usernameChanged = !sameText(account.webUsername, webUsername);
 
-    if (phoneChanged) {
+    if (phoneChanged && !isAgent) {
         await assertIdentityAvailable({
             field: 'phone',
             value: phone,
@@ -408,11 +410,13 @@ const setLoginIdentity = async ({ definition, account, payload, requirePhone = f
         });
     }
 
-    if (phoneChanged && account.schema?.path('smsOtpVerifiedPhoneHash')) {
+    // Shared agent contact changes must not invalidate the verified login phone.
+    if (phoneChanged && !isAgent && account.schema?.path('smsOtpVerifiedPhoneHash')) {
         const { normalizeSmsLoginPhone } = require('../utils/smsLoginPhone');
         if (normalizeSmsLoginPhone(account.phone) !== normalizeSmsLoginPhone(phone)) account.smsOtpVerifiedPhoneHash = '';
     }
-    account.phone = phone || undefined;
+    if (isAgent) account.contactPhone = phone;
+    else account.phone = phone || undefined;
     account.webUsername = webUsername;
 
     const newPassword = String(payload.newPassword || '').trim();
@@ -684,11 +688,11 @@ const safeSnapshot = (type, account, context = {}) => {
     };
 
     if (['user', 'agent', 'subaccount', 'client-employee', 'agent-employee', 'executor-employee'].includes(type)) {
-        snapshot.phone = account.phone || '';
+        snapshot.phone = type === 'agent' ? (account.contactPhone || account.phone || '') : (account.phone || '');
         snapshot.webUsername = account.webUsername || '';
     }
     if (['user', 'agent', 'company'].includes(type)) {
-        snapshot.phone = account.phone || '';
+        snapshot.phone = type === 'agent' ? (account.contactPhone || account.phone || '') : (account.phone || '');
         snapshot.tier = Number(account.tier || 1);
         snapshot.creditLimit = Number(account.creditLimit || 0);
         snapshot.accountCode = account.accountCode || '';
