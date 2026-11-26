@@ -1,6 +1,6 @@
 <%
 const summaryCounts = opsSummary.counts || {};
-const orderedCompanies = [...opsCompanies].sort((left, right) => (right.activityCount || 0) - (left.activityCount || 0));
+const orderedCompanies = [...opsCompanies].sort((left, right) => (left.activityCount || 0) - (right.activityCount || 0));
 const orderedExecutors = [...opsExecutors].sort((left, right) => (right.activityCount || 0) - (left.activityCount || 0));
 const rangeStart = typeof fromDate === 'undefined' ? '' : fromDate;
 const rangeEnd = typeof toDate === 'undefined' ? '' : toDate;

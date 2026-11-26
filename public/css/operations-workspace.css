@@ -159,7 +159,10 @@ html.admin-modern .ow-heading h1 { margin: 0; font-size: clamp(1.25rem, 2vw, 1.6
     gap: .75rem;
     align-items: start;
 }
-.ow-workspace { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.ow-workspace {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: end;
+}
 .ow-workspace-side { min-width: 0; }
 html.admin-modern .ow-panel-title {
     margin: 0;

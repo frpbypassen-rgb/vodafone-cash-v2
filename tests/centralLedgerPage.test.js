@@ -263,7 +263,7 @@ describe('central ledger page layout', () => {
         expect(companies).toContain('<dt>المكتملة اليوم</dt><dd><bdi dir="ltr">7</bdi></dd>');
         expect(companies).toContain('1,234,567.89');
         expect(companies).toContain('900.00');
-        expect(companies.indexOf('شركة النور')).toBeLessThan(companies.indexOf('شركة الأمل'));
+        expect(companies.indexOf('شركة الأمل')).toBeLessThan(companies.indexOf('شركة النور'));
         const executors = html.slice(html.indexOf('class="ow-executors"'),html.indexOf('</section>',html.indexOf('class="ow-executors"')));
         expect(html).toMatch(/class="ow-companies"[\s\S]*?class="ow-workspace-side"[\s\S]*?class="ow-breakdown"[\s\S]*?class="ow-executors"/);
         expect(executors).toContain('href="/executor/e1"');expect(executors).toContain('href="/executor/e2"');
